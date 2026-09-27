@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mapa de lugares</title>
+<style>
+  /* ── tokens: claro ── */
+  :root, .t-light{
+    --bg:#EDF1EF; --page:#F3F5F4; --surf:#FFFFFF; --surf2:#FAFBFB; --line:#E4E8E6;
+    --ink:#141A18; --mut:#5C6863; --faint:#8C9994;
+    --brand:#2563EB; --brandTint:#EAF0FE; --onBrand:#FFFFFF;
+    --paid:#177245; --partial:#B26A00; --overdue:#B42318; --promise:#7A5AF8;
+    --partialTint:#FFF4E0;
+    /* hoja y cards */
+    --sheet:#F3F5F4; --card:#FFFFFF; --cardLine:#E4E8E6; --ctl:#FFFFFF;
+    --shadow:0 1px 2px rgba(16,24,20,.10),0 6px 18px rgba(16,24,20,.12);
+    /* mapa */
+    --mapBg:#ECEEEB; --road:#FFFFFF; --roadEdge:#DADFDB; --main:#FFFFFF; --mainEdge:#C9D0CB;
+    --park:#DCE9DB; --mapLbl:#7A857F; --scrim:rgba(20,26,24,.28);
+    /* marcadores */
+    --mkCasa:#2563EB; --mkFrec:#0F766E; --mkComp:#B26A00; --mkAnt:#6B7772;
+    --mkTran:#0369A1; --mkVis:#7A5AF8; --mkRing:#FFFFFF; --mkHollow:#FFFFFF;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  /* ── tokens: oscuro OLED ── */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+      --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+      --brand:#3B82F6; --brandTint:#0E2440; --onBrand:#FFFFFF;
+      --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C; --promise:#A78BFA;
+      --partialTint:#2A1F0B;
+      --sheet:#0B0F0D; --card:#171D1A; --cardLine:#2A342F; --ctl:#1C2320;
+      --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+      --mapBg:#0F1312; --road:#1E2522; --roadEdge:#151A18; --main:#29322E; --mainEdge:#1A201D;
+      --park:#0F1F18; --mapLbl:#6C7872; --scrim:rgba(0,0,0,.55);
+      --mkCasa:#3B82F6; --mkFrec:#0D9488; --mkComp:#D97706; --mkAnt:#6B7772;
+      --mkTran:#0EA5E9; --mkVis:#8B5CF6; --mkRing:#FFFFFF; --mkHollow:#141917;
+    }
+  }
+  :root[data-theme="dark"], .t-dark{
+    --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+    --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+    --brand:#3B82F6; --brandTint:#0E2440; --onBrand:#FFFFFF;
+    --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C; --promise:#A78BFA;
+    --partialTint:#2A1F0B;
+    --sheet:#0B0F0D; --card:#171D1A; --cardLine:#2A342F; --ctl:#1C2320;
+    --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+    --mapBg:#0F1312; --road:#1E2522; --roadEdge:#151A18; --main:#29322E; --mainEdge:#1A201D;
+    --park:#0F1F18; --mapLbl:#6C7872; --scrim:rgba(0,0,0,.55);
+    --mkCasa:#3B82F6; --mkFrec:#0D9488; --mkComp:#D97706; --mkAnt:#6B7772;
+    --mkTran:#0EA5E9; --mkVis:#8B5CF6; --mkRing:#FFFFFF; --mkHollow:#141917;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+       -webkit-font-smoothing:antialiased;padding:0 16px 80px;line-height:1.45}
+  .wrap{max-width:1180px;margin:0 auto;padding-top:36px}
+  .nu{font-variant-numeric:tabular-nums lining-nums}
+  .kick{font-size:10.5px;font-weight:800;letter-spacing:.17em;text-transform:uppercase;color:var(--brand);margin:0 0 10px}
+  h1{font-size:clamp(26px,4.4vw,34px);font-weight:750;letter-spacing:-.03em;margin:0 0 8px;line-height:1.1}
+  .sub{margin:0 0 14px;color:var(--mut);font-size:14.5px;max-width:70ch}
+  .tog{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surf);color:var(--ink);
+       border-radius:999px;padding:8px 16px;cursor:pointer;min-height:40px}
+  h2{font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+  section{margin-top:48px}
+  .lede{margin:0 0 20px;color:var(--mut);font-size:14px;max-width:72ch}
+  .num{display:inline-block;min-width:26px;color:var(--faint);font-size:12.5px;font-weight:800;letter-spacing:.1em}
+  code{font-family:var(--mono);font-size:12px;background:var(--surf2);border:1px solid var(--line);padding:1px 5px;border-radius:5px}
+
+  /* datos medidos */
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:22px}
+  .fact{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+  .fact b{display:block;font-size:22px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .fact span{font-size:12.5px;color:var(--mut);line-height:1.35;display:block}
+
+  .beds{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
+  .cap{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .note{font-size:13px;color:var(--mut);margin:0}
+  .note b{color:var(--ink)}
+  .note + .note{margin-top:6px}
+
+  /* ── el aparato: 360 × 744, área útil del SM-A256E ── */
+  .ph{width:360px;height:744px;max-width:100%;overflow:hidden;position:relative;border-radius:6px;
+      border:1px solid var(--line);background:var(--mapBg);color:var(--ink);font-family:var(--ui);
+      isolation:isolate}
+  @media (max-width:400px){ .ph{max-width:none;zoom:.9} } /* a 360 px de ventana el aparato se escala, no se recorta */
+  .ph svg.map{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .ph .ctl{position:absolute;top:12px;height:48px;background:var(--ctl);box-shadow:var(--shadow);
+           border-radius:999px;display:flex;align-items:center;justify-content:center;color:var(--ink);
+           border:0;font:inherit;padding:0;cursor:pointer;z-index:3}
+  .ph .ctl svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ph .c-back{left:12px;width:48px}
+  .ph .c-theme{left:68px;width:48px}
+  .ph .c-filt{right:12px;padding:0 18px 0 14px;gap:8px;font-size:14px;font-weight:650}
+  .ph .c-filt .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);margin-left:-2px}
+  .i-sun{display:none} .t-dark .i-sun{display:block} .t-dark .i-moon{display:none}
+
+  .far{position:absolute;top:72px;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:6px;
+       background:var(--ctl);box-shadow:var(--shadow);border-radius:999px;height:32px;padding:0 12px 0 10px;
+       font-size:12.5px;font-weight:600;white-space:nowrap}
+  .far svg{width:15px;height:15px;stroke:var(--mut);fill:none;stroke-width:2;stroke-linecap:round}
+  .far em{font-style:normal;color:var(--brand);font-weight:700}
+
+  .attr{position:absolute;left:12px;font-size:11px;font-weight:700;color:var(--mapLbl);letter-spacing:.02em;z-index:2}
+  .scale{position:absolute;right:14px;font-size:10px;color:var(--mapLbl);z-index:2;text-align:right}
+  .scale i{display:block;width:50px;height:5px;border:1.5px solid var(--mapLbl);border-top:0;margin-top:1px}
+
+  /* ── marcadores propuestos ── */
+  .mk{position:absolute;transform:translate(-50%,-50%);width:var(--d,28px);height:var(--d,28px);border-radius:50%;
+      background:var(--c);border:2px solid var(--mkRing);color:#fff;display:grid;place-items:center;
+      font-weight:700;font-size:max(11px,calc(var(--d,28px)*.4));line-height:1;font-variant-numeric:tabular-nums;
+      box-shadow:0 1px 2px rgba(0,0,0,.28),0 4px 10px rgba(0,0,0,.18);z-index:2;letter-spacing:-.01em}
+  .mk.hollow{background:var(--mkHollow);border:2.5px solid var(--c);color:var(--c);
+      box-shadow:0 0 0 1.5px var(--mkRing),0 1px 2px rgba(0,0,0,.28),0 4px 10px rgba(0,0,0,.16)}
+  .mk.old{opacity:.6}
+  .mk.hl{--d:40px;box-shadow:0 0 0 7px color-mix(in srgb,var(--c) 26%,transparent),0 1px 2px rgba(0,0,0,.3),0 6px 14px rgba(0,0,0,.24);z-index:4}
+  .mk.dim{opacity:.35}
+  .vis{position:absolute;transform:translate(-50%,-50%) rotate(45deg);width:15px;height:15px;border-radius:4px;
+       background:var(--mkHollow);border:2.5px solid var(--mkVis);z-index:2;
+       box-shadow:0 0 0 1.5px var(--mkRing),0 1px 2px rgba(0,0,0,.25),0 3px 8px rgba(0,0,0,.14)}
+  .pin{position:absolute;width:34px;height:44px;transform:translate(-50%,-100%);z-index:3;
+       filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3)) drop-shadow(0 4px 6px rgba(0,0,0,.18))}
+  .pin svg{width:100%;height:100%;display:block;overflow:visible}
+  .pill{position:absolute;z-index:3;height:24px;padding:0 9px;border-radius:999px;background:var(--ctl);color:var(--ink);
+        font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap;
+        box-shadow:0 1px 2px rgba(0,0,0,.18),0 3px 8px rgba(0,0,0,.12);font-variant-numeric:tabular-nums}
+  .pill i{width:7px;height:7px;border-radius:50%;background:var(--c);display:block}
+  .pill span{color:var(--mut);font-weight:600}
+  .prec{position:absolute;transform:translate(-50%,-50%);border-radius:50%;
+        background:color-mix(in srgb,var(--mkCasa) 12%,transparent);border:1px solid color-mix(in srgb,var(--mkCasa) 35%,transparent);z-index:1}
+  .me{position:absolute;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:#1A73E8;
+      border:2.5px solid #fff;box-shadow:0 0 0 10px rgba(26,115,232,.16),0 1px 3px rgba(0,0,0,.3);z-index:2}
+  .sold{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:7px;background:var(--mkHollow);
+        border:2px solid var(--ink);display:grid;place-items:center;z-index:2;box-shadow:0 0 0 1.5px var(--mkRing),0 2px 6px rgba(0,0,0,.2)}
+  .sold svg{width:13px;height:13px;stroke:var(--ink);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  .opt{position:absolute;transform:translate(-50%,-50%);border:1.5px dashed var(--promise);border-radius:12px;z-index:1}
+  .optl{position:absolute;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--promise);z-index:2}
+
+  /* ── la hoja ── */
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--sheet);border-radius:24px 24px 0 0;z-index:5;
+         box-shadow:0 -1px 0 var(--cardLine),0 -8px 24px rgba(0,0,0,.14);padding:0 16px 16px;overflow:hidden}
+  .grab{height:22px;display:flex;justify-content:center;align-items:center}
+  .grab i{width:36px;height:4px;border-radius:2px;background:var(--faint);opacity:.6}
+  .shd{display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px}
+  .shd b{font-size:16px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+  .shd b span{color:var(--mut);font-weight:600}
+  .tagm{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:999px;background:var(--partialTint);
+        color:var(--partial);font-size:12px;font-weight:700;white-space:nowrap}
+  .tagm svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+  .list{display:flex;flex-direction:column;gap:7px}
+  .pc{background:var(--card);border:1px solid var(--cardLine);border-radius:16px;padding:11px 12px 11px 10px;
+      display:grid;grid-template-columns:32px 1fr 36px;grid-template-areas:"m t go" "m a a" "m f f" "m l l";column-gap:10px}
+  .pc .m{grid-area:m;padding-top:1px;position:relative;height:30px}
+  .pc .m .mk,.pc .m .vis{left:15px;top:14px}
+  .pc .m .pin{left:15px;top:30px;width:26px;height:34px}
+  .pc .t{grid-area:t;font-size:15px;font-weight:650;line-height:20px;letter-spacing:-.01em;display:flex;align-items:center;gap:7px;min-width:0}
+  .pc .t small{font-size:11px;font-weight:700;color:var(--partial);background:var(--partialTint);border-radius:6px;padding:1px 6px}
+  .pc .go{grid-area:go;justify-self:end;width:36px;height:20px;display:flex;align-items:center;justify-content:flex-end;color:var(--brand);position:relative}
+  .pc .go svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .pc .go::after{content:"";position:absolute;right:-12px;top:-14px;width:48px;height:48px} /* área tocable invisible */
+  .pc .a{grid-area:a;font-size:12.5px;color:var(--mut);line-height:18px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pc .f{grid-area:f;font-size:12.5px;line-height:18px;margin-top:3px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;min-width:0}
+  .pc .f svg{width:14px;height:14px;stroke:var(--mut);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+  .pc .f b{font-weight:650}
+  .pc .f .sep{color:var(--faint)}
+  .pc .f .el{overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .pc .l{grid-area:l;font-size:12px;color:var(--mut);line-height:17px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pc .l .w{color:var(--overdue);font-weight:600}
+  .pc.slim{grid-template-areas:"m t go" "m a a" "m l l"}
+  .pc.faded{background:transparent;border-style:dashed}
+  .pc.sel{border:1.5px solid var(--mkFrec);box-shadow:0 0 0 3px color-mix(in srgb,var(--mkFrec) 16%,transparent)}
+
+  .grp{background:var(--card);border:1px solid var(--cardLine);border-radius:16px;overflow:hidden}
+  .row{display:grid;grid-template-columns:32px 1fr 20px;column-gap:10px;align-items:center;padding:0 12px 0 10px;min-height:50px}
+  .row + .row{border-top:1px solid var(--cardLine)}
+  .row .m{position:relative;height:28px}
+  .row .m .mk{left:15px;top:14px}
+  .row b{font-size:14px;font-weight:650;display:block;line-height:18px}
+  .row span{font-size:12px;color:var(--mut);display:block;line-height:16px}
+  .row svg.ch{width:18px;height:18px;stroke:var(--faint);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .far-dot{position:absolute;left:15px;top:14px;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;
+           border:2px dashed var(--mkAnt);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--mut)}
+
+  .mud{display:grid;grid-template-columns:22px 1fr;gap:8px;background:var(--partialTint);color:var(--ink);border-radius:14px;padding:10px 12px}
+  .mud svg{width:18px;height:18px;stroke:var(--partial);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;margin-top:1px}
+  .mud b{font-size:13.5px;display:block;line-height:18px;color:var(--partial)}
+  .mud span{font-size:12.5px;color:var(--ink);opacity:.85;line-height:17px;display:block}
+
+  /* detalle del lugar tocado */
+  .dh{display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:6px;min-height:52px}
+  .dh .bk{width:40px;height:40px;display:flex;align-items:center;justify-content:flex-start;color:var(--ink)}
+  .dh .bk svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .dh b{font-size:17px;font-weight:700;letter-spacing:-.015em;display:block;line-height:21px}
+  .dh span{font-size:12.5px;color:var(--mut);display:block;line-height:17px}
+  .nav{display:flex;align-items:center;gap:6px;color:var(--brand);font-size:13.5px;font-weight:700;white-space:nowrap;position:relative;padding:0 2px}
+  .nav svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linejoin:round}
+  .nav::after{content:"";position:absolute;inset:-14px -10px}
+  .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .kv div{background:var(--card);border:1px solid var(--cardLine);border-radius:12px;padding:8px 11px}
+  .kv small{display:block;font-size:11px;color:var(--mut);line-height:15px}
+  .kv b{display:block;font-size:14px;font-weight:650;line-height:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .why{font-size:12.5px;color:var(--mut);margin:10px 2px 4px;line-height:17px}
+  .why b{color:var(--ink);font-weight:650}
+  .hist{background:var(--card);border:1px solid var(--cardLine);border-radius:14px;margin-top:8px}
+  .hr{display:grid;grid-template-columns:52px 10px 1fr auto;column-gap:10px;align-items:start;padding:8px 12px}
+  .hr + .hr{border-top:1px solid var(--cardLine)}
+  .hr .d{text-align:right;font-size:12.5px;font-weight:700;line-height:18px}
+  .hr .d small{display:block;font-size:11px;color:var(--mut);font-weight:500;line-height:14px}
+  .hr i{width:7px;height:7px;border-radius:50%;display:block;margin-top:6px;background:var(--paid)}
+  .hr i.v{background:var(--partial)}
+  .hr .b{font-size:14px;font-weight:600;line-height:18px}
+  .hr .b small{display:block;font-size:11.5px;color:var(--mut);font-weight:500;line-height:15px}
+  .hr .a{font-size:14px;font-weight:750;line-height:18px}
+  .more{display:flex;justify-content:space-between;align-items:center;padding:10px 2px 0;font-size:13px;color:var(--brand);font-weight:700}
+  .edge{position:absolute;z-index:3;display:flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 6px;border-radius:999px;
+        background:var(--ctl);box-shadow:var(--shadow);font-size:12px;font-weight:700;white-space:nowrap}
+  .edge svg{width:16px;height:16px;stroke:var(--mkCasa);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  .edge span{color:var(--mut);font-weight:600}
+  .ruler{position:absolute;z-index:1;height:0;border-top:2px dashed color-mix(in srgb,var(--ink) 45%,transparent);transform-origin:0 0}
+
+  /* filtros */
+  .scrim{position:absolute;inset:0;background:var(--scrim);z-index:4}
+  .fh{display:flex;align-items:center;justify-content:space-between;height:48px}
+  .fh b{font-size:18px;font-weight:700;letter-spacing:-.015em}
+  .fh a{color:var(--brand);font-size:14px;font-weight:700;text-decoration:none}
+  .fl{font-size:12.5px;font-weight:650;color:var(--mut);margin:12px 2px 7px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{height:50px;padding:0 16px;border-radius:14px;background:var(--card);border:1px solid var(--cardLine);display:flex;
+        align-items:center;gap:7px;font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap}
+  .chip small{font-size:12px;color:var(--mut);font-weight:600;font-variant-numeric:tabular-nums}
+  .chip.on{background:var(--brandTint);border-color:var(--brand);color:var(--brand)}
+  .chip.on small{color:var(--brand);opacity:.8}
+  .chip svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+  .segc{display:flex;height:50px;background:var(--card);border:1px solid var(--cardLine);border-radius:14px;padding:4px;gap:4px}
+  .segc span{flex:1;display:flex;align-items:center;justify-content:center;border-radius:10px;font-size:13.5px;font-weight:600;color:var(--mut);white-space:nowrap}
+  .segc span.on{background:var(--brand);color:#fff}
+  .sw{display:flex;align-items:center;justify-content:space-between;min-height:56px;gap:12px}
+  .sw + .sw{border-top:1px solid var(--cardLine)}
+  .sw b{font-size:14.5px;font-weight:600;display:block;line-height:19px}
+  .sw small{font-size:12px;color:var(--mut);display:block;line-height:16px}
+  .tg{width:46px;height:28px;border-radius:999px;background:var(--line);position:relative;flex:0 0 auto}
+  .tg::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .tg.on{background:var(--brand)} .tg.on::after{left:21px}
+  .swbox{background:var(--card);border:1px solid var(--cardLine);border-radius:14px;padding:0 14px;margin-top:14px}
+  .live{font-size:12.5px;color:var(--mut);text-align:center;margin-top:12px}
+  .live b{color:var(--ink)}
+
+  /* ── comparación de marcadores ── */
+  .mkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:18px}
+  .mkpanel{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--surf)}
+  .mkpanel h3{margin:0;padding:12px 16px;font-size:10.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);
+              border-bottom:1px solid var(--line)}
+  .spec{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+  .cell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column}
+  .stage{position:relative;height:92px;overflow:hidden;background:var(--mapBg)}
+  .stage svg.map{position:absolute;inset:0;width:100%;height:100%}
+  .stage > .mk,.stage > .vis,.stage > .me,.stage > .sold,.stage > .old-mk{left:50%;top:50%}
+  .stage > .pin{left:50%;top:96%}
+  .cell p{margin:0;padding:7px 9px 9px;font-size:11.5px;color:var(--mut);line-height:1.3}
+  .cell p b{color:var(--ink);font-weight:650;display:block}
+  .rowlbl{grid-column:1/-1;padding:9px 14px;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .rowlbl.bad{color:var(--overdue)} .rowlbl.good{color:var(--paid)}
+  .old-mk{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:var(--c);color:#fff;
+          font-weight:800;font-size:22px;line-height:24px;text-align:center;letter-spacing:-.04em;z-index:2;font-family:Roboto,Arial,sans-serif}
+  .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:16px}
+  .rule{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:12.5px;color:var(--mut)}
+  .rule b{display:block;color:var(--ink);font-size:13.5px;margin-bottom:2px}
+
+  .asks{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-top:18px}
+  .ask{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:15px 16px}
+  .ask b{display:block;font-size:14px;margin-bottom:4px}
+  .ask p{margin:0;font-size:12.5px;color:var(--mut);line-height:1.5}
+</style>
+</head>
+<body>
+
+<!-- El mapa: calles de Tehuacán inventadas pero creíbles. Sin negocios ni iconos. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="world"><g transform="rotate(-6 360 500)">
+<rect x="-200" y="-200" width="1120" height="1400" style="fill:var(--mapBg)"/>
+<rect x="452" y="572" width="56" height="56" rx="4" style="fill:var(--park)"/>
+<rect x="92" y="692" width="116" height="116" rx="6" style="fill:var(--park)"/>
+<rect x="-148" y="392" width="116" height="56" rx="4" style="fill:var(--park)"/>
+<path d="M-150 -200V1200 M-90 -200V1200 M-30 -200V1200 M30 -200V1200 M90 -200V1200 M150 -200V1200 M210 -200V1200 M270 -200V1200 M330 -200V1200 M390 -200V1200 M450 -200V1200 M570 -200V1200 M630 -200V1200 M690 -200V1200 M750 -200V1200 M810 -200V1200 M870 -200V1200 M-200 -150H920 M-200 -90H920 M-200 -30H920 M-200 30H920 M-200 90H920 M-200 150H920 M-200 210H920 M-200 330H920 M-200 390H920 M-200 450H920 M-200 510H920 M-200 570H920 M-200 630H920 M-200 690H920 M-200 750H920 M-200 810H920 M-200 870H920 M-200 930H920 M-200 990H920 M-200 1050H920 M-200 1110H920 M-200 1170H920" style="fill:none;stroke:var(--roadEdge);stroke-width:9"/>
+<path d="M-150 -200V1200 M-90 -200V1200 M-30 -200V1200 M30 -200V1200 M90 -200V1200 M150 -200V1200 M210 -200V1200 M270 -200V1200 M330 -200V1200 M390 -200V1200 M450 -200V1200 M570 -200V1200 M630 -200V1200 M690 -200V1200 M750 -200V1200 M810 -200V1200 M870 -200V1200 M-200 -150H920 M-200 -90H920 M-200 -30H920 M-200 30H920 M-200 90H920 M-200 150H920 M-200 210H920 M-200 330H920 M-200 390H920 M-200 450H920 M-200 510H920 M-200 570H920 M-200 630H920 M-200 690H920 M-200 750H920 M-200 810H920 M-200 870H920 M-200 930H920 M-200 990H920 M-200 1050H920 M-200 1110H920 M-200 1170H920" style="fill:none;stroke:var(--road);stroke-width:7"/>
+<path d="M510 -200V1200 M-200 270H920 M-200 922L920 518" style="fill:none;stroke:var(--mainEdge);stroke-width:15"/>
+<path d="M510 -200V1200 M-200 270H920 M-200 922L920 518" style="fill:none;stroke:var(--main);stroke-width:13"/>
+<text x="236" y="270" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:10px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--main);stroke-width:3px;stroke-linejoin:round">Av. Independencia Pte</text>
+<text x="420" y="270" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:10px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--main);stroke-width:3px;stroke-linejoin:round">Av. Independencia Pte</text>
+<text x="170" y="330" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round">C. Gabino Barreda</text>
+<text x="390" y="330" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round">C. Gabino Barreda</text>
+<text x="300" y="510" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round">C. 3 Poniente</text>
+<text x="300" y="690" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round">C. 5 Poniente</text>
+<text x="330" y="410" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round" transform="rotate(-90 330 410)">Calle 17 Sur</text>
+<text x="330" y="760" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round" transform="rotate(-90 330 760)">Calle 17 Sur</text>
+<text x="210" y="560" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round" transform="rotate(-90 210 560)">Calle 13 Sur</text>
+<text x="450" y="440" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round" transform="rotate(-90 450 440)">Calle 21 Sur</text>
+<text x="510" y="380" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:10px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--main);stroke-width:3px;stroke-linejoin:round" transform="rotate(-90 510 380)">Av. Reforma Sur</text>
+<text x="510" y="720" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:10px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--main);stroke-width:3px;stroke-linejoin:round" transform="rotate(-90 510 720)">Av. Reforma Sur</text>
+<text x="150" y="150" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round">C. 1 Poniente</text>
+<text x="90" y="470" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--road);stroke-width:3px;stroke-linejoin:round" transform="rotate(-90 90 470)">Calle 9 Sur</text>
+<text x="260" y="756.1" text-anchor="middle" dominant-baseline="central" style="font-family:-apple-system,Roboto,Arial,sans-serif;font-size:10px;font-weight:500;letter-spacing:.02em;fill:var(--mapLbl);paint-order:stroke;stroke:var(--main);stroke-width:3px;stroke-linejoin:round" transform="rotate(-19.84 260 756.1)">Blvd. López Mateos</text>
+</g></g>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <p class="kick">Ubicación · Rediseño</p>
+  <h1>Mapa de lugares</h1>
+  <p class="sub">Cómo pasa la pantalla de “un mapa con círculos” a algo que el cobrador lee parado en la
+    banqueta: dónde paga el cliente, cuándo, cuánto y de qué venta. Todo con los números que medimos
+    en la flota.</p>
+  <button class="tog" type="button" onclick="cambiarTema()">Claro / oscuro</button>
+
+  <div class="facts">
+    <div class="fact"><b>96.7%</b><span>de los pagos traen ubicación</span></div>
+    <div class="fact"><b>38%</b><span>paga siempre en un mismo lugar (≤50 m)</span></div>
+    <div class="fact"><b>62%</b><span>tiene 2 lugares o más: 23% dos, 13% tres, 26% cuatro+</span></div>
+    <div class="fact"><b>442 m</b><span>mediana al 2º lugar, p90 7 km; ~10% de los cobros del 1º</span></div>
+    <div class="fact"><b>72 / 28</b><span>con 2 lugares: intercalados contra uno tras otro (cambió de lugar)</span></div>
+    <div class="fact"><b>20</b><span>puntos por cliente en la mediana; p90 45, máx 185</span></div>
+  </div>
+
+  <!-- ═════════════════════ 01 AL ENTRAR ═════════════════════ -->
+  <section>
+    <h2><span class="num">01</span>Al entrar</h2>
+    <p class="lede">Sin tocar nada. El encuadre abarca donde más paga, los otros lugares con 3 o más cobros y el
+      último contacto; los puntos sueltos no lo mueven. La hoja nace en reposo, enseñando la primera card
+      entera y el borde de la siguiente para invitar a arrastrar. La app no dice qué es cada lugar: sólo dónde
+      se registraron los cobros.</p>
+    <div class="beds">
+
+      <!-- claro -->
+      <div class="unit">
+        <p class="cap">Claro</p>
+        <div class="ph t-light">
+          <svg class="map" viewBox="150 120 360 744"><use href="#world"/></svg>
+          <button class="ctl c-back" type="button" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><button class="ctl c-theme" type="button" aria-label="Cambiar tema"><svg viewBox="0 0 24 24" class="i-moon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg><svg viewBox="0 0 24 24" class="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button><button class="ctl c-filt" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtrar</button>
+          <div class="far"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>2 puntos lejos · <em>Ver</em></div>
+
+          <div class="mk hollow" style="--c:var(--mkTran);--d:26px;left:200px;top:118px">3</div>
+          <div class="mk" style="--c:var(--mkComp);--d:26px;left:304px;top:160px">3</div>
+          <div class="prec" style="left:118px;top:198px;width:44px;height:44px"></div>
+          <div class="pin" style="left:118px;top:200px"><svg viewBox="0 0 34 44"><path d="M17 42.5S3.5 28.4 3.5 17a13.5 13.5 0 0 1 27 0c0 11.4-13.5 25.5-13.5 25.5Z" style="fill:var(--mkCasa);stroke:var(--mkRing);stroke-width:2"/><circle cx="17" cy="17" r="5" style="fill:#fff"/></svg></div>
+          <div class="pill" style="left:138px;top:170px">Principal <span>21</span></div>
+          <div class="mk" style="--c:var(--mkFrec);--d:30px;left:272px;top:330px">6</div>
+          <div class="pill" style="left:228px;top:292px"><i style="--c:var(--mkFrec)"></i>Último <span>24 sep</span></div>
+          <div class="mk old" style="--c:var(--mkAnt);--d:28px;left:70px;top:362px">4</div>
+
+          <div class="attr" style="bottom:240px">Google</div>
+          <div class="scale" style="bottom:240px;right:72px">100 m<i></i></div>
+          <button class="ctl" type="button" aria-label="Mi ubicación" style="top:auto;right:12px;width:48px;bottom:242px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+
+          <div class="sheet" style="height:230px">
+            <div class="grab"><i></i></div>
+            <div class="shd"><b>4 lugares <span>· 34 cobros</span></b>
+              <span class="tagm"><svg viewBox="0 0 24 24"><path d="M3 12h14M13 6l6 6-6 6"/></svg>Cambió de lugar</span></div>
+            <div class="list" style="margin-top:6px">
+              <div class="pc"><div class="m"><div class="pin"><svg viewBox="0 0 34 44"><path d="M17 42.5S3.5 28.4 3.5 17a13.5 13.5 0 0 1 27 0c0 11.4-13.5 25.5-13.5 25.5Z" style="fill:var(--mkCasa);stroke:var(--mkRing);stroke-width:2"/><circle cx="17" cy="17" r="5" style="fill:#fff"/></svg></div></div>
+  <div class="t">Donde más paga</div><span class="go" aria-label="Cómo llegar"><svg viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8-8-2Z"/></svg></span>
+  <div class="a nu">21 cobros · desde jun</div>
+  <div class="f"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Sáb 10–12</b><span class="sep">·</span><b class="nu">$220</b><span class="sep">·</span><span class="el">Marisol Vega</span></div>
+  <div class="l nu">Refrigerador Mabe 14' · último 20 sep</div></div>
+              <div class="pc"><div class="m"><div class="mk" style="--c:var(--mkFrec);--d:26px">6</div></div>
+  <div class="t">Otro lugar donde paga</div><span class="go" aria-label="Cómo llegar"><svg viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8-8-2Z"/></svg></span>
+  <div class="a nu">6 cobros · a 440 m · desde jun</div>
+  <div class="f"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Mié 14–15</b><span class="sep">·</span><b class="nu">$150</b><span class="sep">·</span><span class="el">Gabriel Roque</span></div>
+  <div class="l nu">Sala 3 piezas · último 24 sep</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="note"><b>Sueltos: 1 o 2 cobros, sin importar la distancia.</b> No mueven el encuadre. Si caen
+          en la vista se dibujan tenues; si quedan fuera, sale “2 puntos lejos · Ver”, que aleja la vista para
+          enseñarlos. No se marcan como error, porque hay tres casos que no podemos distinguir: un error de GPS
+          (hay puntos a más de 1,000 km), un cobro registrado después en otro lado, o que el cliente sí pagó
+          una vez en otro sitio.</p>
+        <p class="note"><b>Por qué hay hoja.</b> Sólo el 38% paga siempre en el mismo lugar; al 62% restante el
+          mapa solo no le dice cuál es cuál. La hoja lo nombra.</p>
+      </div>
+
+      <!-- oscuro -->
+      <div class="unit">
+        <p class="cap">Oscuro OLED</p>
+        <div class="ph t-dark">
+          <svg class="map" viewBox="150 120 360 744"><use href="#world"/></svg>
+          <button class="ctl c-back" type="button" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><button class="ctl c-theme" type="button" aria-label="Cambiar tema"><svg viewBox="0 0 24 24" class="i-moon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg><svg viewBox="0 0 24 24" class="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button><button class="ctl c-filt" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtrar</button>
+          <div class="far"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>2 puntos lejos · <em>Ver</em></div>
+
+          <div class="mk hollow" style="--c:var(--mkTran);--d:26px;left:200px;top:118px">3</div>
+          <div class="mk" style="--c:var(--mkComp);--d:26px;left:304px;top:160px">3</div>
+          <div class="prec" style="left:118px;top:198px;width:44px;height:44px"></div>
+          <div class="pin" style="left:118px;top:200px"><svg viewBox="0 0 34 44"><path d="M17 42.5S3.5 28.4 3.5 17a13.5 13.5 0 0 1 27 0c0 11.4-13.5 25.5-13.5 25.5Z" style="fill:var(--mkCasa);stroke:var(--mkRing);stroke-width:2"/><circle cx="17" cy="17" r="5" style="fill:#fff"/></svg></div>
+          <div class="pill" style="left:138px;top:170px">Principal <span>21</span></div>
+          <div class="mk" style="--c:var(--mkFrec);--d:30px;left:272px;top:330px">6</div>
+          <div class="pill" style="left:228px;top:292px"><i style="--c:var(--mkFrec)"></i>Último <span>24 sep</span></div>
+          <div class="mk old" style="--c:var(--mkAnt);--d:28px;left:70px;top:362px">4</div>
+
+          <div class="attr" style="bottom:240px">Google</div>
+          <div class="scale" style="bottom:240px;right:72px">100 m<i></i></div>
+          <button class="ctl" type="button" aria-label="Mi ubicación" style="top:auto;right:12px;width:48px;bottom:242px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+
+          <div class="sheet" style="height:230px">
+            <div class="grab"><i></i></div>
+            <div class="shd"><b>4 lugares <span>· 34 cobros</span></b>
+              <span class="tagm"><svg viewBox="0 0 24 24"><path d="M3 12h14M13 6l6 6-6 6"/></svg>Cambió de lugar</span></div>
+            <div class="list" style="margin-top:6px">
+              <div class="pc"><div class="m"><div class="pin"><svg viewBox="0 0 34 44"><path d="M17 42.5S3.5 28.4 3.5 17a13.5 13.5 0 0 1 27 0c0 11.4-13.5 25.5-13.5 25.5Z" style="fill:var(--mkCasa);stroke:var(--mkRing);stroke-width:2"/><circle cx="17" cy="17" r="5" style="fill:#fff"/></svg></div></div>
+  <div class="t">Donde más paga</div><span class="go" aria-label="Cómo llegar"><svg viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8-8-2Z"/></svg></span>
+  <div class="a nu">21 cobros · desde jun</div>
+  <div class="f"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Sáb 10–12</b><span class="sep">·</span><b class="nu">$220</b><span class="sep">·</span><span class="el">Marisol Vega</span></div>
+  <div class="l nu">Refrigerador Mabe 14' · último 20 sep</div></div>
+              <div class="pc"><div class="m"><div class="mk" style="--c:var(--mkFrec);--d:26px">6</div></div>
+  <div class="t">Otro lugar donde paga</div><span class="go" aria-label="Cómo llegar"><svg viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8-8-2Z"/></svg></span>
+  <div class="a nu">6 cobros · a 440 m · desde jun</div>
+  <div class="f"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Mié 14–15</b><span class="sep">·</span><b class="nu">$150</b><span class="sep">·</span><span class="el">Gabriel Roque</span></div>
+  <div class="l nu">Sala 3 piezas · último 24 sep</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="note"><b>Oscuro.</b> El mapa no es negro puro (#0F1312) para que las calles se lean; la hoja sí
+          baja casi a negro (#0B0F0D) y las cards suben a #171D1A con borde, así se separan en tres planos.
+          El aro blanco de los marcadores se queda blanco: es lo que los despega del asfalto oscuro.</p>
+        <p class="note"><b>Tema junto a la flecha.</b> (←) y (☾) viven juntos a la izquierda; “Filtrar” a la
+          derecha. Abajo a la derecha, “Mi ubicación”, con el mismo botón redondo; pide el GPS la primera vez.
+          En este mock el botón de tema de cada teléfono funciona.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════ 02-04 ═════════════════════ -->
+  <section>
+    <h2><span class="num">02</span>Hoja arrastrada, lugar tocado y filtros</h2>
+    <p class="lede">La hoja sube a ~85% y se vuelve la lista de lugares. Tocar un lugar —en el mapa o en su
+      card— centra el mapa ahí y abre su historial. “Filtrar” abre su propia hoja.</p>
+    <div class="beds">
+
+      <!-- 2. hoja arrastrada -->
+      <div class="unit">
+        <p class="cap">2 · Hoja arrastrada</p>
+        <div class="ph follow">
+          <svg class="map" viewBox="150 120 360 744"><use href="#world"/></svg>
+          <button class="ctl c-back" type="button" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><button class="ctl c-theme" type="button" aria-label="Cambiar tema"><svg viewBox="0 0 24 24" class="i-moon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg><svg viewBox="0 0 24 24" class="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button><button class="ctl c-filt" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtrar</button>
+          <div class="mk hollow" style="--c:var(--mkTran);--d:26px;left:200px;top:118px">3</div>
+          <div class="sheet" style="height:640px">
+            <div class="grab"><i></i></div>
+            <div class="shd"><b>4 lugares <span>· 34 cobros</span></b></div>
+            <div class="list" style="margin-top:4px">
+              <div class="mud"><svg viewBox="0 0 24 24"><path d="M3 12h14M13 6l6 6-6 6"/></svg>
+                <div><b>Cambió de lugar de pago</b><span>Hasta may pagaba a 390 m</span></div></div>
+              <div class="pc"><div class="m"><div class="pin"><svg viewBox="0 0 34 44"><path d="M17 42.5S3.5 28.4 3.5 17a13.5 13.5 0 0 1 27 0c0 11.4-13.5 25.5-13.5 25.5Z" style="fill:var(--mkCasa);stroke:var(--mkRing);stroke-width:2"/><circle cx="17" cy="17" r="5" style="fill:#fff"/></svg></div></div>
+  <div class="t">Donde más paga</div><span class="go" aria-label="Cómo llegar"><svg viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8-8-2Z"/></svg></span>
+  <div class="a nu">21 cobros · desde jun</div>
+  <div class="f"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Sáb 10–12</b><span class="sep">·</span><b class="nu">$220</b><span class="sep">·</span><span class="el">Marisol Vega</span></div>
+  <div class="l nu">Refrigerador Mabe 14' · último 20 sep</div></div>
+              <div class="pc"><div class="m"><div class="mk" style="--c:var(--mkFrec);--d:26px">6</div></div>
+  <div class="t">Otro lugar donde paga</div><span class="go" aria-label="Cómo llegar"><svg viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8-8-2Z"/></svg></span>
+  <div class="a nu">6 cobros · a 440 m · desde jun</div>
+  <div class="f"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Mié 14–15</b><span class="sep">·</span><b class="nu">$150</b><span class="sep">·</span><span class="el">Gabriel Roque</span></div>
+  <div class="l nu">Sala 3 piezas · último 24 sep</div></div>
+              <div class="pc slim faded"><div class="m"><div class="mk old" style="--c:var(--mkAnt);--d:26px">4</div></div>
+  <div class="t">Pagaba aquí antes <small>Hasta may</small></div>
+  <div class="a nu">4 cobros · feb–may · a 390 m · Sala 3 piezas</div>
+  <div class="l nu">Último cobro aquí 24 may · Marisol Vega</div></div>
+              <div class="pc slim"><div class="m"><div class="mk" style="--c:var(--mkComp);--d:24px">3</div></div>
+  <div class="t">Punto compartido</div>
+  <div class="a nu">3 cobros · a 370 m</div>
+  <div class="l nu">Aquí pagan 7 clientes</div></div>
+              <div class="grp">
+                <div class="row"><div class="m"><div class="mk hollow" style="--c:var(--mkTran);--d:22px">3</div></div>
+                  <div><b>Transferencias</b><span>Marcan dónde estaba el cobrador</span></div>
+                  <svg class="ch" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+                <div class="row"><div class="m"><div class="far-dot">2</div></div>
+                  <div><b>Puntos sueltos (2)</b><span>1 cobro cada uno · fuera de la vista</span></div>
+                  <svg class="ch" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note"><b>Una card por lugar, en orden de uso.</b> 62% tiene 2+ lugares y 26% tiene 4 o más:
+          la lista es la regla, no la excepción. Donde más paga va primero; el 2º lugar suele tener ~10% de sus cobros, por
+          eso cada card enseña su conteo.</p>
+        <p class="note"><b>Cada tipo dice lo suyo.</b> Donde más paga: cuándo suele pagar y el abono típico. Otro
+          lugar: a qué distancia y <b>de qué venta</b> — 37% de quienes tienen 2 ventas las paga en lugares
+          distintos. Pagaba aquí antes: hasta cuándo. Compartido: cuántos clientes pagan ahí.</p>
+        <p class="note"><b>Alterna contra cambia.</b> Con 2 lugares, 72% alterna entre los dos y 28% deja uno y
+          sigue en el otro. Por eso “Otro lugar donde paga” y “Pagaba aquí antes” son cards distintas, y sólo la
+          segunda dispara el aviso. Lo dicen las fechas de los cobros, no qué lugar es.</p>
+      </div>
+
+      <!-- 3. lugar tocado -->
+      <div class="unit">
+        <p class="cap">3 · Un lugar tocado</p>
+        <div class="ph follow">
+          <svg class="map" viewBox="288.7 316.7 266.7 551.1"><use href="#world"/></svg>
+          <button class="ctl c-back" type="button" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button><button class="ctl c-theme" type="button" aria-label="Cambiar tema"><svg viewBox="0 0 24 24" class="i-moon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg><svg viewBox="0 0 24 24" class="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button><button class="ctl c-filt" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtrar</button>
+          <div class="edge" style="left:12px;top:72px"><svg viewBox="0 0 24 24"><path d="M17 17 7 7M7 15V7h8"/></svg>Principal <span>440 m</span></div>
+          <div class="ruler" style="left:180px;top:180px;width:150px;transform:rotate(-133deg)"></div>
+          <div class="prec" style="left:180px;top:180px;width:54px;height:54px;--mkCasa:var(--mkFrec)"></div>
+          <div class="mk hl" style="--c:var(--mkFrec);left:180px;top:180px">6</div>
+          <div class="pill" style="left:206px;top:140px"><i style="--c:var(--mkFrec)"></i>Otro lugar <span>6</span></div>
+          <div class="me" style="left:108px;top:226px"></div>
+
+          <div class="attr" style="bottom:492px">Google</div>
+          <div class="scale" style="bottom:492px;right:72px">50 m<i></i></div>
+          <button class="ctl" type="button" aria-label="Mi ubicación" style="top:auto;right:12px;width:48px;bottom:494px;color:var(--brand)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.6" style="fill:currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+
+          <div class="sheet" style="height:482px">
+            <div class="grab"><i></i></div>
+            <div class="dh">
+              <span class="bk"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></span>
+              <div><b>Otro lugar donde paga</b><span>A 440 m del principal</span></div>
+              <span class="nav"><svg viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8-8-2Z"/></svg>Cómo llegar</span>
+            </div>
+            <div class="kv">
+              <div><small>Suele pagar</small><b>Mié 14–15</b></div>
+              <div><small>Abono típico</small><b class="nu">$150</b></div>
+              <div><small>Venta</small><b>Sala 3 piezas</b></div>
+              <div><small>Cobra aquí</small><b>Gabriel Roque</b></div>
+            </div>
+            <p class="why"><b>6 cobros · jun–sep.</b> Alterna: entre semana paga aquí, el sábado en el principal.</p>
+            <div class="hist">
+              <div class="hr"><div class="d nu">24 sep<small>14:12</small></div><i></i>
+                <div class="b">Abono<small>Efectivo · Gabriel Roque</small></div><div class="a nu">$150</div></div>
+              <div class="hr"><div class="d nu">17 sep<small>14:40</small></div><i></i>
+                <div class="b">Abono<small>Efectivo · Gabriel Roque</small></div><div class="a nu">$150</div></div>
+              <div class="hr"><div class="d nu">3 sep<small>14:21</small></div><i></i>
+                <div class="b">Abono<small>Efectivo · Gabriel Roque</small></div><div class="a nu">$150</div></div>
+              <div class="hr"><div class="d nu">27 ago<small>14:08</small></div><i></i>
+                <div class="b">Abono<small>Efectivo · Gabriel Roque</small></div><div class="a nu">$150</div></div>
+            </div>
+            <div class="more"><span style="color:var(--mut);font-weight:600">Visitas ocultas</span><span>Filtrar</span></div>
+          </div>
+        </div>
+        <p class="note"><b>Centrar, no reencuadrar todo.</b> El mapa acerca y centra el lugar; el principal, que
+          queda fuera, se señala en el borde con su distancia (“Principal · 440 m”), y una línea punteada da la
+          dirección.</p>
+        <p class="note"><b>Cuatro renglones de historial.</b> La mediana es 20 puntos por cliente y el máximo 185;
+          aquí caben los últimos 4 cobros de este lugar. Las visitas salen sólo si se encienden en Filtrar.</p>
+        <p class="note"><b>Mi ubicación.</b> El punto azul es el cobrador; el botón redondo de abajo a la derecha
+          lo centra.</p>
+      </div>
+
+      <!-- 4. filtros -->
+      <div class="unit">
+        <p class="cap">4 · Filtros</p>
+        <div class="ph follow">
+          <svg class="map" viewBox="150 120 360 744"><use href="#world"/></svg>
+          <div class="scrim"></div>
+          <div class="sheet" style="height:708px">
+            <div class="grab"><i></i></div>
+            <div class="fh"><b>Filtrar</b><a>Limpiar</a></div>
+            <div class="fl">Venta</div>
+            <div class="chips">
+              <span class="chip on"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>Todas</span>
+              <span class="chip">Refrigerador Mabe 14' <small>26</small></span>
+              <span class="chip">Sala 3 piezas <small>13</small></span>
+            </div>
+            <div class="fl">Tipo</div>
+            <div class="chips">
+              <span class="chip on"><svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>Cobros <small>34</small></span>
+              <span class="chip">Visitas <small>5</small></span>
+              <span class="chip">Promesas <small>2</small></span>
+            </div>
+            <div class="fl">Periodo</div>
+            <div class="segc"><span>3 meses</span><span>1 año</span><span class="on">Todo</span></div>
+            <div class="fl">Cobrador</div>
+            <div class="segc"><span class="on">Todos</span><span>Marisol Vega</span><span>Gabriel Roque</span></div>
+            <div class="swbox">
+              <div class="sw"><div><b>Ver puntos sueltos</b><small>Lugares con 1 o 2 cobros</small></div><span class="tg"></span></div>
+              <div class="sw"><div><b>Ver cada punto</b><small>Sin juntar los de 30 m</small></div><span class="tg"></span></div>
+            </div>
+            <p class="live">Se ven <b>34 cobros</b> en 4 lugares</p>
+          </div>
+        </div>
+        <p class="note"><b>Todo en 50 dp.</b> Chips, segmentos y switches miden 50 dp o más. Se aplica al tocar,
+          sin botón de “Aplicar”: el renglón de abajo dice cuánto queda a la vista.</p>
+        <p class="note"><b>“Todo” por omisión.</b> Recortar el periodo borra la señal más valiosa, el cambio de lugar; por
+          eso nace en “Todo” y “Filtrar” muestra un punto cuando algo está puesto.</p>
+        <p class="note"><b>Visitas apagadas al entrar.</b> El mapa nace con puros cobros; las visitas (No estaba,
+          Prometió, Cita) y las promesas se encienden aquí.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════ 05 MARCADORES ═════════════════════ -->
+  <section>
+    <h2><span class="num">03</span>Marcadores</h2>
+    <p class="lede">Hoy: disco lleno sin borde ni sombra, con un número que llena y se sale del círculo.
+      Propuesta: disco con aro blanco de 2 dp y sombra suave, número en cifras tabulares al 40% del
+      diámetro, tamaño que crece despacio con el conteo. Cada tipo tiene forma propia, no sólo color.</p>
+    <div class="mkgrid">
+      <div class="mkpanel t-light"><h3>Sobre calles claras</h3><div class="spec"><div class="rowlbl bad">Hoy</div><div class="cell"><div class="stage"><svg class="map" viewBox="560 20 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkCasa)">3</div></div><p><b>Principal · 3</b>número de 22 sp en 24 dp</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="600 380 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkCasa)">21</div></div><p><b>Principal · 21</b>se sale del disco</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="570 780 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkComp)">12</div></div><p><b>Compartido</b>sin aro ni sombra</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="640 560 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkAnt)">5</div></div><p><b>Otro</b>se pierde en la calle</p></div><div class="rowlbl good">Propuesta</div><div class="cell"><div class="stage"><svg class="map" viewBox="20 860 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:22px">1</div></div><p><b>1 cobro</b>22 dp</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="560 880 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:31px">5</div></div><p><b>5 cobros</b>31 dp</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="620 120 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:38px">21</div></div><p><b>21 cobros</b>38 dp, tope</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="600 660 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:38px">185</div></div><p><b>185 cobros</b>cabe, tabular</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="40 20 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk hl" style="--c:var(--mkFrec)">6</div></div><p><b>Resaltado</b>40 dp + halo</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="560 20 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="pin"><svg viewBox="0 0 34 44"><path d="M17 42.5S3.5 28.4 3.5 17a13.5 13.5 0 0 1 27 0c0 11.4-13.5 25.5-13.5 25.5Z" style="fill:var(--mkCasa);stroke:var(--mkRing);stroke-width:2"/><circle cx="17" cy="17" r="5" style="fill:#fff"/></svg></div><div class="pill" style="left:50%;top:6px;transform:translateX(-50%)">Principal <span>21</span></div></div><p><b>Principal</b>gota + píldora</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="600 380 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk hollow" style="--c:var(--mkTran);--d:26px">3</div></div><p><b>Transferencia</b>aro hueco</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="570 780 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="vis"></div></div><p><b>Visita</b>rombo hueco</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="640 560 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkComp);--d:26px">2</div></div><p><b>Compartido</b>ámbar</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="20 860 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk old" style="--c:var(--mkAnt);--d:28px">5</div></div><p><b>Pagaba aquí antes</b>gris al 60%</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="560 880 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:26px;top:62%">6</div><div class="pill" style="left:50%;top:14px;transform:translateX(-50%)"><i style="--c:var(--mkFrec)"></i>Último <span>24 sep</span></div></div><p><b>Último contacto</b>píldora con fecha</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="620 120 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="me"></div></div><p><b>Mi ubicación</b>el cobrador</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="600 660 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkAnt);--d:22px;opacity:.45">1</div></div><p><b>Suelto</b>1 o 2 cobros, tenue</p></div></div></div>
+      <div class="mkpanel t-dark"><h3>Sobre calles oscuras</h3><div class="spec"><div class="rowlbl bad">Hoy</div><div class="cell"><div class="stage"><svg class="map" viewBox="40 20 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkCasa)">3</div></div><p><b>Principal · 3</b>número de 22 sp en 24 dp</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="560 20 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkCasa)">21</div></div><p><b>Principal · 21</b>se sale del disco</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="600 380 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkComp)">12</div></div><p><b>Compartido</b>sin aro ni sombra</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="570 780 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="old-mk" style="--c:var(--mkAnt)">5</div></div><p><b>Otro</b>se pierde en la calle</p></div><div class="rowlbl good">Propuesta</div><div class="cell"><div class="stage"><svg class="map" viewBox="640 560 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:22px">1</div></div><p><b>1 cobro</b>22 dp</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="20 860 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:31px">5</div></div><p><b>5 cobros</b>31 dp</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="560 880 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:38px">21</div></div><p><b>21 cobros</b>38 dp, tope</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="620 120 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:38px">185</div></div><p><b>185 cobros</b>cabe, tabular</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="600 660 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk hl" style="--c:var(--mkFrec)">6</div></div><p><b>Resaltado</b>40 dp + halo</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="40 20 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="pin"><svg viewBox="0 0 34 44"><path d="M17 42.5S3.5 28.4 3.5 17a13.5 13.5 0 0 1 27 0c0 11.4-13.5 25.5-13.5 25.5Z" style="fill:var(--mkCasa);stroke:var(--mkRing);stroke-width:2"/><circle cx="17" cy="17" r="5" style="fill:#fff"/></svg></div><div class="pill" style="left:50%;top:6px;transform:translateX(-50%)">Principal <span>21</span></div></div><p><b>Principal</b>gota + píldora</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="560 20 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk hollow" style="--c:var(--mkTran);--d:26px">3</div></div><p><b>Transferencia</b>aro hueco</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="600 380 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="vis"></div></div><p><b>Visita</b>rombo hueco</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="570 780 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkComp);--d:26px">2</div></div><p><b>Compartido</b>ámbar</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="640 560 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk old" style="--c:var(--mkAnt);--d:28px">5</div></div><p><b>Pagaba aquí antes</b>gris al 60%</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="20 860 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkFrec);--d:26px;top:62%">6</div><div class="pill" style="left:50%;top:14px;transform:translateX(-50%)"><i style="--c:var(--mkFrec)"></i>Último <span>24 sep</span></div></div><p><b>Último contacto</b>píldora con fecha</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="560 880 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="me"></div></div><p><b>Mi ubicación</b>el cobrador</p></div><div class="cell"><div class="stage"><svg class="map" viewBox="620 120 100 92" preserveAspectRatio="xMidYMid slice"><use href="#world"/></svg><div class="mk" style="--c:var(--mkAnt);--d:22px;opacity:.45">1</div></div><p><b>Suelto</b>1 o 2 cobros, tenue</p></div></div></div>
+    </div>
+    <div class="rules">
+      <div class="rule"><b>Tamaño</b>22 dp con 1 cobro, crece 4 dp por cada vez que el conteo se duplica,
+        tope 38 dp. 185 puntos caben: “185” a 15 sp en 34 dp útiles.</div>
+      <div class="rule"><b>Número</b>Cifras tabulares, 40% del diámetro (mínimo 11 sp), peso 700. Nunca toca el aro.</div>
+      <div class="rule"><b>Aro y sombra</b>Aro blanco de 2 dp en claro y en oscuro; sombra 0·1·2 al 28% + 0·4·10
+        al 18%. Se lee sobre calle blanca y sobre asfalto oscuro.</div>
+      <div class="rule"><b>Resaltado</b>Sube a 40 dp y gana un halo de 7 dp al 26% de su color. Los demás no se
+        apagan en el mapa; se apagan en la hoja.</div>
+      <div class="rule"><b>Principal</b>Gota con un punto blanco, anclada en la punta, con píldora “Principal · 21”.
+        Es la única gota: la forma dice “donde más paga” antes que el color.</div>
+      <div class="rule"><b>Transferencia y visita</b>Transferencia: aro hueco (el punto es del cobrador, no vota).
+        Visita (sólo con el filtro): rombo hueco violeta. Compartido: ámbar. Antes: gris al 60%. Suelto: 22 dp al 45%.</div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════ DECISIONES ═════════════════════ -->
+  <section>
+    <h2><span class="num">04</span>Decidido</h2>
+    <div class="asks">
+      <div class="ask"><b>No se inventa qué es un lugar</b>
+        <p>Sólo sabemos dónde se registraron los cobros. Nada de casa, trabajo ni domicilio: “Donde más paga”,
+          “Otro lugar donde paga”, “Pagaba aquí antes”. Nadie los renombra.</p></div>
+      <div class="ask"><b>Visitas apagadas al entrar</b>
+        <p>Se encienden en Filtrar. Por omisión: Cobros sí, Visitas no, Promesas no.</p></div>
+      <div class="ask"><b>Sin “Dónde se vendió”</b>
+        <p>Fuera del diseño: ese dato no existe.</p></div>
+      <div class="ask"><b>“Mi ubicación”, sí</b>
+        <p>Botón redondo abajo a la derecha y punto azul del cobrador.</p></div>
+      <div class="ask"><b>“Cómo llegar” en dos lugares</b>
+        <p>En “Donde más paga” y “Otro lugar donde paga”. No en “Pagaba aquí antes” ni en el compartido.</p></div>
+      <div class="ask"><b>Sueltos: 1 o 2 cobros</b>
+        <p>Sin umbral de distancia. No mueven el encuadre, se ven tenues, van plegados al final de la lista y al
+          abrirlos enseñan fecha, monto y cobrador, sin etiqueta de error.</p></div>
+      <div class="ask"><b>Marcadores</b>
+        <p>Los de la propuesta: disco con aro blanco y sombra, número tabular al 40%, gota única para el
+          principal, aro hueco para transferencia y rombo hueco para visita.</p></div>
+    </div>
+  </section>
+</div>
+
+<script>
+  function cambiarTema(){
+    var r=document.documentElement;
+    var oscuro=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme=oscuro?'light':'dark';
+    sync();
+  }
+  function sync(){
+    var r=document.documentElement;
+    var oscuro=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+    document.querySelectorAll('.follow').forEach(function(p){
+      p.classList.toggle('t-dark',oscuro); p.classList.toggle('t-light',!oscuro);
+    });
+  }
+  document.querySelectorAll('.c-theme').forEach(function(b){
+    b.addEventListener('click',function(){
+      var p=b.closest('.ph'); var d=p.classList.contains('t-dark');
+      p.classList.toggle('t-dark',!d); p.classList.toggle('t-light',d); p.classList.remove('follow');
+    });
+  });
+  sync();
+</script>
+</body>
+</html>

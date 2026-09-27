@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contactos de la venta</title>
+<style>
+  :root{
+    --bg:#EDF1EF; --page:#F3F5F4; --surf:#FFFFFF; --surf2:#FAFBFB; --line:#E4E8E6;
+    --ink:#141A18; --mut:#5C6863; --faint:#8C9994;
+    --brand:#2563EB; --brandTint:#EAF0FE; --onBrand:#FFFFFF;
+    --paid:#177245; --partial:#B26A00; --overdue:#B42318;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+      --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+      --brand:#3B82F6; --brandTint:#0E2440; --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+    --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+    --brand:#3B82F6; --brandTint:#0E2440; --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+       -webkit-font-smoothing:antialiased;padding:0 16px 72px;line-height:1.45}
+  .wrap{max-width:1200px;margin:0 auto;padding-top:36px}
+  h1{font-size:28px;letter-spacing:-.02em;margin:0 0 6px}
+  .sub{color:var(--mut);margin:0 0 8px;max-width:75ch;font-size:14.5px}
+  .tog{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surf);color:var(--ink);
+       border-radius:999px;padding:6px 14px;cursor:pointer}
+  .beds{display:flex;gap:28px;flex-wrap:wrap;margin-top:28px;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
+  .cap{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .note{font-size:13px;color:var(--mut)}
+  /* el aparato: 360 × 744 dp, área útil del SM-A256E */
+  .phone{width:360px;height:744px;max-width:100%;overflow:hidden;background:var(--page);
+         border:1px solid var(--line);border-radius:4px;position:relative;padding:0 16px}
+  .lbl{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);
+       margin:22px 0 10px}
+  .card{background:var(--surf);border-radius:16px;padding:12px 0 4px}
+  .grp{font-size:15px;font-weight:650;margin:4px 16px 6px}
+  .row{display:grid;grid-template-columns:40px 10px 1fr auto;column-gap:10px;padding:8px 16px 8px 12px}
+  .row .d{font-size:11px;font-weight:700;text-align:right}
+  .row .h{font-size:11px;color:var(--mut);text-align:right}
+  .row i{width:6px;height:6px;border-radius:50%;display:block;margin-top:6px;background:var(--paid)}
+  .row i.v{background:var(--partial)}
+  .row b{font-size:14px;font-weight:550}
+  .row .m{font-size:11.5px;color:var(--mut)}
+  .row .a{font-size:14px;font-weight:750}
+  .sep{height:1px;background:var(--line);margin:4px 0 0}
+  .ver{color:var(--brand);font-weight:700;font-size:13.5px;padding:14px 16px}
+  .fake{background:var(--surf);border-radius:16px;margin-top:12px}
+  .gone{border:2px dashed var(--overdue);border-radius:16px;padding:14px;color:var(--overdue);
+        font-size:12.5px;margin-top:12px;text-align:center}
+  .back{width:48px;height:48px;border-radius:50%;background:var(--surf);display:flex;align-items:center;
+        justify-content:center;margin-top:8px;font-size:22px}
+  .ttl{font-size:23px;font-weight:750;letter-spacing:-.02em;margin:14px 0 0;line-height:1.15}
+  .who{font-size:13px;color:var(--mut)}
+  .seg{display:flex;border:1px solid var(--line);border-radius:12px;background:var(--surf);padding:2px;margin:10px 0 14px}
+  .seg span{flex:1;text-align:center;font-size:12.5px;font-weight:650;color:var(--mut);padding:13px 0;border-radius:10px}
+  .seg span.on{background:var(--brand);color:#fff}
+  .mes{display:flex;justify-content:space-between;font-weight:750;font-size:15px;margin:2px 16px 6px}
+  .mes span{color:var(--mut)}
+  .dock{position:absolute;left:0;right:0;bottom:0;height:96px;
+        background:linear-gradient(to bottom,transparent,var(--page) 30%);padding:26px 16px 0;display:flex;gap:8px}
+  .cta{flex:1;background:var(--brand);color:#fff;border-radius:14px;height:50px;display:flex;align-items:center;
+       justify-content:center;font-weight:700;font-size:14px}
+  .ico{width:50px;height:50px;border-radius:14px;background:var(--surf)}
+  .chip{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--brand);
+        background:var(--brandTint);border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Contactos de la venta</h1>
+  <p class="sub">Puntos 2, 3 y 4. Dibujado a 360 × 744 dp, el área útil del SM-A256E. Los renglones son los mismos
+     que ya pinta la app; lo que cambia es cuántos, de quién y a dónde lleva "ver todos".</p>
+  <button class="tog" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">Claro / oscuro</button>
+
+  <div class="beds">
+
+    <!-- 1. detalle de venta -->
+    <div class="unit">
+      <div class="cap">Detalle de venta · "lo que ha pasado"</div>
+      <div class="phone">
+        <div class="fake" style="height:120px;margin-top:14px"></div>
+        <div class="lbl">Ritmo · últimas 12 semanas</div>
+        <div class="fake" style="height:64px;margin-top:0"></div>
+        <div class="lbl">Lo que ha pasado</div>
+        <div class="card">
+          <div class="grp">Esta semana</div>
+          <div class="row"><div><div class="d">24 sep</div><div class="h">11:00</div></div><i class="v"></i>
+            <div><b>No estaba</b><div class="m">Marisol Vega</div></div><div></div></div>
+          <div class="grp" style="margin-top:6px">Antes</div>
+          <div class="row"><div><div class="d">17 sep</div><div class="h">11:10</div></div><i></i>
+            <div><b>Abono</b><div class="m">Efectivo · Marisol Vega</div></div><div class="a">$350</div></div>
+          <div class="row"><div><div class="d">10 sep</div><div class="h">12:30</div></div><i></i>
+            <div><b>Abono</b><div class="m">Efectivo · Marisol Vega</div></div><div class="a">$350</div></div>
+          <div class="sep"></div>
+          <div class="ver">Ver los 14 contactos ›</div>
+        </div>
+        <div class="lbl">Productos</div>
+        <div class="fake" style="height:60px;margin-top:0"></div>
+        <div class="dock"><div class="cta">Abonar $350</div><div class="ico"></div><div class="ico"></div></div>
+      </div>
+      <div class="note">Tres renglones, sólo de esta venta, agrupados por cercanía como los tenía el cliente.
+        Sin "Esta venta / Todo el cliente" y sin pastillas: los filtros viven en la lista completa.
+        "Ver los N abonos" pasa a "Ver los N contactos" y cuenta sólo los de esta venta.</div>
+    </div>
+
+    <!-- 2. bitácora de la venta -->
+    <div class="unit">
+      <div class="cap">Al tocar "Ver los 14 contactos"</div>
+      <div class="phone">
+        <div class="back">←</div>
+        <div class="ttl">Refrigerador Mabe 14'</div>
+        <div class="who">Victoria Flores Olmedo · 14 contactos</div>
+        <div class="seg"><span class="on">Todos 14</span><span>Cobros 11</span><span>Visitas 3</span><span>Promesas 1</span></div>
+        <div class="card">
+          <div class="mes">SEPTIEMBRE 2026 <span>$700</span></div>
+          <div class="row"><div><div class="d">24 sep</div><div class="h">11:00</div></div><i class="v"></i>
+            <div><b>No estaba</b><div class="m">Marisol Vega</div></div><div></div></div>
+          <div class="row"><div><div class="d">17 sep</div><div class="h">11:10</div></div><i></i>
+            <div><b>Abono</b><div class="m">Efectivo · Marisol Vega</div></div><div class="a">$350</div></div>
+          <div class="row"><div><div class="d">10 sep</div><div class="h">12:30</div></div><i></i>
+            <div><b>Abono</b><div class="m">Efectivo · Marisol Vega</div></div><div class="a">$350</div></div>
+        </div>
+        <div class="mes" style="margin-top:22px">AGOSTO 2026 <span>$1,050</span></div>
+        <div class="row"><div><div class="d">27 ago</div><div class="h">10:40</div></div><i></i>
+          <div><b>Abono</b><div class="m">Efectivo · Marisol Vega</div></div><div class="a">$350</div></div>
+        <div class="row"><div><div class="d">20 ago</div><div class="h">11:05</div></div><i></i>
+          <div><b>Abono</b><div class="m">Transferencia · Marisol Vega</div></div><div class="a">$350</div></div>
+      </div>
+      <div class="note">La misma pantalla que abría el cliente —pastillas por tipo, meses con subtotal—, acotada a esta venta.
+        El título es el producto (así se nombra la cuenta en toda la app) y el cliente baja al renglón de abajo.
+        Las visitas registradas sin elegir cuenta no salen aquí: no son de esta venta.</div>
+    </div>
+
+    <!-- 3. detalle de cliente -->
+    <div class="unit">
+      <div class="cap">Detalle de cliente · el final de la pantalla</div>
+      <div class="phone">
+        <div class="lbl" style="margin-top:18px">Sus ventas</div>
+        <div class="fake" style="height:150px;margin-top:0"></div>
+        <div class="gone">"Últimos contactos" y "Ver los N contactos" se van<br>de esta pantalla, y nada los reemplaza</div>
+        <div class="lbl">Notas</div>
+        <div class="fake" style="height:90px;margin-top:0"></div>
+        <div class="dock"><div class="cta">Registrar abono</div><div class="ico"></div><div class="ico"></div></div>
+      </div>
+      <div class="note">Después de "sus ventas" sigue directo la ficha. Desde aquí los contactos se ven entrando a cada venta.</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Detalle de venta arriba</title>
+<style>
+  :root{
+    --bg:#EDF1EF; --page:#F3F5F4; --surf:#FFFFFF; --surf2:#FAFBFB; --line:#E4E8E6;
+    --ink:#141A18; --mut:#5C6863; --faint:#8C9994;
+    --brand:#2563EB; --brandTint:#EAF0FE; --onBrand:#FFFFFF;
+    --paid:#177245; --paidTint:#E3F1E8; --partial:#B26A00; --partialTint:#FBEEDD;
+    --overdue:#B42318; --overdueTint:#FBE6E3; --danger:#A3143A;
+    --bar:#6EE0BE; --track:#E3E8E6; --band:#F8FAF9;
+    --shadow:0 1px 2px rgba(16,24,20,.10),0 6px 18px rgba(16,24,20,.12);
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+      --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+      --brand:#3B82F6; --brandTint:#0E2440;
+      --paid:#40CB84; --paidTint:#0E2419; --partial:#E3AC4E; --partialTint:#2A1F0B;
+      --overdue:#F26A5C; --overdueTint:#2C1210; --danger:#F4677A;
+      --bar:#6EE0BE; --track:#26302C; --band:#070908;
+      --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+    --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+    --brand:#3B82F6; --brandTint:#0E2440;
+    --paid:#40CB84; --paidTint:#0E2419; --partial:#E3AC4E; --partialTint:#2A1F0B;
+    --overdue:#F26A5C; --overdueTint:#2C1210; --danger:#F4677A;
+    --bar:#6EE0BE; --track:#26302C; --band:#070908;
+    --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+       -webkit-font-smoothing:antialiased;padding:0 16px 80px;line-height:1.45}
+  .wrap{max-width:1200px;margin:0 auto;padding-top:36px}
+  h1{font-size:28px;letter-spacing:-.02em;margin:0 0 6px;line-height:1.15}
+  h2{font-size:20px;letter-spacing:-.02em;margin:0 0 4px}
+  section{margin-top:52px}
+  .sub{color:var(--mut);margin:0 0 12px;max-width:75ch;font-size:14.5px}
+  .lede{color:var(--mut);margin:0 0 22px;max-width:75ch;font-size:14px}
+  .tog{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surf);color:var(--ink);
+       border-radius:999px;padding:8px 16px;cursor:pointer;min-height:40px}
+  .beds{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
+  .cap{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .cap.rec{color:var(--paid)}
+  .note{font-size:13px;color:var(--mut);margin:0}
+  .note b{color:var(--ink)}
+  .meas{font-size:12px;font-weight:650;color:var(--ink);background:var(--surf);border:1px solid var(--line);
+        border-radius:10px;padding:8px 10px;font-variant-numeric:tabular-nums}
+  .meas .ok{color:var(--paid)} .meas .bad{color:var(--overdue)}
+
+  /* ── el aparato: 360 dp de ancho; el pliegue a 744 dp (área útil SM-A256E) ── */
+  .phone{width:360px;height:840px;overflow:hidden;background:var(--page);color:var(--ink);
+         border:1px solid var(--line);border-radius:4px;position:relative;padding:0 16px;font-size:16px}
+  .phone.short{height:744px}
+  .fold{position:absolute;left:0;right:0;top:744px;bottom:0;z-index:20;
+        background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--bg) 78%,transparent) 0 8px,color-mix(in srgb,var(--bg) 88%,transparent) 8px 16px);
+        border-top:2px dashed var(--overdue)}
+  .fold span{position:absolute;top:6px;right:10px;font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--overdue)}
+
+  /* piezas de la pantalla */
+  .back{width:56px;height:56px;border-radius:50%;background:var(--surf);display:flex;align-items:center;
+        justify-content:center;margin-top:8px}
+  svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .who{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--mut);font-size:14px}
+  .sq{width:22px;height:22px;border-radius:6px;background:var(--overdueTint);color:var(--overdue);
+      display:flex;align-items:center;justify-content:center;flex:none}
+  .sq svg.i{width:13px;height:13px}
+  .ttl{font-size:18.5px;font-weight:780;letter-spacing:-.01em;margin:6px 0 0;line-height:1.2}
+  .meta{font-size:13px;color:var(--mut);margin-top:2px}
+  .card{background:var(--surf);border:1px solid var(--line);border-radius:16px}
+  .estado{display:flex;align-items:center;gap:12px;padding:14px 16px;margin-top:16px}
+  .estado .big{width:44px;height:44px;border-radius:12px;background:var(--overdueTint);color:var(--overdue);
+               display:flex;align-items:center;justify-content:center}
+  .estado b{display:block;font-size:17px;font-weight:760;letter-spacing:-.01em}
+  .estado small{font-size:11.5px;color:var(--mut)}
+  .nota{background:var(--partialTint);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-top:16px;position:relative}
+  .nota .k{font-size:10.5px;font-weight:800;letter-spacing:.12em;color:var(--partial);text-transform:uppercase}
+  .nota p{margin:4px 0 0;font-weight:650;font-size:14.5px}
+  .gone{outline:2.5px dashed var(--overdue);outline-offset:3px}
+  .gone-tag{position:absolute;right:10px;top:-10px;background:var(--overdue);color:#fff;font-size:10.5px;font-weight:800;
+            letter-spacing:.06em;border-radius:999px;padding:2px 9px}
+  .k{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  .saldo{padding:16px;margin-top:16px}
+  .saldo .n{font-size:36px;font-weight:820;letter-spacing:-.02em;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+  .track{height:6px;border-radius:99px;background:var(--track);margin:14px 0 12px;overflow:hidden}
+  .track i{display:block;height:100%;width:67%;background:var(--bar);border-radius:99px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+  .two b{display:block;font-size:20px;font-weight:780;font-variant-numeric:tabular-nums}
+  .lbl{font-size:11px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:20px 0 8px}
+  .liq{padding:16px;display:flex;align-items:center;justify-content:space-between}
+  .liq .n{font-size:30px;font-weight:820;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .liq small{font-size:11.5px;color:var(--faint)}
+  .usar{background:var(--brand);color:#fff;border-radius:12px;height:50px;padding:0 16px;display:flex;align-items:center;font-weight:750}
+  .fake{background:var(--surf);border:1px solid var(--line);border-radius:16px}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* saldo compacto (propuestas) */
+  .saldo2{padding:14px 16px;margin-top:12px}
+  .saldo2 .row1{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+  .saldo2 .n{font-size:34px;font-weight:820;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+  .saldo2 .par{text-align:right;font-size:13px;color:var(--mut);line-height:1.25}
+  .saldo2 .par b{display:block;color:var(--ink);font-size:17px;font-weight:760}
+  .saldo2 .track{margin:12px 0 0}
+
+  /* P1 · ficha de la venta */
+  .ficha{margin-top:12px;overflow:hidden}
+  .ficha .top{display:flex;align-items:center;gap:10px;padding:12px 16px 10px}
+  .ficha .top .sq{width:28px;height:28px;border-radius:8px}
+  .ficha .top b{font-size:14.5px;font-weight:720}
+  .ficha .top small{display:block;font-size:12px;color:var(--mut);font-weight:500}
+  .grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line)}
+  .grid div{padding:8px 16px;border-bottom:1px solid var(--line)}
+  .grid div:nth-child(odd){border-right:1px solid var(--line)}
+  .grid span{display:block;font-size:11.5px;color:var(--mut);line-height:1.2}
+  .grid b{display:block;font-size:15.5px;font-weight:760;font-variant-numeric:tabular-nums;line-height:1.3}
+  .kv{padding:8px 16px 2px}
+  .kv p{margin:0 0 5px;font-size:13px;color:var(--mut);line-height:1.3}
+  .kv p b{color:var(--ink);font-weight:700;margin-left:4px}
+  .more{display:flex;align-items:center;justify-content:space-between;color:var(--brand);font-weight:720;font-size:13.5px;
+        padding:0 16px;height:50px;border-top:1px solid var(--line)}
+  .more small{color:var(--faint);font-weight:500;font-size:12px}
+
+  /* P2 · cifras en fila + hoja */
+  .hero{margin-top:12px;padding:14px 0 0}
+  .hero .pad{padding:0 16px}
+  .chips{display:flex;gap:8px;overflow:hidden;padding:12px 16px 14px;white-space:nowrap;
+         mask-image:linear-gradient(to right,#000 82%,transparent)}
+  .chip{flex:none;border:1px solid var(--line);background:var(--surf2);border-radius:12px;padding:6px 11px;line-height:1.2}
+  .chip span{display:block;font-size:11px;color:var(--mut)}
+  .chip b{font-size:15px;font-weight:760;font-variant-numeric:tabular-nums}
+  .people{display:flex;flex-direction:column;gap:3px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--mut)}
+  .people b{color:var(--ink);font-weight:700;margin-left:4px}
+  .sheet{position:absolute;left:0;right:0;bottom:96px;top:auto;height:560px;z-index:15;background:var(--surf);border-radius:22px 22px 0 0;
+         box-shadow:0 -8px 30px rgba(0,0,0,.25);padding:10px 16px 0}
+  .scrim{position:absolute;inset:0;background:rgba(10,14,12,.45);z-index:14}
+  .grab{width:36px;height:4px;border-radius:9px;background:var(--line);margin:0 auto 10px}
+  .sheet h3{margin:0 0 6px;font-size:17px}
+  .srow{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .srow span{color:var(--mut)} .srow b{text-align:right;font-weight:680}
+  .sgrp{font-size:10.5px;font-weight:800;letter-spacing:.12em;color:var(--faint);text-transform:uppercase;margin:12px 0 0}
+
+  /* P3 · segmentado */
+  .seg{display:flex;border:1px solid var(--line);border-radius:14px;background:var(--surf);padding:3px;margin:12px 0 0}
+  .seg span{flex:1;text-align:center;font-size:14px;font-weight:700;color:var(--mut);height:44px;line-height:44px;border-radius:11px}
+  .seg span.on{background:var(--ink);color:var(--page)}
+  .dl{padding:4px 16px}
+  .dl .srow:last-child{border-bottom:0}
+
+  /* ── el dock ── */
+  .dock{position:absolute;left:0;right:0;z-index:10;padding:0 16px 16px;
+        background:linear-gradient(to bottom,transparent 0,var(--band) 34px,var(--band) 100%);padding-top:38px}
+  .dock.at744{top:auto;bottom:calc(100% - 744px)}
+  .phone.short .dock.at744{bottom:0}
+  .drow{display:flex;gap:8px;align-items:stretch}
+  .drow + .drow{margin-top:6px}
+  .btn{min-height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;text-align:center;
+       font-weight:760;font-size:calc(16px * var(--k,1));line-height:1.15;padding:6px 8px;
+       overflow-wrap:normal;word-break:keep-all;hyphens:none}
+  .btn.cta{background:var(--brand);color:#fff;flex:2;box-shadow:0 6px 16px color-mix(in srgb,var(--brand) 30%,transparent)}
+  .btn.sec{background:var(--surf);color:var(--ink);flex:1;border:1px solid var(--line)}
+  .btn.dgr{color:var(--danger)}
+  .btn.more{flex:none;width:56px;padding:0;height:auto;border-top:none}
+  .btn.stack{flex-direction:column;gap:3px;font-size:calc(12px * var(--k,1));font-weight:720;padding:6px 2px}
+  .btn.stack svg.i{width:20px;height:20px}
+  .full{flex:1 1 100%}
+  .menu{position:absolute;right:16px;z-index:14;background:var(--surf);border:1px solid var(--line);border-radius:16px;
+        box-shadow:var(--shadow);min-width:210px;padding:6px}
+  .menu div{display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:12px;font-weight:700;font-size:15px}
+  .menu .d{color:var(--danger)}
+  .menu small{display:block;font-weight:500;font-size:12px;color:var(--mut)}
+  .textrow{display:flex;justify-content:space-around;margin-top:2px}
+  .textrow span{height:50px;display:flex;align-items:center;gap:6px;font-weight:720;font-size:calc(15px * var(--k,1));padding:0 18px}
+
+
+  /* controles flotantes fijos (como el detalle de cliente): fila de 48 dp a 8 dp del borde */
+  .veil{position:absolute;left:0;right:0;top:0;height:84px;z-index:8;pointer-events:none;
+        background:linear-gradient(to bottom,var(--band) 0,var(--band) 40px,transparent 84px)}
+  .veil.lite{background:linear-gradient(to bottom,color-mix(in srgb,var(--page) 70%,transparent),transparent 24px);height:24px}
+  .ctrls{position:absolute;top:8px;right:16px;display:flex;gap:12px;z-index:13}
+  .cb{width:48px;height:48px;border-radius:14px;background:var(--surf);border:1px solid var(--line);box-shadow:var(--shadow);
+      display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .cb.on{background:var(--ink);color:var(--page)}
+  .who.first{margin-top:8px;height:48px;padding-right:124px}
+  .compact{position:absolute;left:0;right:0;top:0;z-index:12;padding:8px 124px 0 16px;height:84px;
+           background:linear-gradient(to bottom,var(--band) 0,var(--band) 56px,transparent 84px)}
+  .compact div{height:48px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+  .compact b{font-size:16px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .compact small{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scrolled{position:relative;margin-top:-236px}
+  /* tiras del dock (sección C y D): mitad de aparato */
+  .strip{width:360px;max-width:100%;position:relative;background:var(--page);border:1px solid var(--line);border-radius:4px;
+         overflow:hidden;padding:0 16px}
+  .strip .dock{position:absolute;bottom:0}
+  .dec{margin:0;padding-left:20px;font-size:14.5px;max-width:75ch}
+  .dec li{margin:0 0 10px}
+  .dec li b{font-weight:700}
+  table.cmp{border-collapse:collapse;font-size:13px;width:100%;max-width:900px;background:var(--surf);border-radius:12px;overflow:hidden}
+  table.cmp th,table.cmp td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.cmp th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+  .tblwrap{overflow-x:auto;max-width:100%}
+  @media (max-width:400px){ .phone,.strip{zoom:.9} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></symbol>
+  <symbol id="door" viewBox="0 0 24 24"><path d="M5 21V4.5A1.5 1.5 0 0 1 6.5 3h11A1.5 1.5 0 0 1 19 4.5V21M3 21h18"/><circle cx="15" cy="12.5" r=".8"/></symbol>
+  <symbol id="tag" viewBox="0 0 24 24"><path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9z"/><path d="M8 8h.01"/><path d="M9.5 15.5l6-6"/></symbol>
+  <symbol id="eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="eyeoff" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.6A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.8 3.6M6.6 6.6C3.9 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.9 0 3.6-.6 5-1.5M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+</svg>
+
+<div class="wrap">
+  <h1>Detalle de venta: los datos arriba</h1>
+  <p class="sub">Lo que pidió el dueño: quitar la "nota de la venta" (es la del cliente), subir los datos de la venta,
+     arreglar "Condon/ar" y que a letra grande el botón diga sólo "Abonar". Cada aparato mide 360 dp de ancho;
+     la línea roja punteada es el pliegue a 744 dp (área útil del SM-A256E). Lo que queda bajo la línea no se ve sin desplazar.
+     Sólo datos que la pantalla ya trae. En las propuestas no hay flecha de volver (el gesto del sistema ya vuelve, como en el cliente) y arriba a la derecha quedan fijos el ojo y el sol/luna.</p>
+  <button class="tog" onclick="var r=document.documentElement;r.dataset.theme=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark'">Claro / oscuro</button>
+
+  <!-- ═══════════════ A · HOY ═══════════════ -->
+  <section>
+    <h2>A · Hoy</h2>
+    <p class="lede">Reproducción del golden <code>pagos_venta_light_1_0</code> a letra normal. Los datos de la venta
+      (total, contado, enganche, aval, vendedores…) están 5 tarjetas más abajo, después de ritmo, contactos, productos y garantía.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">Hoy · letra normal</div>
+        <div class="phone" data-phone>
+          <div class="back"><svg class="i"><use href="#arrow"/></svg></div>
+          <div class="who"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+          <div class="ttl">Refrigerador Mabe 14'</div>
+          <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+          <div class="card estado"><div class="big"><svg class="i"><use href="#cal"/></svg></div>
+            <div><b>Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+          <div class="nota gone"><span class="gone-tag">Se va</span><div class="k">Nota de la venta</div><p>entrega en la puerta de atrás</p></div>
+          <div class="card saldo" data-m="saldo">
+            <div class="k">Saldo de esta venta</div>
+            <div class="n">$1,450</div>
+            <div class="track"><i></i></div>
+            <div class="two"><div><span class="k">Parcialidad</span><b>$220</b></div><div><span class="k">Frecuencia</span><b>semanal</b></div></div>
+          </div>
+          <div class="lbl">Liquidación de esta venta</div>
+          <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div><small>Vigente hasta el 6 sept</small></div><div class="usar">Usar</div></div>
+          <div class="lbl">Ritmo · últimas 12 semanas</div>
+          <div class="fake" style="height:70px"></div>
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+            <div class="btn sec dgr" style="flex:1">Condon<br>ar</div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <div class="meas" data-out></div>
+        <p class="note"><b>Tres problemas a la vista:</b> la nota amarilla (es del cliente, no de la venta) ocupa 75 dp entre el estado y el saldo;
+          ningún dato del trato aparece arriba del pliegue; y "Condonar" no cabe en su celda de ~78 dp y se parte a media palabra.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ B · PROPUESTAS ═══════════════ -->
+  <section>
+    <h2>B · Cómo subir los datos de la venta</h2>
+    <p class="lede">En las tres, la nota de la venta y la tarjeta "Sin notas de esta venta" del fondo <b>desaparecen</b>
+      (la nota vive en el detalle de cliente, "Lo que anotaste"). Lo que cambia es dónde va el resto de la ficha.</p>
+    <div class="beds">
+
+      <!-- P1 -->
+      <div class="unit">
+        <div class="cap rec">1 · Ficha compacta · recomendada</div>
+        <div class="phone" data-phone>
+          <div class="veil lite"></div><div class="ctrls"><span class="cb"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div class="who first"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+          <div class="ttl">Refrigerador Mabe 14'</div>
+          <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+          <div class="card saldo2" data-m="saldo">
+            <div class="k">Saldo de esta venta</div>
+            <div class="row1"><div class="n">$1,450</div><div class="par">Parcialidad<b>$220 semanal</b></div></div>
+            <div class="track"><i></i></div>
+          </div>
+          <div class="card ficha" data-m="ficha">
+            <div class="top"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>
+              <div><b>Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+            <div class="grid">
+              <div><span>Total venta</span><b>$4,400</b></div><div><span>Abonado</span><b>$2,950</b></div>
+              <div><span>Precio de contado</span><b>$3,600</b></div><div><span>Enganche</span><b>$400</b></div>
+              <div><span>Precio a 3 meses</span><b>$3,900</b></div><div><span>Zona</span><b>Ruta 25</b></div>
+            </div>
+            <div class="kv">
+              <p>Aval o responsable<b>Rosa María Ramírez</b></p>
+              <p>Vendedores<b>Luis Ángel Mora, Karina Sosa</b></p>
+              <p>Última visita<b>24 ago</b></p>
+            </div>
+            <div class="more">Ver todo<small>Teléfono y dirección ›</small></div>
+          </div>
+          <div class="lbl">Liquidación de esta venta</div>
+          <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div></div><div class="usar">Usar</div></div>
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+            <div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <div class="meas" data-out></div>
+        <p class="note"><b>Saldo primero, ficha pegada abajo.</b> El estado grande se vuelve el encabezado de la ficha (ahorra una tarjeta);
+          la rejilla de 2 columnas pone las seis cifras del trato donde el ojo ya está, y aval, vendedores y última visita van como en el cliente.
+          "Ver todo" es texto con área tocable de 50 dp y despliega en su lugar teléfono y dirección.</p>
+      </div>
+
+      <!-- P1 abierto -->
+      <div class="unit">
+        <div class="cap">1 · Al tocar "Ver todo"</div>
+        <div class="phone" data-phone>
+          <div class="veil lite"></div><div class="ctrls"><span class="cb"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div style="height:64px"></div>
+          <div class="card ficha" style="margin-top:0">
+            <div class="top"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>
+              <div><b>Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+            <div class="grid">
+              <div><span>Total venta</span><b>$4,400</b></div><div><span>Abonado</span><b>$2,950</b></div>
+              <div><span>Precio de contado</span><b>$3,600</b></div><div><span>Enganche</span><b>$400</b></div>
+              <div><span>Precio a 3 meses</span><b>$3,900</b></div><div><span>Zona</span><b>Ruta 25</b></div>
+            </div>
+            <div class="kv">
+              <p>Aval o responsable<b>Rosa María Ramírez</b></p>
+              <p>Vendedores<b>Luis Ángel Mora, Karina Sosa</b></p>
+              <p>Última visita<b>24 ago</b></p>
+              <p>Teléfono<b class="num">238 104 5521</b></p>
+              <p>Dirección<b>C. Miguel Hidalgo y Costilla 214, Col. Emiliano Zapata, Tehuacán</b></p>
+              <p>Fecha de venta<b>4 may 2026</b></p>
+            </div>
+            <div class="more">Ver menos<small></small></div>
+          </div>
+          <div class="lbl">Liquidación de esta venta</div>
+          <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div><small>Vigente hasta el 6 sept</small></div><div class="usar">Usar</div></div>
+          <div class="lbl">Ritmo · últimas 12 semanas</div>
+          <div class="fake" style="height:70px"></div>
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+            <div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <p class="note">Desplegado, ya contiene los once renglones de hoy: la sección "Datos de la venta" del fondo <b>se elimina</b>, no se duplica.
+          Se abre en su lugar (no hoja aparte) para que "Ver menos" regrese al mismo punto. Llamar y "Cómo llegar" siguen en el detalle de cliente.</p>
+      </div>
+
+      <!-- P1 desplazado -->
+      <div class="unit">
+        <div class="cap">1 · Desplazado</div>
+        <div class="phone">
+          <div class="compact"><div><b>Refrigerador Mabe 14'</b><small>Victoria Flores Olmedo</small></div></div>
+          <div class="ctrls"><span class="cb"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div class="scrolled"><div class="who first"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+          <div class="ttl">Refrigerador Mabe 14'</div>
+          <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+          <div class="card saldo2" data-m="saldo">
+            <div class="k">Saldo de esta venta</div>
+            <div class="row1"><div class="n">$1,450</div><div class="par">Parcialidad<b>$220 semanal</b></div></div>
+            <div class="track"><i></i></div>
+          </div>
+          <div class="card ficha" data-m="ficha">
+            <div class="top"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>
+              <div><b>Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+            <div class="grid">
+              <div><span>Total venta</span><b>$4,400</b></div><div><span>Abonado</span><b>$2,950</b></div>
+              <div><span>Precio de contado</span><b>$3,600</b></div><div><span>Enganche</span><b>$400</b></div>
+              <div><span>Precio a 3 meses</span><b>$3,900</b></div><div><span>Zona</span><b>Ruta 25</b></div>
+            </div>
+            <div class="kv">
+              <p>Aval o responsable<b>Rosa María Ramírez</b></p>
+              <p>Vendedores<b>Luis Ángel Mora, Karina Sosa</b></p>
+              <p>Última visita<b>24 ago</b></p>
+            </div>
+            <div class="more">Ver todo<small>Teléfono y dirección ›</small></div>
+          </div>
+          <div class="lbl">Liquidación de esta venta</div>
+          <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div></div><div class="usar">Usar</div></div>
+          <div class="lbl">Ritmo · últimas 12 semanas</div>
+          <div class="fake" style="height:70px"></div>
+          <div class="lbl">Lo que ha pasado</div>
+          <div class="fake" style="height:170px"></div>
+          </div>
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+            <div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <p class="note"><b>Encabezado compacto:</b> el producto (así se nombra la cuenta en toda la app) y abajo el cliente, en la misma banda de 48 dp
+          que los controles para que los dos centros coincidan. Entra al 70 % del recorrido, como en el cliente. El contenido pasa por debajo con el degradado;
+          el ojo y el sol/luna no se mueven.</p>
+      </div>
+
+      <!-- P1 oculto -->
+      <div class="unit">
+        <div class="cap">1 · Cantidades ocultas</div>
+        <div class="phone" data-mask>
+          <div class="veil lite"></div><div class="ctrls"><span class="cb on"><svg class="i"><use href="#eyeoff"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div class="who first"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+          <div class="ttl">Refrigerador Mabe 14'</div>
+          <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+          <div class="card saldo2" data-m="saldo">
+            <div class="k">Saldo de esta venta</div>
+            <div class="row1"><div class="n">$1,450</div><div class="par">Parcialidad<b>$220 semanal</b></div></div>
+            <div class="track"><i></i></div>
+          </div>
+          <div class="card ficha" data-m="ficha">
+            <div class="top"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>
+              <div><b>Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+            <div class="grid">
+              <div><span>Total venta</span><b>$4,400</b></div><div><span>Abonado</span><b>$2,950</b></div>
+              <div><span>Precio de contado</span><b>$3,600</b></div><div><span>Enganche</span><b>$400</b></div>
+              <div><span>Precio a 3 meses</span><b>$3,900</b></div><div><span>Zona</span><b>Ruta 25</b></div>
+            </div>
+            <div class="kv">
+              <p>Aval o responsable<b>Rosa María Ramírez</b></p>
+              <p>Vendedores<b>Luis Ángel Mora, Karina Sosa</b></p>
+              <p>Última visita<b>24 ago</b></p>
+            </div>
+            <div class="more">Ver todo<small>Teléfono y dirección ›</small></div>
+          </div>
+          <div class="lbl">Liquidación de esta venta</div>
+          <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div></div><div class="usar">Usar</div></div>
+          
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar</div><div class="btn sec">Visita</div>
+            <div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <p class="note">El ojo tapa <b>todo monto de la pantalla</b>: saldo, parcialidad, promesa, rejilla, liquidación y el CTA
+          (que queda en "Abonar", igual que a letra grande). Sirve para enseñar la pantalla frente al cliente o a un vecino.
+          La barra de avance se queda: da la proporción, no la cifra. Folio, crédito y fecha no son montos y no se tapan.</p>
+      </div>
+
+      <!-- P2 -->
+      <div class="unit">
+        <div class="cap">2 · Cifras en fila + hoja</div>
+        <div class="phone" data-phone>
+          <div class="veil lite"></div><div class="ctrls"><span class="cb"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div class="who first"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+          <div class="ttl">Refrigerador Mabe 14'</div>
+          <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+          <div class="card estado" style="padding:10px 14px;margin-top:12px"><div class="big" style="width:36px;height:36px"><svg class="i"><use href="#cal"/></svg></div>
+            <div><b style="font-size:15.5px">Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+          <div class="card hero" data-m="saldo">
+            <div class="pad"><div class="k">Saldo de esta venta</div>
+              <div class="saldo2" style="padding:0;margin:0"><div class="row1"><div class="n">$1,450</div><div class="par">Parcialidad<b>$220 semanal</b></div></div>
+              <div class="track"><i></i></div></div></div>
+            <div class="chips">
+              <div class="chip"><span>Total venta</span><b>$4,400</b></div>
+              <div class="chip"><span>Abonado</span><b>$2,950</b></div>
+              <div class="chip"><span>Contado</span><b>$3,600</b></div>
+              <div class="chip"><span>Enganche</span><b>$400</b></div>
+              <div class="chip"><span>A 3 meses</span><b>$3,900</b></div>
+            </div>
+            <div class="people"><div>Aval o responsable<b>Rosa María Ramírez</b></div><div>Última visita<b>24 ago</b></div></div>
+            <div class="more">Datos de la venta<small>11 datos ›</small></div>
+          </div>
+          <div class="lbl">Liquidación de esta venta</div>
+          <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div></div><div class="usar">Usar</div></div>
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+            <div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <div class="meas" data-out></div>
+        <p class="note"><b>Todo en una tarjeta.</b> El saldo y las cifras se leen juntos; la fila de cifras se desliza de lado.
+          Contra: lo que queda cortado a la derecha (enganche, a 3 meses) no se ve sin deslizar, y a letra grande caben dos.
+          Vendedores, teléfono y dirección sólo en la hoja.</p>
+      </div>
+
+      <!-- P2 hoja -->
+      <div class="unit">
+        <div class="cap">2 · Hoja "Datos de la venta"</div>
+        <div class="phone short">
+          <div class="veil lite"></div><div class="ctrls"><span class="cb"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div class="ttl" style="margin-top:14px">Refrigerador Mabe 14'</div>
+          <div class="scrim"></div>
+          <div class="sheet" style="bottom:0;height:600px">
+            <div class="grab"></div>
+            <h3>Datos de la venta</h3>
+            <div class="sgrp">La puerta</div>
+            <div class="srow"><span>Teléfono</span><b class="num">238 104 5521</b></div>
+            <div class="srow"><span>Dirección</span><b>C. Miguel Hidalgo y Costilla 214, Tehuacán</b></div>
+            <div class="srow"><span>Zona</span><b>Ruta 25</b></div>
+            <div class="sgrp">El trato</div>
+            <div class="srow"><span>Fecha de venta</span><b>4 may 2026</b></div>
+            <div class="srow"><span>Total venta</span><b>$4,400</b></div>
+            <div class="srow"><span>Precio de contado</span><b>$3,600</b></div>
+            <div class="srow"><span>Precio a 3 meses</span><b>$3,900</b></div>
+            <div class="srow"><span>Enganche</span><b>$400</b></div>
+            <div class="srow"><span>Abonado</span><b>$2,950</b></div>
+            <div class="sgrp">Las personas</div>
+            <div class="srow"><span>Aval o responsable</span><b>Rosa María Ramírez</b></div>
+            <div class="srow" style="border:0"><span>Vendedores</span><b>Luis Ángel Mora<br>Karina Sosa</b></div>
+          </div>
+        </div>
+        <p class="note">Mismo orden de la ficha de hoy (puerta, trato, personas). Se cierra deslizando o con atrás.
+          Contra: es una capa más; el cobrador que busca el vendedor tiene que saber que está ahí.</p>
+      </div>
+
+      <!-- P3 -->
+      <div class="unit">
+        <div class="cap">3 · Segmentado Cobro | Datos</div>
+        <div class="phone" data-phone>
+          <div class="veil lite"></div><div class="ctrls"><span class="cb"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div class="who first"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+          <div class="ttl">Refrigerador Mabe 14'</div>
+          <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+          <div class="seg"><span class="on">Cobro</span><span>Datos</span></div>
+          <div class="card estado" style="margin-top:12px"><div class="big"><svg class="i"><use href="#cal"/></svg></div>
+            <div><b>Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+          <div class="card saldo" data-m="saldo" style="margin-top:12px">
+            <div class="k">Saldo de esta venta</div>
+            <div class="n">$1,450</div>
+            <div class="track"><i></i></div>
+            <div class="two"><div><span class="k">Parcialidad</span><b>$220</b></div><div><span class="k">Frecuencia</span><b>semanal</b></div></div>
+          </div>
+          <div class="lbl">Liquidación de esta venta</div>
+          <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div></div><div class="usar">Usar</div></div>
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+            <div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <div class="meas" data-out></div>
+        <p class="note"><b>Cobro</b> es la pantalla de hoy sin la nota. Un toque en "Datos" cambia el cuerpo.</p>
+      </div>
+
+      <!-- P3 datos -->
+      <div class="unit">
+        <div class="cap">3 · Pestaña "Datos"</div>
+        <div class="phone" data-phone>
+          <div class="veil lite"></div><div class="ctrls"><span class="cb"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+          <div class="who first"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+          <div class="ttl">Refrigerador Mabe 14'</div>
+          <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+          <div class="seg"><span>Cobro</span><span class="on">Datos</span></div>
+          <div class="card dl" style="margin-top:12px">
+            <div class="srow"><span>Teléfono</span><b class="num">238 104 5521</b></div>
+            <div class="srow"><span>Dirección</span><b>C. Miguel Hidalgo y Costilla 214, Tehuacán</b></div>
+            <div class="srow"><span>Zona</span><b>Ruta 25</b></div>
+            <div class="srow"><span>Total venta</span><b>$4,400</b></div>
+            <div class="srow"><span>Precio de contado</span><b>$3,600</b></div>
+            <div class="srow"><span>Precio a 3 meses</span><b>$3,900</b></div>
+            <div class="srow"><span>Enganche</span><b>$400</b></div>
+            <div class="srow"><span>Abonado</span><b>$2,950</b></div>
+            <div class="srow"><span>Aval o responsable</span><b>Rosa María Ramírez</b></div>
+            <div class="srow"><span>Vendedores</span><b>Luis Ángel Mora<br>Karina Sosa</b></div>
+          </div>
+          <div class="dock at744"><div class="drow">
+            <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+            <div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div>
+          <div class="fold"><span>PLIEGUE 744 DP</span></div>
+        </div>
+        <p class="note">Todo junto y ordenado, pero <b>el saldo desaparece</b> mientras se ve esta pestaña, y quien no la toca sigue sin ver los datos.
+          Resuelve "está muy abajo" sólo para quien ya sabe dónde buscar.</p>
+      </div>
+    </div>
+
+    <div class="tblwrap" style="margin-top:26px">
+    <table class="cmp">
+      <tr><th></th><th>1 · Ficha compacta</th><th>2 · Cifras en fila</th><th>3 · Cobro | Datos</th></tr>
+      <tr><td>Cifras del trato sin desplazar</td><td>Las 6, a la vista</td><td>2-3; el resto deslizando</td><td>Ninguna en "Cobro"</td></tr>
+      <tr><td>Saldo</td><td>Primero, arriba</td><td>Primero, arriba</td><td>Arriba en "Cobro"; se oculta en "Datos"</td></tr>
+      <tr><td>Toques para vendedor/aval</td><td>0</td><td>0 aval · 1 vendedor</td><td>1</td></tr>
+      <tr><td>A letra grande</td><td>La rejilla pasa a 1 columna, sin cortes</td><td>Caben 2 cifras por pantalla</td><td>Igual que hoy</td></tr>
+      <tr><td>Parecido al detalle de cliente</td><td>Alto (misma tarjeta de identidad)</td><td>Medio</td><td>Bajo (patrón nuevo)</td></tr>
+    </table>
+    </div>
+    <p class="note" style="margin-top:12px;max-width:75ch"><b>Recomiendo la 1.</b> Es la única que pone <b>todas</b> las cifras del trato arriba del pliegue sin quitarle el primer lugar al saldo,
+      repite el bloque de identidad que al dueño ya le gusta en el cliente y no esconde nada detrás de un gesto (deslizar, hoja o pestaña).
+      De paso ahorra dos tarjetas: la nota y el estado grande, que se vuelve el encabezado de la ficha.</p>
+  </section>
+
+  <!-- ═══════════════ C · DOCK ═══════════════ -->
+  <section>
+    <h2>C · El botón de Condonar</h2>
+    <p class="lede">Condonar mueve dinero: color de texto de peligro sobre relleno de superficie, nunca relleno rojo, y lejos del dedo que va a "Abonar".
+      Letra normal, 360 dp de ancho.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">Hoy</div>
+        <div class="strip" style="height:130px"><div class="fake" style="height:80px;margin-top:14px"></div>
+          <div class="dock"><div class="drow"><div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div><div class="btn sec dgr">Condon<br>ar</div></div></div></div>
+        <p class="note">Tres celdas en 328 dp: a "Condonar" le tocan ~78 dp y a 16 sp en negrita necesita ~84. Se parte a media palabra.</p>
+      </div>
+
+      <div class="unit">
+        <div class="cap rec">C1 · Al menú "⋮" · recomendada</div>
+        <div class="strip" style="height:270px"><div class="fake" style="height:80px;margin-top:14px"></div>
+          <div class="menu" style="bottom:86px;min-width:170px"><div class="d"><svg class="i"><use href="#tag"/></svg><span>Condonar</span></div></div>
+          <div class="dock"><div class="drow"><div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div><div class="btn sec more" style="outline:2px solid var(--brand)"><svg class="i"><use href="#dots"/></svg></div></div></div></div>
+        <p class="note">Igual que el detalle de cliente (Registrar abono | Visita | ⋮). La palabra completa vive en el menú, con espacio de sobra.
+          Un toque más a cambio de que no quede junto al CTA.</p>
+      </div>
+
+      <div class="unit">
+        <div class="cap">C2 · Ícono con rótulo</div>
+        <div class="strip" style="height:130px"><div class="fake" style="height:80px;margin-top:14px"></div>
+          <div class="dock"><div class="drow"><div class="btn cta">Abonar $220</div>
+            <div class="btn sec stack"><svg class="i"><use href="#door"/></svg>Visita</div>
+            <div class="btn sec stack dgr"><svg class="i"><use href="#tag"/></svg>Condonar</div></div></div></div>
+        <p class="note">Un toque, como hoy. El rótulo baja a 12 sp debajo del ícono y cabe en 78 dp. Contra: sigue a un dedo del CTA,
+          y a letra grande el rótulo vuelve a no caber (hay que apilar igual).</p>
+      </div>
+
+      <div class="unit">
+        <div class="cap">C3 · Fila apilada de texto</div>
+        <div class="strip" style="height:170px"><div class="fake" style="height:80px;margin-top:14px"></div>
+          <div class="dock" style="padding-bottom:4px"><div class="drow"><div class="btn cta full">Abonar $220</div></div>
+            <div class="textrow"><span>Visita</span><span style="color:var(--danger)">Condonar</span></div></div></div>
+        <p class="note">CTA a todo lo ancho, las otras dos como texto sin caja (área tocable de 50 dp invisible). Contra: el dock crece ~50 dp
+          a letra normal y le tapa más contenido al saldo y la ficha.</p>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px;max-width:75ch"><b>Recomiendo C1.</b> El componente ya lo tiene (<code>MenuDelDock</code>, el mismo "⋮" del cliente), deja las dos pantallas iguales,
+      y condonar —raro y de riesgo— queda a propósito un toque más lejos que abonar. Si el dueño quiere que siga a un toque, C2.</p>
+  </section>
+
+  <!-- ═══════════════ D · LETRA GRANDE ═══════════════ -->
+  <section>
+    <h2>D · Letra grande</h2>
+    <p class="lede">Con C1. Regla: a letra normal "Abonar $220"; a cualquier escala mayor sólo "Abonar" y el CTA toma su propio renglón
+      (como ya apila hoy <code>DockDeAcciones</code>). El monto sigue a la vista en la tarjeta del saldo ("Parcialidad $220").
+      Simulado escalando la letra, 360 dp de ancho. La caja verde de abajo la calcula el navegador: cuenta renglones de cada botón.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">1.0× · normal</div>
+        <div class="strip" style="height:120px;--k:1"><div class="dock" data-chk><div class="drow"><div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div><div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div></div>
+      </div>
+      <div class="unit">
+        <div class="cap">1.5×</div>
+        <div class="strip" style="height:210px;--k:1.5"><div class="dock" data-chk style="padding-left:8px;padding-right:8px;padding-bottom:8px">
+          <div class="drow"><div class="btn cta full">Abonar</div></div>
+          <div class="drow"><div class="btn sec">Visita</div><div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div></div>
+      </div>
+      <div class="unit">
+        <div class="cap">2.0×</div>
+        <div class="strip" style="height:240px;--k:2"><div class="dock" data-chk style="padding-left:8px;padding-right:8px;padding-bottom:8px">
+          <div class="drow"><div class="btn cta full">Abonar</div></div>
+          <div class="drow"><div class="btn sec">Visita</div><div class="btn sec more"><svg class="i"><use href="#dots"/></svg></div></div></div></div>
+      </div>
+      <div class="unit">
+        <div class="cap">2.0× · la ficha de la propuesta 1</div>
+        <div class="strip" style="height:auto;padding:12px 16px 14px;--k:2">
+          <div class="card ficha" style="margin:0;font-size:32px">
+            <div class="grid" style="grid-template-columns:1fr;border-top:0">
+              <div style="border-right:0"><span style="font-size:23px">Total venta</span><b style="font-size:31px">$4,400</b></div>
+              <div style="border-right:0"><span style="font-size:23px">Abonado</span><b style="font-size:31px">$2,950</b></div>
+              <div style="border-right:0;border-bottom:0"><span style="font-size:23px">Precio de contado</span><b style="font-size:31px">$3,600</b></div>
+            </div>
+          </div>
+        </div>
+        <p class="note">A letra grande la rejilla pasa a una columna: nunca dos cifras que se aprieten en 150 dp.</p>
+      </div>
+    </div>
+    <div class="meas" id="chk" style="margin-top:14px;max-width:720px"></div>
+  </section>
+
+  <!-- ═══════════════ DECISIONES ═══════════════ -->
+  <section>
+    <h2>Decisiones para el dueño</h2>
+    <ol class="dec">
+      <li><b>¿Propuesta 1?</b> Saldo arriba y ficha compacta justo debajo, con "Ver todo" para teléfono y dirección.</li>
+      <li><b>¿Saldo antes o después de la ficha?</b> Propongo saldo primero; si prefieren leer el trato antes, se invierten sin costo de alto.</li>
+      <li><b>¿Qué seis cifras van en la rejilla?</b> Propongo Total, Abonado, Contado, Enganche, A 3 meses y Zona. Cuando la venta no tiene precio a corto plazo, la celda no se pinta.</li>
+      <li><b>¿"Última visita" es del cliente o de esta venta?</b> Hoy sólo existe la del cliente; si debe ser de la venta hay que calcularla.</li>
+      <li><b>¿El encabezado compacto dice producto y cliente</b>, o cliente y saldo? Propongo producto arriba y cliente abajo; el saldo ya está en la tarjeta y el ojo tendría que taparlo también ahí.</li>
+      <li><b>¿Condonar al menú "⋮" (C1) o a un toque con ícono (C2)?</b> ¿Con qué frecuencia condonan en campo?</li>
+      <li><b>A letra grande, ¿"Abonar" basta</b> o quieren el monto en un segundo renglón chico dentro del botón?</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+  // ?theme=dark|light para las capturas
+  (function(){var m=/theme=(dark|light)/.exec(location.search);if(m)document.documentElement.dataset.theme=m[1];})();
+
+  // Mide cada aparato: dónde queda el saldo y la ficha contra el pliegue y contra el dock.
+  function medir(){
+    document.querySelectorAll('[data-phone]').forEach(function(ph){
+      var out=ph.parentElement.querySelector('[data-out]'); if(!out) return;
+      var r0=ph.getBoundingClientRect(), z=r0.width/360;
+      var dock=ph.querySelector('.dock .drow'); var dockTop=dock?Math.round((dock.getBoundingClientRect().top-r0.top)/z):744;
+      var parts=[];
+      [['saldo','Saldo'],['ficha','Ficha']].forEach(function(p){
+        var el=ph.querySelector('[data-m="'+p[0]+'"]'); if(!el) return;
+        var r=el.getBoundingClientRect(), t=Math.round((r.top-r0.top)/z), b=Math.round((r.bottom-r0.top)/z);
+        var ok=b<=dockTop;
+        parts.push(p[1]+' '+t+'–'+b+' dp <span class="'+(ok?'ok':'bad')+'">'+(ok?'entero sin desplazar':'cortado por el dock')+'</span>');
+      });
+      parts.push('Dock desde '+dockTop+' dp');
+      out.innerHTML=parts.join(' · ');
+    });
+    // D: ningún botón en más de un renglón
+    var res=[];
+    document.querySelectorAll('[data-chk]').forEach(function(d){
+      var k=getComputedStyle(d.parentElement).getPropertyValue('--k').trim()||'1';
+      d.querySelectorAll('.btn').forEach(function(b){
+        if(!b.textContent.trim()) return;
+        var range=document.createRange(); range.selectNodeContents(b);
+        var lines=new Set(Array.from(range.getClientRects()).map(function(r){return Math.round(r.top)})).size;
+        res.push(k+'× "'+b.textContent.trim()+'": '+lines+(lines===1?' renglón':' renglones'));
+      });
+    });
+    var bad=res.filter(function(s){return !/ 1 renglón/.test(s)}).length;
+    var sc=document.documentElement.scrollWidth>document.documentElement.clientWidth;
+    document.getElementById('chk').innerHTML='<span class="'+(bad?'bad':'ok')+'">'+(bad?bad+' botones partidos':'Ningún botón partido')+'</span> · '+res.join(' · ')+
+      ' · Scroll horizontal: <span class="'+(sc?'bad':'ok')+'">'+(sc?'sí':'no')+'</span>';
+  }
+  // El ojo: toda cifra de dinero -> ••••
+  document.querySelectorAll('[data-mask]').forEach(function(ph){
+    var w=document.createTreeWalker(ph,NodeFilter.SHOW_TEXT),n,list=[];
+    while((n=w.nextNode()))list.push(n);
+    list.forEach(function(t){t.nodeValue=t.nodeValue.replace(/\$\s?[\d,]+(\.\d+)?/g,'••••');});
+  });
+  window.addEventListener('load',medir); window.addEventListener('resize',medir);
+</script>
+</body>
+</html>

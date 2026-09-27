@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Detalle de venta final</title>
+<style>
+  :root, .lt{
+    --bg:#EDF1EF; --page:#F3F5F4; --surf:#FFFFFF; --surf2:#FAFBFB; --line:#E4E8E6;
+    --ink:#141A18; --mut:#5C6863; --faint:#8C9994;
+    --brand:#2563EB; --brandTint:#EAF0FE;
+    --paid:#177245; --partial:#B26A00; --overdue:#B42318; --overdueTint:#FBE6E3; --danger:#A3143A;
+    --bar:#6EE0BE; --track:#E3E8E6; --band:#F8FAF9;
+    --shadow:0 1px 2px rgba(16,24,20,.10),0 6px 18px rgba(16,24,20,.12);
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+      --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+      --brand:#3B82F6; --brandTint:#0E2440;
+      --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C; --overdueTint:#2C1210; --danger:#F4677A;
+      --bar:#6EE0BE; --track:#26302C; --band:#070908;
+      --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"], .dk{
+    --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+    --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+    --brand:#3B82F6; --brandTint:#0E2440;
+    --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C; --overdueTint:#2C1210; --danger:#F4677A;
+    --bar:#6EE0BE; --track:#26302C; --band:#070908;
+    --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+       -webkit-font-smoothing:antialiased;padding:0 16px 80px;line-height:1.45}
+  .wrap{max-width:1200px;margin:0 auto;padding-top:36px}
+  h1{font-size:28px;letter-spacing:-.02em;margin:0 0 6px;line-height:1.15}
+  h2{font-size:20px;letter-spacing:-.02em;margin:0 0 4px}
+  section{margin-top:48px}
+  .sub{color:var(--mut);margin:0 0 12px;max-width:75ch;font-size:14.5px}
+  .lede{color:var(--mut);margin:0 0 22px;max-width:75ch;font-size:14px}
+  code{font-family:var(--mono);font-size:12px;background:var(--surf2);border:1px solid var(--line);padding:1px 5px;border-radius:5px}
+  .tog{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surf);color:var(--ink);
+       border-radius:999px;padding:8px 16px;cursor:pointer;min-height:40px}
+  .beds{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
+  .cap{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .note{font-size:13px;color:var(--mut);margin:0}
+  .note b{color:var(--ink)}
+  .meas{font-size:12px;font-weight:650;color:var(--ink);background:var(--surf);border:1px solid var(--line);
+        border-radius:10px;padding:8px 10px;font-variant-numeric:tabular-nums}
+  .ok{color:var(--paid)} .bad{color:var(--overdue)}
+
+  /* ── el aparato: 360 × 744 dp, área útil del SM-A256E ── */
+  .phone{width:360px;height:744px;overflow:hidden;background:var(--page);color:var(--ink);
+         border:1px solid var(--line);border-radius:4px;position:relative;padding:0 16px;font-size:16px}
+  svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .num{font-variant-numeric:tabular-nums}
+  .k{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  .lbl{font-size:11px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:20px 0 8px}
+  .card{background:var(--surf);border:1px solid var(--line);border-radius:16px}
+  .fake{background:var(--surf);border:1px solid var(--line);border-radius:16px}
+
+  /* arriba: controles fijos y velo de la barra de estado */
+  .veil{position:absolute;left:0;right:0;top:0;height:24px;z-index:8;pointer-events:none;
+        background:linear-gradient(to bottom,color-mix(in srgb,var(--page) 70%,transparent),transparent)}
+  .ctrls{position:absolute;top:8px;right:16px;display:flex;gap:12px;z-index:13}
+  .cb{width:48px;height:48px;border-radius:14px;background:var(--surf);border:1px solid var(--line);box-shadow:var(--shadow);
+      display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .cb.on{background:var(--ink);color:var(--page)}
+  .compact{position:absolute;left:0;right:0;top:0;z-index:12;padding:8px 124px 0 16px;height:84px;
+           background:linear-gradient(to bottom,var(--band) 0,var(--band) 56px,transparent 84px)}
+  .compact div{height:48px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+  .compact b{font-size:16px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+  .compact small{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scrolled{position:relative;margin-top:-250px}
+
+  .who{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:14px;margin-top:8px;height:48px;padding-right:124px}
+  .sq{width:22px;height:22px;border-radius:6px;background:var(--overdueTint);color:var(--overdue);
+      display:flex;align-items:center;justify-content:center;flex:none}
+  .sq svg.i{width:13px;height:13px}
+  .ttl{font-size:18.5px;font-weight:780;letter-spacing:-.01em;margin:0;line-height:1.2}
+  .meta{font-size:13px;color:var(--mut);margin-top:2px}
+  .estado{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-top:12px}
+  .estado .big{width:36px;height:36px;border-radius:10px;background:var(--overdueTint);color:var(--overdue);
+               display:flex;align-items:center;justify-content:center}
+  .estado b{display:block;font-size:15.5px;font-weight:760}
+  .estado small{font-size:11.5px;color:var(--mut)}
+
+  /* la tarjeta del saldo con las cifras */
+  .hero{margin-top:12px;padding-top:14px;overflow:hidden}
+  .pad{padding:0 16px}
+  .row1{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+  .row1 .n{font-size:34px;font-weight:820;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+  .par{text-align:right;font-size:13px;color:var(--mut);line-height:1.25}
+  .par b{display:block;color:var(--ink);font-size:17px;font-weight:760}
+  .track{height:6px;border-radius:99px;background:var(--track);margin:12px 0 0;overflow:hidden}
+  .track i{display:block;height:100%;width:67%;background:var(--bar);border-radius:99px}
+  .chips{display:flex;gap:8px;overflow:hidden;padding:12px 16px 14px;white-space:nowrap;
+         mask-image:linear-gradient(to right,#000 84%,transparent);-webkit-mask-image:linear-gradient(to right,#000 84%,transparent)}
+  .chips.slid{mask-image:linear-gradient(to right,transparent,#000 7%,#000 100%);-webkit-mask-image:linear-gradient(to right,transparent,#000 7%,#000 100%)}
+  .chips .in{display:flex;gap:8px}
+  .chips.slid .in{transform:translateX(-172px)}
+  .chip{flex:none;border:1px solid var(--line);background:var(--surf2);border-radius:12px;padding:6px 11px;line-height:1.2}
+  .chip span{display:block;font-size:11px;color:var(--mut)}
+  .chip b{font-size:15px;font-weight:760;font-variant-numeric:tabular-nums}
+  .people{display:flex;flex-direction:column;gap:3px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--mut)}
+  .people b{color:var(--ink);font-weight:700;margin-left:4px}
+  .more{display:flex;align-items:center;justify-content:space-between;color:var(--brand);font-weight:720;font-size:13.5px;
+        padding:0 16px;height:50px;border-top:1px solid var(--line)}
+  .more small{color:var(--faint);font-weight:500;font-size:12px}
+  .liq{padding:16px;display:flex;align-items:center;justify-content:space-between}
+  .liq .n{font-size:30px;font-weight:820;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .liq small{font-size:11.5px;color:var(--faint)}
+  .usar{background:var(--brand);color:#fff;border-radius:12px;height:50px;padding:0 16px;display:flex;align-items:center;font-weight:750}
+  .hand{position:absolute;z-index:9;width:40px;height:40px;border-radius:50%;background:color-mix(in srgb,var(--brand) 22%,transparent);
+        border:2px solid var(--brand)}
+
+  /* la hoja "Datos de la venta" */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:14}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:15;background:var(--surf);border-radius:22px 22px 0 0;
+         box-shadow:0 -8px 30px rgba(0,0,0,.25);padding:10px 16px 0;overflow:hidden}
+  .grab{width:36px;height:4px;border-radius:9px;background:var(--line);margin:0 auto 10px}
+  .sheet h3{margin:0 0 6px;font-size:calc(17px * var(--k,1));line-height:1.25}
+  .sgrp{font-size:calc(10.5px * var(--k,1));font-weight:800;letter-spacing:.12em;color:var(--faint);text-transform:uppercase;margin:12px 0 0}
+  .srow{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .srow span{color:var(--mut)} .srow b{text-align:right;font-weight:680}
+  .srow.last{border:0}
+  /* a letra grande: una columna, rótulo arriba y valor abajo */
+  .sheet.big .srow{display:block;padding:9px 0;font-size:calc(13.5px * var(--k))}
+  .sheet.big .srow span{display:block;line-height:1.25}
+  .sheet.big .srow b{display:block;text-align:left;font-size:calc(15.5px * var(--k));font-weight:760;line-height:1.25}
+  .sheet .fadeout{position:absolute;left:0;right:0;bottom:0;height:56px;background:linear-gradient(transparent,var(--surf))}
+
+  /* ── el dock (igual al del detalle de cliente) ── */
+  .dock{position:absolute;left:0;right:0;bottom:0;z-index:10;padding:38px 16px 16px;
+        background:linear-gradient(to bottom,transparent 0,var(--band) 34px,var(--band) 100%)}
+  .dock.big{padding-left:8px;padding-right:8px;padding-bottom:8px}
+  .drow{display:flex;gap:8px;align-items:stretch}
+  .btn{min-height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;text-align:center;
+       font-weight:760;font-size:calc(16px * var(--k,1));line-height:1.15;padding:6px 12px;white-space:nowrap;
+       overflow:hidden;min-width:0}
+  .btn.cta{background:var(--brand);color:#fff;flex:2 1 0;box-shadow:0 6px 16px color-mix(in srgb,var(--brand) 30%,transparent)}
+  .btn.sec{background:var(--surf);color:var(--ink);flex:1 1 0;border:1px solid var(--line)}
+  .dock.big .btn.cta{flex:1 1 auto}
+  .dock.big .btn.sec{flex:0 0 auto}
+  .btn.dots{flex:none;width:56px;padding:0;background:var(--surf);border:1px solid var(--line);color:var(--ink)}
+  .btn.dots svg.i{width:20px;height:20px}
+  .btn.dots.open svg.i{transform:rotate(90deg)}
+  .mrow{height:56px;border-radius:16px;background:var(--surf);border:1px solid var(--line);display:flex;align-items:center;
+        padding:0 16px;font-weight:760;font-size:16px;color:var(--danger);margin-bottom:12px}
+  .velo{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:9}
+
+  .strip{width:360px;max-width:100%;position:relative;background:var(--page);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  .strip .fake{position:absolute;left:16px;right:16px;top:14px;height:80px}
+
+  .dec{margin:0;padding-left:20px;font-size:14.5px;max-width:78ch}
+  .dec li{margin:0 0 10px}
+  @media (max-width:400px){ .phone,.strip{zoom:.9} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1"/></symbol>
+  <symbol id="dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="eyeoff" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.6A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.8 3.6M6.6 6.6C3.9 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.9 0 3.6-.6 5-1.5M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+</svg>
+
+<!-- La pantalla, una sola vez; cada estado la clona y le aplica su variante (ver el script). -->
+<template id="screen">
+  <div class="veil"></div>
+  <div class="ctrls"><span class="cb eye"><svg class="i"><use href="#eye"/></svg></span><span class="cb"><svg class="i"><use href="#sun"/></svg></span></div>
+  <div class="body">
+    <div class="who"><span class="sq"><svg class="i"><use href="#cal"/></svg></span>Victoria Flores Olmedo</div>
+    <div class="ttl">Refrigerador Mabe 14'</div>
+    <div class="meta num">MIG-V-5188 · Crédito 12232 · 4 may 2026</div>
+    <div class="card estado"><div class="big"><svg class="i"><use href="#cal"/></svg></div>
+      <div><b>Prometió $220 el 15 sept</b><small>No cae esta semana</small></div></div>
+    <div class="card hero" data-m="saldo">
+      <div class="pad"><div class="k">Saldo de esta venta</div>
+        <div class="row1"><div class="n">$1,450</div><div class="par">Parcialidad<b>$220 semanal</b></div></div>
+        <div class="track"><i></i></div></div>
+      <div class="chips"><div class="in">
+        <div class="chip"><span>Total venta</span><b>$4,400</b></div>
+        <div class="chip"><span>Abonado</span><b>$2,950</b></div>
+        <div class="chip"><span>Contado</span><b>$3,600</b></div>
+        <div class="chip"><span>Enganche</span><b>$400</b></div>
+        <div class="chip"><span>A 3 meses</span><b>$3,900</b></div>
+      </div></div>
+      <div class="people"><div>Aval o responsable<b>Rosa María Ramírez</b></div><div>Último pago<b>17 sep</b></div></div>
+      <div class="more">Datos de la venta<small>11 datos ›</small></div>
+    </div>
+    <div class="lbl">Liquidación de esta venta</div>
+    <div class="card liq"><div><div class="k">Hoy liquida con</div><div class="n">$1,290</div><small>Vigente hasta el 6 sept</small></div><div class="usar">Usar</div></div>
+    <div class="lbl">Ritmo · últimas 12 semanas</div>
+    <div class="fake" style="height:70px"></div>
+    <div class="lbl">Lo que ha pasado</div>
+    <div class="fake" style="height:170px"></div>
+  </div>
+  <div class="dock"><div class="drow">
+    <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div>
+    <div class="btn dots"><svg class="i"><use href="#dots"/></svg></div></div></div>
+</template>
+
+<template id="sheet">
+  <div class="scrim"></div>
+  <div class="sheet" style="height:612px">
+    <div class="grab"></div>
+    <h3>Datos de la venta</h3>
+    <div class="sgrp">La puerta</div>
+    <div class="srow"><span>Teléfono</span><b class="num">238 104 5521</b></div>
+    <div class="srow"><span>Dirección</span><b>C. Miguel Hidalgo y Costilla 214, Col. Emiliano Zapata, Tehuacán</b></div>
+    <div class="srow"><span>Zona</span><b>Ruta 25</b></div>
+    <div class="sgrp">El trato</div>
+    <div class="srow"><span>Fecha de venta</span><b>4 may 2026</b></div>
+    <div class="srow"><span>Total venta</span><b>$4,400</b></div>
+    <div class="srow"><span>Precio de contado</span><b>$3,600</b></div>
+    <div class="srow"><span>Precio a 3 meses</span><b>$3,900</b></div>
+    <div class="srow"><span>Enganche</span><b>$400</b></div>
+    <div class="srow"><span>Abonado</span><b>$2,950</b></div>
+    <div class="sgrp">Las personas</div>
+    <div class="srow"><span>Aval o responsable</span><b>Rosa María Ramírez</b></div>
+    <div class="srow last"><span>Vendedores</span><b>Luis Ángel Mora<br>Karina Sosa</b></div>
+  </div>
+</template>
+
+<div class="wrap">
+  <h1>Detalle de venta · final</h1>
+  <p class="sub">La pantalla con lo que el dueño decidió: saldo y cifras en pastillas arriba, hoja "Datos de la venta",
+    sin nota de la venta, sin flecha de volver, ojo y tema fijos, "Último pago" de esta cuenta, Condonar en el "⋮".
+    Cada aparato mide 360 × 744 dp (área útil del SM-A256E); lo que no cabe en el recuadro no se ve sin desplazar.</p>
+  <button class="tog" onclick="var r=document.documentElement;r.dataset.theme=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark'">Claro / oscuro</button>
+
+  <section>
+    <h2>La pantalla</h2>
+    <p class="lede">Estados (a) a (f) a letra normal. En (a) un aparato va fijo en claro y otro fijo en oscuro; el resto sigue al botón de tema.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">a · Al entrar · claro</div>
+        <div class="phone lt" data-state="entrar" data-measure></div>
+        <div class="meas" data-out></div>
+        <p class="note"><b>El trato arriba, a la vista o a un deslizamiento.</b> El saldo sigue primero; debajo, en la misma tarjeta, las cifras de la venta,
+          el aval y el último pago. La nota de la venta ya no está (era la del cliente), ni "Sin notas de esta venta" al fondo.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">a · Al entrar · oscuro</div>
+        <div class="phone dk" data-state="entrar" data-measure></div>
+        <div class="meas" data-out></div>
+        <p class="note">Paleta OLED: página #000, tarjetas y pastillas un punto arriba para que se distingan del fondo.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">b · Pastillas deslizadas</div>
+        <div class="phone" data-state="slid"></div>
+        <p class="note">Se deslizan con el dedo, de lado, dentro de la tarjeta; la página no se mueve. El desvanecido del borde avisa que hay más
+          de ese lado. Orden: total y abonado primero (lo que más se pregunta), luego contado, enganche y a 3 meses.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">c · Hoja "Datos de la venta"</div>
+        <div class="phone" data-state="sheet"></div>
+        <p class="note">Se abre al tocar "Datos de la venta". Los once renglones de hoy en el mismo orden: la puerta, el trato, las personas.
+          Se cierra deslizando hacia abajo, tocando el velo o con atrás. Sustituye la sección "Datos de la venta" del fondo.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">d · Desplazado</div>
+        <div class="phone" data-state="scrolled"></div>
+        <p class="note"><b>Encabezado compacto:</b> el producto arriba y el cliente abajo, en la misma banda de 48 dp que el ojo y el tema,
+          para que los centros coincidan. Entra al 70 % del recorrido, como en el detalle de cliente. El ojo y el tema no se mueven.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">e · Cantidades ocultas</div>
+        <div class="phone" data-state="mask"></div>
+        <p class="note">El ojo tapa todo monto (saldo, parcialidad, promesa, pastillas, liquidación) y el botón queda en "Abonar".
+          La barra de avance, las fechas, el folio y el crédito se quedan: no son cantidades.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">f · Menú "⋮" abierto</div>
+        <div class="phone" data-state="menu"></div>
+        <p class="note">El mismo menú del detalle de cliente (<code>HojaDelMenu</code>): renglón de 56 dp a todo lo ancho encima del dock,
+          velo de 40 % detrás, los tres puntos giran 90°. Aquí sólo trae "Condonar", en color de peligro sobre superficie.
+          Tocar el velo o atrás lo cierra.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>g · Dock a letra grande</h2>
+    <p class="lede">Una sola fila siempre: Abonar | Visita | ⋮. Lo único que cambia es la cifra: "Abonar $220" a letra normal, "Abonar" a 1.5× y 2.0×.
+      A letra grande "Visita" se ajusta a su palabra y el CTA toma el resto, y el margen lateral baja a 8 dp (como ya hace hoy el dock a letra grande).
+      Simulado multiplicando la letra; la caja de abajo la calcula el navegador.</p>
+    <div class="beds">
+      <div class="unit"><div class="cap">1.0×</div>
+        <div class="strip" style="height:130px;--k:1"><div class="fake"></div><div class="dock" data-chk="1.0"><div class="drow">
+          <div class="btn cta">Abonar $220</div><div class="btn sec">Visita</div><div class="btn dots"><svg class="i"><use href="#dots"/></svg></div></div></div></div></div>
+      <div class="unit"><div class="cap">1.5×</div>
+        <div class="strip" style="height:130px;--k:1.5"><div class="fake"></div><div class="dock big" data-chk="1.5"><div class="drow">
+          <div class="btn cta">Abonar</div><div class="btn sec">Visita</div><div class="btn dots"><svg class="i"><use href="#dots"/></svg></div></div></div></div></div>
+      <div class="unit"><div class="cap">2.0×</div>
+        <div class="strip" style="height:130px;--k:2"><div class="fake"></div><div class="dock big" data-chk="2.0"><div class="drow">
+          <div class="btn cta">Abonar</div><div class="btn sec">Visita</div><div class="btn dots"><svg class="i"><use href="#dots"/></svg></div></div></div></div></div>
+    </div>
+    <div class="meas" id="chk" style="margin-top:14px;max-width:760px"></div>
+  </section>
+
+  <section>
+    <h2>h · Hoja de datos a letra grande</h2>
+    <p class="lede">A 2.0× cada renglón pasa a una columna: el rótulo arriba y la cifra debajo, a todo lo ancho. Nunca dos cosas peleando 150 dp.
+      La hoja se desplaza por dentro.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">h · 2.0× · una columna</div>
+        <div class="phone" data-state="sheetbig" style="--k:2"></div>
+        <p class="note">Al abrir. Mismo orden que a letra normal; con once renglones a este tamaño la hoja ocupa casi toda la pantalla y se desplaza por dentro. El desvanecido de abajo avisa que sigue.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">h · 2.0× · desplazada a "El trato"</div>
+        <div class="phone" data-state="sheetbig2" style="--k:2"></div>
+        <p class="note">Las cifras, una por renglón: Total venta, Precio de contado, Precio a 3 meses, Enganche, Abonado. El título de la hoja se queda fijo arriba mientras el resto pasa.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decidido</h2>
+    <ol class="dec">
+      <li><b>Datos de la venta:</b> saldo arriba y, en la misma tarjeta, pastillas de cifras que se deslizan de lado (Total, Abonado, Contado, Enganche, A 3 meses), aval y último pago, y "Datos de la venta" abre una hoja con los 11 renglones.</li>
+      <li><b>Se van</b> la tarjeta "Nota de la venta" (era la nota del cliente) y "Sin notas de esta venta" del fondo, y la sección "Datos de la venta" del fondo.</li>
+      <li><b>"Último pago"</b>: la fecha del último abono registrado de esta venta. En el detalle de cliente "Última visita" sigue siendo la del cliente.</li>
+      <li><b>Arriba:</b> sin flecha de volver; ojo y tema fijos a la derecha como en el cliente; al desplazar entra el encabezado compacto con producto y cliente.</li>
+      <li><b>Ojo:</b> oculta todos los montos de la pantalla y el botón queda en "Abonar".</li>
+      <li><b>Dock:</b> Abonar | Visita | ⋮. Condonar vive en el menú "⋮", idéntico al del cliente, con un solo renglón.</li>
+      <li><b>Letra grande:</b> el dock no se apila; el botón pasa de "Abonar $220" a "Abonar".</li>
+      <li><b>Hoja a 2.0×:</b> una columna, rótulo arriba y valor abajo.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+  (function(){var m=/theme=(dark|light)/.exec(location.search);if(m)document.documentElement.dataset.theme=m[1];})();
+  var tpl=document.getElementById('screen'), sh=document.getElementById('sheet');
+  function mask(root){
+    var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),n,l=[];while((n=w.nextNode()))l.push(n);
+    l.forEach(function(t){t.nodeValue=t.nodeValue.replace(/Abonar \$\d+/,'Abonar').replace(/\$\s?[\d,]+(\.\d+)?/g,'••••');});
+  }
+  document.querySelectorAll('.phone[data-state]').forEach(function(ph){
+    var st=ph.dataset.state;
+    ph.appendChild(tpl.content.cloneNode(true));
+    var body=ph.querySelector('.body');
+    if(st==='slid'){ph.querySelector('.chips').classList.add('slid');}
+    if(st==='sheet'||st==='sheetbig'||st==='sheetbig2'){
+      ph.appendChild(sh.content.cloneNode(true));
+      if(st!=='sheet'){var s=ph.querySelector('.sheet');s.classList.add('big');s.style.height='690px';
+        var f=document.createElement('div');f.className='fadeout';s.appendChild(f);
+        if(st==='sheetbig2'){var inner=document.createElement('div');var h=s.querySelector('h3');
+          while(h.nextSibling&&h.nextSibling!==f){inner.appendChild(h.nextSibling);}var clip=document.createElement('div');clip.style.overflow='hidden';clip.style.height='600px';clip.appendChild(inner);s.insertBefore(clip,f);
+          h.style.position='relative';h.style.zIndex=2;h.style.background='var(--surf)';h.style.paddingBottom='6px';
+          ph._shift=inner;}}
+    }
+    if(st==='scrolled'){
+      body.classList.add('scrolled'); ph.querySelector('.veil').remove();
+      var c=document.createElement('div');c.className='compact';
+      c.innerHTML="<div><b>Refrigerador Mabe 14'</b><small>Victoria Flores Olmedo</small></div>";
+      ph.insertBefore(c,ph.firstChild);
+    }
+    if(st==='mask'){
+      mask(ph); var e=ph.querySelector('.cb.eye');e.classList.add('on');e.innerHTML='<svg class="i"><use href="#eyeoff"/></svg>';
+    }
+    if(st==='menu'){
+      var v=document.createElement('div');v.className='velo';ph.appendChild(v);
+      var d=ph.querySelector('.dock');var r=document.createElement('div');r.className='mrow';r.textContent='Condonar';
+      d.insertBefore(r,d.firstChild);ph.querySelector('.btn.dots').classList.add('open');
+    }
+  });
+
+  document.querySelectorAll('.phone[data-state="sheetbig2"]').forEach(function(ph){
+    var inner=ph._shift, g=inner.querySelectorAll('.sgrp')[1];
+    inner.style.marginTop=(-(g.offsetTop-inner.offsetTop)+2)+'px';
+  });
+  function medir(){
+    document.querySelectorAll('[data-measure]').forEach(function(ph){
+      var out=ph.parentElement.querySelector('[data-out]'); var r0=ph.getBoundingClientRect(), z=r0.width/360;
+      var dt=Math.round((ph.querySelector('.dock .drow').getBoundingClientRect().top-r0.top)/z);
+      var el=ph.querySelector('[data-m="saldo"]').getBoundingClientRect();
+      var t=Math.round((el.top-r0.top)/z), b=Math.round((el.bottom-r0.top)/z);
+      out.innerHTML='Tarjeta de saldo y cifras '+t+'–'+b+' dp · dock desde '+dt+' dp · <span class="'+(b<=dt?'ok':'bad')+'">'+(b<=dt?'entera sin desplazar':'tapada por el dock')+'</span>';
+    });
+    var res=[],bad=0;
+    document.querySelectorAll('[data-chk]').forEach(function(d){
+      var k=d.dataset.chk;
+      d.querySelectorAll('.btn').forEach(function(b){
+        var txt=b.textContent.trim(); if(!txt) return;
+        var rg=document.createRange(); rg.selectNodeContents(b);
+        var lines=new Set(Array.from(rg.getClientRects()).map(function(x){return Math.round(x.top)})).size;
+        var over=b.scrollWidth>b.clientWidth+0.5;
+        if(lines!==1||over) bad++;
+        res.push(k+'× "'+txt+'": '+lines+' renglón'+(over?' (DESBORDA)':''));
+      });
+      var row=d.querySelector('.drow'); if(row.scrollWidth>row.clientWidth+0.5){bad++;res.push(k+'× fila desborda');}
+    });
+    var sc=document.documentElement.scrollWidth>document.documentElement.clientWidth;
+    document.getElementById('chk').innerHTML='<span class="'+(bad?'bad':'ok')+'">'+(bad?bad+' problemas':'Nada partido ni desbordado')+'</span> · '+res.join(' · ')+
+      ' · Scroll horizontal de la página: <span class="'+(sc?'bad':'ok')+'">'+(sc?'sí':'no')+'</span>';
+  }
+  window.addEventListener('load',medir); window.addEventListener('resize',medir);
+</script>
+</body>
+</html>
