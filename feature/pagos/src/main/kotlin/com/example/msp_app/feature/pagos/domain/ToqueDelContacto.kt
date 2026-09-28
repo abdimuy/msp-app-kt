@@ -31,8 +31,18 @@ import java.time.LocalDate
  * la cuenta" los dos papeles siguen a un toque de distancia.
  *
  * Las **visitas no compiten**: una visita registrada después del abono no le
- * quita a ese abono el ser el último cobro de su cuenta. Sólo los contactos de
- * [TipoDeContacto.COBRO] entran a la comparación.
+ * quita a ese abono el ser el último cobro de su cuenta.
+ *
+ * ## Los movimientos de dinero: el cobro y la condonación APLICADA
+ *
+ * Desde el 2026-09-28 (pedido del dueño) la condonación se reimprime con la
+ * MISMA regla que el cobro: si es de hoy y es el último movimiento de dinero de
+ * su cuenta. Los dos compiten juntos por "el último" —una condonación posterior
+ * al abono le quita a éste el ticket, y un abono posterior se lo quita a la
+ * condonación— porque son dos papeles del mismo tipo que salen del mismo
+ * teléfono. Una condonación **no aplicada** (el servidor la rechazó,
+ * [ContactoDeCobranza.aplicado] en `false`) no es un movimiento: nunca ofrece
+ * ticket ni le quita el suyo a nadie. Ver [esMovimientoDeDinero].
  *
  * ## Dónde NO se comprueba nada de esto
  *
@@ -123,7 +133,8 @@ enum class ToqueDelContacto {
         }
 
         /**
-         * ¿Este contacto es un cobro de hoy y el último de su cuenta?
+         * ¿Este contacto es un movimiento de dinero de hoy —cobro o condonación
+         * aplicada— y el último de su cuenta?
          *
          * El desempate por [ContactoDeCobranza.id] hace **total** el orden: dos
          * abonos de la misma cuenta al mismo instante existen de verdad (ver el
@@ -135,13 +146,21 @@ enum class ToqueDelContacto {
             contactos: List<ContactoDeCobranza>,
             hoy: LocalDate
         ): Boolean {
-            if (contacto.tipo != TipoDeContacto.COBRO) return false
+            if (!esMovimientoDeDinero(contacto)) return false
             if (AppTime.toBusinessDate(contacto.fecha) != hoy) return false
             val cuenta = contacto.ventaId ?: return false
             val ultimo = contactos
-                .filter { it.tipo == TipoDeContacto.COBRO && it.ventaId == cuenta }
+                .filter { esMovimientoDeDinero(it) && it.ventaId == cuenta }
                 .maxWithOrNull(compareBy({ it.fecha }, { it.id }))
             return ultimo?.id == contacto.id
         }
+
+        /**
+         * Lo que tiene ticket y compite por "el último": un cobro, o una
+         * condonación que el servidor no rechazó. Ver el KDoc de la clase.
+         */
+        private fun esMovimientoDeDinero(contacto: ContactoDeCobranza): Boolean =
+            contacto.tipo == TipoDeContacto.COBRO ||
+                (contacto.tipo == TipoDeContacto.CONDONACION && contacto.aplicado)
     }
 }

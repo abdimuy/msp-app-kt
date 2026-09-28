@@ -90,19 +90,20 @@ import kotlinx.coroutines.withContext
  *
  * ## Por qué el segundo encolado no puede cobrar dos veces
  *
- * `UpdateLocationHandler` sigue encolando —es el único encolado del camino de
- * la condonación—, así que el mismo pago puede encolarse dos veces. **Lo que
- * impide el doble cobro NO es `ExistingWorkPolicy.KEEP`**: el KDoc de
- * `WorkManagerUtils:22-36` dice literal que `KEEP` solo salta el encolado
- * mientras el trabajo previo sigue ENQUEUED/RUNNING/BLOCKED, y que en cuanto
- * llega a un estado terminal encola *"exactamente como haría `REPLACE`"*. Lo
- * que `KEEP` sí compra es no cancelar una subida viva, que es otra cosa.
+ * `UpdateLocationHandler` sigue encolando tras escribir la ubicación, así que
+ * el mismo pago puede encolarse dos veces. **Lo que impide el doble envío NO es
+ * `ExistingWorkPolicy.KEEP`**: el KDoc de `WorkManagerUtils` dice que `KEEP`
+ * solo salta el encolado mientras el trabajo previo sigue
+ * ENQUEUED/RUNNING/BLOCKED, y que en cuanto llega a un estado terminal encola
+ * *"exactamente como haría `REPLACE`"*.
  *
- * Lo que impide el doble cobro es la **idempotencia del servidor**: la subida
- * viaja con `Idempotency-Key = Payment.ID`, fijado desde antes de este arreglo
- * por `PendingPaymentsWorkerV2Test.v2_happy_path_marks_guardado`
- * (*"Idempotency-Key must equal the pago ID"*). Un segundo request con la
- * misma clave es un replay, no un cobro nuevo.
+ * Mientras la captura esté pendiente, la subida viaja con
+ * `Idempotency-Key = Payment.ID` (`PendingPaymentsWorkerV2Test.
+ * v2_happy_path_marks_guardado`), y un segundo request es un replay, no un
+ * cobro nuevo. Y desde el 2026-09-27 ni siquiera hay segundo request: una
+ * captura ya soltada (`GUARDADO_EN_MICROSIP = 1`) hace que
+ * `PendingPaymentsWorker.doWork` salga sin tocar la red, porque el replay del
+ * servidor borraba el comprobante original.
  *
  * ## Por qué el par va dentro de `NonCancellable`
  *

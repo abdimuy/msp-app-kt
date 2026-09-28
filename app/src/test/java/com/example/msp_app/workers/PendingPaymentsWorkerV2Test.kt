@@ -556,8 +556,16 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         assertEquals("Idempotency-Key must equal the pago ID", "pago-001", capturedKey)
     }
 
+    /**
+     * Dos corridas del worker sobre el mismo pago (un reintento forzado, o
+     * WorkManager re-corriendo un trabajo que detuvo). **Cambió el 2026-09-27:**
+     * antes la segunda corrida volvía a mandar el pago y se confiaba en el
+     * replay idempotente del servidor. El dinero no se duplicaba, pero ese replay
+     * BORRA el comprobante original (medido en dev el 2026-09-25), así que tras
+     * un 200 la captura queda soltada y la segunda corrida no manda nada (ZZ2).
+     */
     @Test
-    fun v2_duplicate_200_is_idempotent_and_marks_done() = runTest {
+    fun v2_duplicate_run_after_200_does_not_resend() = runTest {
         seed(pendingPayment())
 
         var callCount = 0
@@ -566,13 +574,11 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
             PagoRecibidoDTO(id = "pago-001")
         }
 
-        // Two independent worker runs (e.g. a forced retry). The server dedupes
-        // by datos.id; both must succeed with no double-collection signalled.
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
 
         assertTrue(guardadoFlag("pago-001"))
-        assertEquals("worker resends on each run; server is the dedupe authority", 2, callCount)
+        assertEquals("tras un 200 no se vuelve a mandar", 1, callCount)
     }
 
     @Test

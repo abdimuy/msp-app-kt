@@ -40,6 +40,7 @@ import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.GrupoDeContactos
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
+import com.example.msp_app.feature.pagos.domain.model.TipoDeContacto
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.EstadoCuentaUi
 import com.example.msp_app.feature.pagos.ui.TratoDelEstado
@@ -216,7 +217,13 @@ fun ContactoEnLinea(
                         amount = contacto.importe.amount,
                         masked = ocultos,
                         style = MspTheme.type.amountInline,
-                        color = MspTheme.colors.onSurface,
+                        // Una condonación rechazada no bajó la deuda: su monto se
+                        // apaga para que no se lea como uno que sí contó.
+                        color = if (contacto.aplicado) {
+                            MspTheme.colors.onSurface
+                        } else {
+                            MspTheme.colors.onSurfaceMuted
+                        },
                         modifier = Modifier.alignBy(FirstBaseline)
                     )
                 }
@@ -423,6 +430,12 @@ fun FiltrosDeContacto(
  */
 @Composable
 private fun acentoDe(contacto: ContactoDeCobranza): Color {
+    // La condonación no es uno de los ocho estados del periodo: su punto lo
+    // decide su tipo. Informativo si bajó la deuda, apagado si el servidor la
+    // rechazó — nunca el verde de "pagó".
+    if (contacto.tipo == TipoDeContacto.CONDONACION) {
+        return if (contacto.aplicado) MspTheme.colors.statusInfo else MspTheme.colors.onSurfaceMuted
+    }
     val trato = EstadoCuentaUi.tratoDe(periodoDe(contacto))
     return if (trato == TratoDelEstado.ESCALAR) {
         EstadoCuentaUi.fondoDe(trato, MspTheme.colors)

@@ -4,9 +4,12 @@ import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.entities.DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
+import com.example.msp_app.core.database.entities.FORMA_COBRO_CONDONACION
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
+import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
@@ -76,6 +79,25 @@ class RoomPagosAdapter(
         paymentDao.getCollectedAmounts(VentanaCobro.FORMAS_COBRO_COBRANZA)
             .map { Money.of(it) }
 
+    /**
+     * Las condonaciones de la venta: la MISMA lectura por `DOCTO_CC_ACR_ID` que
+     * [pagosDe], quedándose sólo con la forma 137026 — el complemento exacto de
+     * lo que [aHistorial] tira.
+     *
+     * Una fila marcada [DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR] sale con
+     * `aplicada = false`: el servidor la rechazó (`PaymentDao.soltarCondonacionRechazada`
+     * la marcó) y el saldo de la venta lo re-lee del servidor
+     * `RefrescoDelSaldoDeLaVenta`, nunca sumando el importe de vuelta. Una fecha
+     * impresentable se descarta y se reporta igual que un abono.
+     */
+    override suspend fun condonacionesDe(ventaId: Int): List<CondonacionDelHistorial> {
+        val crudas = paymentDao.getPaymentsBySaleId(ventaId)
+            .filter { it.FORMA_COBRO_ID == FORMA_COBRO_CONDONACION }
+        val legibles = crudas.mapNotNull { it.aCondonacion() }
+        reportarLosQueSeCayeron(crudas.size - legibles.size)
+        return legibles.sortedByDescending { it.fecha }
+    }
+
     private fun aHistorial(crudos: List<PaymentEntity>): List<PagoDelHistorial> {
         val delaCobranza = crudos.filter { it.FORMA_COBRO_ID in VentanaCobro.FORMAS_COBRO_COBRANZA }
         val legibles = delaCobranza.mapNotNull { it.aPagoDelHistorial() }
@@ -123,6 +145,19 @@ private fun PaymentEntity.aPagoDelHistorial(): PagoDelHistorial? {
         capturaId = PAGO_RECIBIDO_ID,
         // `de` deja pasar SOLO el par completo: media coordenada pintaría un pin
         // en el meridiano cero, que es un dato falso y no uno ausente.
+        ubicacion = UbicacionDelCobro.de(LAT, LNG)
+    )
+}
+
+private fun PaymentEntity.aCondonacion(): CondonacionDelHistorial? {
+    val fecha = AppTime.parseWireFormatOrNull(FECHA_HORA_PAGO) ?: return null
+    return CondonacionDelHistorial(
+        condonacionId = ID,
+        ventaId = DOCTO_CC_ACR_ID,
+        fecha = fecha,
+        importe = Money.of(IMPORTE),
+        cobrador = COBRADOR,
+        aplicada = DOCTO_CC_ID != DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR,
         ubicacion = UbicacionDelCobro.de(LAT, LNG)
     )
 }

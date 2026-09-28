@@ -130,10 +130,16 @@ class PendingPaymentsWorkerE2ETest : PagosE2ETestBase() {
         )
     }
 
-    // ── 3. duplicate 200 (idempotent resend): both succeed, same key ───────
+    // ── 3. duplicate run after a 200: the second one sends NOTHING ─────────
+    //
+    // Cambió el 2026-09-27. Antes la segunda corrida volvía a mandar el pago y
+    // se confiaba en el replay idempotente del servidor. El dinero no se
+    // duplicaba, pero ese replay BORRA el comprobante original (medido en dev el
+    // 2026-09-25), y el servidor ignora en él la ubicación y las imágenes nuevas.
+    // Tras un 200 la captura queda soltada y el worker no la vuelve a mandar.
 
     @Test
-    fun duplicateSuccessfulUpload_isIdempotentAndSafe() = runBlocking {
+    fun duplicateRunAfterSuccessfulUpload_doesNotResend() = runBlocking {
         val store = ensureStore()
         val paymentId = "pago-e2e-duplicate-003"
         store.savePayment(pendingPayment(paymentId))
@@ -149,13 +155,8 @@ class PendingPaymentsWorkerE2ETest : PagosE2ETestBase() {
         assertEquals(WorkInfo.State.SUCCEEDED, firstInfo.state)
         assertTrue(store.getPaymentById(paymentId)!!.GUARDADO_EN_MICROSIP)
 
-        // Re-run the exact same pago (e.g. a stray re-enqueue, or a device
-        // that lost the ack of its own successful upload). The server would
-        // return 200 again (idempotent by datos.id); the client must not
-        // crash or corrupt state.
-        mockWebServer.enqueue(
-            MockResponse().setResponseCode(200).setBody("""{"id":"$paymentId","estado":"ok"}""")
-        )
+        // Re-run the exact same pago (a stray re-enqueue, or WorkManager re-running
+        // a stopped job). It must succeed WITHOUT touching the network.
         enqueuePendingPaymentsWorker(context, paymentId)
         testDriver.setAllConstraintsMet(currentWorkId(paymentId))
         val secondInfo = awaitWorkInfo(paymentId) {
@@ -163,12 +164,8 @@ class PendingPaymentsWorkerE2ETest : PagosE2ETestBase() {
         }
         assertEquals(WorkInfo.State.SUCCEEDED, secondInfo.state)
 
-        assertEquals(2, mockWebServer.requestCount)
-        val firstRequest = mockWebServer.takeRequest()
-        val secondRequest = mockWebServer.takeRequest()
-        assertEquals(paymentId, firstRequest.getHeader("Idempotency-Key"))
-        assertEquals(paymentId, secondRequest.getHeader("Idempotency-Key"))
-
+        assertEquals("tras un 200 no se vuelve a mandar", 1, mockWebServer.requestCount)
+        assertEquals(paymentId, mockWebServer.takeRequest().getHeader("Idempotency-Key"))
         assertTrue(store.getPaymentById(paymentId)!!.GUARDADO_EN_MICROSIP)
     }
 }

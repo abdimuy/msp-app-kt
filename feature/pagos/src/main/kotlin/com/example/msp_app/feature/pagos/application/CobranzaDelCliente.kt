@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.application
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
@@ -28,7 +29,13 @@ data class CobranzaDelCliente(
     val pagos: List<PagoDelHistorial>,
     val visitas: List<VisitaDelCliente>,
     val estados: Map<Int, EstadoDelPeriodo>,
-    val liquidaciones: Map<Int, Liquidacion>
+    val liquidaciones: Map<Int, Liquidacion>,
+    /**
+     * Las condonaciones de sus ventas. **Sólo para la bitácora**: a propósito NO
+     * entran a [pagos] ni a la derivación de [estados] — ver
+     * [CondonacionDelHistorial].
+     */
+    val condonaciones: List<CondonacionDelHistorial> = emptyList()
 ) {
     /** Los abonos de UNA venta, del más reciente al más viejo. */
     fun pagosDe(ventaId: Int): List<PagoDelHistorial> =
@@ -81,7 +88,8 @@ class ReunirCobranzaDelCliente @Inject constructor(
             pagos = pagos,
             visitas = visitas,
             estados = derivarEstadoDelPeriodo(ventas, pagos, visitas, ventana),
-            liquidaciones = liquidaciones
+            liquidaciones = liquidaciones,
+            condonaciones = ventas.flatMap { pagosPort.condonacionesDe(it.ventaId) }
         )
     }
 }

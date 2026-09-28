@@ -14,6 +14,7 @@ import androidx.navigation.NavController
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.forgiveness.components.NewForgivenessDialog
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.navigation.Screen
 
 /**
  * El destino de la condonación ([com.example.msp_app.navigation.Screen.Forgiveness]).
@@ -32,9 +33,18 @@ import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
  * coordenada ilegible: una venta a medias es un dato falso, no uno
  * incompleto.
  *
- * `onDismissRequest` es `popBackStack()`: cerrar el diálogo —cancelar o
- * terminar de condonar— es volver por donde se entró, igual que el resto de
- * los destinos de este grafo.
+ * **Cerrar y guardar son dos salidas distintas.**
+ *
+ * - `onDismissRequest` —cancelar— es `popBackStack()`: volver por donde se
+ *   entró, igual que el resto de los destinos de este grafo.
+ * - `onGuardada` —la condonación YA quedó escrita— es
+ *   [irAlTicketDeLaCondonacion]: el ticket legado **reemplaza** a esta pantalla
+ *   en la pila, y atrás desde el ticket vuelve al detalle desde el que se entró.
+ *
+ * Antes las dos eran la misma: el diálogo empujaba el ticket y después llamaba a
+ * `onDismissRequest`, cuyo `popBackStack()` sacaba **el ticket** y dejaba esta
+ * pantalla con la venta vieja — el cobrador no veía confirmación, reintentaba, y
+ * cada reintento era otra condonación (E-APP-031, E-APP-029).
  */
 @Composable
 fun ForgivenessScreen(saleId: Int, navController: NavController) {
@@ -61,8 +71,8 @@ fun ForgivenessScreen(saleId: Int, navController: NavController) {
                 NewForgivenessDialog(
                     show = true,
                     onDismissRequest = { navController.popBackStack() },
-                    sale = sale,
-                    navController = navController
+                    onGuardada = { pagoId -> navController.irAlTicketDeLaCondonacion(pagoId) },
+                    sale = sale
                 )
             }
         }
@@ -72,5 +82,24 @@ fun ForgivenessScreen(saleId: Int, navController: NavController) {
                 CircularProgressIndicator()
             }
         }
+    }
+}
+
+/**
+ * **A dónde va una condonación ya escrita**: al ticket legado
+ * ([Screen.PaymentTicket]), sacando [Screen.Forgiveness] de la pila.
+ *
+ * Es el mismo molde que el abono nuevo ya usaba
+ * (`DestinosDeCobranzaGraph`, `onRegistrado` →
+ * `popUpTo(PagosRutas.REGISTRAR_ABONO) { inclusive = true }`): la pantalla de
+ * captura sale, el ticket se queda, y atrás desde el ticket lleva a la venta
+ * — nunca a un diálogo de condonación con el monto ya aplicado detrás.
+ *
+ * `internal` y fuera del `@Composable` para que la prueba de navegación la
+ * ejerza sobre el grafo real sin montar Firebase.
+ */
+internal fun NavController.irAlTicketDeLaCondonacion(pagoId: String) {
+    navigate(Screen.PaymentTicket.createRoute(pagoId)) {
+        popUpTo(Screen.Forgiveness.route) { inclusive = true }
     }
 }

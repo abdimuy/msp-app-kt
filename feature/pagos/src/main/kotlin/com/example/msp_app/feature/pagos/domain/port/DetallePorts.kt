@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.domain.port
 
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
@@ -109,6 +110,17 @@ interface PagosPort {
      * va a ordenar.
      */
     suspend fun importesCobrados(): List<Money>
+
+    /**
+     * Las **condonaciones** de [ventaId], del más reciente al más viejo — lo que
+     * [pagosDe] deja fuera a propósito.
+     *
+     * Lectura APARTE y no un filtro relajado de [pagosDe]: el conjunto de
+     * formas de cobranza lo consumen el ritmo, el último pago, el estado del
+     * periodo, la cartera y la guarda anti-duplicado del abono, y ninguno debe
+     * ver una condonación. Sólo la bitácora la mezcla.
+     */
+    suspend fun condonacionesDe(ventaId: Int): List<CondonacionDelHistorial>
 }
 
 /** Bitácora de visitas de un cliente. */

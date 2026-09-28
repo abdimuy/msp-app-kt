@@ -39,6 +39,38 @@ data class PaymentEntity(
 )
 
 /**
+ * **`Payment.DOCTO_CC_ID` de una captura que el servidor RECHAZÓ y resguardó.**
+ *
+ * `0` es el centinela de "aún sin documento" (`PaymentFactory`), y hasta este
+ * valor era también lo único que le quedaba a una captura rechazada: el worker
+ * la soltaba (`GUARDADO_EN_MICROSIP = 1`) con `DOCTO_CC_ID = 0`, que es la MISMA
+ * firma que deja un pago aplicado cuya respuesta nunca llegó (E-APP-019,
+ * E-APP-032). Las dos se leían igual, y
+ * `PaymentDao.sumImporteNoReconocidoPorElServidor` restaba del saldo **para
+ * siempre** lo que el servidor jamás aplicó — el "límite conocido 1" de su KDoc.
+ *
+ * Negativo a propósito: ningún documento de Microsip lo es, así que no puede
+ * chocar con uno real; `DOCTO_CC_ID = 0` (la suma de lo no reconocido) ya no la
+ * cuenta; y los tres cerrojos del gemelo legacy (`DOCTO_CC_ID > 0`) tampoco la
+ * tocan. No es columna nueva: el schema no cambia.
+ *
+ * Hoy lo escribe UN solo camino — `PaymentDao.soltarCondonacionRechazada`,
+ * desde `PendingPaymentsWorker` ante un `422 pago_saldo_insuficiente` con
+ * `X-Intent-Captured` sobre una condonación (E-APP-029: el servidor rechazó las
+ * tres de más con ese código).
+ */
+const val DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR: Int = -1
+
+/**
+ * `FORMA_COBRO_ID` de la condonación en Microsip (`FORMAS_COBRO_CC` 137026 →
+ * concepto 27969 "Condonaciones", `COBRANZA-SYNC.md` §7.2). Copia de
+ * `Constants.CONDONACION_ID` de `:app`, que `:core:database` no alcanza; las
+ * queries de [com.example.msp_app.core.database.dao.payment.PaymentDao] ya lo
+ * escribían como literal.
+ */
+const val FORMA_COBRO_CONDONACION: Int = 137026
+
+/**
  * Single source of truth for the overdue_payments_view SQL.
  * Used by both @DatabaseView and migrations to prevent whitespace mismatches.
  */

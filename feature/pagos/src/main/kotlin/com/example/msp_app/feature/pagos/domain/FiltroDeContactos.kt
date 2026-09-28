@@ -22,10 +22,18 @@ import com.example.msp_app.feature.pagos.domain.model.TipoDeContacto
  * saldo. Viven en "ver los N contactos" y en el detalle de venta.
  */
 enum class FiltroDeContactos(val etiqueta: String) {
-    /** Todo lo que pasó en esa puerta, mezclado. El estado inicial. */
+    /**
+     * Todo lo que pasó en esa puerta, mezclado. El estado inicial. **Es la única
+     * pastilla donde aparece una condonación** ([TipoDeContacto.CONDONACION]).
+     */
     TODOS("Todos"),
 
-    /** Sólo lo que dejó dinero. */
+    /**
+     * Sólo lo que dejó dinero. **La condonación no entra**: perdonar deuda no es
+     * dinero que entró, y "Cobros 3" con una condonación adentro diría que el
+     * cliente pagó tres veces. Por lo mismo no suma al "cobrado" del mes
+     * ([GruposDeContactos]).
+     */
     COBROS("Cobros"),
 
     /** Sólo las puertas tocadas, hayan dejado dinero o no. */

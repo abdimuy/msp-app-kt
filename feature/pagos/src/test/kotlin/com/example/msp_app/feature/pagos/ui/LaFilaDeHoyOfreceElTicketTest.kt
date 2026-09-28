@@ -49,6 +49,10 @@ import org.robolectric.annotation.Config
  * sección "últimos contactos" (decisión del dueño) y con ella la única fila que
  * podía preguntar "¿qué abrir?".
  *
+ * Desde el 2026-09-28 la **condonación** aplicada de hoy que es el último
+ * movimiento de dinero de su cuenta se reimprime igual que un cobro, y se cablea
+ * en las dos pantallas: su ticket lleva el id de ESA condonación.
+ *
  * Por eso cada caso se afirma dos veces, contra los dos `*Content` que quedan. El
  * veredicto en sí —cuándo pregunta y cuándo no— ya lo cobra
  * `ToqueDelContactoTest` sin pantalla; lo que se mide aquí es el **cableado**:
@@ -196,6 +200,34 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
             .assertHasNoClickAction()
     }
 
+    // --- La condonación de hoy, con la misma regla ----------------------------
+
+    /**
+     * La condonación de hoy que es el último movimiento de dinero de su cuenta
+     * se reimprime igual que un cobro: con punto, la hoja; su opción "Ticket"
+     * entrega el id de ESA condonación (el `Payment.ID` que `PaymentTicketScreen`
+     * busca en Room).
+     */
+    @Test
+    fun `en la bitacora, la condonacion de hoy abre su ticket desde la hoja`() {
+        bitacora(CON_CONDONACION_DE_HOY)
+
+        tocar(EL_DE_HOY)
+        composeTestRule.onNodeWithTag(OPCION_TICKET_TAG).performClick()
+
+        assertEquals(ID_DE_LA_CONDONACION, ticket)
+    }
+
+    @Test
+    fun `en el detalle de venta, la condonacion de hoy sin punto abre su ticket directo`() {
+        detalleVenta(CON_CONDONACION_DE_HOY.map { it.copy(ubicacion = null) })
+
+        tocar(EL_DE_HOY, desplazando = true)
+
+        composeTestRule.onNodeWithTag(HOJA_DEL_CONTACTO_TAG).assertDoesNotExist()
+        assertEquals(ID_DE_LA_CONDONACION, ticket)
+    }
+
     // --- Lo que la fila le dice a quien no ve la pantalla ----------------------
 
     /**
@@ -335,6 +367,25 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
          * el punto.
          */
         val SIN_PUNTO = CONTACTOS.map { it.copy(ubicacion = null) }
+
+        const val ID_DE_LA_CONDONACION = "condonacion-de-hoy"
+
+        /**
+         * Una condonación de hoy, posterior al abono de hoy de la MISMA cuenta:
+         * es el último movimiento de dinero y va primero en la lista.
+         */
+        val CON_CONDONACION_DE_HOY = listOf(
+            abono(
+                id = ID_DE_LA_CONDONACION,
+                cuando = "2026-09-01T23:30:00Z",
+                donde = PUNTO_DE_HOY
+            ).copy(
+                etiqueta = "Condonación",
+                tipo = TipoDeContacto.CONDONACION,
+                estado = EstadoCuenta.SIN_TOCAR,
+                metodo = null
+            )
+        ) + CONTACTOS
 
         fun abono(id: String, cuando: String, donde: UbicacionDelCobro) = ContactoDeCobranza(
             id = id,

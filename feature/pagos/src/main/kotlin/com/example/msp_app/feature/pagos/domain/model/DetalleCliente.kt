@@ -274,7 +274,19 @@ enum class TipoDeContacto {
     COBRO,
 
     /** Se tocó la puerta. Nunca trae método — ver [ContactoDeCobranza.metodo]. */
-    VISITA
+    VISITA,
+
+    /**
+     * Se perdonó deuda. Trae [ContactoDeCobranza.importe] —lo condonado— pero
+     * **no es un cobro**: no suma al "cobrado" del mes
+     * ([com.example.msp_app.feature.pagos.domain.GruposDeContactos]), no entra a
+     * la pastilla "Cobros" ni a la de "Visitas" (sólo a "Todos") y no cuenta para
+     * "lo que suele dar" del abono: esos consumidores preguntan por [COBRO]
+     * explícitamente. Sí ofrece su ticket desde la fila, con la misma regla que
+     * el cobro, cuando está aplicada
+     * ([com.example.msp_app.feature.pagos.domain.ToqueDelContacto]).
+     */
+    CONDONACION
 }
 
 /**
@@ -376,7 +388,14 @@ data class ContactoDeCobranza(
      * el histórico anterior a que se guardara. Un renglón sin punto **no se
      * puede tocar**: no hay nada que abrir.
      */
-    val ubicacion: UbicacionDelCobro? = null
+    val ubicacion: UbicacionDelCobro? = null,
+    /**
+     * `false` **sólo** en una condonación que el servidor rechazó
+     * (`CondonacionDelHistorial.aplicada`). La fila la pinta apagada: el hecho
+     * se enseña, pero sin afirmar que bajó la deuda. Todo lo demás —abonos,
+     * visitas, condonaciones aplicadas o pendientes— es `true`.
+     */
+    val aplicado: Boolean = true
 )
 
 /**

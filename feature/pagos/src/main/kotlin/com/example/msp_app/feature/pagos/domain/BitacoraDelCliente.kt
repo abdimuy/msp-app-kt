@@ -2,13 +2,15 @@ package com.example.msp_app.feature.pagos.domain
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
+import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.TipoDeContacto
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 
 /**
- * La bitácora del domicilio: **visitas y abonos en una sola línea de tiempo**.
+ * La bitácora del domicilio: **visitas, abonos y condonaciones en una sola
+ * línea de tiempo**.
  *
  * Se mezclan a propósito. El cobrador no recuerda dos listas, recuerda una
  * historia: *"la vez pasada me dijo que el viernes, y antes sí me pagó"*.
@@ -64,7 +66,8 @@ object BitacoraDelCliente {
     fun de(
         visitas: List<VisitaDelCliente>,
         pagos: List<PagoDelHistorial>,
-        cuentas: Map<Int, String> = emptyMap()
+        cuentas: Map<Int, String> = emptyMap(),
+        condonaciones: List<CondonacionDelHistorial> = emptyList()
     ): List<ContactoDeCobranza> {
         val deVisitas = visitas.map { visita ->
             ContactoDeCobranza(
@@ -111,7 +114,45 @@ object BitacoraDelCliente {
                 ubicacion = pago.ubicacion
             )
         }
-        return (deVisitas + dePagos).sortedByDescending { it.fecha }
+        return (deVisitas + dePagos + deCondonaciones(condonaciones, cuentas))
+            .sortedByDescending { it.fecha }
+    }
+
+    /**
+     * Las condonaciones como contactos de tipo [TipoDeContacto.CONDONACION].
+     *
+     * - **Etiqueta propia** —"Condonación", o "Condonación no aplicada" cuando el
+     *   servidor la rechazó—: nunca "Abono", porque no entró dinero.
+     * - **Sin [ContactoDeCobranza.metodo]**: condonar no es una forma de pago, y
+     *   `MetodoDeCobro.de(137026)` pintaría un método que nadie usó.
+     * - **[ContactoDeCobranza.estado] = [EstadoCuenta.SIN_TOCAR]**, que es el
+     *   único de los ocho que no afirma nada del periodo — ni pago, ni visita, ni
+     *   promesa. Ningún consumidor lo lee para pintar texto; el color del punto
+     *   de una condonación lo decide su tipo en la fila, no este estado.
+     */
+    private fun deCondonaciones(
+        condonaciones: List<CondonacionDelHistorial>,
+        cuentas: Map<Int, String>
+    ): List<ContactoDeCobranza> = condonaciones.map { condonacion ->
+        ContactoDeCobranza(
+            id = condonacion.condonacionId,
+            fecha = condonacion.fecha,
+            etiqueta = if (condonacion.aplicada) {
+                ETIQUETA_DE_LA_CONDONACION
+            } else {
+                ETIQUETA_DE_LA_CONDONACION_NO_APLICADA
+            },
+            nota = null,
+            estado = EstadoCuenta.SIN_TOCAR,
+            importe = condonacion.importe,
+            tipo = TipoDeContacto.CONDONACION,
+            metodo = null,
+            cobrador = condonacion.cobrador,
+            ventaId = condonacion.ventaId,
+            cuenta = cuentas[condonacion.ventaId],
+            ubicacion = condonacion.ubicacion,
+            aplicado = condonacion.aplicada
+        )
     }
 
     /**
@@ -132,4 +173,13 @@ object BitacoraDelCliente {
      * mock `fila-de-contactos.html`, sección 05).
      */
     private const val ETIQUETA_DEL_ABONO = "Abono"
+
+    /** Etiqueta de una condonación que bajó la deuda (o está por subir). */
+    const val ETIQUETA_DE_LA_CONDONACION = "Condonación"
+
+    /**
+     * Etiqueta de una condonación que el servidor rechazó. Se enseña —se intentó
+     * y la oficina la tiene— pero sin afirmar que bajó la deuda.
+     */
+    const val ETIQUETA_DE_LA_CONDONACION_NO_APLICADA = "Condonación no aplicada"
 }

@@ -76,16 +76,17 @@ class UpdateLocationHandler(
                 // al camino del dinero.
                 //
                 // Desde el Arreglo C `RegistroDeAbonoAdapter` ya encola en la
-                // misma corrutina de la escritura, asi que este encolado es la
-                // segunda red (y el unico del camino de la condonacion). Que se
-                // encole dos veces no cobra dos veces, y la razon NO es
-                // `ExistingWorkPolicy.KEEP` — `WorkManagerUtils:22-36` dice que
-                // KEEP solo salta mientras el trabajo previo sigue vivo y que en
-                // estado terminal encola igual que REPLACE. La razon es la
-                // idempotencia del servidor: la subida viaja con
-                // `Idempotency-Key = Payment.ID`, fijado por
-                // `PendingPaymentsWorkerV2Test.v2_happy_path_marks_guardado`,
-                // asi que el segundo request es un replay.
+                // misma corrutina de la escritura, y desde el 2026-09-27 la
+                // condonacion tambien (`NewForgivenessDialog`), asi que este
+                // encolado es la segunda red. Que se encole dos veces no manda
+                // dos veces: si la captura ya quedo soltada
+                // (`GUARDADO_EN_MICROSIP = 1`), `PendingPaymentsWorker.doWork`
+                // sale sin tocar la red. Antes se confiaba en el replay
+                // idempotente del servidor, que no duplica dinero pero BORRA el
+                // comprobante original e ignora la ubicacion nueva — por eso ya
+                // no se reenvia. Mientras la captura siga pendiente, la subida
+                // viaja con `Idempotency-Key = Payment.ID`
+                // (`PendingPaymentsWorkerV2Test.v2_happy_path_marks_guardado`).
                 location?.let {
                     ejecutar(ERROR_CODE_PAYMENT_LOCATION_NOT_WRITTEN, CONTEXT_PAYMENT_LOCATION) {
                         updatePaymentLocation(paymentId, it.latitude, it.longitude)

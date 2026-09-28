@@ -9,6 +9,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.coroutineScope
 import com.example.msp_app.workmanager.enqueueCobranzaReconcileNowWorker
 import com.example.msp_app.workmanager.enqueueCobranzaReconcilePeriodicWorker
+import com.example.msp_app.workmanager.enqueueReparacionDeCondonacionesSiFalta
 
 /**
  * Wires a [CobranzaSyncManager] and a [CobranzaSseSubscriber] to the host's
@@ -49,6 +50,10 @@ fun CobranzaSyncObserver(manager: CobranzaSyncManager) {
                     // cadencia. Ambos sobreviven al `ON_STOP`.
                     enqueueCobranzaReconcileNowWorker(context)
                     enqueueCobranzaReconcilePeriodicWorker(context)
+                    // La reparación única de condonaciones fantasma y saldos
+                    // negativos (E-APP-029/E-APP-030): sólo encola si todavía
+                    // no se completó en este teléfono.
+                    enqueueReparacionDeCondonacionesSiFalta(context)
                     // Iniciar SSE después del sync manager para que syncNow()
                     // ya esté disponible cuando llegue el primer evento.
                     val sseSubscriber = CobranzaSseProvider.get(manager, scope)

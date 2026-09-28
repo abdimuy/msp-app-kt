@@ -367,7 +367,15 @@ class WorkEnqueuePolicyGuardTest {
             // camino del dinero de ventas, fuera del alcance del Arreglo B —
             // anotado en vez de invisible.
             "app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt" to
-                mapOf("replaceExisting = true" to 1)
+                mapOf("replaceExisting = true" to 1),
+            // El refresco del saldo tras una condonación rechazada NO sube nada:
+            // re-lee el saldo del servidor. `KEEP` descartaba el refresco de una
+            // segunda condonación rechazada mientras el anterior corría (ZZ1,
+            // medido en `RefrescarSaldoDeVentaWorkerTest`); `APPEND_OR_REPLACE`
+            // lo encadena detrás sin cancelar nada. Ver su KDoc.
+            "app/src/main/java/com/example/msp_app/workmanager/WorkManagerUtils.kt" to mapOf(
+                ".enqueueUniqueWork(nombre, ExistingWorkPolicy.APPEND_OR_REPLACE, request)" to 1
+            )
         )
 
         fun raizDelRepoDeWorkManager(): File {

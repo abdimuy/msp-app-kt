@@ -239,6 +239,67 @@ class ToqueDelContactoTest {
         )
     }
 
+    // --- La condonación, con la MISMA regla que el cobro -----------------------
+    //
+    // Pedido del dueño (2026-09-28): la condonación también se reimprime el
+    // mismo día si es el último movimiento de dinero de su cuenta. Cobros y
+    // condonaciones APLICADAS compiten juntos por "el último"; una condonación
+    // rechazada no ofrece ticket ni le quita el suyo a nadie.
+
+    @Test
+    fun `condonacion de hoy y la ultima de su cuenta, pregunta`() {
+        val condonacion = condonacion(id = "cond-hoy", cuando = "2026-09-01T23:30:00Z")
+        assertEquals(
+            ToqueDelContacto.PREGUNTAR,
+            ToqueDelContacto.de(condonacion, listOf(condonacion, EL_DE_HOY), HOY)
+        )
+    }
+
+    @Test
+    fun `condonacion de hoy sin punto y la ultima, abre el ticket directo`() {
+        val condonacion =
+            condonacion(id = "cond-hoy", cuando = "2026-09-01T23:30:00Z", punto = null)
+        assertEquals(
+            ToqueDelContacto.TICKET,
+            ToqueDelContacto.de(condonacion, listOf(condonacion, EL_DE_HOY), HOY)
+        )
+    }
+
+    @Test
+    fun `condonacion de hoy ultima, el abono anterior de hoy ya no ofrece ticket`() {
+        val condonacion = condonacion(id = "cond-hoy", cuando = "2026-09-01T23:30:00Z")
+        assertEquals(
+            ToqueDelContacto.MAPA,
+            ToqueDelContacto.de(EL_DE_HOY, listOf(condonacion, EL_DE_HOY), HOY)
+        )
+    }
+
+    @Test
+    fun `un abono posterior le quita el ticket a la condonacion y se lo queda`() {
+        val condonacion = condonacion(id = "cond-hoy", cuando = "2026-09-01T22:00:00Z")
+        val contactos = listOf(EL_DE_HOY, condonacion)
+        assertEquals(ToqueDelContacto.MAPA, ToqueDelContacto.de(condonacion, contactos, HOY))
+        assertEquals(ToqueDelContacto.PREGUNTAR, ToqueDelContacto.de(EL_DE_HOY, contactos, HOY))
+    }
+
+    @Test
+    fun `condonacion de ayer no ofrece ticket`() {
+        val condonacion = condonacion(id = "cond-ayer", cuando = "2026-08-31T18:00:00Z")
+        assertEquals(
+            ToqueDelContacto.MAPA,
+            ToqueDelContacto.de(condonacion, listOf(condonacion), HOY)
+        )
+    }
+
+    @Test
+    fun `condonacion no aplicada no ofrece ticket ni se lo quita al abono`() {
+        val rechazada =
+            condonacion(id = "cond-rech", cuando = "2026-09-01T23:30:00Z", aplicada = false)
+        val contactos = listOf(rechazada, EL_DE_HOY)
+        assertEquals(ToqueDelContacto.MAPA, ToqueDelContacto.de(rechazada, contactos, HOY))
+        assertEquals(ToqueDelContacto.PREGUNTAR, ToqueDelContacto.de(EL_DE_HOY, contactos, HOY))
+    }
+
     private companion object {
         /** Martes 1-sep-2026 — el mismo "hoy" que el resto de las fixtures del módulo. */
         val HOY: LocalDate = LocalDate.of(2026, 9, 1)
@@ -266,6 +327,24 @@ class ToqueDelContactoTest {
         /** 1-sep 10:00 CDMX: el mismo día y la misma cuenta, pero no el último. */
         val EL_DE_HOY_ANTERIOR =
             cobro(id = "hoy-1", cuenta = CUENTA, cuando = "2026-09-01T16:00:00Z")
+
+        fun condonacion(
+            id: String,
+            cuando: String,
+            aplicada: Boolean = true,
+            punto: UbicacionDelCobro? = PUNTO
+        ) = ContactoDeCobranza(
+            id = id,
+            fecha = Instant.parse(cuando),
+            etiqueta = if (aplicada) "Condonación" else "Condonación no aplicada",
+            nota = null,
+            estado = EstadoCuenta.SIN_TOCAR,
+            importe = Money.of(BigDecimal("1000.00")),
+            tipo = TipoDeContacto.CONDONACION,
+            ventaId = CUENTA,
+            ubicacion = punto,
+            aplicado = aplicada
+        )
 
         /** 31-ago: el último —y el único— de la cuenta 77. */
         val EL_VIEJO = cobro(id = "viejo-2", cuenta = 77, cuando = "2026-08-31T18:00:00Z")

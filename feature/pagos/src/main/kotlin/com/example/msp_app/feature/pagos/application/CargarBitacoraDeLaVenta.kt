@@ -61,7 +61,8 @@ class CargarBitacoraDeLaVenta @Inject constructor(
             contactos = BitacoraDelCliente.de(
                 visitas = cobranza.visitas,
                 pagos = cobranza.pagos,
-                cuentas = cuentas
+                cuentas = cuentas,
+                condonaciones = cobranza.condonaciones
             ).filter { it.ventaId == ventaId },
             // El "hoy" con el que el toque de un renglón sabe si ese cobro es de
             // hoy, tomado del reloj inyectado. Ver el KDoc de

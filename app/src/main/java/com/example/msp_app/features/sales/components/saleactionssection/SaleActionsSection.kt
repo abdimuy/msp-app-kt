@@ -26,6 +26,7 @@ import androidx.navigation.NavController
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.forgiveness.components.NewForgivenessDialog
 import com.example.msp_app.navigation.DestinosDeCobranza
+import com.example.msp_app.navigation.Screen
 
 /**
  * El bloque de acciones del detalle de venta legado.
@@ -54,8 +55,14 @@ import com.example.msp_app.navigation.DestinosDeCobranza
  * lo que `SaleDao.getById` filtra—, no el `DOCTO_CC_ID` del crédito ni el
  * `CLIENTE_ID`.
  *
- * **La condonación no se toca**: sigue siendo el mismo `NewForgivenessDialog`
- * con la misma lógica, y este bloque sigue siendo su única puerta.
+ * **La condonación tiene DOS puertas**, no una (corrige E-APP-044): este bloque
+ * del detalle legado y `ForgivenessScreen`, que montan el detalle de venta y el
+ * de cliente nuevos. Las dos usan el mismo `NewForgivenessDialog`, que desde el
+ * 2026-09-27 escribe por `RegistroDeCondonacion` (una transacción que relee el
+ * saldo y no deja condonar más de lo que se debe) y avisa por `onGuardada`
+ * **sólo cuando la escritura terminó**. Aquí la condonación guardada sigue
+ * yendo al ticket legado, como antes; lo único nuevo es que ya no se navega sin
+ * saber si se escribió (E-APP-047).
  */
 @Composable
 fun SaleActionSection(sale: Sale, navController: NavController) {
@@ -64,8 +71,11 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
     NewForgivenessDialog(
         show = openForgivenessDialog,
         onDismissRequest = { openForgivenessDialog = false },
-        sale,
-        navController = navController
+        onGuardada = { pagoId ->
+            navController.irAlTicketDesdeElDetalleLegado(pagoId)
+            openForgivenessDialog = false
+        },
+        sale = sale
     )
 
     Column(
@@ -135,4 +145,15 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
             }
         }
     }
+}
+
+/**
+ * La salida de una condonación guardada **desde el detalle legado**: empuja el
+ * ticket ([Screen.PaymentTicket]) encima del detalle, que es donde vive el
+ * diálogo. No saca nada de la pila —aquí no hay pantalla de condonación que
+ * quitar—, así que atrás desde el ticket vuelve al detalle. Es lo que esta
+ * puerta siempre hizo; `internal` sólo para medirlo sobre un grafo real.
+ */
+internal fun NavController.irAlTicketDesdeElDetalleLegado(pagoId: String) {
+    navigate(Screen.PaymentTicket.createRoute(pagoId))
 }

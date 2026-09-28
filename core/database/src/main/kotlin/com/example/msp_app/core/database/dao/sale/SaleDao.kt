@@ -289,6 +289,64 @@ interface SaleDao {
     suspend fun updateTotal(saleId: Int, amount: Double, estadoCobranza: EstadoCobranza)
 
     /**
+     * Descuenta [monto] del `SALDO_REST` **sólo si alcanza**, y dice cuántas filas
+     * tocó: `1` si descontó, `0` si no (la venta no está, el monto no es positivo
+     * o excede el saldo vigente).
+     *
+     * ## Por qué existe aparte de [updateTotal]
+     *
+     * [updateTotal] resta sin piso (`SALDO_REST - :amount`), y así la usan el
+     * abono (`RegistroDeAbonoAdapter`, que valida antes contra el saldo releído) y
+     * la visita (`VisitsLocalDataSource`, con `0.0`). La condonación entraba por
+     * ahí mismo sin ningún tope en la escritura y dejó `SALDO_REST = -3000.0` en un
+     * teléfono de campo (E-APP-030). Cambiar [updateTotal] tocaría dos caminos de
+     * dinero que no tienen ese defecto; por eso el tope vive en un método propio
+     * que sólo usa la condonación (`RegistroDeCondonacion`).
+     *
+     * ## La condición va en el `WHERE`, no sólo en Kotlin
+     *
+     * El llamador ya comparó contra el saldo que leyó dentro de la misma
+     * transacción. Repetirlo aquí es el cinturón que no depende de eso: el renglón
+     * sólo se toca si el saldo **de ese instante** alcanza. `0` filas es la señal
+     * para deshacer el insert de la condonación.
+     *
+     * El medio centavo de tolerancia absorbe el ruido binario del `Double`
+     * (`SALDO_REST` es `REAL` en el schema): un saldo de `100.29999999999998`
+     * tiene que admitir una condonación de `100.30`.
+     */
+    @Query(
+        """
+        UPDATE sales
+        SET
+            SALDO_REST = SALDO_REST - :monto,
+            ESTADO_COBRANZA = :estadoCobranza
+        WHERE
+            DOCTO_CC_ACR_ID = :saleId
+            AND :monto > 0
+            AND SALDO_REST >= :monto - 0.005
+        """
+    )
+    suspend fun descontarSiAlcanza(saleId: Int, monto: Double, estadoCobranza: EstadoCobranza): Int
+
+    /**
+     * Las ventas con saldo NEGATIVO en el teléfono. El servidor nunca publica un
+     * saldo negativo; un negativo local sólo sale de descuentos locales sin piso
+     * (E-APP-030: `-3000.0` en campo). Las lee la reparación única
+     * (`ReparacionDeCondonaciones`).
+     */
+    @Query("SELECT * FROM sales WHERE SALDO_REST < 0")
+    suspend fun ventasConSaldoNegativo(): List<SaleEntity>
+
+    /**
+     * Sube a CERO el saldo de la venta del [cargo] (`sales.DOCTO_CC_ID`) **sólo
+     * si es negativo**. Nunca sube un saldo que ya era `>= 0`: sin dato del
+     * servidor no hay con qué afirmar otro valor, y cero es el piso que el
+     * propio servidor respeta.
+     */
+    @Query("UPDATE sales SET SALDO_REST = 0 WHERE DOCTO_CC_ID = :cargo AND SALDO_REST < 0")
+    suspend fun nivelarSaldoNegativoACero(cargo: Int): Int
+
+    /**
      * Propaga un cambio de `ESTADO_COBRANZA` a TODAS las ventas ACTIVAS
      * (`SALDO_REST > 0`) de un cliente. Es el escritor detrás de una visita
      * de **alcance cliente** (Task 13, plan `pagos-y-visitas`): "no estaba"

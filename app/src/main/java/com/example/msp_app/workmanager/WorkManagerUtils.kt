@@ -1,6 +1,7 @@
 package com.example.msp_app.workmanager
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -16,6 +17,8 @@ import com.example.msp_app.workers.PendingGuaranteesWorker
 import com.example.msp_app.workers.PendingLocalSalesWorker
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
+import com.example.msp_app.workers.RefrescarSaldoDeVentaWorker
+import com.example.msp_app.workers.ReparacionDeCondonacionesWorker
 import com.example.msp_app.workers.VisitsReconcileWorker
 import java.util.concurrent.TimeUnit
 
@@ -50,6 +53,75 @@ fun enqueuePendingPaymentsWorker(context: Context, paymentId: String) {
 
     WorkManager.getInstance(context)
         .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
+}
+
+/**
+ * Nombre único del refresco de saldo de UNA venta: uno por cargo.
+ */
+fun refrescoDeSaldoUniqueWorkName(cargo: Int): String = "refrescar_saldo_$cargo"
+
+/**
+ * Encola el refresco del saldo de la venta del [cargo] contra el servidor
+ * ([RefrescarSaldoDeVentaWorker]), con red obligatoria y backoff exponencial.
+ *
+ * ## `APPEND_OR_REPLACE`, y no el `KEEP` del resto de este archivo
+ *
+ * `KEEP` descarta el encolado nuevo mientras haya uno vivo, y "vivo" incluye
+ * `RUNNING`. Un refresco que ya está corriendo y ya pasó su transacción NO sirve
+ * para una segunda condonación rechazada de la misma venta: leyó la suma de lo
+ * no reconocido antes de la nueva marca. Con `KEEP` el segundo refresco se
+ * perdía y el saldo se quedaba abajo sin corrección (ZZ1, tercera compuerta
+ * posterior del 2026-09-27). `APPEND_OR_REPLACE` encadena el nuevo DETRÁS del
+ * vivo, así que siempre corre un refresco posterior a la última marca; y si el
+ * anterior terminó en falla o cancelado, lo reemplaza en vez de heredar su
+ * falla.
+ *
+ * El argumento de `KEEP` en el camino del dinero —no cancelar una subida en
+ * vuelo— no aplica aquí: este trabajo no sube nada, y encadenar no cancela.
+ */
+fun enqueueRefrescoDeSaldo(context: Context, zona: Int, cargo: Int) {
+    val request = OneTimeWorkRequestBuilder<RefrescarSaldoDeVentaWorker>()
+        .setConstraints(
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        )
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, REFRESCO_BACKOFF_SEGUNDOS, TimeUnit.SECONDS)
+        .setInputData(
+            workDataOf(
+                RefrescarSaldoDeVentaWorker.KEY_ZONA to zona,
+                RefrescarSaldoDeVentaWorker.KEY_CARGO to cargo
+            )
+        )
+        .build()
+    val nombre = refrescoDeSaldoUniqueWorkName(cargo)
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(nombre, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+}
+
+private const val REFRESCO_BACKOFF_SEGUNDOS = 30L
+
+/**
+ * Encola la reparación única de condonaciones ([ReparacionDeCondonacionesWorker])
+ * **si todavía no se completó** en este teléfono. Se llama en cada arranque
+ * (`CobranzaSyncObserver`, ya con sesión): mientras la bandera no esté marcada,
+ * la reparación sigue pendiente; en cuanto se marca, esto no encola nada más.
+ *
+ * `KEEP`: una reparación ya en cola o corriendo sirve igual, y ninguna corrida
+ * pisa a otra.
+ */
+fun enqueueReparacionDeCondonacionesSiFalta(context: Context) {
+    val prefs = ReparacionDeCondonacionesWorker.preferenciasDeLaReparacion(context)
+    if (prefs.getBoolean(ReparacionDeCondonacionesWorker.BANDERA, false)) return
+    val request = OneTimeWorkRequestBuilder<ReparacionDeCondonacionesWorker>()
+        .setConstraints(
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        )
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, REFRESCO_BACKOFF_SEGUNDOS, TimeUnit.SECONDS)
+        .build()
+    WorkManager.getInstance(context).enqueueUniqueWork(
+        ReparacionDeCondonacionesWorker.NOMBRE_UNICO,
+        ExistingWorkPolicy.KEEP,
+        request
+    )
 }
 
 fun enqueuePendingVisitsWorker(context: Context, visitId: String) {

@@ -4,7 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.database.entities.DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
+import com.example.msp_app.core.database.entities.FORMA_COBRO_CONDONACION
 import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.PaymentLocation
@@ -658,6 +661,116 @@ interface PaymentDao {
 
     @Query("UPDATE Payment SET LAT = :lat, LNG = :lng WHERE id = :id")
     suspend fun updateLocation(id: String, lat: Double, lng: Double)
+
+    /**
+     * Marca una condonación PENDIENTE como rechazada por el servidor: la suelta
+     * (`GUARDADO_EN_MICROSIP = 1`) y le pone
+     * [DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR]. Devuelve cuántas filas tocó.
+     *
+     * Los cuatro cerrojos del `WHERE` la vuelven una transición de una sola vez:
+     * sólo una condonación (`FORMA_COBRO_ID`), sin documento (`= 0`) y todavía
+     * pendiente (`= 0`). Una segunda corrida del worker sobre la misma fila toca
+     * cero filas: [soltarCondonacionRechazada] la marca una sola vez.
+     */
+    @Query(
+        """
+        UPDATE Payment
+        SET GUARDADO_EN_MICROSIP = 1, DOCTO_CC_ID = $DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
+        WHERE ID = :id
+          AND FORMA_COBRO_ID = $FORMA_COBRO_CONDONACION
+          AND DOCTO_CC_ID = 0
+          AND GUARDADO_EN_MICROSIP = 0
+        """
+    )
+    suspend fun marcarCondonacionRechazada(id: String): Int
+
+    /**
+     * **Condonaciones "fantasma"**: soltadas (`GUARDADO_EN_MICROSIP = 1`) sin
+     * documento (`DOCTO_CC_ID = 0`) — la firma de las que el servidor rechazó
+     * antes de que existiera [DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR]
+     * (E-APP-029/E-APP-032), indistinguibles desde el teléfono de una aplicada
+     * cuya respuesta se perdió. Las lee la reparación única
+     * (`ReparacionDeCondonaciones`), que le pregunta al servidor por cada una.
+     *
+     * Sólo capturas del teléfono (`ID LIKE '%-%'`) que ninguna fila del
+     * servidor nombra por `PAGO_RECIBIDO_ID` (ésas las colapsa el sync).
+     */
+    @Query(
+        """
+        SELECT
+            ID, COBRADOR, DOCTO_CC_ACR_ID, DOCTO_CC_ID, FECHA_HORA_PAGO,
+            GUARDADO_EN_MICROSIP, IMPORTE, LAT, LNG, CLIENTE_ID, COBRADOR_ID,
+            FORMA_COBRO_ID, ZONA_CLIENTE_ID, NOMBRE_CLIENTE, PAGO_RECIBIDO_ID
+        FROM Payment
+        WHERE FORMA_COBRO_ID = $FORMA_COBRO_CONDONACION
+          AND GUARDADO_EN_MICROSIP = 1
+          AND DOCTO_CC_ID = 0
+          AND ID LIKE '%-%'
+          AND ID NOT IN (
+              SELECT PAGO_RECIBIDO_ID FROM Payment
+              WHERE PAGO_RECIBIDO_ID IS NOT NULL AND PAGO_RECIBIDO_ID <> ID
+          )
+        """
+    )
+    suspend fun condonacionesFantasma(): List<PaymentEntity>
+
+    /**
+     * Marca una condonación fantasma como rechazada por el servidor. Una sola vez:
+     * sólo si sigue soltada y sin documento. No toca el saldo (eso lo hace el
+     * refresco de su venta, contra el servidor).
+     */
+    @Query(
+        """
+        UPDATE Payment
+        SET DOCTO_CC_ID = $DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
+        WHERE ID = :id
+          AND FORMA_COBRO_ID = $FORMA_COBRO_CONDONACION
+          AND DOCTO_CC_ID = 0
+          AND GUARDADO_EN_MICROSIP = 1
+        """
+    )
+    suspend fun marcarCondonacionFantasma(id: String): Int
+
+    /**
+     * Fija el `SALDO_REST` de la venta del [cargo] (`sales.DOCTO_CC_ID`, que casa
+     * con `Payment.DOCTO_CC_ACR_ID`, ver `SaleIdSpaces`) a un valor ABSOLUTO. Lo
+     * usa sólo `RefrescoDelSaldoDeLaVenta`, bajo el mutex de escritura del sync.
+     */
+    @Query("UPDATE sales SET SALDO_REST = :saldo WHERE DOCTO_CC_ID = :cargo")
+    suspend fun fijarSaldoDeLaVenta(cargo: Int, saldo: Double): Int
+
+    /**
+     * **Suelta una condonación que el servidor rechazó y la marca como tal.**
+     * NO toca el saldo.
+     *
+     * El servidor contestó `422 pago_saldo_insuficiente` con `X-Intent-Captured`:
+     * no la aplicó y la resguardó para la oficina (E-APP-029).
+     * [marcarCondonacionRechazada] hace que la fila deje de leerse "no
+     * reconocida" ([sumImporteNoReconocidoPorElServidor] pide `DOCTO_CC_ID = 0`,
+     * su "límite conocido 1") y pase a decir "rechazada". **No se borra**: nunca
+     * se borra una captura que el servidor no nombró.
+     *
+     * ## Por qué el saldo NO se toca aquí
+     *
+     * Sumar el importe de vuelta deja el saldo por encima del real (medido: 1000
+     * contra 500), porque un 422 por saldo ocurre justo cuando el teléfono tenía
+     * un saldo viejo. El único valor correcto es el del servidor, y leerlo es
+     * trabajo aparte: `RefrescoDelSaldoDeLaVenta`, bajo el mutex del sync, que el
+     * worker encola después de esta marca. Si no hay señal, el saldo se queda
+     * donde lo dejó la captura —nunca arriba de lo que había— hasta que el
+     * refresco corra.
+     *
+     * Si la marca no toca nada —no es condonación, ya tenía documento o ya
+     * estaba soltada— queda el comportamiento de siempre: sólo se marca enviada.
+     *
+     * @return `true` si esta llamada la marcó como rechazada.
+     */
+    @Transaction
+    suspend fun soltarCondonacionRechazada(id: String): Boolean {
+        val marcada = marcarCondonacionRechazada(id) == 1
+        if (!marcada) updateEstado(id, 1)
+        return marcada
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)

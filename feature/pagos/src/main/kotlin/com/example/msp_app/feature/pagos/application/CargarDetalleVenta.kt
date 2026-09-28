@@ -114,7 +114,11 @@ class CargarDetalleVenta @Inject constructor(
             contactos = BitacoraDelCliente.de(
                 visitas = cobranza.visitas,
                 pagos = cobranza.pagos,
-                cuentas = productosPorVenta.aCuentas()
+                cuentas = productosPorVenta.aCuentas(),
+                // Las condonaciones van a la línea de tiempo y a NINGÚN otro
+                // lado: ni al ritmo, ni al riel, ni al último pago (salen de
+                // `pagos`, que las excluye). Ver `CondonacionDelHistorial`.
+                condonaciones = cobranza.condonaciones
             ),
             liquidacion = cobranza.liquidaciones[ventaId],
             garantia = garantiasPort.garantiaDe(venta.creditoId),

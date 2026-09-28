@@ -151,6 +151,14 @@ class PaymentsLocalDataSource @Inject constructor(
         paymentDao.updateDoctoCcId(id, doctoCcId)
     }
 
+    /**
+     * Suelta una condonación que el servidor rechazó y la marca rechazada, en UNA
+     * transacción real de Room ([PaymentDao.soltarCondonacionRechazada] es un
+     * `@Transaction` de un `@Dao`, no el adorno de E-APP-045). No toca el saldo.
+     */
+    suspend fun soltarCondonacionRechazada(id: String): Boolean =
+        paymentDao.soltarCondonacionRechazada(id)
+
     suspend fun updatePaymentLocation(id: String, lat: Double, lng: Double) {
         paymentDao.updateLocation(id, lat, lng)
     }

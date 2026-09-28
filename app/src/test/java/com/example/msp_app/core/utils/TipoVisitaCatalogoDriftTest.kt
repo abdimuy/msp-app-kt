@@ -2,6 +2,7 @@ package com.example.msp_app.core.utils
 
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
+import com.example.msp_app.core.database.entities.FORMA_COBRO_CONDONACION
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -80,5 +81,15 @@ class TipoVisitaCatalogoDriftTest {
             VentanaCobro.FORMAS_COBRO_COBRANZA
         )
         assertTrue(Constants.CONDONACION_ID !in VentanaCobro.FORMAS_COBRO_COBRANZA)
+    }
+
+    /**
+     * La forma de cobro de la condonación que `:core:database` copia (la usan el
+     * worker, `RegistroDeCondonacion` y el historial) es la MISMA que escribe el
+     * diálogo con `Constants.CONDONACION_ID`.
+     */
+    @Test
+    fun `la forma de condonacion de core database es la de Constants`() {
+        assertEquals(Constants.CONDONACION_ID, FORMA_COBRO_CONDONACION)
     }
 }

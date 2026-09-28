@@ -15,6 +15,7 @@ import com.example.msp_app.core.upload.ExistenceVerifier
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.upload.UploadDecision
 import com.example.msp_app.core.upload.classifyUpload
+import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
@@ -25,9 +26,14 @@ import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.pagos.PartesDeComprobantes
 import com.example.msp_app.data.pagos.partesDeComprobantes
+import com.example.msp_app.workmanager.enqueueRefrescoDeSaldo
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
@@ -71,7 +77,16 @@ class PendingPaymentsWorker @JvmOverloads constructor(
     internal val imagenes: PaymentImageDao =
         AppDatabase.getInstance(appContext).paymentImageDao(),
     @VisibleForTesting
-    internal val clock: AppClock = AppClock.System
+    internal val clock: AppClock = AppClock.System,
+    /**
+     * Encola el refresco del saldo de una venta (`zona`, `cargo`): tras rechazar
+     * su condonación y tras anotar el documento de un pago aplicado. Inyectable
+     * sólo para prueba.
+     */
+    @VisibleForTesting
+    internal val encolarRefrescoDeSaldo: (zona: Int, cargo: Int) -> Unit = { zona, cargo ->
+        enqueueRefrescoDeSaldo(appContext, zona, cargo)
+    }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -84,6 +99,18 @@ class PendingPaymentsWorker @JvmOverloads constructor(
             ?: return Result.failure().also {
                 Log.e(TAG, "Pago no encontrado: $id")
             }
+
+        // Ya soltada: el servidor la aplicó o la tiene resguardada. Volver a
+        // mandarla no cobra dos veces (el servidor responde el replay
+        // idempotente), pero ese replay BORRA el comprobante original (medido en
+        // dev el 2026-09-25). WorkManager re-corre un trabajo que detuvo —por
+        // red, por su límite de tiempo— aunque la captura ya haya quedado
+        // soltada tras un 200, y el servicio de ubicación re-encola capturas ya
+        // subidas: ninguno de los dos puede provocar un segundo POST.
+        if (payment.GUARDADO_EN_MICROSIP) {
+            Log.i(TAG, "Pago $id ya soltado; no se vuelve a mandar")
+            return Result.success()
+        }
 
         return if (useV2) uploadV2(payment) else uploadLegacy(payment)
     }
@@ -129,9 +156,18 @@ class PendingPaymentsWorker @JvmOverloads constructor(
                 datos = datos,
                 imagenes = comprobantes.partes
             )
-            persistDoctoCcId(payment, response.docto_cc_id)
-            markUploaded(comprobantes)
-            markDone(payment.ID)
+            // Tras el 200 nada puede perderse por una cancelación: el servidor ya
+            // tiene el pago. `NonCancellable` para que WorkManager no corte la
+            // sección a medias —un `markDone` perdido haría que el reintento
+            // volviera a mandarla, y el replay borra el comprobante original—, y
+            // la captura se SUELTA antes de anotar el documento (ZZ2).
+            withContext(NonCancellable) {
+                markUploaded(comprobantes)
+                markDone(payment.ID)
+                if (persistDoctoCcId(payment, response.docto_cc_id)) {
+                    encolarRefrescoTrasAplicar(payment)
+                }
+            }
             Log.i(TAG, "Pago aplicado en v2: ${payment.ID} (server=${response.id})")
             Result.success()
         } catch (e: HttpException) {
@@ -173,6 +209,9 @@ class PendingPaymentsWorker @JvmOverloads constructor(
 
         return when (classifyUpload(e.code(), reachedMspApi, captureConfirmed)) {
             UploadDecision.RELEASE -> {
+                if (esCondonacionRechazadaPorSaldo(payment, e, captureConfirmed)) {
+                    return soltarCondonacionRechazada(payment, e.code())
+                }
                 markDone(payment.ID)
                 Log.w(
                     TAG,
@@ -191,6 +230,81 @@ class PendingPaymentsWorker @JvmOverloads constructor(
                 Result.retry()
             }
         }
+    }
+
+    /**
+     * ¿Es una CONDONACIÓN que el servidor rechazó por saldo y resguardó?
+     *
+     * Las cuatro condiciones, y por qué ninguna sobra:
+     * - `FORMA_COBRO_ID` de condonación — el alcance de este arreglo. Un abono
+     *   rechazado tiene el mismo "límite conocido 1" de
+     *   `PaymentDao.sumImporteNoReconocidoPorElServidor`, pero no se midió que su
+     *   rechazo deje el saldo igual de mal, y aquí sólo cambia lo medido.
+     * - `422` — el código con el que el servidor rechazó las condonaciones de
+     *   más (E-APP-029; P4 de la compuerta del 2026-09-26).
+     * - `X-Intent-Captured` — el servidor la tiene resguardada: la oficina puede
+     *   re-aplicarla, y si lo hace, el sync trae su fila numérica y el colapso
+     *   del gemelo se lleva la local.
+     * - `code = pago_saldo_insuficiente` en el `problem+json` — la validación que
+     *   el servidor corre ANTES de aplicar (`ErrPagoSaldoInsuficiente`,
+     *   `internal/cobranza/domain/errors.go`). Otro 422 no está medido y sigue
+     *   por el camino de siempre.
+     */
+    private fun esCondonacionRechazadaPorSaldo(
+        payment: PaymentEntity,
+        e: HttpException,
+        captureConfirmed: Boolean
+    ): Boolean = payment.FORMA_COBRO_ID == Constants.CONDONACION_ID &&
+        e.code() == HTTP_UNPROCESSABLE &&
+        captureConfirmed &&
+        codigoDelProblema(e) == CODIGO_SALDO_INSUFICIENTE
+
+    /** El `code` del `problem+json`, o `null` si no se puede leer. */
+    @Suppress("TooGenericExceptionCaught") // un cuerpo ilegible no es un rechazo por saldo
+    private fun codigoDelProblema(e: HttpException): String? = try {
+        e.response()?.errorBody()?.string()
+            ?.let { JsonParser.parseString(it).asJsonObject.get("code")?.asString }
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * Suelta la condonación rechazada y la marca rechazada
+     * ([PaymentsLocalDataSource.soltarCondonacionRechazada], una transacción que
+     * NO toca el saldo), y encola el refresco del saldo de su venta contra el
+     * servidor ([encolarRefrescoDeSaldo] → `RefrescarSaldoDeVentaWorker`), que
+     * corre bajo el mutex del sync y reintenta por su cuenta sin volver a mandar
+     * este pago.
+     *
+     * Si la transacción falla, se reintenta: la fila sigue pendiente y el
+     * siguiente 422 vuelve a caer aquí. Si falla el encolado, la condonación ya
+     * quedó marcada y el saldo local se queda donde lo dejó la captura (nunca
+     * arriba); se reporta y se sigue.
+     */
+    @Suppress("TooGenericExceptionCaught") // Room/WorkManager pueden fallar de muchas formas
+    private suspend fun soltarCondonacionRechazada(payment: PaymentEntity, code: Int): Result {
+        val marcada = try {
+            paymentsStore.soltarCondonacionRechazada(payment.ID)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Exception) {
+            Log.e(TAG, "Condonacion ${payment.ID}: no se pudo soltar; reintentando", fallo)
+            return Result.retry()
+        }
+        val cargo = payment.DOCTO_CC_ACR_ID
+        try {
+            encolarRefrescoDeSaldo(payment.ZONA_CLIENTE_ID, cargo)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Exception) {
+            Log.e(TAG, "Condonacion ${payment.ID}: no se pudo encolar el refresco del saldo", fallo)
+        }
+        Log.w(
+            TAG,
+            "Condonacion ${payment.ID} rechazada ($code $CODIGO_SALDO_INSUFICIENTE); " +
+                "resguardada server-side, marcada=$marcada, refresco del saldo encolado"
+        )
+        return Result.success()
     }
 
     /**
@@ -262,13 +376,52 @@ class PendingPaymentsWorker @JvmOverloads constructor(
     /**
      * Guarda el DOCTO_CC_ID que Microsip asignó. Es best-effort: un fallo aquí
      * no puede tumbar una entrega que ya tuvo éxito.
+     *
+     * **Sin el mutex de escritura del sync, a propósito.** Anotar el documento
+     * saca este pago de `sumImporteNoReconocidoPorElServidor`, y un saldo del
+     * servidor leído ANTES o DESPUÉS de que Microsip lo aplicara queda mal
+     * mientras no se re-lea: inflado si la foto era anterior (medido: 500 contra
+     * 300), desinflado si la foto ya lo traía y el merge todavía lo restaba
+     * (medido: 100 contra 300). Esperar el mutex aquí cerraba lo primero y abría
+     * lo segundo —y lo dejaba fósil: nadie recalcula después—. Lo que cierra los
+     * dos es re-leer el saldo DESPUÉS de anotar: [encolarRefrescoTrasAplicar].
+     *
+     * @return `true` si anotó un documento nuevo.
      */
-    private suspend fun persistDoctoCcId(payment: PaymentEntity, doctoCcId: Int?) {
-        if (doctoCcId == null || doctoCcId == payment.DOCTO_CC_ID) return
-        try {
+    private suspend fun persistDoctoCcId(payment: PaymentEntity, doctoCcId: Int?): Boolean {
+        if (doctoCcId == null || doctoCcId <= 0 || doctoCcId == payment.DOCTO_CC_ID) return false
+        return try {
             paymentsStore.updatePaymentDoctoCcId(payment.ID, doctoCcId)
+            true
+        } catch (cancelada: CancellationException) {
+            throw cancelada
         } catch (e: Exception) {
             Log.w(TAG, "Pago ${payment.ID}: no se pudo guardar docto_cc_id", e)
+            false
+        }
+    }
+
+    /**
+     * Encola el refresco del saldo de la venta de un pago recién aplicado
+     * ([com.example.msp_app.core.sync.cobranza.RefrescoDelSaldoDeLaVenta]: bajo
+     * el mutex del sync, `by-ids` + la misma fórmula de `mergeVentas`). Corre
+     * después de que el documento quedó anotado, así que su suma de lo no
+     * reconocido ya no incluye este pago y su foto del servidor es posterior a
+     * la aplicación: corrige tanto el saldo inflado como el desinflado que pudo
+     * dejar un `mergeVentas` a media página. Uno por pago subido;
+     * `APPEND_OR_REPLACE` los encadena por venta.
+     *
+     * Total: un fallo al encolar no toca una entrega que ya tuvo éxito.
+     */
+    @Suppress("TooGenericExceptionCaught") // WorkManager puede fallar de varias formas
+    private fun encolarRefrescoTrasAplicar(payment: PaymentEntity) {
+        val cargo = payment.DOCTO_CC_ACR_ID
+        try {
+            encolarRefrescoDeSaldo(payment.ZONA_CLIENTE_ID, cargo)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (e: Exception) {
+            Log.w(TAG, "Pago ${payment.ID}: no se pudo encolar el refresco del saldo", e)
         }
     }
 
@@ -292,5 +445,8 @@ class PendingPaymentsWorker @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "PendingPaymentsWorker"
+        private const val HTTP_UNPROCESSABLE = 422
+
+        private const val CODIGO_SALDO_INSUFICIENTE = "pago_saldo_insuficiente"
     }
 }

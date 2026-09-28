@@ -235,9 +235,11 @@ class CobranzaReconciler(
      *     aunque el gemelo UUID sí lo hizo: allá existe evidencia más fuerte
      *     (`PAGO_RECIBIDO_ID`) que la reemplaza; acá no hay ninguna, y el
      *     `DOCTO_CC_ID` solo no distingue "mismo pago, markDone perdido" de
-     *     "captura pendiente con docto_cc_id ya anotado" — el worker persiste
-     *     `DOCTO_CC_ID` ANTES de marcar la bandera, así que esa ventana
-     *     existe de verdad. Borrar ahí sería destruir dinero.
+     *     "captura pendiente con docto_cc_id ya anotado". Desde el 2026-09-27
+     *     el worker marca la bandera ANTES de anotar `DOCTO_CC_ID` (dentro de
+     *     `NonCancellable`), así que esa ventana ya no se abre en la subida
+     *     v2; el cerrojo se conserva porque cuesta nada y cubre cualquier
+     *     otro escritor de `DOCTO_CC_ID`. Borrar ahí sería destruir dinero.
      *  2. `ID LIKE '%-%'` — solo formatos legacy; la fila canónica v2 es
      *     numérica pura y nunca se borra a sí misma.
      *  3. `DOCTO_CC_ID > 0` — el 0 es el centinela de "aún sin documento",

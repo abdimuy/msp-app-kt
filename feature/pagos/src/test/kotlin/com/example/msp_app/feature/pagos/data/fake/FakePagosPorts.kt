@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.data.fake
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
+import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
@@ -72,6 +73,12 @@ class FakeVentasPort : VentasPort {
 class FakePagosPort : PagosPort {
 
     var pagos: List<PagoDelHistorial> = emptyList()
+
+    /** Las condonaciones que el teléfono tendría. Vacías por default. */
+    var condonaciones: List<CondonacionDelHistorial> = emptyList()
+
+    override suspend fun condonacionesDe(ventaId: Int): List<CondonacionDelHistorial> =
+        condonaciones.filter { it.ventaId == ventaId }.sortedByDescending { it.fecha }
 
     val ventasConsultadas: MutableList<Int> = mutableListOf()
 
