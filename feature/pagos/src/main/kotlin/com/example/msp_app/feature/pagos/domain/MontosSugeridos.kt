@@ -65,12 +65,13 @@ import java.time.temporal.ChronoUnit
  *
  * Con cinco fuentes puede haber siete candidatos, y siete chips no caben en una
  * pantalla de dinero. [MAXIMO_DE_CHIPS] los corta en **cinco**, por el tamaño
- * de letra grande y no por el normal: en `NORMAL` la fila se desplaza en
- * horizontal y siete chips sólo serían incómodos, pero en `GRANDE` y
- * `MUY_GRANDE` los chips se **apilan** (`EnFilaOApiladas`) y cada uno mide al
- * menos 56dp — siete son ~400dp de columna, o sea el teclado empujado fuera de
- * la pantalla justo para el cobrador que peor ve. Cinco caben con el teclado a
- * la vista.
+ * de letra grande y no por el normal: cuando se decidió, en `GRANDE` y
+ * `MUY_GRANDE` los chips se **apilaban** y siete eran ~400dp de columna, o sea
+ * el teclado empujado fuera de la pantalla justo para el cobrador que peor ve.
+ * Desde el teclado anclado (mock `registrar-abono-fijo.html`, 2026-09-29) los
+ * chips van siempre en una fila que se desliza de lado y ya no empujan nada;
+ * el tope se queda en cinco porque más chips detrás del borde de la fila son
+ * chips que nadie desliza para ver.
  *
  * El corte es por la cola, así que lo que se pierde primero son los redondos, y
  * eso está asumido: los tres primeros son los que dicen algo de ESTA cuenta y

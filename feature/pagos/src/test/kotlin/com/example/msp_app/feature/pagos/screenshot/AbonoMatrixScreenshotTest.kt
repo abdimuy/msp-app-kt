@@ -6,6 +6,7 @@ import com.example.msp_app.feature.pagos.ui.AbonoFixtures
 import com.example.msp_app.feature.pagos.ui.RegistrarAbonoContent
 import com.example.msp_app.feature.pagos.ui.RegistrarAbonoUiState
 import org.junit.Test
+import org.robolectric.annotation.Config
 
 /**
  * Los **cuatro estados del mock** `registrar-abono.html` —captura, bloqueo
@@ -35,13 +36,15 @@ import org.junit.Test
  * ## Los dos estados nuevos de los avisos escalonados
  *
  * `aviso_vivo` es la banda que sale **mientras se teclea** —el lugar donde un
- * cero de más todavía cuesta un borrón—, `teclear` es el paso dos de nivel 3,
- * con el campo que pide el monto otra vez, y `cuota_dudosa` es la pantalla del
- * caso `Y00002184`: la parcialidad de la venta se ve mal, así que no se ofrece
- * ningún esperado y en su lugar se dice que hay que revisar el dato. Van con golden por la misma razón
- * que el abono corto: son piezas de la pantalla del dinero y sin un pixel de
- * cobertura sólo estarían verificadas por aserciones de Robolectric, que dicen
- * que el nodo existe pero no que se vea.
+ * cero de más todavía cuesta un borrón—, `afirmar` es el paso dos de nivel 3
+ * (la banda roja + el botón `Danger`, un solo toque, igual mecanismo que el
+ * nivel 2 — ver el KDoc de `NivelDeAviso.AFIRMAR`), y `cuota_dudosa` es la
+ * pantalla del caso `Y00002184`: la parcialidad de la venta se ve mal, así que
+ * no se ofrece ningún esperado y en su lugar se dice que hay que revisar el
+ * dato. Van con golden por la misma razón que el abono corto: son piezas de la
+ * pantalla del dinero y sin un pixel de cobertura sólo estarían verificadas
+ * por aserciones de Robolectric, que dicen que el nodo existe pero no que se
+ * vea.
  */
 class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
 
@@ -113,10 +116,10 @@ class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
     fun `cuota dudosa dark`() = cuotaDudosa(dark = true)
 
     @Test
-    fun `teclear el monto light`() = teclearElMonto(dark = false)
+    fun `afirmar el monto light`() = afirmarElMonto(dark = false)
 
     @Test
-    fun `teclear el monto dark`() = teclearElMonto(dark = true)
+    fun `afirmar el monto dark`() = afirmarElMonto(dark = true)
 
     @Test
     fun `confirmar con comprobante light`() =
@@ -126,14 +129,103 @@ class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
     fun `confirmar con comprobante dark`() =
         estado("confirmar_comprobante", AbonoFixtures.enConfirmacionConComprobante(), dark = true)
 
+    // --- El teclado anclado (mock `registrar-abono-fijo.html`) -------------------
+
+    @Test
+    fun `aviso largo light`() = estado("aviso_largo", AbonoFixtures.enAvisoLargo(), dark = false)
+
+    @Test
+    fun `aviso largo dark`() = estado("aviso_largo", AbonoFixtures.enAvisoLargo(), dark = true)
+
+    @Test
+    fun `aviso largo light grande`() = conNivel(
+        "aviso_largo",
+        AbonoFixtures.enAvisoLargo(),
+        false,
+        FontSizeLevel.GRANDE
+    )
+
+    @Test
+    fun `aviso largo dark muy grande`() =
+        conNivel("aviso_largo", AbonoFixtures.enAvisoLargo(), true, FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `aviso en vivo light muy grande`() =
+        conNivel("aviso_vivo", AbonoFixtures.enAvisoDeAfirmar(), false, FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `verificacion light`() = estado(
+        "verificacion",
+        AbonoFixtures.enDudaDeVerificacion(),
+        dark = false
+    )
+
+    @Test
+    fun `verificacion dark`() = estado(
+        "verificacion",
+        AbonoFixtures.enDudaDeVerificacion(),
+        dark = true
+    )
+
+    @Test
+    fun `con fotos light`() = estado(
+        "con_fotos",
+        AbonoFixtures.enCapturaConComprobantes(),
+        dark = false
+    )
+
+    @Test
+    fun `producto largo light`() = estado(
+        "producto_largo",
+        AbonoFixtures.conProductoLargo(),
+        dark = false
+    )
+
+    @Test
+    @Config(qualifiers = "w360dp-h696dp-xhdpi")
+    fun `pantalla baja light normal`() = conNivel(
+        "bajo",
+        AbonoFixtures.enCaptura(),
+        false,
+        FontSizeLevel.NORMAL
+    )
+
+    @Test
+    @Config(qualifiers = "w360dp-h696dp-xhdpi")
+    fun `pantalla baja aviso largo light normal`() =
+        conNivel("bajo_aviso_largo", AbonoFixtures.enAvisoLargo(), false, FontSizeLevel.NORMAL)
+
+    @Test
+    @Config(qualifiers = "w360dp-h696dp-xhdpi")
+    fun `pantalla baja light muy grande`() =
+        conNivel("bajo", AbonoFixtures.enCaptura(), false, FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    @Config(qualifiers = "w360dp-h696dp-xhdpi")
+    fun `pantalla baja aviso largo dark muy grande`() =
+        conNivel("bajo_aviso_largo", AbonoFixtures.enAvisoLargo(), true, FontSizeLevel.MUY_GRANDE)
+
+    private fun conNivel(
+        nombre: String,
+        state: RegistrarAbonoUiState,
+        dark: Boolean,
+        nivel: FontSizeLevel
+    ) = capture(
+        name = "pagos_abono_${nombre}_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Abono(state)
+    }
+
     private fun avisoEnVivo(dark: Boolean) =
-        estado("aviso_vivo", AbonoFixtures.enAvisoDeTeclear(), dark)
+        estado("aviso_vivo", AbonoFixtures.enAvisoDeAfirmar(), dark)
 
     private fun cuotaDudosa(dark: Boolean) =
         estado("cuota_dudosa", AbonoFixtures.conCuotaDudosa(), dark)
 
-    private fun teclearElMonto(dark: Boolean) =
-        estado("teclear", AbonoFixtures.tecleandoElMonto(), dark)
+    private fun afirmarElMonto(dark: Boolean) =
+        estado("afirmar", AbonoFixtures.afirmandoElMonto(), dark)
 
     private fun captura(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_abono_captura_${tema(dark)}_${sufijoDe(nivel)}",

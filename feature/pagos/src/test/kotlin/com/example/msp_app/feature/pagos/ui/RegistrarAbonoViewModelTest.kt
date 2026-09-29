@@ -130,24 +130,24 @@ class RegistrarAbonoViewModelTest {
     // --- El borde exacto del sobrepago ---------------------------------------
 
     /**
-     * Liquidar **sí se puede**, y ahora cuesta teclear el monto otra vez.
+     * Liquidar **sí se puede**, con un solo toque.
      *
      * El saldo de esta venta ($1,450) son 6.59 cuotas de $220, o sea nivel 3
      * por el umbral de "más de 6 cuotas". No es un efecto colateral: el diseño
      * dice **avisar no es bloquear**, y nombra "liquidar de golpe" como uno de
      * los casos legítimos que sí confirman. Una liquidación es genuinamente sin
      * precedente en esta ruta —el abono más grande de su historia es de $1,500
-     * y ni siquiera liquidó—, así que le toca la fricción del caso sin
-     * precedente. Lo que NO cambia es que se registre.
+     * y ni siquiera liquidó—, así que le toca la banda roja del caso sin
+     * precedente. Lo que NO cambia es que se registre, y desde el 2026-09-29
+     * tampoco pide teclear nada — ver `ElAbonoRaroCuestaMasTest`.
      */
     @Test
-    fun `el saldo exacto se registra, tecleando el monto otra vez`() = runTest(testDispatcher) {
+    fun `el saldo exacto se registra con un toque`() = runTest(testDispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
         teclear(vm, "1450")
         assertTrue(vm.state.value.sePuedeRegistrar)
         vm.pedirConfirmacion()
-        vm.onEcoDelMonto("1450")
         vm.confirmar()
         advanceUntilIdle()
         assertEquals(1, registroPort.registrados.size)

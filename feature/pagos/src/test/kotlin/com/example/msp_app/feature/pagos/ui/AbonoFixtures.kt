@@ -300,24 +300,52 @@ object AbonoFixtures {
     /**
      * **Nivel 3**: $1,400 son 6.36 cuotas de $220, o sea más de seis. Sigue por
      * debajo del saldo ($1,450): lo que cambia no es si se puede registrar, es
-     * cuánto cuesta decir que sí.
+     * qué tan roja se pinta la hoja.
      */
-    fun enAvisoDeTeclear(): RegistrarAbonoUiState =
+    fun enAvisoDeAfirmar(): RegistrarAbonoUiState =
         conMonto(MontoCapturado(crudo = "1400"), estadoSinTocar())
 
-    /** El paso dos de nivel 3, con el campo del eco todavía vacío. */
-    fun tecleandoElMonto(eco: String = ""): RegistrarAbonoUiState = enAvisoDeTeclear()
-        .let { base ->
-            base.copy(
-                confirmacion = ConfirmacionPendiente(
-                    importe = base.monto.importe,
-                    metodo = base.metodo,
-                    veredicto = base.veredicto,
-                    aviso = base.aviso,
-                    eco = eco
+    /**
+     * **El aviso más largo que da esta venta**: $905 no es múltiplo de 50 y son
+     * 4 cuotas de $220 — las dos señales de nivel 2, y se dicen las dos
+     * ("Los pagos van de 50 en 50" y "Son 4 cuotas de $220"). Es el caso que el
+     * mock `registrar-abono-fijo.html` usa para medir la franja fija.
+     */
+    fun enAvisoLargo(): RegistrarAbonoUiState =
+        conMonto(MontoCapturado(crudo = "905"), estadoSinTocar())
+
+    /**
+     * **Un producto que no cabe en dos renglones**: la venta con dos productos
+     * —la descripción viene separada por comas, `CargarDetalleVenta`—, los dos
+     * nombres de las fixtures de este módulo.
+     */
+    fun conProductoLargo(): RegistrarAbonoUiState = enCaptura().let { base ->
+        val venta = requireNotNull(base.venta)
+        base.copy(
+            venta = venta.copy(
+                titulo = "Recamara cantaro king size chocolate, Refrigerador Mabe 14'",
+                productos = listOf(
+                    ProductoDeVenta("Recamara cantaro king size chocolate", null),
+                    ProductoDeVenta("Refrigerador Mabe 14'", null)
                 )
             )
-        }
+        )
+    }
+
+    /**
+     * El paso dos de nivel 3. Desde el 2026-09-29 no pide nada más que el
+     * mismo toque del nivel 2 — ver `ElAbonoRaroCuestaMasTest`.
+     */
+    fun afirmandoElMonto(): RegistrarAbonoUiState = enAvisoDeAfirmar().let { base ->
+        base.copy(
+            confirmacion = ConfirmacionPendiente(
+                importe = base.monto.importe,
+                metodo = base.metodo,
+                veredicto = base.veredicto,
+                aviso = base.aviso
+            )
+        )
+    }
 
     /** El paso dos de nivel 2: un toque extra, sin teclear nada. */
     fun confirmandoConUnToque(): RegistrarAbonoUiState = enAvisoDeCuotas().let { base ->

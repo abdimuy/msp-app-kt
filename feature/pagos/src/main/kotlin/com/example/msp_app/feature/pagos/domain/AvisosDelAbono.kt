@@ -37,22 +37,32 @@ enum class NivelDeAviso {
     CONFIRMAR,
 
     /**
-     * **Nivel 3.** Menos del 0.1 % de los abonos: hay que **teclear el monto
-     * otra vez**.
+     * **Nivel 3.** Menos del 0.1 % de los abonos: el monto sin precedente en la
+     * ruta — cinco de 6,165. Un toque extra, igual que el nivel 2, pero con su
+     * propia banda roja y su propio texto: "afirmar", no "teclear".
      *
-     * ## Por qué teclear y no un botón rojo
+     * ## Por qué ya no se llama TECLEAR, y por qué ya no pide teclear (decisión del dueño, 2026-09-29)
      *
-     * Un cero de más **no es una decisión, es un resbalón**. Un botón rojo se
-     * confirma igual de rápido que uno gris porque el dedo ya iba en camino: el
-     * gesto ya estaba lanzado cuando apareció el color, y cambiar el color no
-     * cambia el gesto. Teclear el monto de nuevo sí atrapa el resbalón, porque
-     * para que pase habría que teclear el cero de más **dos veces**, con la
-     * cifra equivocada a la vista.
+     * Este nivel llegó a pedir **teclear el monto otra vez** — la medida
+     * completa y su razón (un botón rojo se confirma igual de rápido que uno
+     * gris porque el dedo ya iba en camino; teclear de nuevo sí atrapa el
+     * resbalón porque hay que repetir el cero de más) siguen documentadas en el
+     * mock `docs/design/mocks/confirmacion-escrita-del-abono.html` y en el
+     * historial de `HojaDeConfirmacion`/`RegistrarAbonoViewModel`.
      *
-     * El costo está acotado por la misma medición que justifica el nivel: esto
-     * se dispara en el **0.08 %** de los abonos de la ruta. Cinco de 6,165.
+     * El dueño la pidió, después la reafirmó pidiendo hacerla MÁS visible
+     * ("intentémoslo, y si me dicen otra vez que lo quite, lo quito"), y ese
+     * mismo día su jefe pidió quitarla: *"quieren que quitemos la validación
+     * escrita, ya luego vemos, quítalo"*. Con eso, [NivelDeAviso.AFIRMAR] pasó a
+     * confirmarse con un solo toque — la MISMA ruta que [NivelDeAviso.CONFIRMAR]
+     * ([com.example.msp_app.feature.pagos.ui.components.HojaDeConfirmacion]'s
+     * `BotonesDeMontoRaro`) — y lo único que lo distingue del nivel 2 es que su
+     * banda es roja y no ámbar, y su texto es más severo. Un nombre que dijera
+     * "teclear" sobre un nivel que ya no teclea sería la misma clase de mentira
+     * que este repo prohíbe en el copy: si el requisito de re-escritura vuelve,
+     * el mock de arriba ya tiene las dos variantes evaluadas y recomendadas.
      */
-    TECLEAR
+    AFIRMAR
 }
 
 /**
@@ -91,16 +101,16 @@ enum class SenalDelMonto(val nivel: NivelDeAviso) {
     MAS_DEL_TRIPLE_DE_LO_HABITUAL(NivelDeAviso.CONFIRMAR),
 
     /** Más de 6 cuotas de golpe (**0.08 %**, cinco abonos). */
-    MAS_DE_SEIS_CUOTAS(NivelDeAviso.TECLEAR),
+    MAS_DE_SEIS_CUOTAS(NivelDeAviso.AFIRMAR),
 
     /** Diez veces o más lo que este cliente suele dar. */
-    DIEZ_VECES_LO_HABITUAL(NivelDeAviso.TECLEAR),
+    DIEZ_VECES_LO_HABITUAL(NivelDeAviso.AFIRMAR),
 
     /**
      * Más de 12 cuotas de golpe. **Nunca ha pasado**: el abono más grande de la
      * historia de la ruta es de $1,500, y ni siquiera liquidó —dejó saldo—.
      */
-    MAS_DE_DOCE_CUOTAS(NivelDeAviso.TECLEAR)
+    MAS_DE_DOCE_CUOTAS(NivelDeAviso.AFIRMAR)
 }
 
 /**
@@ -130,10 +140,7 @@ data class AvisoDelMonto(
 ) {
     /** ¿Este monto pide una confirmación con más fricción que la normal? */
     val pideFriccionExtra: Boolean
-        get() = nivel == NivelDeAviso.CONFIRMAR || nivel == NivelDeAviso.TECLEAR
-
-    /** ¿El paso dos pide **teclear** el monto otra vez? Ver [NivelDeAviso.TECLEAR]. */
-    val pideTeclearElMonto: Boolean get() = nivel == NivelDeAviso.TECLEAR
+        get() = nivel == NivelDeAviso.CONFIRMAR || nivel == NivelDeAviso.AFIRMAR
 
     companion object {
         /** Nada que decir: el monto es normal, o la venta todavía no cargó. */

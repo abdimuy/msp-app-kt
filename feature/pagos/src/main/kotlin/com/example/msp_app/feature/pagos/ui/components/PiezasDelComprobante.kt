@@ -616,6 +616,72 @@ private fun RenglonDeOrigen(
     }
 }
 
+/**
+ * **La hoja "Fotos y archivos"**: la MISMA rejilla de [SeccionDeComprobantes],
+ * ahora en una hoja que abre el botón "Foto" de la fila del método (mock
+ * `registrar-abono-fijo.html`, sección 4).
+ *
+ * Antes la rejilla vivía debajo del teclado, dentro de la columna que hacía
+ * scroll. Desde que el teclado quedó anclado abajo ya no hay columna que haga
+ * scroll, y la rejilla no cabía en ningún otro lado sin empujar el teclado. Nada
+ * de lo que la rejilla hace cambió: el «+» sigue siendo el único afordante que
+ * agrega (y abre [HojaDeOrigenDelComprobante], que se pinta ENCIMA de ésta), cada
+ * cuadro se quita por su id, y el cuadro ámbar del intento fallido sigue en su
+ * lugar. Tapa el teclado solo mientras el cobrador la tiene abierta.
+ *
+ * Mismo esqueleto que la hoja de origen: el velo es HERMANO de la hoja —si la
+ * envolviera, su `detectTapGestures` se quedaría con los toques de los cuadros—
+ * y la hoja lleva un `pointerInput` inerte para que ningún toque se cuele a la
+ * captura de abajo.
+ */
+@Composable
+fun HojaDeFotos(
+    comprobantes: List<ComprobanteDelAbono>,
+    miniaturas: Map<String, Miniatura>,
+    intentos: List<IntentoFallido>,
+    puedeAgregar: Boolean,
+    onAgregar: () -> Unit,
+    onQuitar: (String) -> Unit,
+    onCerrar: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MspTheme.colors
+    Column(modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(colors.background.copy(alpha = ALFA_DEL_VELO))
+                .testTag(VELO_DE_FOTOS_TAG)
+                .pointerInput(Unit) { detectTapGestures { onCerrar() } }
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.surface, RoundedCornerShape(topStart = RADIO, topEnd = RADIO))
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent()
+                        }
+                    }
+                }
+                .testTag(HOJA_DE_FOTOS_TAG)
+                .padding(MspTheme.spacing.md)
+        ) {
+            Agarradera()
+            SeccionDeComprobantes(
+                comprobantes = comprobantes,
+                miniaturas = miniaturas,
+                intentos = intentos,
+                puedeAgregar = puedeAgregar,
+                onAgregar = onAgregar,
+                onQuitar = onQuitar
+            )
+        }
+    }
+}
+
 /** Lo opaco que va el velo. El mismo de [HojaDeConfirmacion]. */
 private const val ALFA_DEL_VELO = 0.72f
 

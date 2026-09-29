@@ -15,10 +15,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.width
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
@@ -39,6 +39,7 @@ import com.example.msp_app.feature.pagos.ui.components.CONFIRMAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.DUPLICADO_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.FALLO_FOTO_TAG
+import com.example.msp_app.feature.pagos.ui.components.FOTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.HOJA_DE_ORIGEN_TAG
 import com.example.msp_app.feature.pagos.ui.components.HOJA_TAG
 import com.example.msp_app.feature.pagos.ui.components.METODOS_DE_CAPTURA
@@ -48,6 +49,7 @@ import com.example.msp_app.feature.pagos.ui.components.QUITAR_FOTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TECLA_BORRAR
 import com.example.msp_app.feature.pagos.ui.components.TECLA_PUNTO
 import com.example.msp_app.feature.pagos.ui.components.TECLA_TAG
+import com.example.msp_app.feature.pagos.ui.components.VELO_DE_FOTOS_TAG
 import com.example.msp_app.feature.pagos.ui.components.VELO_DE_ORIGEN_TAG
 import com.example.msp_app.feature.pagos.ui.components.VELO_TAG
 import com.example.msp_app.feature.pagos.ui.components.contenidoDelSugerido
@@ -170,21 +172,24 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `a escala muy grande los chips se apilan y ningun monto se trunca`() {
-        // A 2.0 los tres en tercios de 360dp no caben y "liquidar $1,290" se
-        // leía "$1,29" — un monto recortado es un bug de dinero. Se afirma el
-        // LAYOUT (apilados, a ancho completo), no el texto: Robolectric no mide
-        // texto sin gráficos nativos y una aserción de ancho pasaría igual.
+    fun `a escala muy grande los chips siguen en una fila que se desliza, sin truncar`() {
+        // Antes, a 2.0 los chips se apilaban a lo ancho —en tercios de 360dp
+        // "liquidar $1,290" se leía "$1,29"— y tres chips apilados sacaban el
+        // teclado de la pantalla. Desde el teclado anclado (mock
+        // `registrar-abono-fijo.html`) van en UNA fila que se desliza de lado:
+        // cada chip se mide por su contenido, así que ninguno se encoge a
+        // tercios, y lo que no cabe se alcanza deslizando.
         pinta(AbonoFixtures.enCaptura(), FontSizeLevel.MUY_GRANDE)
         val bordes = bordesDeLosChips()
-        bordes.forEach { assertEquals(bordes[0].left, it.left) }
-        bordes.forEach { assertEquals(bordes[0].right, it.right) }
-        bordes.zipWithNext().forEachIndexed { indice, (arriba, abajo) ->
+        assertTrue("el fixture tiene que pintar más de un chip", bordes.size > 1)
+        bordes.forEach { assertEquals("todos en el mismo renglón", bordes[0].top, it.top) }
+        bordes.zipWithNext().forEachIndexed { indice, (izquierda, derecha) ->
             assertTrue(
-                "el chip ${indice + 2} va debajo del ${indice + 1}",
-                abajo.top >= arriba.bottom
+                "el chip ${indice + 2} va a la derecha del ${indice + 1}",
+                derecha.left >= izquierda.right
             )
         }
+        bordes.forEach { assertTrue("ningún chip se encoge: ${it.width}", it.width >= 84.dp) }
     }
 
     // --- El bloqueo duro, por su consecuencia --------------------------------
@@ -223,8 +228,13 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     fun `con la verificacion pendiente el CTA no abre nada y la banda ofrece revisar`() {
         pinta(AbonoFixtures.enDudaDeVerificacion())
         composeTestRule.onNodeWithTag(FALLO_DEL_ABONO_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithTag(CTA_ABONO_TAG).performClick()
-        assertEquals("el CTA no puede quedar vivo y mudo", 0, confirmaciones)
+        // El CTA muerto ni se pinta: "Volver a revisar" toma su lugar.
+        assertEquals(
+            "el CTA no puede quedar vivo y mudo",
+            0,
+            composeTestRule.onAllNodesWithTag(CTA_ABONO_TAG).fetchSemanticsNodes().size
+        )
+        assertEquals(0, confirmaciones)
         // Y hay salida sin abandonar la pantalla.
         composeTestRule.onNodeWithTag(REVISAR_DE_NUEVO_TAG).performClick()
         assertEquals(1, revisiones)
@@ -446,9 +456,19 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
      * 49.5dp y otro de ~38dp confiando en el modificador: aquí se mide.
      */
     @Test
-    fun `el mas abre la hoja de origenes y es el unico que agrega`() {
+    fun `sin comprobantes el boton Foto abre de una vez la hoja de origenes`() {
         pinta(AbonoFixtures.enCaptura())
-        composeTestRule.onNodeWithTag(AGREGAR_FOTO_TAG).performScrollTo().performClick()
+        composeTestRule.onNodeWithTag(FOTO_TAG).performClick()
+        assertEquals(1, fotosPedidas)
+        assertTocable(FOTO_TAG, "foto")
+    }
+
+    @Test
+    fun `el mas abre la hoja de origenes y es el unico que agrega`() {
+        // Desde el teclado anclado la rejilla vive en la hoja que abre "Foto".
+        pinta(AbonoFixtures.enCapturaConComprobantes())
+        composeTestRule.onNodeWithTag(FOTO_TAG).performClick()
+        composeTestRule.onNodeWithTag(AGREGAR_FOTO_TAG).performClick()
         assertEquals(1, fotosPedidas)
         assertTocable(AGREGAR_FOTO_TAG, "agregar foto")
         // Control positivo del "único": el barrido cuenta TODO nodo con el tag de
@@ -520,7 +540,8 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         pinta(state)
 
         val segundo = state.comprobantes[1]
-        composeTestRule.onNodeWithTag(QUITAR_FOTO_TAG + segundo.id).performScrollTo().performClick()
+        composeTestRule.onNodeWithTag(FOTO_TAG).performClick()
+        composeTestRule.onNodeWithTag(QUITAR_FOTO_TAG + segundo.id).performClick()
         assertEquals(
             "se quita el que se tocó, no el primero",
             listOf(segundo.id),
@@ -545,9 +566,10 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         pinta(state)
 
         val intento = state.intentos.single()
-        composeTestRule.onNodeWithTag(FALLO_FOTO_TAG + intento.id)
-            .performScrollTo()
-            .assertIsDisplayed()
+        composeTestRule.onNodeWithTag(FOTO_TAG).performClick()
+        composeTestRule.onNodeWithTag(FALLO_FOTO_TAG + intento.id).assertIsDisplayed()
+        // Se cierra la hoja con su velo para volver al botón del abono.
+        composeTestRule.onNodeWithTag(VELO_DE_FOTOS_TAG).performClick()
         assertEquals(
             "un fallo de foto no pinta la banda roja del bloqueo",
             0,

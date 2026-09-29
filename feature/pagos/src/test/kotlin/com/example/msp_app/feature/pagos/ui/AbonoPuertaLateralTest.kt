@@ -123,8 +123,12 @@ class AbonoPuertaLateralTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(FALLO_DEL_ABONO_TAG).assertIsDisplayed()
         composeTestRule.onNodeWithTag(REVISAR_DE_NUEVO_TAG).assertIsDisplayed()
 
-        // LA PUERTA: el teclado sigue en pantalla; se toca de verdad.
+        // LA PUERTA: el teclado sigue en pantalla; se toca de verdad. Desde el
+        // teclado anclado (mock `registrar-abono-fijo.html`) las teclas se pintan
+        // apagadas en este estado, así que el dígito se manda TAMBIÉN directo al
+        // ViewModel: la guarda que se mide es la suya, no la del botón gris.
         composeTestRule.onNodeWithTag(TECLA_TAG + "7").performClick()
+        vm.onDigito(7)
         composeTestRule.onNodeWithTag(METODO_TAG + "transferencia").performClick()
         avanza()
 
@@ -132,8 +136,13 @@ class AbonoPuertaLateralTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(FALLO_DEL_ABONO_TAG).assertIsDisplayed()
         composeTestRule.onNodeWithTag(REVISAR_DE_NUEVO_TAG).assertIsDisplayed()
 
-        // Y el CTA sigue apagado: tocarlo no abre la hoja.
-        composeTestRule.onNodeWithTag(CTA_ABONO_TAG).performClick()
+        // Y el CTA no vuelve: en su lugar sigue "Volver a revisar", así que no
+        // hay botón que reabra la hoja.
+        assertEquals(
+            "el CTA no reaparece por la puerta del teclado",
+            0,
+            composeTestRule.onAllNodesWithTag(CTA_ABONO_TAG).fetchSemanticsNodes().size
+        )
         avanza()
         assertEquals(
             "el CTA no puede reabrirse por la puerta del teclado",

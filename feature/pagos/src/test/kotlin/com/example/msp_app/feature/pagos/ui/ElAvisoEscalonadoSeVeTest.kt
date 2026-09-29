@@ -8,7 +8,6 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.RarezaDelAbono
@@ -20,7 +19,6 @@ import com.example.msp_app.feature.pagos.ui.components.CHIP_SUGERIDO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CONFIRMAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.CUOTA_DUDOSA_TAG
 import com.example.msp_app.feature.pagos.ui.components.DUPLICADO_TAG
-import com.example.msp_app.feature.pagos.ui.components.ECO_DEL_MONTO_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,11 +30,13 @@ import org.robolectric.annotation.Config
  *
  * Dos lugares y dos trabajos distintos:
  *
- *  1. **En vivo, mientras teclea.** Es el más importante de los dos: atrapar un
- *     cero de más en el teclado cuesta un borrón, atraparlo en la hoja cuesta
- *     salir del paso dos, corregir y volver a entrar.
- *  2. **En la hoja**, encabezando, y cambiando **qué pide el paso dos**: un
- *     toque en nivel 2, teclear el monto en nivel 3.
+ *  1. **En vivo, mientras teclea el monto** (la captura, no un eco): el más
+ *     importante de los dos, porque atrapar un cero de más en el teclado
+ *     cuesta un borrón, atraparlo en la hoja cuesta salir del paso dos,
+ *     corregir y volver a entrar.
+ *  2. **En la hoja**, encabezando. Desde el 2026-09-29 los niveles 2 y 3 piden
+ *     lo MISMO —un toque— y sólo se distinguen por el color de esta banda
+ *     (ámbar/rojo) y su texto; ningún nivel exige teclear nada.
  *
  * Todo se prueba con **control positivo y negativo sobre el mismo aparato**: el
  * mismo composable, con un monto normal, no pinta nada — sin eso, una banda que
@@ -49,7 +49,6 @@ class ElAvisoEscalonadoSeVeTest : RobolectricTestBase() {
     val composeTestRule = createComposeRule()
 
     private var registros = 0
-    private var ecosTecleados = mutableListOf<String>()
 
     // --- En vivo, bajo el monto ----------------------------------------------
 
@@ -72,7 +71,7 @@ class ElAvisoEscalonadoSeVeTest : RobolectricTestBase() {
 
     @Test
     fun `nivel 3 avisa en vivo tambien`() {
-        pinta(AbonoFixtures.enAvisoDeTeclear())
+        pinta(AbonoFixtures.enAvisoDeAfirmar())
 
         composeTestRule.onNodeWithTag(AVISO_TAG).assertIsDisplayed()
         composeTestRule.onNodeWithText("Son 6 cuotas de \$220").assertIsDisplayed()
@@ -136,54 +135,33 @@ class ElAvisoEscalonadoSeVeTest : RobolectricTestBase() {
         )
     }
 
-    // --- En la hoja: qué pide el paso dos ------------------------------------
+    // --- En la hoja: un toque basta en los dos niveles -----------------------
 
     @Test
-    fun `nivel 2 encabeza la hoja y se confirma con un toque`() {
+    fun `nivel 2 encabeza la hoja en ambar y se confirma con un toque`() {
         pinta(AbonoFixtures.confirmandoConUnToque())
 
         composeTestRule.onNodeWithTag(AVISO_DE_LA_HOJA_TAG).assertIsDisplayed()
-        assertEquals(
-            "nivel 2 no pide teclear nada",
-            0,
-            composeTestRule.onAllNodesWithTag(ECO_DEL_MONTO_TAG).fetchSemanticsNodes().size
-        )
 
         composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
-        assertEquals("un toque extra basta", 1, registros)
+        assertEquals("un toque basta", 1, registros)
     }
 
+    /**
+     * **Nivel 3, desde el 2026-09-29**: la MISMA ruta que el nivel 2 — un solo
+     * toque, sin teclear nada — con su propia banda roja (control positivo
+     * indirecto: [ElAbonoRaroCuestaMasTest] ya mide el color exacto vía
+     * `EncabezadoDelAviso`; aquí sólo se prueba que un toque registra).
+     */
     @Test
-    fun `nivel 3 pide teclear el monto y no registra hasta que cuadra`() {
-        pinta(AbonoFixtures.tecleandoElMonto())
+    fun `nivel 3 tambien confirma con un solo toque`() {
+        pinta(AbonoFixtures.afirmandoElMonto())
 
         composeTestRule.onNodeWithTag(AVISO_DE_LA_HOJA_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithTag(ECO_DEL_MONTO_TAG).assertIsDisplayed()
-
-        // El botón está apagado: **apagado es apagado**, el toque no llega.
-        composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
-        assertEquals("sin el monto tecleado no se registra", 0, registros)
-    }
-
-    @Test
-    fun `con el monto ya tecleado el mismo boton si registra`() {
-        // El control POSITIVO del de arriba: el mismo botón, el mismo toque, con
-        // el eco cuadrado. Sin esto, un botón muerto siempre pasaría la prueba
-        // anterior.
-        pinta(AbonoFixtures.tecleandoElMonto(eco = "1400"))
+        composeTestRule.onNodeWithText(AFIRMAR_EL_MONTO).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
-        assertEquals(1, registros)
-    }
-
-    @Test
-    fun `lo que se teclea en el eco viaja al ViewModel y no al monto`() {
-        pinta(AbonoFixtures.tecleandoElMonto())
-
-        composeTestRule.onNodeWithTag(ECO_DEL_MONTO_TAG).performTextInput("14")
-
-        assertTrue("el campo avisó lo tecleado", ecosTecleados.isNotEmpty())
-        assertEquals("14", ecosTecleados.last())
+        assertEquals("un solo toque registra, igual que en nivel 2", 1, registros)
     }
 
     @Test
@@ -224,11 +202,11 @@ class ElAvisoEscalonadoSeVeTest : RobolectricTestBase() {
      */
     @Test
     fun `si la hoja escala, hay al menos una banda que lo explica`() {
-        // `tecleandoElMonto` es el caso desnudo: escala SÓLO por el aviso, sin
+        // `afirmandoElMonto` es el caso desnudo: escala SÓLO por el aviso, sin
         // duplicado ni abono corto que puedan tapar el hueco. Con `enMontoRaro`
         // este test pasaría aunque el encabezado desapareciera, porque la banda
         // del duplicado seguiría ahí — medido, no supuesto.
-        pinta(AbonoFixtures.tecleandoElMonto())
+        pinta(AbonoFixtures.afirmandoElMonto())
 
         composeTestRule.onNodeWithText(AFIRMAR_EL_MONTO).assertIsDisplayed()
         assertTrue(
@@ -272,17 +250,13 @@ class ElAvisoEscalonadoSeVeTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `una confirmacion normal no pide ni encabezado ni eco`() {
+    fun `una confirmacion normal no pide encabezado`() {
         // Control negativo de los dos de arriba, sobre la MISMA hoja.
         pinta(AbonoFixtures.enConfirmacion())
 
         assertEquals(
             0,
             composeTestRule.onAllNodesWithTag(AVISO_DE_LA_HOJA_TAG).fetchSemanticsNodes().size
-        )
-        assertEquals(
-            0,
-            composeTestRule.onAllNodesWithTag(ECO_DEL_MONTO_TAG).fetchSemanticsNodes().size
         )
         composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
         assertEquals(1, registros)
@@ -318,8 +292,7 @@ class ElAvisoEscalonadoSeVeTest : RobolectricTestBase() {
             onAgregarFoto = {},
             onOrigen = {},
             onCerrarOrigenes = {},
-            onQuitarFoto = {},
-            onEco = { ecosTecleados += it }
+            onQuitarFoto = {}
         )
     }
 }

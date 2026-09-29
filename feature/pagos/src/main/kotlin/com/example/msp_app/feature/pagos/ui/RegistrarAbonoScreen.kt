@@ -1,64 +1,95 @@
+@file:Suppress(
+    "TooManyFunctions"
+) // la pantalla y sus piezas privadas: el destino, la captura y los textos de la franja.
+
 package com.example.msp_app.feature.pagos.ui
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
-import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
-import com.example.msp_app.core.designsystem.component.MspSoftEdgeActionBar
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
-import com.example.msp_app.core.designsystem.component.altoDeLaBarra
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
-import com.example.msp_app.core.designsystem.component.mspBackdropSource
-import com.example.msp_app.core.designsystem.component.rememberMspBackdrop
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
+import com.example.msp_app.feature.pagos.domain.AvisoDelMonto
 import com.example.msp_app.feature.pagos.domain.BloqueoDelAbono
 import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
+import com.example.msp_app.feature.pagos.domain.NivelDeAviso
 import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
-import com.example.msp_app.feature.pagos.ui.components.AIRE_DEL_DOCK_TAG
-import com.example.msp_app.feature.pagos.ui.components.BandaDeAviso
-import com.example.msp_app.feature.pagos.ui.components.BandaDeBloqueo
-import com.example.msp_app.feature.pagos.ui.components.BandaDeCuotaDudosa
-import com.example.msp_app.feature.pagos.ui.components.BandaDeRegistrado
+import com.example.msp_app.feature.pagos.ui.components.AVISO_TAG
+import com.example.msp_app.feature.pagos.ui.components.BLOQUEO_TAG
+import com.example.msp_app.feature.pagos.ui.components.BotonDeFoto
+import com.example.msp_app.feature.pagos.ui.components.CIFRA_MAXIMA
+import com.example.msp_app.feature.pagos.ui.components.CUOTA_DUDOSA_TAG
 import com.example.msp_app.feature.pagos.ui.components.ChipsSugeridos
-import com.example.msp_app.feature.pagos.ui.components.EncabezadoDelAbono
+import com.example.msp_app.feature.pagos.ui.components.ConTopeDeLetra
+import com.example.msp_app.feature.pagos.ui.components.DesplegableDelProducto
+import com.example.msp_app.feature.pagos.ui.components.FranjaDelAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeConfirmacion
+import com.example.msp_app.feature.pagos.ui.components.HojaDeFotos
 import com.example.msp_app.feature.pagos.ui.components.HojaDeOrigenDelComprobante
-import com.example.msp_app.feature.pagos.ui.components.SeccionDeComprobantes
+import com.example.msp_app.feature.pagos.ui.components.MensajeDeLaFranja
+import com.example.msp_app.feature.pagos.ui.components.NombreDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SelectorDeMetodo
-import com.example.msp_app.feature.pagos.ui.components.TarjetaDeCaptura
+import com.example.msp_app.feature.pagos.ui.components.TOPE_DEL_BOTON
+import com.example.msp_app.feature.pagos.ui.components.TOQUE_DEL_ABONO
+import com.example.msp_app.feature.pagos.ui.components.TarjetaDeLaCifra
+import com.example.msp_app.feature.pagos.ui.components.TarjetaDelProducto
 import com.example.msp_app.feature.pagos.ui.components.TecladoDeMontos
-import com.example.msp_app.feature.pagos.ui.components.TiraDeContexto
+import com.example.msp_app.feature.pagos.ui.components.TonoDeLaFranja
+import com.example.msp_app.feature.pagos.ui.components.ZonaQueCede
+import com.example.msp_app.feature.pagos.ui.components.altoDeLaFranja
+import com.example.msp_app.feature.pagos.ui.components.cesionesPara
+import com.example.msp_app.feature.pagos.ui.components.esLetraGrande
+import com.example.msp_app.feature.pagos.ui.components.saldoNuevo
 
 /** `testTag` del CTA que abre el paso uno de la confirmación. */
 const val CTA_ABONO_TAG: String = "pagos_abono_cta"
@@ -143,7 +174,6 @@ fun RegistrarAbonoScreen(
             onRegistrar = viewModel::pedirConfirmacion,
             onConfirmar = viewModel::confirmar,
             onEditar = viewModel::descartarConfirmacion,
-            onEco = viewModel::onEcoDelMonto,
             onRevisar = viewModel::cargar,
             onAgregarFoto = viewModel::abrirOrigenes,
             onOrigen = viewModel::onOrigen,
@@ -184,20 +214,43 @@ fun RegistrarAbonoScreen(
     }
 }
 
+/** `testTag` de la franja cuando dice que el abono ya quedó. */
+const val REGISTRADO_DEL_ABONO_TAG: String = "pagos_abono_registrado"
+
 /**
- * Registrar abono, en sus cuatro estados del mock: **captura**, **bloqueo
- * duro**, **confirmar** y **monto raro**.
+ * Registrar abono: **captura**, **bloqueo duro**, **confirmar** y **monto
+ * raro**, con el teclado anclado (mock `docs/design/mocks/registrar-abono-fijo.html`,
+ * aprobado por el dueño el 2026-09-29).
  *
  * Composable PURO sobre [RegistrarAbonoUiState]. No decide nada de dinero: el
- * veredicto llega hecho y aquí solo se pinta — el borde rojo de la captura, la
- * banda del bloqueo, el CTA apagado y el color de la hoja salen todos del mismo
- * [com.example.msp_app.feature.pagos.domain.VeredictoDelAbono].
+ * veredicto llega hecho y aquí solo se pinta — el borde rojo de la cifra, el
+ * mensaje de la franja, el CTA apagado y el color de la hoja salen todos del
+ * mismo [com.example.msp_app.feature.pagos.domain.VeredictoDelAbono].
  *
- * **La foto (Task 22)** ocupa el hueco que este diseño le había dejado: debajo
- * del teclado, dentro de la columna que hace scroll, y en la hoja entre la
- * cifra y el flujo de saldos. Ninguna de las tres piezas de seguridad —bloqueo,
- * dos pasos, alerta roja— se movió para que quepa, y ninguna de las dos lambdas
- * nuevas puede llegar al dinero: van al puerto de la cámara y vuelven.
+ * ## De abajo hacia arriba
+ *
+ * La regla del dueño: *"siempre el teclado numérico se vea completo cuando se
+ * entra y no se ha hecho scroll aún"*. Antes todo iba en una columna que hacía
+ * scroll y un aviso de un renglón empujaba el teclado 48dp hacia abajo —su
+ * última fila quedaba debajo del botón—, y a letra grande el teclado ni se
+ * veía. Ahora el botón, el teclado y la fila del método van **anclados abajo**
+ * con alto fijo; lo demás vive en [ZonaQueCede], que tiene el alto que sobre y
+ * cede (renglones, rótulos, tamaño de la cifra) en vez de empujar. La medida es
+ * `ElTecladoNoSeMueveTest`.
+ *
+ * ## Lo que se movió de lugar, sin cambiar lo que hace
+ *
+ * - El aviso en vivo, el bloqueo, la parcialidad dudosa, el error y "Abono
+ *   registrado" dejaron de ser bandas sueltas que empujaban: ahora son **un
+ *   solo mensaje** en la franja fija de la cifra ([mensajeDeLaFranja]).
+ * - "Volver a revisar" toma el lugar del botón Registrar, que en ese estado
+ *   está muerto de todas formas (`sePuedeRegistrar` es falso con la
+ *   verificación pendiente), y el teclado se pinta apagado.
+ * - La rejilla de comprobantes vive en una hoja que abre el botón "Foto"
+ *   ([HojaDeFotos]); con cero comprobantes el botón abre directo el origen.
+ *
+ * Ninguna de las piezas de seguridad —bloqueo, dos pasos, alerta roja— cambió
+ * de lógica: sólo de lugar.
  */
 @Composable
 fun RegistrarAbonoContent(
@@ -216,9 +269,16 @@ fun RegistrarAbonoContent(
     onOrigen: (OrigenDeLaFoto) -> Unit,
     onCerrarOrigenes: () -> Unit,
     onQuitarFoto: (String) -> Unit,
-    onEco: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var fotosAbiertas by rememberSaveable { mutableStateOf(false) }
+    var desplegado by rememberSaveable { mutableStateOf(false) }
+    // Sólo mientras hay algo abierto: sin hojas, el atrás es del sistema y
+    // vuelve a la pantalla anterior, como en el detalle de cliente y de venta.
+    BackHandler(enabled = fotosAbiertas || desplegado) {
+        fotosAbiertas = false
+        desplegado = false
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -226,47 +286,41 @@ fun RegistrarAbonoContent(
             // Ruling BR — DESPUÉS del `background`, para que el color siga pintándose a
             // sangre bajo la barra de estado y el inset solo baje el CONTENIDO. Sin esto la
             // app corre `enableEdgeToEdge()` y la ventana `StatusBar` del sistema queda
-            // ENCIMA del encabezado y se come sus taps (medido: 36 de 168 px útiles en el
-            // "atrás"). La compuerta es `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`.
-            // `systemBars` y no `statusBars`: el mismo argumento vale ABAJO. Con
-            // `enableEdgeToEdge()` la barra de navegación también queda encima, y el pie de
-            // la pantalla se pintaba detrás de los botones de Android (reportado en vidrio,
-            // SM-A256E). El fondo sigue a sangre porque este padding va después del
-            // `background`; lo único que se corre es el CONTENIDO.
+            // ENCIMA de la pantalla y se come sus taps. La compuerta es
+            // `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`. El botón de abajo
+            // consume por su lado el inset de la barra de navegación.
             .statusBarsPadding()
     ) {
-        val backdrop = rememberMspBackdrop()
-        Box(modifier = Modifier.fillMaxSize()) {
-            val venta = state.venta
-            Box(modifier = Modifier.fillMaxSize()) {
-                when {
-                    state.cargando -> CargandoElAbono()
-                    venta == null -> MensajeDeErrorDelAbono(state.error, onAtras)
-                    else -> CuerpoDelAbono(
-                        aireAbajo = backdrop.altoDeLaBarra(),
-                        backdrop = backdrop,
-                        state = state,
-                        venta = venta,
-                        onAtras = onAtras,
-                        onDigito = onDigito,
-                        onPunto = onPunto,
-                        onBorrar = onBorrar,
-                        onMetodo = onMetodo,
-                        onSugerido = onSugerido,
-                        onRevisar = onRevisar,
-                        onAgregarFoto = onAgregarFoto,
-                        onQuitarFoto = onQuitarFoto
-                    )
-                }
-            }
-            if (venta != null) {
-                DockDeRegistro(
-                    state = state,
-                    onRegistrar = onRegistrar,
-                    backdrop = backdrop,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
+        val venta = state.venta
+        when {
+            state.cargando -> CargandoElAbono()
+            venta == null -> MensajeDeErrorDelAbono(state.error, onAtras)
+            else -> CapturaDelAbono(
+                state = state,
+                venta = venta,
+                desplegado = desplegado,
+                onDesplegado = { desplegado = it },
+                onAbrirFotos = { fotosAbiertas = true },
+                onDigito = onDigito,
+                onPunto = onPunto,
+                onBorrar = onBorrar,
+                onMetodo = onMetodo,
+                onSugerido = onSugerido,
+                onRegistrar = onRegistrar,
+                onRevisar = onRevisar,
+                onAgregarFoto = onAgregarFoto
+            )
+        }
+        if (fotosAbiertas && venta != null) {
+            HojaDeFotos(
+                comprobantes = state.comprobantes,
+                miniaturas = state.miniaturas,
+                intentos = state.intentos,
+                puedeAgregar = state.sePuedeAgregarFoto,
+                onAgregar = onAgregarFoto,
+                onQuitar = onQuitarFoto,
+                onCerrar = { fotosAbiertas = false }
+            )
         }
         if (state.eligiendoOrigen) {
             HojaDeOrigenDelComprobante(
@@ -288,152 +342,349 @@ fun RegistrarAbonoContent(
                 comprobantes = state.comprobantes.size,
                 onConfirmar = onConfirmar,
                 onEditar = onEditar,
-                aviso = confirmacion.aviso,
-                eco = confirmacion.eco,
-                puedeConfirmar = confirmacion.sePuedeConfirmar,
-                onEco = onEco
+                aviso = confirmacion.aviso
             )
         }
     }
 }
 
+/**
+ * La captura: la zona que cede arriba y, anclados abajo, método, teclado y
+ * botón. El desplegable del producto se pinta ENCIMA, con su velo, y nunca baja
+ * del método.
+ */
+@Suppress("LongParameterList")
 @Composable
-private fun CuerpoDelAbono(
-    aireAbajo: Dp,
-    backdrop: MspBackdrop,
+private fun CapturaDelAbono(
     state: RegistrarAbonoUiState,
     venta: DetalleVenta,
-    onAtras: () -> Unit,
+    desplegado: Boolean,
+    onDesplegado: (Boolean) -> Unit,
+    onAbrirFotos: () -> Unit,
     onDigito: (Int) -> Unit,
     onPunto: () -> Unit,
     onBorrar: () -> Unit,
     onMetodo: (MetodoDeCobro) -> Unit,
     onSugerido: (Money) -> Unit,
+    onRegistrar: () -> Unit,
     onRevisar: () -> Unit,
-    onAgregarFoto: () -> Unit,
-    onQuitarFoto: (String) -> Unit
+    onAgregarFoto: () -> Unit
 ) {
-    Column(
+    val densidad = LocalDensity.current
+    var origen by remember { mutableFloatStateOf(0f) }
+    var productoAbajo by remember { mutableFloatStateOf(0f) }
+    var tecladoArriba by remember { mutableFloatStateOf(0f) }
+    var metodoAbajo by remember { mutableFloatStateOf(0f) }
+    // Cualquier otro toque de la captura cierra el desplegable: es la "primera
+    // tecla" del mock. Sólo se cierra; lo que el toque hace, lo sigue haciendo.
+    val cerrar = { if (desplegado) onDesplegado(false) }
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            // El desenfoque de la barra lo dibuja el contenido: es lo único que
-            // se invalida al desplazar. Ver `mspBackdropSource`.
-            .mspBackdropSource(backdrop)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = MspTheme.spacing.md)
-            .padding(bottom = MspTheme.spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+            .onGloballyPositioned { origen = it.positionInRoot().y }
     ) {
-        EncabezadoDelAbono(cliente = venta.clienteNombre, onAtras = onAtras)
-        TiraDeContexto(folio = venta.folio, producto = venta.titulo, saldo = venta.saldo)
-        // Pegada al contexto y NO al monto: habla del dato de la venta, no de
-        // lo que el cobrador tecleó, así que se pinta esté lo que esté tecleado.
-        if (venta.cuota.origen == OrigenDeLaCuota.DUDOSA) {
-            BandaDeCuotaDudosa(parcialidad = venta.parcialidad)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(horizontal = MspTheme.spacing.md)
+        ) {
+            ZonaDeArriba(
+                state = state,
+                venta = venta,
+                desplegado = desplegado,
+                onAlternar = { onDesplegado(!desplegado) },
+                onSugerido = {
+                    cerrar()
+                    onSugerido(it)
+                },
+                onProductoAbajo = { productoAbajo = it },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            )
+            Spacer(Modifier.height(MspTheme.spacing.sm))
+            val hayFotos = state.comprobantes.isNotEmpty() || state.intentos.isNotEmpty()
+            SelectorDeMetodo(
+                seleccionado = state.metodo,
+                onMetodo = {
+                    cerrar()
+                    onMetodo(it)
+                },
+                modifier = Modifier.onGloballyPositioned { metodoAbajo = it.boundsInRoot().bottom }
+            ) {
+                BotonDeFoto(
+                    comprobantes = state.comprobantes.size,
+                    intentosFallidos = state.intentos.size,
+                    habilitado = hayFotos || state.sePuedeAgregarFoto,
+                    onClick = {
+                        cerrar()
+                        if (hayFotos) onAbrirFotos() else onAgregarFoto()
+                    }
+                )
+            }
+            Spacer(Modifier.height(MspTheme.spacing.sm))
+            TecladoDeMontos(
+                onDigito = {
+                    cerrar()
+                    onDigito(it)
+                },
+                onPunto = {
+                    cerrar()
+                    onPunto()
+                },
+                onBorrar = {
+                    cerrar()
+                    onBorrar()
+                },
+                habilitado = !state.verificacionPendiente,
+                modifier = Modifier.onGloballyPositioned { tecladoArriba = it.boundsInRoot().top }
+            )
+            Spacer(Modifier.height(MspTheme.spacing.md))
+            BotonDelAbono(state = state, onRegistrar = onRegistrar, onRevisar = onRevisar)
+            Spacer(Modifier.height(MspTheme.spacing.sm))
         }
-        TarjetaDeCaptura(
-            monto = state.monto,
-            metodo = state.metodo,
-            conError = state.monto.esPositivo &&
-                BloqueoDelAbono.EXCEDE_EL_SALDO in state.veredicto.bloqueos
-        )
-        // El aviso en vivo va JUNTO a la cifra y antes que nada más: es el que
-        // atrapa el cero de más mientras todavía cuesta un borrón. La banda del
-        // bloqueo va debajo porque son excluyentes — un monto bloqueado no trae
-        // aviso, y uno con aviso no está bloqueado.
-        BandaDeAviso(aviso = state.aviso)
-        MensajeDeBloqueo(state = state, venta = venta)
-        if (state.registrado != null) BandaDeRegistrado()
-        MensajeDeFallo(state = state, onRevisar = onRevisar)
-        ChipsSugeridos(sugeridos = state.sugeridos, onSugerido = onSugerido)
-        SelectorDeMetodo(seleccionado = state.metodo, onMetodo = onMetodo)
-        TecladoDeMontos(onDigito = onDigito, onPunto = onPunto, onBorrar = onBorrar)
-        // La foto va DEBAJO del teclado, dentro de la columna que hace scroll:
-        // el teclado es lo que el cobrador usa en cada abono y el comprobante
-        // solo en algunos, así que empujarlo hacia abajo sería cobrarle a todos
-        // el costo de la excepción.
-        SeccionDeComprobantes(
-            comprobantes = state.comprobantes,
-            miniaturas = state.miniaturas,
-            intentos = state.intentos,
-            puedeAgregar = state.sePuedeAgregarFoto,
-            onAgregar = onAgregarFoto,
-            onQuitar = onQuitarFoto
-        )
-        // El aire que la barra tapa, con el alto que ella misma midió. Desde
-        // que el dock está ENCIMA del contenido y no debajo, sin esto la última
-        // foto queda detrás del CTA.
-        Spacer(Modifier.height(aireAbajo).testTag(AIRE_DEL_DOCK_TAG))
+        if (desplegado) {
+            val productos = venta.productos.map { it.nombre }.ifEmpty { listOf(venta.titulo) }
+            with(densidad) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((tecladoArriba - origen).coerceAtLeast(0f).toDp())
+                        .background(Color.Black.copy(alpha = ALFA_DEL_VELO_DEL_PRODUCTO))
+                        .pointerInput(Unit) { detectTapGestures { onDesplegado(false) } }
+                )
+                val arriba = productoAbajo - origen + HUECO_DEL_DESPLEGABLE.toPx()
+                DesplegableDelProducto(
+                    productos = productos,
+                    onCerrar = { onDesplegado(false) },
+                    modifier = Modifier
+                        .padding(horizontal = MspTheme.spacing.md)
+                        .offset { IntOffset(0, arriba.toInt()) }
+                        .heightIn(max = (metodoAbajo - origen - arriba).coerceAtLeast(0f).toDp())
+                )
+            }
+        }
     }
 }
 
 /**
- * La banda del bloqueo duro. Silenciosa con el teclado en blanco: el CTA
- * apagado ya cubre "no hay nada que registrar".
+ * Lo que se oscurece la captura detrás del desplegable del producto: el velo
+ * oscuro del mock (`rgba(0,0,0,.28)`), no el blanqueado de las hojas, porque el
+ * desplegable no es una hoja: la captura tiene que seguir leyéndose detrás.
+ */
+private const val ALFA_DEL_VELO_DEL_PRODUCTO = 0.28f
+
+/** El aire entre la tarjeta del producto y su desplegable. */
+private val HUECO_DEL_DESPLEGABLE = 6.dp
+
+/**
+ * **La zona de arriba**: el cliente, el producto con su saldo, la cifra con su
+ * franja y los sugeridos. Cede —ver [ZonaQueCede] y [cesionesPara]—, nunca
+ * empuja.
+ */
+@Suppress("LongParameterList")
+@Composable
+private fun ZonaDeArriba(
+    state: RegistrarAbonoUiState,
+    venta: DetalleVenta,
+    desplegado: Boolean,
+    onAlternar: () -> Unit,
+    onSugerido: (Money) -> Unit,
+    onProductoAbajo: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val grande = esLetraGrande()
+    val cifraMaxima = if (LocalDensity.current.fontScale >= ESCALA_MUY_GRANDE) {
+        CIFRA_MAXIMA * CRECIMIENTO_DE_LA_CIFRA
+    } else {
+        CIFRA_MAXIMA
+    }
+    val franjaDeDos = altoDeLaFranja(2)
+    val franjaDeUno = altoDeLaFranja(1)
+    val mensaje = mensajeDeLaFranja(state, venta)
+    val conError = state.monto.esPositivo &&
+        BloqueoDelAbono.EXCEDE_EL_SALDO in state.veredicto.bloqueos
+    ZonaQueCede(
+        cesiones = cesionesPara(grande, cifraMaxima),
+        modifier = modifier
+    ) { cesion, medir ->
+        val hueco = if (cesion.apretado) MspTheme.spacing.xs else MspTheme.spacing.sm
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                // La medida es sólo eso: no se pinta ni se anuncia. Sin esto,
+                // cada paso que se probó dejaría un segundo "cliente" y un
+                // segundo "producto" en el árbol de accesibilidad.
+                .then(if (medir) Modifier.clearAndSetSemantics {} else Modifier.fillMaxHeight()),
+            verticalArrangement = Arrangement.spacedBy(hueco)
+        ) {
+            NombreDelCliente(
+                nombre = venta.clienteNombre,
+                apretado = cesion.apretado,
+                onToque = if (cesion.conProducto) null else onAlternar
+            )
+            TarjetaDelProducto(
+                producto = venta.titulo,
+                saldo = venta.saldo,
+                cesion = cesion,
+                abierto = desplegado,
+                onAlternar = onAlternar,
+                modifier = if (medir) {
+                    Modifier
+                } else {
+                    Modifier.onGloballyPositioned { onProductoAbajo(it.boundsInRoot().bottom) }
+                }
+            )
+            TarjetaDeLaCifra(
+                monto = state.monto.enPantalla(),
+                conError = conError,
+                conRotulo = cesion.conRotulo,
+                cifraMaxima = cifraMaxima,
+                cifraMinima = cesion.cifraMinima,
+                franjaReservada = if (cesion.franjaEnDosRenglones) franjaDeDos else franjaDeUno,
+                desborde = hueco + TOQUE_DEL_ABONO,
+                puedeDesbordar = mensaje.tono != TonoDeLaFranja.NEUTRO,
+                medir = medir,
+                franja = { FranjaDelAbono(mensaje) },
+                modifier = Modifier
+                    .zIndex(1f)
+                    .then(if (medir) Modifier else Modifier.weight(1f))
+            )
+            ChipsSugeridos(sugeridos = state.sugeridos, onSugerido = onSugerido)
+        }
+    }
+}
+
+/** A partir de esta escala la cifra busca un tamaño mayor (el 2.0× del mock). */
+private const val ESCALA_MUY_GRANDE = 2f
+
+/** Cuánto más grande busca ser la cifra a 2.0×: lo que medía en el golden de hoy. */
+private const val CRECIMIENTO_DE_LA_CIFRA = 1.21f
+
+/**
+ * **Lo único que dice la franja**, con la prioridad del mock: el error del
+ * registro, "Abono registrado", el bloqueo, el aviso en vivo, la parcialidad
+ * dudosa y, sin nada de eso, el saldo nuevo.
+ *
+ * Los textos son los mismos de antes, uno por uno: nada nuevo que decir.
  */
 @Composable
-private fun MensajeDeBloqueo(state: RegistrarAbonoUiState, venta: DetalleVenta) {
+private fun mensajeDeLaFranja(
+    state: RegistrarAbonoUiState,
+    venta: DetalleVenta
+): MensajeDeLaFranja {
+    val fallo = state.fallo
+    val bloqueo = textoDelBloqueo(state, venta)
+    val aviso = avisoEnVivo(state.aviso)
+    return when {
+        fallo != null -> MensajeDeLaFranja(
+            TonoDeLaFranja.ROJO,
+            listOf(AnnotatedString(textoDelFallo(fallo))),
+            FALLO_DEL_ABONO_TAG
+        )
+
+        state.registrado != null -> MensajeDeLaFranja(
+            TonoDeLaFranja.VERDE,
+            listOf(AnnotatedString("Abono registrado")),
+            REGISTRADO_DEL_ABONO_TAG
+        )
+
+        bloqueo != null -> MensajeDeLaFranja(
+            TonoDeLaFranja.ROJO,
+            listOf(AnnotatedString(bloqueo)),
+            BLOQUEO_TAG
+        )
+        aviso != null -> aviso
+        venta.cuota.origen == OrigenDeLaCuota.DUDOSA -> MensajeDeLaFranja(
+            tono = TonoDeLaFranja.AMBAR,
+            renglones = listOf(AnnotatedString("Revisa la parcialidad")),
+            tag = CUOTA_DUDOSA_TAG,
+            detalle = detalleDeLaCuotaDudosa(venta)
+        )
+
+        else -> saldoNuevo(state.veredicto.saldoNuevo)
+    }
+}
+
+/** "La venta dice $3,000 · en esta ruta nadie paga tanto". El hecho, no el adjetivo. */
+private fun detalleDeLaCuotaDudosa(venta: DetalleVenta): String {
+    val cuota = formatMoneyMxn(venta.parcialidad.amount)
+    return "La venta dice $cuota · en esta ruta nadie paga tanto"
+}
+
+/**
+ * El bloqueo duro. Silencioso con el teclado en blanco: el CTA apagado ya
+ * cubre "no hay nada que registrar". Dice el **máximo registrable**, que es el
+ * saldo.
+ */
+private fun textoDelBloqueo(state: RegistrarAbonoUiState, venta: DetalleVenta): String? {
     val bloqueos = state.veredicto.bloqueos
-    val mensaje = when {
+    return when {
         !state.monto.esPositivo -> null
         BloqueoDelAbono.VENTA_SIN_SALDO in bloqueos -> "Esta venta ya no debe nada"
         BloqueoDelAbono.EXCEDE_EL_SALDO in bloqueos ->
             "El abono excede el saldo · máximo " + formatMoneyMxn(venta.saldo.amount)
 
         else -> null
-    } ?: return
-    BandaDeBloqueo(mensaje = mensaje)
+    }
 }
 
 /**
- * Por qué el abono no quedó.
+ * **El aviso en vivo**, el que sale mientras se teclea. Sólo hablan los dos
+ * niveles raros: `NINGUNO` no tiene nada que decir, `BLOQUEO` ya tiene su
+ * mensaje con el máximo registrable y `NOTA` tiene el suyo dentro de la hoja.
  *
- * [FalloDelAbono.NO_SE_PUDO_VERIFICAR] es el único que trae **acción**: ahí el
- * guard sigue puesto a propósito y el CTA está apagado, así que sin este botón
- * la única salida sería salirse de la pantalla. Volver a cargar es el reintento
- * de verdad — es lo que resuelve la duda, mirando el historial.
+ * El `when` es **exhaustivo y sin `else`**: un nivel nuevo no compila hasta que
+ * alguien decida si se pinta y de qué color.
  */
-@Composable
-private fun MensajeDeFallo(state: RegistrarAbonoUiState, onRevisar: () -> Unit) {
-    val fallo = state.fallo ?: return
-    val texto = when (fallo) {
-        FalloDelAbono.VENTA_NO_ESTA -> "La venta ya no está en el teléfono"
-        FalloDelAbono.SIN_COBRADOR -> "Falta el cobrador, vuelve a entrar"
-        FalloDelAbono.NO_SE_PUDO_GUARDAR -> "No se pudo guardar, intenta de nuevo"
-        FalloDelAbono.BLOQUEADO -> "El monto no se puede registrar"
-        FalloDelAbono.NO_SE_PUDO_VERIFICAR -> "No se pudo confirmar, revisa de nuevo"
-    }
-    BandaDeBloqueo(mensaje = texto, modifier = Modifier.testTag(FALLO_DEL_ABONO_TAG))
-    if (state.sePuedeRevisar) {
-        MspPrimaryFieldButton(
-            text = "Volver a revisar",
-            onClick = onRevisar,
-            variant = PrimaryFieldButtonVariant.Ghost,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(REVISAR_DE_NUEVO_TAG)
-        )
-    }
+private fun avisoEnVivo(aviso: AvisoDelMonto): MensajeDeLaFranja? {
+    val tono = when (aviso.nivel) {
+        NivelDeAviso.NINGUNO, NivelDeAviso.BLOQUEO, NivelDeAviso.NOTA -> null
+        NivelDeAviso.CONFIRMAR -> TonoDeLaFranja.AMBAR
+        NivelDeAviso.AFIRMAR -> TonoDeLaFranja.ROJO
+    } ?: return null
+    // Un nivel que habla pero sin nada que decir no pinta una franja vacía.
+    if (aviso.mensajes.isEmpty()) return null
+    return MensajeDeLaFranja(tono, aviso.mensajes.map { AnnotatedString(it) }, AVISO_TAG)
+}
+
+/** Por qué el abono no quedó. */
+private fun textoDelFallo(fallo: FalloDelAbono): String = when (fallo) {
+    FalloDelAbono.VENTA_NO_ESTA -> "La venta ya no está en el teléfono"
+    FalloDelAbono.SIN_COBRADOR -> "Falta el cobrador, vuelve a entrar"
+    FalloDelAbono.NO_SE_PUDO_GUARDAR -> "No se pudo guardar, intenta de nuevo"
+    FalloDelAbono.BLOQUEADO -> "El monto no se puede registrar"
+    FalloDelAbono.NO_SE_PUDO_VERIFICAR -> "No se pudo confirmar, revisa de nuevo"
 }
 
 /**
- * El dock del mock (`.acts`): un solo CTA. **Apagado es apagado** — el
- * `enabled` sale del veredicto, y con él la pinta plana que el design system
- * usa para un botón deshabilitado.
+ * El botón de abajo. **Apagado es apagado** — el `enabled` sale del veredicto.
+ *
+ * Con la verificación pendiente el botón Registrar está muerto (el guard sigue
+ * puesto a propósito), así que en su lugar va **"Volver a revisar"**: el
+ * reintento de verdad, que vuelve a cargar y resuelve la duda mirando el
+ * historial. Sin él la única salida sería salirse de la pantalla.
  */
 @Composable
-private fun DockDeRegistro(
+private fun BotonDelAbono(
     state: RegistrarAbonoUiState,
     onRegistrar: () -> Unit,
-    modifier: Modifier = Modifier,
-    backdrop: MspBackdrop? = null
+    onRevisar: () -> Unit
 ) {
-    MspSoftEdgeActionBar(modifier = modifier, backdrop = backdrop) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm)
-        ) {
+    ConTopeDeLetra(TOPE_DEL_BOTON) {
+        if (state.sePuedeRevisar) {
+            MspPrimaryFieldButton(
+                text = "Volver a revisar",
+                onClick = onRevisar,
+                variant = PrimaryFieldButtonVariant.Ghost,
+                maxLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = TOQUE_DEL_ABONO)
+                    .testTag(REVISAR_DE_NUEVO_TAG)
+            )
+        } else {
             MspPrimaryFieldButton(
                 text = "Registrar abono " + formatMoneyMxn(state.monto.importe.amount),
                 onClick = onRegistrar,
@@ -441,6 +692,7 @@ private fun DockDeRegistro(
                 maxLines = 1,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = TOQUE_DEL_ABONO)
                     .testTag(CTA_ABONO_TAG)
             )
         }

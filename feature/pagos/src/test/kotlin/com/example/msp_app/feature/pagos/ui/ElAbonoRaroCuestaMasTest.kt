@@ -31,7 +31,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -44,13 +43,14 @@ import org.junit.Test
  * porque lo que se prueba aquí es otra cosa: no "ninguna ruta guarda dos
  * veces", sino **cuánto cuesta decir que sí** según lo raro que sea el monto.
  *
- * Los dos hechos que estas pruebas fijan:
- *
- * 1. **Avisar no es bloquear.** Ningún nivel impide registrar; el nivel 3 sólo
- *    exige que el monto se teclee otra vez.
- * 2. **La guarda del eco vive en el ViewModel**, no en el `enabled` del botón.
- *    Un `enabled` es presentación y cualquier otro llamador de `confirmar()`
- *    se lo saltaría — y éste es el único camino que escribe dinero.
+ * **Avisar no es bloquear**, y desde el 2026-09-29 (decisión del dueño, su
+ * jefe lo pidió el mismo día) **ningún nivel exige teclear nada**: nivel 2 y
+ * nivel 3 confirman los dos con un solo toque — lo único que distingue al
+ * nivel 3 es su propia banda roja, no un requisito de escritura. El nivel 3
+ * llegó a exigir teclear el monto otra vez; esa historia y el diseño completo
+ * (con dos variantes evaluadas) siguen en
+ * `docs/design/mocks/confirmacion-escrita-del-abono.html` por si el requisito
+ * vuelve.
  *
  * La cuenta es la del mock: **cuota $220, saldo $1,450**.
  */
@@ -104,82 +104,73 @@ class ElAbonoRaroCuestaMasTest {
     }
 
     @Test
-    fun `el nivel 3 no escribe nada hasta que el monto se teclea otra vez`() = runTest(
-        testDispatcher
-    ) {
-        val vm = viewModel()
-        advanceUntilIdle()
-        // $1,400 son 6.36 cuotas de $220: nivel 3. Sigue por debajo del saldo
-        // ($1,450), así que nada lo bloquea — lo único que cambia es el costo
-        // de decir que sí.
-        teclear(vm, "1400")
-        assertEquals(NivelDeAviso.TECLEAR, vm.state.value.aviso.nivel)
+    fun `el nivel 3 muestra su aviso y confirma con un solo toque, registrando exactamente una vez`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+            // $1,400 son 6.36 cuotas de $220: nivel 3. Sigue por debajo del
+            // saldo ($1,450), así que nada lo bloquea — lo único que cambia
+            // es la banda que se pinta, no cuántos toques hacen falta.
+            teclear(vm, "1400")
+            assertEquals(NivelDeAviso.AFIRMAR, vm.state.value.aviso.nivel)
 
-        vm.pedirConfirmacion()
-        vm.confirmar()
-        advanceUntilIdle()
-        assertTrue("sin el eco no se escribe nada", registroPort.registrados.isEmpty())
+            vm.pedirConfirmacion()
+            // Ningún nivel exige teclear nada: el paso dos ya se puede
+            // confirmar apenas se abre, sin ninguna acción extra.
+            assertTrue(vm.state.value.confirmacion!!.sePuedeConfirmar)
 
-        vm.onEcoDelMonto("1400")
-        assertTrue(vm.state.value.confirmacion!!.sePuedeConfirmar)
-        vm.confirmar()
-        advanceUntilIdle()
-        assertEquals(1, registroPort.registrados.size)
-        assertEquals(dinero("1400"), registroPort.registrados.single().importe)
-    }
+            vm.confirmar()
+            advanceUntilIdle()
+            assertEquals("un solo toque registra", 1, registroPort.registrados.size)
+            assertEquals(dinero("1400"), registroPort.registrados.single().importe)
 
-    @Test
-    fun `un eco equivocado deja el paso dos cerrado`() = runTest(testDispatcher) {
-        val vm = viewModel()
-        advanceUntilIdle()
-        teclear(vm, "1400")
-        vm.pedirConfirmacion()
-
-        // Un dígito de menos: justo el resbalón que esto viene a atrapar.
-        vm.onEcoDelMonto("140")
-        assertFalse(vm.state.value.confirmacion!!.sePuedeConfirmar)
-        vm.confirmar()
-        advanceUntilIdle()
-        assertTrue(registroPort.registrados.isEmpty())
-    }
+            // Y no dos: un segundo toque sobre el mismo ViewModel no duplica.
+            vm.confirmar()
+            advanceUntilIdle()
+            assertEquals(
+                "anti-doble-toque: sigue habiendo exactamente uno",
+                1,
+                registroPort.registrados.size
+            )
+        }
 
     @Test
-    fun `el eco compara dinero y no mecanografia`() = runTest(testDispatcher) {
-        val vm = viewModel()
-        advanceUntilIdle()
-        teclear(vm, "1400")
-        vm.pedirConfirmacion()
+    fun `ningun nivel exige teclear el monto otra vez`() = runTest(testDispatcher) {
+        // Dos ViewModels frescos, uno por nivel — `teclear` sólo limpia por
+        // completo un monto SUGERIDO (ver `MontoCapturado.sinUltimo`), así que
+        // reusar el mismo ViewModel entre dos montos ya tecleados no repite el
+        // borrado inicial y arrastra dígitos del monto anterior.
 
-        vm.onEcoDelMonto("1400.00")
+        // Nivel 2: $900 sobre $220 son 4.09 cuotas.
+        val vmNivel2 = viewModel()
+        advanceUntilIdle()
+        teclear(vmNivel2, "900")
+        vmNivel2.pedirConfirmacion()
+        assertEquals(NivelDeAviso.CONFIRMAR, vmNivel2.state.value.confirmacion!!.aviso.nivel)
         assertTrue(
-            "1400 y 1400.00 son el mismo monto",
-            vm.state.value.confirmacion!!.sePuedeConfirmar
+            "nivel 2 ya se puede confirmar sin teclear nada más",
+            vmNivel2.state.value.confirmacion!!.sePuedeConfirmar
         )
-    }
 
-    @Test
-    fun `el eco no mueve el monto que se va a registrar`() = runTest(testDispatcher) {
-        val vm = viewModel()
+        // Nivel 3: $1,400 sobre $220 son 6.36 cuotas.
+        val vmNivel3 = viewModel()
         advanceUntilIdle()
-        teclear(vm, "1400")
-        vm.pedirConfirmacion()
-        vm.onEcoDelMonto("9")
-
-        assertEquals(
-            "lo tecleado en el eco es una comprobación, no un monto",
-            dinero("1400"),
-            vm.state.value.monto.importe
+        teclear(vmNivel3, "1400")
+        vmNivel3.pedirConfirmacion()
+        assertEquals(NivelDeAviso.AFIRMAR, vmNivel3.state.value.confirmacion!!.aviso.nivel)
+        assertTrue(
+            "nivel 3 tampoco pide teclear nada — decisión del dueño, 2026-09-29",
+            vmNivel3.state.value.confirmacion!!.sePuedeConfirmar
         )
-        assertEquals(dinero("1400"), vm.state.value.confirmacion!!.importe)
     }
 
     @Test
-    fun `un monto normal no pide teclear nada`() = runTest(testDispatcher) {
+    fun `un monto normal tambien se puede confirmar de una`() = runTest(testDispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
         // Lo esperado hoy, que es el 68 % de los abonos de la ruta.
         vm.pedirConfirmacion()
-        assertFalse(vm.state.value.confirmacion!!.pideTeclearElMonto)
+        assertTrue(vm.state.value.confirmacion!!.sePuedeConfirmar)
         vm.confirmar()
         advanceUntilIdle()
         assertEquals(1, registroPort.registrados.size)

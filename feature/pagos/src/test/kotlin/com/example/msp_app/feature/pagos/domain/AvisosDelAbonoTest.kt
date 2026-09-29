@@ -129,7 +129,7 @@ class AvisosDelAbonoTest {
         // verde sin medir nada.
         val aviso = evaluar(dinero("5000"))
 
-        assertEquals(NivelDeAviso.TECLEAR, aviso.nivel)
+        assertEquals(NivelDeAviso.AFIRMAR, aviso.nivel)
         assertFalse(aviso.loPropusoLaPantalla)
     }
 
@@ -203,7 +203,7 @@ class AvisosDelAbonoTest {
     @Test
     fun `seis cuotas exactas siguen siendo nivel confirmar`() {
         // La frontera de las 6: el rango de nivel 2 la INCLUYE, y "más de 6" es
-        // lo que escala. Un peso decide entre un toque y teclear el monto.
+        // lo que escala a nivel 3 (afirmar).
         val aviso = evaluar(dinero("1500"))
 
         assertEquals(NivelDeAviso.CONFIRMAR, aviso.nivel)
@@ -213,21 +213,21 @@ class AvisosDelAbonoTest {
     }
 
     @Test
-    fun `pasadas las seis cuotas hay que teclear el monto`() {
+    fun `pasadas las seis cuotas es nivel afirmar`() {
         val aviso = evaluar(dinero("1550"))
 
-        assertEquals(NivelDeAviso.TECLEAR, aviso.nivel)
+        assertEquals(NivelDeAviso.AFIRMAR, aviso.nivel)
         assertTrue(SenalDelMonto.MAS_DE_SEIS_CUOTAS in aviso.senales)
         assertEquals(listOf("Son 6 cuotas de \$250"), aviso.mensajes)
     }
 
     @Test
-    fun `doce cuotas exactas son nivel teclear, pero todavia no son inéditas`() {
+    fun `doce cuotas exactas son nivel afirmar, pero todavia no son inéditas`() {
         // La frontera de las 12: hasta aquí llega "de 6 a 12", que sí ha
         // ocurrido (5 abonos de 6,165). Pasarla es lo que nunca pasó.
         val aviso = evaluar(dinero("3000"))
 
-        assertEquals(NivelDeAviso.TECLEAR, aviso.nivel)
+        assertEquals(NivelDeAviso.AFIRMAR, aviso.nivel)
         assertTrue(SenalDelMonto.MAS_DE_DOCE_CUOTAS !in aviso.senales)
         assertEquals(listOf("Son 12 cuotas de \$250"), aviso.mensajes)
     }
@@ -236,7 +236,7 @@ class AvisosDelAbonoTest {
     fun `pasadas las doce cuotas nadie en la ruta ha pagado tanto`() {
         val aviso = evaluar(dinero("3050"))
 
-        assertEquals(NivelDeAviso.TECLEAR, aviso.nivel)
+        assertEquals(NivelDeAviso.AFIRMAR, aviso.nivel)
         assertTrue(SenalDelMonto.MAS_DE_DOCE_CUOTAS in aviso.senales)
         // Los dos mensajes del nivel, y los dos dicen algo distinto: cuántas
         // cuotas son, y que eso no tiene precedente en la ruta.
@@ -278,11 +278,11 @@ class AvisosDelAbonoTest {
     }
 
     @Test
-    fun `diez veces exactas lo que suele dar ya pide teclear`() {
+    fun `diez veces exactas lo que suele dar ya es nivel afirmar`() {
         // "Diez veces O MÁS": la frontera es cerrada, al revés que la del triple.
         val aviso = porCostumbre(dinero("2000"))
 
-        assertEquals(NivelDeAviso.TECLEAR, aviso.nivel)
+        assertEquals(NivelDeAviso.AFIRMAR, aviso.nivel)
         assertEquals(listOf("Suele dar \$200, esto es 10 veces más"), aviso.mensajes)
     }
 
@@ -309,7 +309,7 @@ class AvisosDelAbonoTest {
         // 3). Las dos señales quedan registradas, pero sólo habla la grave.
         val aviso = evaluar(dinero("3051"))
 
-        assertEquals(NivelDeAviso.TECLEAR, aviso.nivel)
+        assertEquals(NivelDeAviso.AFIRMAR, aviso.nivel)
         assertTrue(SenalDelMonto.NO_ES_MULTIPLO_DE_CINCUENTA in aviso.senales)
         assertTrue(SenalDelMonto.MAS_DE_DOCE_CUOTAS in aviso.senales)
         assertTrue("Los pagos van de 50 en 50" !in aviso.mensajes)
@@ -325,7 +325,7 @@ class AvisosDelAbonoTest {
                 NivelDeAviso.BLOQUEO,
                 NivelDeAviso.NOTA,
                 NivelDeAviso.CONFIRMAR,
-                NivelDeAviso.TECLEAR
+                NivelDeAviso.AFIRMAR
             ),
             NivelDeAviso.entries.toList()
         )
@@ -342,9 +342,9 @@ class AvisosDelAbonoTest {
                 SenalDelMonto.NO_ES_MULTIPLO_DE_CINCUENTA to NivelDeAviso.CONFIRMAR,
                 SenalDelMonto.DE_TRES_A_SEIS_CUOTAS to NivelDeAviso.CONFIRMAR,
                 SenalDelMonto.MAS_DEL_TRIPLE_DE_LO_HABITUAL to NivelDeAviso.CONFIRMAR,
-                SenalDelMonto.MAS_DE_SEIS_CUOTAS to NivelDeAviso.TECLEAR,
-                SenalDelMonto.DIEZ_VECES_LO_HABITUAL to NivelDeAviso.TECLEAR,
-                SenalDelMonto.MAS_DE_DOCE_CUOTAS to NivelDeAviso.TECLEAR
+                SenalDelMonto.MAS_DE_SEIS_CUOTAS to NivelDeAviso.AFIRMAR,
+                SenalDelMonto.DIEZ_VECES_LO_HABITUAL to NivelDeAviso.AFIRMAR,
+                SenalDelMonto.MAS_DE_DOCE_CUOTAS to NivelDeAviso.AFIRMAR
             ),
             SenalDelMonto.entries.associateWith { it.nivel }
         )

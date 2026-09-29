@@ -11,18 +11,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,9 +70,6 @@ const val SALDO_NUEVO_TAG: String = "pagos_abono_saldo_nuevo"
 /** `testTag` del encabezado de aviso escalonado (niveles 2 y 3). */
 const val AVISO_DE_LA_HOJA_TAG: String = "pagos_abono_hoja_aviso"
 
-/** `testTag` del campo donde se teclea el monto otra vez (nivel 3). */
-const val ECO_DEL_MONTO_TAG: String = "pagos_abono_eco"
-
 private val AVATAR = 40.dp
 
 private val PASO = 18.dp
@@ -115,9 +108,6 @@ fun HojaDeConfirmacion(
     onConfirmar: () -> Unit,
     onEditar: () -> Unit,
     aviso: AvisoDelMonto = AvisoDelMonto.NINGUNO,
-    eco: String = "",
-    puedeConfirmar: Boolean = true,
-    onEco: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = MspTheme.colors
@@ -228,27 +218,20 @@ fun HojaDeConfirmacion(
             FlujoDeSaldos(veredicto = veredicto, raro = raro)
             // Lo que cambia en los casos raros es QUÉ PIDE EL PASO DOS. El
             // `when` es exhaustivo y sin `else`: un nivel nuevo no compila
-            // hasta que alguien decida cuánto cuesta decir que sí.
+            // hasta que alguien decida cuánto cuesta decir que sí. AFIRMAR
+            // (ex-TECLEAR) pasa por la MISMA rama que CONFIRMAR — un solo
+            // toque, con la banda roja de [EncabezadoDelAviso] arriba
+            // distinguiéndolo del ámbar de nivel 2 — desde que dejó de exigir
+            // teclear el monto otra vez (decisión del dueño, 2026-09-29). Ver
+            // el KDoc de [com.example.msp_app.feature.pagos.domain.NivelDeAviso.AFIRMAR].
             when (aviso.nivel) {
-                NivelDeAviso.TECLEAR -> {
-                    EcoDelMonto(importe = importe, eco = eco, onEco = onEco)
-                    BotonesDeMontoRaro(
-                        confirmarHabilitado = puedeConfirmar,
-                        onConfirmar = onConfirmar,
-                        onEditar = onEditar
-                    )
-                }
-
                 NivelDeAviso.NINGUNO,
                 NivelDeAviso.BLOQUEO,
                 NivelDeAviso.NOTA,
-                NivelDeAviso.CONFIRMAR ->
+                NivelDeAviso.CONFIRMAR,
+                NivelDeAviso.AFIRMAR ->
                     if (raro) {
-                        BotonesDeMontoRaro(
-                            confirmarHabilitado = true,
-                            onConfirmar = onConfirmar,
-                            onEditar = onEditar
-                        )
+                        BotonesDeMontoRaro(onConfirmar = onConfirmar, onEditar = onEditar)
                     } else {
                         MspPrimaryFieldButton(
                             text = "Confirmar y registrar",
@@ -281,7 +264,7 @@ fun HojaDeConfirmacion(
  * largo hacia el botón.
  *
  * Ámbar en nivel 2 y rojo en nivel 3, la misma escala que la banda en vivo de
- * la captura ([BandaDeAviso]) — el mismo hecho tiene que verse igual en los dos
+ * la captura (la franja de la cifra) — el mismo hecho tiene que verse igual en los dos
  * lugares, o el cobrador cree que son dos cosas distintas.
  *
  * ## Se tragó la alerta roja vieja, y ése era el punto
@@ -302,7 +285,7 @@ fun HojaDeConfirmacion(
 @Composable
 private fun EncabezadoDelAviso(aviso: AvisoDelMonto, importe: Money, esperadoHoy: Money) {
     val colors = MspTheme.colors
-    val grave = aviso.nivel == NivelDeAviso.TECLEAR
+    val grave = aviso.nivel == NivelDeAviso.AFIRMAR
     val color = if (grave) colors.statusOverdue else colors.statusPartial
     val fondo = if (grave) colors.statusOverdueTint else colors.statusPartialTint
     Row(
@@ -336,63 +319,22 @@ private fun EncabezadoDelAviso(aviso: AvisoDelMonto, importe: Money, esperadoHoy
 }
 
 /**
- * **El monto, tecleado otra vez.** La medida de nivel 3.
+ * Los dos botones del monto marcado — nivel 2 (`CONFIRMAR`) y nivel 3
+ * (`AFIRMAR`) comparten esta MISMA ruta desde el 2026-09-29: un solo toque,
+ * sin exigir teclear nada. Lo único que distingue al nivel 3 es su banda roja
+ * en [EncabezadoDelAviso], no este botón.
  *
- * ## Por qué teclear y no un botón rojo
- *
- * Un cero de más **no es una decisión, es un resbalón**. Un botón rojo se
- * confirma igual de rápido que uno gris porque el dedo ya iba en camino: cuando
- * el color aparece, el gesto ya estaba lanzado, y cambiarle el color al destino
- * no detiene un gesto que ya salió. Teclear el monto de nuevo sí atrapa el
- * resbalón, porque para que pase habría que teclear el cero de más **dos
- * veces**, con la cifra equivocada a la vista arriba.
- *
- * Y sólo se dispara en el **0.08 %** de los abonos de la ruta (cinco de 6,165),
- * así que la fricción se la come quien de verdad está haciendo algo sin
- * precedente, no el cobrador que cobra sus $200 de siempre.
- *
- * Se compara el **dinero** y no el texto —lo hace `ConfirmacionPendiente`—, así
- * que "250" y "250.00" valen igual: esto es una red contra un resbalón, no una
- * prueba de mecanografía.
+ * Historia, para quien busque el requisito de re-escritura: existió entre el
+ * 2026-09-29 (el dueño lo pidió) y ese mismo día (su jefe pidió quitarlo —
+ * "quieren que quitemos la validación escrita, ya luego vemos, quítalo"). El
+ * diseño completo, con dos variantes evaluadas, sigue en
+ * `docs/design/mocks/confirmacion-escrita-del-abono.html` por si vuelve.
  */
 @Composable
-private fun EcoDelMonto(importe: Money, eco: String, onEco: (String) -> Unit) {
-    val colors = MspTheme.colors
-    Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
-        Text(
-            text = "Teclea otra vez " + formatMoneyMxn(importe.amount),
-            style = MspTheme.type.captionStrong,
-            color = colors.onSurfaceMuted
-        )
-        OutlinedTextField(
-            value = eco,
-            onValueChange = onEco,
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .testTag(ECO_DEL_MONTO_TAG)
-        )
-    }
-}
-
-/**
- * Los dos botones del monto marcado. [confirmarHabilitado] es `false` mientras
- * el eco del nivel 3 no cuadra — **apagado es apagado**, igual que el CTA de la
- * captura: un botón que se puede tocar y no hace nada es como un cobrador
- * decide que la app está rota.
- */
-@Composable
-private fun BotonesDeMontoRaro(
-    confirmarHabilitado: Boolean,
-    onConfirmar: () -> Unit,
-    onEditar: () -> Unit
-) {
+private fun BotonesDeMontoRaro(onConfirmar: () -> Unit, onEditar: () -> Unit) {
     MspPrimaryFieldButton(
         text = AFIRMAR_EL_MONTO,
         onClick = onConfirmar,
-        enabled = confirmarHabilitado,
         variant = PrimaryFieldButtonVariant.Danger,
         modifier = Modifier
             .fillMaxWidth()
@@ -408,13 +350,13 @@ private fun BotonesDeMontoRaro(
     )
 }
 
-/** Qué pide el paso dos: confirmar, afirmar el monto, o teclearlo otra vez. */
+/** Qué pide el paso dos: un toque, o un toque que además afirma un monto raro. */
 private fun segundoPasoDe(aviso: AvisoDelMonto, raro: Boolean): String = when (aviso.nivel) {
-    NivelDeAviso.TECLEAR -> "Teclear el monto"
     NivelDeAviso.NINGUNO,
     NivelDeAviso.BLOQUEO,
     NivelDeAviso.NOTA,
-    NivelDeAviso.CONFIRMAR -> if (raro) "Confirmar monto raro" else "Confirmar"
+    NivelDeAviso.CONFIRMAR,
+    NivelDeAviso.AFIRMAR -> if (raro) "Confirmar monto raro" else "Confirmar"
 }
 
 /**

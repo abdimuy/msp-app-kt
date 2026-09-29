@@ -669,19 +669,17 @@ class RegistrarAbonoViewModel @Inject constructor(
     }
 
     /**
-     * Las dos guardas que [confirmar] vuelve a abrochar **antes** de mover
-     * dinero, juntas porque las dos contestan la misma pregunta: ¿esta
-     * confirmación todavía vale?
+     * La guarda que [confirmar] vuelve a abrochar **antes** de mover dinero: el
+     * cinturón del sobrepago, contra el saldo vigente. La hoja congeló su
+     * veredicto para pintarlo, no para decidir, y es la MISMA función que usa
+     * la pantalla (`bloqueosDe`), que es lo que hace imposible que las dos
+     * discrepen.
      *
-     * 1. **El cinturón del sobrepago**, contra el saldo vigente: la hoja congeló
-     *    su veredicto para pintarlo, no para decidir. Es la MISMA función que
-     *    usa la pantalla (`bloqueosDe`), que es lo que hace imposible que las
-     *    dos discrepen.
-     * 2. **El eco del nivel 3**: el monto tecleado otra vez. Vive aquí y no sólo
-     *    en el `enabled` del botón porque un `enabled` es presentación —
-     *    cualquier otro llamador de `confirmar()` se lo saltaría— y éste es el
-     *    único camino que escribe dinero. Avisar no es bloquear: esta guarda no
-     *    impide registrar, sólo exige que el monto se haya escrito dos veces.
+     * También consulta [ConfirmacionPendiente.sePuedeConfirmar] — hoy siempre
+     * `true` (ningún nivel exige teclear, decisión del dueño 2026-09-29) — en
+     * vez de asumirla, porque un `enabled` de botón es presentación y cualquier
+     * otro llamador de `confirmar()` se lo saltaría; éste es el único camino
+     * que escribe dinero.
      */
     private fun puedeEscribirse(confirmacion: ConfirmacionPendiente, venta: DetalleVenta): Boolean =
         SeguridadDelAbono.bloqueosDe(confirmacion.importe, venta.saldo).isEmpty() &&
@@ -1034,23 +1032,6 @@ class RegistrarAbonoViewModel @Inject constructor(
         .mapNotNull { contacto ->
             contacto.importe?.let { AbonoPrevio(fecha = contacto.fecha, importe = it) }
         }
-
-    /**
-     * El **eco** del nivel 3: el monto tecleado por segunda vez.
-     *
-     * No pasa por [editar] ni toca [RegistrarAbonoUiState.monto]: lo que se
-     * escribe aquí no es un monto a registrar, es una comprobación de que el de
-     * arriba se escribió a propósito. Si moviera la captura, borrar un dígito
-     * aquí cambiaría lo que se va a cobrar.
-     */
-    fun onEcoDelMonto(texto: String) {
-        val actual = mutableState.value
-        val confirmacion = actual.confirmacion ?: return
-        // Sólo dígitos y punto: el teclado numérico del sistema deja pasar
-        // signos y espacios, y un monto no los tiene.
-        val limpio = texto.filter { it.isDigit() || it == '.' }
-        mutableState.value = actual.copy(confirmacion = confirmacion.copy(eco = limpio))
-    }
 
     /** El resultado de preguntarle a la base si el abono quedó. */
     private enum class Verificacion { QUEDO, NO_QUEDO, NO_SE_PUDO_SABER }
