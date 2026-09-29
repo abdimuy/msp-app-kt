@@ -78,14 +78,31 @@ class RetiroDelDialogoDeVisitaTest {
     }
 
     /**
-     * El **ticket de visita legado** se va con el diálogo: era su única puerta
-     * (`NewVisitDialog` → `Screen.VisitTicket`). Lo reemplaza el ticket de la
-     * Task 20, al que se llega al registrar la visita.
+     * **El ticket de visita legado VOLVIÓ** (decisión del dueño, 2026-09-29):
+     * `NewVisitDialog` sigue retirado —esta clase entera lo mide arriba—, pero
+     * su ticket ya no se fue con él. La pantalla nueva de la Task 20
+     * (`:feature:visitas`) todavía no tiene los tres papeles que Microsip
+     * conocía por separado (visita / cliente moroso / no pago), así que
+     * "registrar visita" vuelve a imprimir con el diseño legado —mismo
+     * criterio que ya rige para el ticket de pago, control positivo abajo—
+     * hasta que la pantalla nueva los tenga.
+     *
+     * Esta prueba es ahora el CONTROL POSITIVO de la anterior versión de sí
+     * misma: hasta este cambio afirmaba `emptyList()` para las dos búsquedas;
+     * hoy afirma lo contrario, con el mismo escáner.
      */
     @Test
-    fun `nada en la app menciona el ticket de visita legado`() {
-        assertEquals(emptyList<String>(), archivosQueMencionan("VisitTicketScreen"))
-        assertEquals(emptyList<String>(), archivosQueMencionan("visit_ticket/"))
+    fun `el ticket de visita legado volvio y el escaner lo encuentra`() {
+        val pantalla = archivosQueMencionan("VisitTicketScreen")
+        assertTrue(
+            "VisitTicketScreen no está: se esperaba que hubiera vuelto",
+            pantalla.isNotEmpty()
+        )
+        val ruta = archivosQueMencionan("visit_ticket/")
+        assertTrue(
+            "\"visit_ticket/\" no está: se esperaba que hubiera vuelto",
+            ruta.isNotEmpty()
+        )
     }
 
     /**

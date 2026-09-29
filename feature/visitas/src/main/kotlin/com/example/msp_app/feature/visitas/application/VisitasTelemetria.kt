@@ -65,6 +65,18 @@ object VisitasTelemetria {
     const val CODE_TICKET_VISITA_FALLO: String = "visita_ticket_fallo"
 
     /**
+     * El ticket LEGADO de la visita (decisión del dueño, 2026-09-29:
+     * `Screen.VisitTicket` en vez del ticket nuevo, porque el legado todavía
+     * imprime los tres papeles que Microsip conocía) no pudo resolver una
+     * cuenta para navegar. No debería pasar nunca: `RegistroDeVisitaAdapter
+     * .cuentaDeLaVisita` nunca escribe `IMPTE_DOCTO_CC_ID = 0`, así que llegar
+     * aquí significa que la visita ya no está en el teléfono. No se navega a
+     * una ruta sin argumento — el cobrador se queda en la pantalla de
+     * registrar en vez de crashear.
+     */
+    const val CODE_TICKET_VISITA_LEGADO_SIN_VENTA: String = "visita_ticket_legado_sin_venta"
+
+    /**
      * La impresión del ticket de visita falló. Viaja el NOMBRE de la clase del
      * fallo, nunca la MAC de la impresora: identifica el equipo del cobrador.
      */

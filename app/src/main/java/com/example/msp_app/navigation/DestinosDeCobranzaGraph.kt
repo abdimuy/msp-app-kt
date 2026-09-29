@@ -1,5 +1,6 @@
 package com.example.msp_app.navigation
 
+import android.content.Context
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
@@ -17,12 +18,14 @@ import com.example.msp_app.feature.pagos.ui.destinoDeTicketDePago
 import com.example.msp_app.feature.pagos.ui.destinosDePagos
 import com.example.msp_app.feature.ubicacion.ui.UbicacionRutas
 import com.example.msp_app.feature.ubicacion.ui.destinoDeUbicacion
+import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import com.example.msp_app.feature.visitas.ui.destinoDeRegistrarVisita
 import com.example.msp_app.feature.visitas.ui.destinoDeTicketDeVisita
 import com.example.msp_app.features.forgiveness.screens.ForgivenessScreen
 import com.example.msp_app.ui.pagos.SueloDelUltimoCobro
 import com.example.msp_app.ui.theme.ThemeController
+import dagger.hilt.android.EntryPointAccessors
 
 /**
  * **Los destinos de arquitectura nueva que `:app` monta** — las ocho pantallas
@@ -43,8 +46,16 @@ import com.example.msp_app.ui.theme.ThemeController
  * `onAtras` es siempre `popBackStack()`: cada pantalla vuelve por donde entró, y
  * es eso lo que permite que la MISMA pantalla de venta sirva desde la lista,
  * desde un pago y desde un recibo sin tener que saber cuál fue.
+ *
+ * [context] es SOLO para [navegarAlTicketLegadoDeLaVisita]: resolver la venta
+ * de una visita recién registrada necesita el grafo de Hilt
+ * ([TicketLegadoDeVisitaEntryPoint]), y `EntryPointAccessors.fromApplication`
+ * pide un [android.content.Context]. Se recibe como parámetro en vez de leer
+ * `navController.context` —que existe, pero está marcado
+ * `@RestrictTo(LIBRARY_GROUP)`, de uso interno de `androidx.navigation`— y en
+ * vez de `LocalContext.current`, porque esta función no es `@Composable`.
  */
-fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
+fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Context) {
     // Sin `onAtras`: la lista es pantalla de nivel superior y ya no pinta flecha
     // de volver — se llega desde el cajón.
     destinoDeListaDeClientes(
@@ -262,13 +273,45 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
 
     destinoDeRegistrarVisita(
         onAtras = { navController.popBackStack() },
+        // El ticket LEGADO (`Screen.VisitTicket` → `VisitTicketScreen`)
+        // REEMPLAZA a la captura en la pila, igual que el abono con
+        // `Screen.PaymentTicket` más arriba — mismo `popUpTo`, mismo motivo:
+        // volver desde el ticket tiene que llevar a donde se entró a
+        // registrar, nunca a un formulario ya enviado. Va al legado por
+        // decisión del dueño (2026-09-29): la pantalla nueva de
+        // `:feature:visitas` todavía no tiene los tres papeles que Microsip
+        // conocía por separado (visita / cliente moroso / no pago), y el
+        // legado sí. `VisitasRutas.TICKET` / `destinoDeTicketDeVisita` quedan
+        // registrados sin punto de entrada, a propósito, para el día que se
+        // reencienda — ver la nota sobre ese destino, abajo.
         onRegistrada = { visitaId ->
-            navController.navigate(VisitasRutas.ticketDeVisita(visitaId)) {
-                popUpTo(VisitasRutas.REGISTRAR) { inclusive = true }
-            }
+            navegarAlTicketLegadoDeLaVisita(
+                navController = navController,
+                visitaId = visitaId,
+                resolverVentaDeLaVisita = { id ->
+                    puertosDelTicketLegadoDeVisita(context)
+                        .visitaImpresaPort()
+                        .visita(id)
+                        ?.ventaId
+                },
+                reportarSinVenta = {
+                    puertosDelTicketLegadoDeVisita(context).telemetry().error(
+                        code = VisitasTelemetria.CODE_TICKET_VISITA_LEGADO_SIN_VENTA,
+                        message = "el ticket legado de la visita no pudo resolver una cuenta",
+                        props = emptyMap()
+                    )
+                }
+            )
         }
     )
 
+    // Destino ESTACIONADO, mismo patrón que `destinoDeTicketDePago` más
+    // arriba: `VisitasRutas.TICKET` sigue registrado a propósito (borrarlo
+    // dejaría `TicketDeVisitaScreen` sin ningún llamador alcanzable y
+    // pondría en rojo `CadaPantallaSeAlcanzaDesdeElGrafoTest`), pero hoy nada
+    // navega aquí — "registrar visita" vuelve al ticket LEGADO por decisión
+    // del dueño, ver la nota de arriba. Queda listo para el día que la
+    // pantalla nueva tenga los tres papeles y se reencienda.
     destinoDeTicketDeVisita(onAtras = { navController.popBackStack() })
 
     destinoDeCondonacion(navController)
@@ -338,3 +381,48 @@ private fun NavGraphBuilder.destinosDeDescargas(navController: NavController) {
         DescargaDelDictadoConectada(onAtras = { navController.popBackStack() })
     }
 }
+
+/**
+ * Lleva al ticket LEGADO ([Screen.VisitTicket]) de la venta de la visita
+ * [visitaId] recién registrada, con [VisitasRutas.REGISTRAR] fuera de la
+ * pila — mismo patrón que el abono usa para llegar a [Screen.PaymentTicket].
+ *
+ * Separada de la lambda que [destinosDeCobranza] cablea para poder probarla
+ * con un [resolverVentaDeLaVisita] falso —sin Hilt, sin Room, sin
+ * Compose—: lo único que toca infraestructura de verdad en producción es ese
+ * parámetro (ver [puertosDelTicketLegadoDeVisita]).
+ *
+ * `null` es un caso DEFENSIVO, no esperado: `RegistroDeVisitaAdapter
+ * .cuentaDeLaVisita` nunca escribe `IMPTE_DOCTO_CC_ID = 0`, así que una
+ * visita recién registrada siempre tiene cuenta. Si aun así no resuelve
+ * —la visita ya no está—, no se navega a una ruta sin argumento: se reporta
+ * con [reportarSinVenta] y el cobrador se queda donde estaba, en vez de
+ * crashear.
+ */
+internal suspend fun navegarAlTicketLegadoDeLaVisita(
+    navController: NavController,
+    visitaId: String,
+    resolverVentaDeLaVisita: suspend (String) -> Int?,
+    reportarSinVenta: () -> Unit = {}
+) {
+    val ventaId = resolverVentaDeLaVisita(visitaId)
+    if (ventaId == null) {
+        reportarSinVenta()
+        return
+    }
+    navController.navigate(Screen.VisitTicket.createRoute(ventaId.toString())) {
+        popUpTo(VisitasRutas.REGISTRAR) { inclusive = true }
+    }
+}
+
+/**
+ * El único punto donde [navegarAlTicketLegadoDeLaVisita] toca el grafo de
+ * Hilt de verdad — ver [TicketLegadoDeVisitaEntryPoint] para por qué un
+ * `EntryPoint` y no `@Inject`: este callback no lo construye Hilt, lo
+ * construye `destinosDeCobranza` a mano.
+ */
+private fun puertosDelTicketLegadoDeVisita(context: Context): TicketLegadoDeVisitaEntryPoint =
+    EntryPointAccessors.fromApplication(
+        context.applicationContext,
+        TicketLegadoDeVisitaEntryPoint::class.java
+    )

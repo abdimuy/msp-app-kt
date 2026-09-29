@@ -72,6 +72,7 @@ import com.example.msp_app.features.transfers.presentation.detail.TransferDetail
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
 import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
 import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
+import com.example.msp_app.features.visit.screens.VisitTicketScreen
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 
@@ -130,6 +131,27 @@ sealed class Screen(val route: String) {
 
     object PaymentTicket : Screen("payment_ticket/{paymentId}") {
         fun createRoute(paymentId: String) = "payment_ticket/$paymentId"
+    }
+
+    /**
+     * El ticket de visita LEGADO (recuperado el 2026-09-29, decisión del
+     * dueño). No es la pantalla nueva de la Task 20 (`:feature:visitas`,
+     * `VisitasRutas.TICKET`): en el legado los tres papeles se elegían a mano
+     * (visita, cliente moroso, no pago) porque en Microsip eran tres tickets
+     * distintos, y la pantalla nueva todavía no los tiene — ver
+     * `DestinosDeCobranzaGraph.navegarAlTicketLegadoDeLaVisita`, que es a
+     * dónde llega hoy "registrar visita", igual que el abono llega a
+     * [PaymentTicket].
+     *
+     * Lleva el **`DOCTO_CC_ACR_ID`** de la venta de la visita, el mismo
+     * espacio que [SaleDetails] y [Forgiveness]: `VisitTicketScreen` resuelve
+     * su argumento con `SaleDetailsViewModel.loadSaleDetails`
+     * (`SaleDao.getById`, la PK de `sales`), y `VisitEntity.IMPTE_DOCTO_CC_ID`
+     * —de donde sale este id— ya se escribe en ese mismo espacio
+     * (`RegistroDeVisitaAdapter.cuentaDeLaVisita`, `venta.DOCTO_CC_ACR_ID`).
+     */
+    object VisitTicket : Screen("visit_ticket/{saleId}") {
+        fun createRoute(saleId: String) = "visit_ticket/$saleId"
     }
 
     object Guarantee : Screen("guarantee/{saleId}") {
@@ -551,6 +573,14 @@ fun AppNavigation() {
                 }
             }
 
+            composable(Screen.VisitTicket.route) { backStackEntry ->
+                val saleIdString = backStackEntry.arguments?.getString("saleId")
+                val saleId = saleIdString?.toIntOrNull()
+                if (saleId != null) {
+                    VisitTicketScreen(saleId = saleId, navController = navController)
+                }
+            }
+
             composable(Screen.Guarantee.route) { backStackEntry ->
                 val saleIdString = backStackEntry.arguments?.getString("saleId")
                 val saleId = saleIdString?.toIntOrNull()
@@ -681,7 +711,7 @@ fun AppNavigation() {
             // El grafo vive en `DestinosDeCobranzaGraph.kt` para que un test
             // pueda montarlo con un `TestNavHostController` y afirmar destino y
             // argumentos sobre EL MISMO código que corre en la app.
-            destinosDeCobranza(navController)
+            destinosDeCobranza(navController, context)
 
             // Pantalla de Configuración (Task 3, spec
             // 2026-08-10-configuracion-tamano-letra-design.md). Se apila sobre la pantalla

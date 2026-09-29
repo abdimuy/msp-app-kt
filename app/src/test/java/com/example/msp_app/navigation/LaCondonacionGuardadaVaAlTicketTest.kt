@@ -43,7 +43,7 @@ class LaCondonacionGuardadaVaAlTicketTest {
         nav.navigatorProvider.addNavigator(ComposeNavigator())
         nav.graph = nav.createGraph(startDestination = RAIZ) {
             composable(RAIZ) {}
-            destinosDeCobranza(nav)
+            destinosDeCobranza(nav, ApplicationProvider.getApplicationContext())
             composable(Screen.SaleDetails.route) {}
             composable(Screen.Guarantee.route) {}
             composable(Screen.PaymentTicket.route) {}

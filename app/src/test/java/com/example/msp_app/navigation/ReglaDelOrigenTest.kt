@@ -17,6 +17,7 @@ import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.ubicacion.ui.UbicacionRutas
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import com.example.msp_app.features.home.components.homenearbyclientssection.NearbyClient
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -52,14 +53,20 @@ class ReglaDelOrigenTest {
     private lateinit var nav: TestNavHostController
 
     /**
-     * Los tres destinos **legados** a los que la regla del origen todavía manda.
-     * Se declaran aquí con las MISMAS constantes que `AppNavigation` registra:
-     * si alguien renombra la ruta, este test y la app cambian juntos.
+     * Los CUATRO destinos **legados** a los que la regla del origen todavía
+     * manda. Se declaran aquí con las MISMAS constantes que `AppNavigation`
+     * registra: si alguien renombra la ruta, este test y la app cambian
+     * juntos.
+     *
+     * [Screen.VisitTicket] se sumó el 2026-09-29 (decisión del dueño): es al
+     * ticket LEGADO de la visita, no al nuevo — mismo motivo que
+     * [Screen.PaymentTicket] ya está aquí para el abono.
      */
     private val legados = listOf(
         Screen.SaleDetails.route,
         Screen.Guarantee.route,
-        Screen.PaymentTicket.route
+        Screen.PaymentTicket.route,
+        Screen.VisitTicket.route
     )
 
     @Before
@@ -68,7 +75,7 @@ class ReglaDelOrigenTest {
         nav.navigatorProvider.addNavigator(ComposeNavigator())
         nav.graph = nav.createGraph(startDestination = RAIZ) {
             composable(RAIZ) {}
-            destinosDeCobranza(nav)
+            destinosDeCobranza(nav, ApplicationProvider.getApplicationContext())
             legados.forEach { ruta -> composable(ruta) {} }
         }
     }
@@ -341,12 +348,73 @@ class ReglaDelOrigenTest {
         assertEquals(PAGO_ID, argString("paymentId"))
     }
 
-    /** Punto de entrada: la visita registrada (Task 19 → Task 20). */
+    /**
+     * `VisitasRutas.TICKET` (Task 19 → Task 20) sigue registrado y
+     * resolviendo, pero hoy está ESTACIONADO: ningún punto de entrada de
+     * producción navega aquí — ver
+     * `desde la visita registrada se llega a SU ticket legado` más abajo.
+     * Este test sólo prueba que la ruta del módulo no quedó huérfana mientras
+     * espera el día que se reencienda (mismo criterio que
+     * `al registrar un abono se llega a su ticket`).
+     */
     @Test
     fun `al registrar una visita se llega a su ticket`() {
         nav.navigate(VisitasRutas.ticketDeVisita(VISITA_ID))
         assertEquals(VisitasRutas.TICKET, ruta())
         assertEquals(VISITA_ID, argString(VisitasRutas.ARG_VISITA_ID))
+    }
+
+    /**
+     * **El punto de entrada real, hoy.** Ejercita
+     * `navegarAlTicketLegadoDeLaVisita` —la MISMA función que
+     * `destinosDeCobranza` cablea en `onRegistrada`— con un resolver falso en
+     * vez de Hilt/Room, y afirma las tres cosas que importan: el destino, su
+     * argumento (el `DOCTO_CC_ACR_ID` que resolvió el falso, NO el
+     * `visitaId`), y que [VisitasRutas.REGISTRAR] quedó fuera de la pila —lo
+     * que hay debajo del ticket es la raíz, no la pantalla de registrar.
+     *
+     * Decisión del dueño (2026-09-29): el legado, no el nuevo, porque la
+     * pantalla nueva de `:feature:visitas` todavía no tiene los tres papeles
+     * que Microsip conocía por separado.
+     */
+    @Test
+    fun `desde la visita registrada se llega a SU ticket legado`() = runTest {
+        nav.navigate(VisitasRutas.registrar(clienteId = CLIENTE, ventaId = VENTA))
+
+        navegarAlTicketLegadoDeLaVisita(
+            navController = nav,
+            visitaId = VISITA_ID,
+            resolverVentaDeLaVisita = { visitaIdRecibido ->
+                assertEquals(VISITA_ID, visitaIdRecibido)
+                VENTA
+            }
+        )
+
+        assertEquals(Screen.VisitTicket.route, ruta())
+        assertEquals(VENTA.toString(), argString("saleId"))
+        assertEquals(RAIZ, nav.previousBackStackEntry?.destination?.route)
+    }
+
+    /**
+     * **Control negativo.** Si [navegarAlTicketLegadoDeLaVisita] no resuelve
+     * una cuenta —la visita ya no está—, no navega a ninguna parte: el
+     * cobrador se queda en `REGISTRAR` en vez de aterrizar en un ticket sin
+     * argumento.
+     */
+    @Test
+    fun `sin venta resuelta, el ticket legado de la visita no navega`() = runTest {
+        nav.navigate(VisitasRutas.registrar(clienteId = CLIENTE, ventaId = VENTA))
+
+        var reportado = false
+        navegarAlTicketLegadoDeLaVisita(
+            navController = nav,
+            visitaId = VISITA_ID,
+            resolverVentaDeLaVisita = { null },
+            reportarSinVenta = { reportado = true }
+        )
+
+        assertEquals(VisitasRutas.REGISTRAR, ruta())
+        assertEquals(true, reportado)
     }
 
     /** Punto de entrada: el ítem "Clientes" del cajón (reemplazó a `SalesScreen`). */
@@ -420,18 +488,22 @@ class ReglaDelOrigenTest {
     }
 
     /**
-     * **Nada alcanzable que no esté registrado**, por el lado de las rutas que
-     * esta tarea RETIRÓ. `SalesScreen` (`"sales"`) y el ticket de visita legado
-     * (`"visit_ticket/{saleId}"`) ya no existen: navegar ahí no resuelve.
+     * **Nada alcanzable que no esté registrado**, por el lado de la ruta que
+     * esta tarea RETIRÓ: `SalesScreen` (`"sales"`) ya no existe, navegar ahí
+     * no resuelve.
+     *
+     * El ticket de visita legado (`"visit_ticket/{saleId}"`) YA NO está en
+     * esta lista — volvió el 2026-09-29 (decisión del dueño) y hoy es
+     * [Screen.VisitTicket], parte de [legados]; su propio control positivo es
+     * `desde la visita registrada se llega a SU ticket legado`.
      *
      * Su **control positivo** es el `assertEquals` de arriba: la misma búsqueda
-     * SÍ encuentra las diez rutas vivas más las tres legadas, así que el `null`
-     * de aquí abajo es una ausencia medida, no un método que no mira.
+     * SÍ encuentra las rutas vivas más las legadas, así que el `null` de aquí
+     * abajo es una ausencia medida, no un método que no mira.
      */
     @Test
     fun `las rutas retiradas ya no resuelven en el grafo`() {
         assertNull(nav.graph.findNode("sales"))
-        assertNull(nav.graph.findNode("visit_ticket/{saleId}"))
         // Control positivo, en la misma llamada: la ruta que SÍ quedó sí resuelve.
         assertEquals(
             PagosRutas.LISTA_CLIENTES,

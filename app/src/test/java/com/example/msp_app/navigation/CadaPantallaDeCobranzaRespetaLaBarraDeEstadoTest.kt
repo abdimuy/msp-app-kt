@@ -403,7 +403,7 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
         nav.setViewModelStore(activity.viewModelStore)
         val grafo = nav.createGraph(startDestination = RAIZ) {
             composable(RAIZ) {}
-            destinosDeCobranza(nav)
+            destinosDeCobranza(nav, activity)
         }
         nav.graph = grafo
         activity.setContent {
@@ -449,7 +449,7 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
         sonda.navigatorProvider.addNavigator(ComposeNavigator())
         sonda.graph = sonda.createGraph(startDestination = RAIZ) {
             composable(RAIZ) {}
-            destinosDeCobranza(sonda)
+            destinosDeCobranza(sonda, ApplicationProvider.getApplicationContext())
         }
         return sonda.graph.count() - 1 // -1 por la raíz de prueba
     }

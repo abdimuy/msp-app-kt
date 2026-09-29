@@ -78,6 +78,12 @@ import java.time.LocalTime
  *
  * [onRegistrada] se dispara UNA vez, con el id de la visita, dentro de un
  * `LaunchedEffect` con clave el propio id — una recomposición no lo repite.
+ * Es `suspend` (decisión del dueño, 2026-09-29) porque el punto de entrada real
+ * resuelve la venta de la visita antes de navegar al ticket LEGADO
+ * (`Screen.VisitTicket`, ver `DestinosDeCobranzaGraph.navegarAlTicketLegadoDeLaVisita`
+ * en `:app`) y esa lectura es una consulta a Room. `LaunchedEffect` ya corre en
+ * una corrutina, así que declarar el callback `suspend` deja llamarla directo,
+ * sin abrir un `CoroutineScope` aparte.
  *
  * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
  * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
@@ -100,7 +106,7 @@ import java.time.LocalTime
 fun RegistrarVisitaScreen(
     viewModel: RegistrarVisitaViewModel,
     onAtras: () -> Unit,
-    onRegistrada: (String) -> Unit,
+    onRegistrada: suspend (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()

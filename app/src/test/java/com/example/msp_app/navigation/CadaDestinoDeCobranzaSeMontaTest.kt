@@ -127,7 +127,7 @@ class CadaDestinoDeCobranzaSeMontaTest {
         nav.navigatorProvider.addNavigator(ComposeNavigator())
         nav.graph = nav.createGraph(startDestination = RAIZ) {
             composable(RAIZ) {}
-            destinosDeCobranza(nav)
+            destinosDeCobranza(nav, ApplicationProvider.getApplicationContext())
         }
         return nav.graph.filter { it.route != RAIZ }.map(::conArgumentos).toList()
     }
@@ -181,7 +181,7 @@ class CadaDestinoDeCobranzaSeMontaTest {
         nav.setViewModelStore(activity.viewModelStore)
         val grafo = nav.createGraph(startDestination = RAIZ) {
             composable(RAIZ) {}
-            destinosDeCobranza(nav)
+            destinosDeCobranza(nav, activity)
         }
         nav.graph = grafo
         nav.navigate(ruta)

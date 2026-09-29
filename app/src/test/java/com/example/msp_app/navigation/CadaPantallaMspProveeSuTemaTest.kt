@@ -90,7 +90,7 @@ class CadaPantallaMspProveeSuTemaTest {
         nav.navigatorProvider.addNavigator(ComposeNavigator())
         nav.graph = nav.createGraph(startDestination = RAIZ_DE_PRUEBA) {
             composable(RAIZ_DE_PRUEBA) {}
-            destinosDeCobranza(nav)
+            destinosDeCobranza(nav, ApplicationProvider.getApplicationContext())
         }
         // -1 por la raíz de prueba, y -N por los destinos que el grafo registra
         // pero que NO son pantallas Msp — ver [DESTINOS_SIN_TEMA_MSP]. Sin ese

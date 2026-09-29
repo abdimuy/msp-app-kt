@@ -70,9 +70,13 @@ object VisitasRutas {
  * sin conocer el ViewModel ni los Composables internos del feature — el mismo
  * reparto que ya usan `destinosDePagos` y `destinoDeRegistrarAbono`.
  *
- * [onRegistrada] recibe el id de la visita, una sola vez.
+ * [onRegistrada] recibe el id de la visita, una sola vez. Es `suspend` — ver el
+ * KDoc de [RegistrarVisitaScreen] para por qué.
  */
-fun NavGraphBuilder.destinoDeRegistrarVisita(onAtras: () -> Unit, onRegistrada: (String) -> Unit) {
+fun NavGraphBuilder.destinoDeRegistrarVisita(
+    onAtras: () -> Unit,
+    onRegistrada: suspend (String) -> Unit
+) {
     composable(
         route = VisitasRutas.REGISTRAR,
         arguments = listOf(
