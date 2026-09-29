@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abono con teclado fijo</title>
+<style>
+  :root, .lt{
+    --bg:#EDF1EF; --page:#F3F5F4; --surf:#FFFFFF; --surf2:#FAFBFB; --line:#E4E8E6;
+    --ink:#141A18; --mut:#5C6863; --faint:#8C9994;
+    --brand:#2563EB; --brandTint:#EAF0FE;
+    --paid:#177245; --paidTint:#E4F1E9; --teal:#0F7C86; --tealTint:#DFF0F2; --promise:#6D4FE0; --promiseTint:#EEE9FD;
+    --partial:#B26A00; --partialInk:#7A4600; --partialTint:#FCEFD9;
+    --overdue:#B42318; --overdueInk:#9A1B12; --overdueTint:#FBE6E3;
+    --off:#E3E7E5; --offInk:#7E8A85;
+    --band:#F3F5F4; --edge:#D6336C; --edge2:#0B7A75;
+    --shadow:0 1px 2px rgba(16,24,20,.10),0 6px 18px rgba(16,24,20,.12);
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+      --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+      --brand:#3B82F6; --brandTint:#0E2440;
+      --paid:#40CB84; --paidTint:#0E271A; --teal:#2BB5C4; --tealTint:#0A262B; --promise:#A994FF; --promiseTint:#1D1833;
+      --partial:#E3AC4E; --partialInk:#F2C36F; --partialTint:#2D210C;
+      --overdue:#F26A5C; --overdueInk:#FF8A7D; --overdueTint:#2C1210;
+      --off:#1F2623; --offInk:#6B7772;
+      --band:#000000; --edge:#FF5C93; --edge2:#3FD1C8;
+      --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"], .dk{
+    --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+    --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+    --brand:#3B82F6; --brandTint:#0E2440;
+    --paid:#40CB84; --paidTint:#0E271A; --teal:#2BB5C4; --tealTint:#0A262B; --promise:#A994FF; --promiseTint:#1D1833;
+    --partial:#E3AC4E; --partialInk:#F2C36F; --partialTint:#2D210C;
+    --overdue:#F26A5C; --overdueInk:#FF8A7D; --overdueTint:#2C1210;
+    --off:#1F2623; --offInk:#6B7772;
+    --band:#000000; --edge:#FF5C93; --edge2:#3FD1C8;
+    --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+  }
+  .lt{--band:#F3F5F4}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+       -webkit-font-smoothing:antialiased;padding:0 16px 80px;line-height:1.45}
+  .wrap{max-width:1200px;margin:0 auto;padding-top:36px}
+  h1{font-size:28px;letter-spacing:-.02em;margin:0 0 6px;line-height:1.15}
+  h2{font-size:20px;letter-spacing:-.02em;margin:0 0 4px}
+  section{margin-top:48px}
+  .sub{color:var(--mut);margin:0 0 12px;max-width:75ch;font-size:14.5px}
+  .lede{color:var(--mut);margin:0 0 22px;max-width:75ch;font-size:14px}
+  code{font-family:var(--mono);font-size:12px;background:var(--surf2);border:1px solid var(--line);padding:1px 5px;border-radius:5px}
+  .tog{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surf);color:var(--ink);
+       border-radius:999px;padding:8px 16px;cursor:pointer;min-height:40px}
+  .beds{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
+  .cap{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .cap.rec{color:var(--brand)}
+  .note{font-size:13px;color:var(--mut);margin:0}
+  .note b{color:var(--ink)}
+  .meas{font-size:12px;font-weight:650;color:var(--ink);background:var(--surf);border:1px solid var(--line);
+        border-radius:10px;padding:8px 10px;font-variant-numeric:tabular-nums}
+  .ok{color:var(--paid)} .bad{color:var(--overdue)}
+  .dec{margin:0;padding-left:20px;font-size:14.5px;max-width:78ch}
+  .dec li{margin:0 0 10px}
+  table.t{border-collapse:collapse;font-size:12.5px;width:100%;max-width:900px;font-variant-numeric:tabular-nums}
+  table.t td,table.t th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+  table.t th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .tscroll{overflow-x:auto;max-width:100%}
+
+  /* ── el aparato: 360 × H dp; H = 744 (área útil del SM-A256E) o 640 ── */
+  .phone{width:360px;height:744px;overflow:hidden;background:var(--page);color:var(--ink);
+         outline:1px solid var(--line);border-radius:4px;position:relative;font-size:16px;line-height:1.25;
+         --k:1;--kA:1;--kH:1;--kC:1;--kM:1;--kV:1;--gap:8px;--hero:40px;--slotH:52px}
+  .phone.h640{height:640px}
+  /* Escala de letra MEDIDA en los goldens de hoy (pagos_abono_captura_*_1_5 / _2_0):
+     texto corrido ×1.5 / ×2.0; cifras de chip ×1.36 / ×1.65; botón ×1.45 / ×1.77.
+     El texto del aviso y el nombre del cliente se topan en 1.5×; el del método, en 1.2× (decisión de este mock). */
+  .s15{--k:1.5;--kA:1.36;--kC:1.45;--kM:1.2;--kV:1.5;--slotH:44px}
+  .s20{--k:2;--kA:1.65;--kC:1.77;--kM:1.2;--kV:1.5;--slotH:44px}
+  svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .num{font-variant-numeric:tabular-nums}
+
+  .card{background:var(--surf);border:1px solid var(--line);border-radius:16px}
+  .key{background:var(--surf);border:1px solid var(--line);border-radius:12px;height:56px;display:flex;align-items:center;justify-content:center;
+       font-weight:700;font-size:calc(22px*var(--k));font-variant-numeric:tabular-nums;color:var(--ink)}
+  .key.m{color:var(--mut)}
+  .kp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .kp.inerte .key{opacity:.4}
+  .meth{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .meth.con-foto{grid-template-columns:1fr 1fr 56px}
+  .pill{height:56px;border-radius:12px;border:1.5px solid var(--line);background:var(--surf);display:flex;align-items:center;justify-content:center;
+        font-weight:700;font-size:calc(13px*var(--kM));color:var(--mut);white-space:nowrap;overflow:hidden;padding:0 6px;min-width:0}
+  .pill.on{border-color:var(--brand);background:var(--brandTint);color:var(--brand)}
+  /* el botón de foto: acción chica SIN caja; el área tocable es de 56 × 56 */
+  .foto{height:56px;width:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink);position:relative}
+  .foto small{font-size:11px;font-weight:750;color:var(--mut);line-height:1}
+  .foto .bdg{position:absolute;top:6px;right:6px;min-width:18px;height:18px;border-radius:9px;background:var(--brand);color:#fff;
+             font:800 11px/18px var(--ui);text-align:center;padding:0 4px}
+  .foto .bdg.amb{background:var(--partial)}
+  .chips{display:flex;gap:8px;overflow:hidden;white-space:nowrap;flex:none;height:56px}
+  .chip{flex:none;min-width:84px;height:56px;border-radius:12px;border:1.5px solid;padding:0 8px;display:flex;flex-direction:column;justify-content:center}
+  .chip b{font-size:calc(18px*var(--kA));font-weight:820;letter-spacing:-.02em;line-height:1.15}
+  .chip span{font-size:calc(10.5px*var(--k));font-weight:750;letter-spacing:.05em;text-transform:uppercase;line-height:1.2}
+  .c1{color:var(--paid);border-color:var(--paid);background:var(--paidTint)}
+  .c2{color:var(--teal);border-color:var(--teal);background:var(--tealTint)}
+  .c3{color:var(--promise);border-color:var(--promise);background:var(--promiseTint)}
+  .s15 .chip,.s20 .chip{flex-direction:row;gap:8px;align-items:center}
+  .chips.fade{mask-image:linear-gradient(to right,#000 82%,transparent);-webkit-mask-image:linear-gradient(to right,#000 82%,transparent)}
+  .chips.tapados{visibility:hidden}
+
+  .dock{position:absolute;left:0;right:0;bottom:0;height:88px;z-index:6;padding:24px 16px 8px;
+        background:linear-gradient(to bottom,transparent 0,var(--band) 16px,var(--band) 100%)}
+  .cta{height:56px;border-radius:16px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;
+       font-weight:760;font-size:calc(16px*var(--kC));white-space:nowrap;overflow:hidden;
+       box-shadow:0 6px 16px color-mix(in srgb,var(--brand) 30%,transparent)}
+  .cta.off{background:var(--off);color:var(--offInk);box-shadow:none}
+  .cta.ghost{background:var(--surf);color:var(--brand);border:1.5px solid var(--brand);box-shadow:none}
+
+  /* las líneas de medida */
+  .edge{position:absolute;left:0;right:0;height:0;border-top:2px dashed var(--edge);z-index:12;pointer-events:none}
+  .edge span{position:absolute;right:4px;top:-19px;font:700 10.5px/1 var(--mono);color:#fff;background:var(--edge);padding:3px 5px;border-radius:4px;white-space:nowrap}
+  .edge.b2{border-top-color:var(--edge2)} .edge.b2 span{background:var(--edge2);left:4px;right:auto}
+  .edge.b3{border-top-style:solid;border-top-color:var(--edge2)} .edge.b3 span{background:var(--edge2);top:-19px}
+  .edge.ref{border-top-style:dotted;opacity:.85}
+  .edge.ref span{left:4px;right:auto;background:transparent;color:var(--edge)}
+
+  /* ── HOY ── */
+  .hoy{padding:0 16px;display:flex;flex-direction:column;gap:8px}
+  .hoy .head{display:flex;align-items:center;gap:8px;padding:4px 0}
+  .hoy .back{width:56px;height:56px;border-radius:50%;background:var(--surf);display:flex;align-items:center;justify-content:center;flex:none}
+  .hoy .head b{display:block;font-size:16.5px;font-weight:760}
+  .hoy .head small{display:block;font-size:12.5px;color:var(--mut)}
+  .hoy .ctx{padding:15px;font-size:12.5px;font-weight:600;color:var(--mut);line-height:1.4;height:68px}
+  .hoy .ctx b{color:var(--ink);font-weight:800}
+  .hoy .cap2{height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+  .ovl{font-size:calc(12px*var(--k));font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mut)}
+  .hero{font-size:36px;font-weight:820;letter-spacing:-.03em;color:var(--paid);line-height:1.1}
+  .hoy .cap2 small{font-size:11px;color:var(--mut)}
+  .hoy .band{display:flex;gap:8px;align-items:center;border:1px solid var(--overdue);background:var(--overdueTint);color:var(--overdue);
+             border-radius:12px;padding:0 13px;height:40px;font-size:13px;font-weight:600}
+  .hoy .band svg.i{width:18px;height:18px}
+
+  /* ── PROPUESTA ── */
+  .zone{position:absolute;left:16px;right:16px;top:0;display:flex;flex-direction:column;gap:var(--gap);overflow:hidden}
+  .fixed{position:absolute;left:16px;right:16px}
+  .who{flex:none;padding-top:8px;font-size:calc(15px*var(--kV));font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+
+  .ctx2{flex:none;display:flex;gap:12px;align-items:center;padding:10px 12px 10px 14px;position:relative;min-width:0}
+  .prod{flex:1 1 auto;min-width:0;display:flex;align-items:flex-start;gap:2px}
+  .pname{font-size:calc(17px*var(--k));font-weight:760;line-height:1.26;letter-spacing:-.01em;
+         display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+  .una .pname{-webkit-line-clamp:1}
+  .chev{flex:none;width:22px;height:22px;color:var(--mut);margin-top:1px;visibility:hidden}
+  .chev.show{visibility:visible}
+  .saldo{flex:none;text-align:right;line-height:1.1}
+  .saldo span{display:block;font-size:calc(11px*var(--k));font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  .saldo b{display:block;font-size:calc(24px*var(--kA));font-weight:830;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:2px}
+  .s15 .ctx2,.s20 .ctx2{flex-direction:column;align-items:stretch;gap:0;padding:6px 12px}
+  .s15 .pname,.s20 .pname{line-height:1.2}
+  .s15 .saldo,.s20 .saldo{text-align:left;display:flex;align-items:baseline;gap:8px}
+  .s15 .saldo span,.s20 .saldo span{letter-spacing:.04em}
+
+  .amt{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;padding:8px;position:relative;gap:4px}
+  .zone.listo .amt{flex:1 1 auto}
+  .apretado .who{padding-top:2px}
+  .apretado .ctx2{padding-top:5px;padding-bottom:5px}
+  .apretado .amt{padding:4px 8px}
+  .amt.err{border:1.5px solid var(--overdue)}
+  .amt .ovl{text-align:center;padding-top:2px}
+  .sin-rotulo .amt .ovl{display:none}
+  .amt .hero{text-align:center;flex:1 1 auto;display:flex;align-items:center;justify-content:center;font-size:var(--hero);line-height:1.12;white-space:nowrap}
+  .amt.err .hero{color:var(--overdue)}
+  .slot{flex:none;position:relative;height:var(--slotH)}
+  .aviso{position:absolute;left:0;right:0;top:0;min-height:100%;border-radius:10px;display:flex;align-items:center;gap:8px;padding:6px 10px;z-index:4}
+  .aviso .tx{font-size:calc(14.5px*var(--kV));font-weight:760;line-height:1.24}
+  .aviso .tx div{text-wrap:balance}
+  .aviso svg.i{width:20px;height:20px}
+  .aviso.neutro{justify-content:center;color:var(--mut)}
+  .aviso.neutro .tx{font-weight:650;font-size:calc(13.5px*var(--kV))}
+  .aviso.neutro .tx b{color:var(--ink);font-weight:800}
+  .aviso.ambar{background:var(--partialTint);border:2px solid var(--partial);color:var(--partialInk)}
+  .aviso.ambar svg.i{color:var(--partial)}
+  .aviso.rojo{background:var(--overdueTint);border:2px solid var(--overdue);color:var(--overdueInk)}
+  .aviso.rojo svg.i{color:var(--overdue)}
+  .aviso.sobre{box-shadow:0 10px 18px rgba(0,0,0,.18)}
+
+  .drop{position:absolute;left:16px;right:16px;z-index:8;padding:12px 14px 14px;box-shadow:var(--shadow);overflow:hidden}
+  .drop .k{font-size:calc(11px*var(--k));font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  .drop ul{margin:6px 0 0;padding:0;list-style:none}
+  .drop li{font-size:calc(17px*var(--k));font-weight:760;line-height:1.26;padding:6px 0;border-top:1px solid var(--line)}
+  .drop li:first-child{border-top:0}
+  .drop .row{display:flex;justify-content:space-between;align-items:center}
+  .drop.corta::after{content:'';position:absolute;left:0;right:0;bottom:0;height:40px;background:linear-gradient(transparent,var(--surf))}
+  .scrim{position:absolute;left:0;right:0;top:0;background:rgba(0,0,0,.30);z-index:7}
+
+  /* la hoja de fotos y la de origen */
+  .scrimall{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:14}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:15;background:var(--surf);border-radius:22px 22px 0 0;
+         box-shadow:0 -8px 30px rgba(0,0,0,.25);padding:10px 16px 16px}
+  .grab{width:36px;height:4px;border-radius:9px;background:var(--line);margin:0 auto 12px}
+  .sheet h3{margin:0 0 12px;font-size:calc(17px*var(--k));line-height:1.25}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .tile{aspect-ratio:1;border-radius:14px;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+  .tile.add{border:2px dashed var(--brand);color:var(--brand);font-weight:750;font-size:calc(13px*var(--k));background:var(--brandTint)}
+  .tile.ph1{background:linear-gradient(135deg,#B0C2B8 50%,#ECE8DF 50%)}
+  .tile.ph2{background:linear-gradient(135deg,#ECE8DF 50%,#2563EB 50%)}
+  .tile.bad{background:var(--partialTint);border:1.5px solid var(--partial);color:var(--partialInk);font-weight:750;font-size:calc(12.5px*var(--k));text-align:center;padding:6px}
+  .tile .x{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;background:rgba(20,26,24,.72);color:#fff;display:flex;align-items:center;justify-content:center}
+  .tile .x svg.i{width:16px;height:16px}
+  .orow{display:flex;align-items:center;gap:12px;min-height:56px;border-top:1px solid var(--line)}
+  .orow:first-of-type{border-top:0}
+  .orow .g{width:40px;height:40px;border-radius:12px;background:var(--brandTint);color:var(--brand);display:flex;align-items:center;justify-content:center;flex:none}
+  .orow b{display:block;font-size:calc(13px*var(--k));font-weight:700}
+  .orow small{display:block;font-size:calc(11px*var(--k));color:var(--mut)}
+  .pie{text-align:center;font-size:calc(11px*var(--k));color:var(--mut);margin-top:8px}
+
+  @media (max-width:400px){ .phone{zoom:.9} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="warn" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19L12 3.5z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/><path d="M12 10v4.5" stroke="#fff" stroke-width="2.2"/><circle cx="12" cy="17.2" r="1.2" fill="#fff" stroke="none"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="del" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="cam" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="img" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-5 4 4 3-3 4 4"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+</svg>
+
+<div class="wrap">
+  <h1>Registrar abono · teclado fijo</h1>
+  <p class="sub">Versión aprobada por el dueño (propuesta A con sus cambios). Regla dura: <b>al entrar, sin desplazar, el teclado se ve completo</b>.
+    La pantalla se arma de abajo hacia arriba: botón, teclado y método anclados; todo lo demás cabe en lo que sobra y, si no cabe, cede.
+    Cada aparato mide 360 dp de ancho y 744 dp de alto (área útil del SM-A256E) o 640 dp (pantalla más baja). Las líneas las pone el navegador midiendo:
+    <b style="color:var(--edge)">rosa punteada</b> = borde superior del teclado, <b style="color:var(--edge2)">verde punteada</b> = fondo de la última fila del teclado,
+    <b style="color:var(--edge2)">verde continua</b> = fondo del botón.</p>
+  <button class="tog" onclick="var r=document.documentElement;r.dataset.theme=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark'">Claro / oscuro</button>
+
+  <section>
+    <h2>Hoy</h2>
+    <p class="lede">Copia fiel de los goldens <code>pagos_abono_captura_light_1_0</code> y <code>pagos_abono_aviso_vivo_light</code> (720 × 1488 px = 360 × 744 dp).
+      El aviso se mete entre la cifra y los sugeridos y empuja todo: el teclado baja 48 dp y su última fila (punto, 0, borrar) queda debajo del botón.</p>
+    <div class="beds">
+      <div class="unit"><div class="cap">Hoy · sin aviso · $220</div>
+        <div class="phone" data-kind="hoy" data-monto="220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap">Hoy · con aviso · $1,400</div>
+        <div class="phone" data-kind="hoy" data-monto="1400" data-aviso="Son 6 cuotas de $220"></div><div class="meas" data-out></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>1 · La pantalla, 360 × 744, letra normal</h2>
+    <p class="lede">Arriba solo el nombre del cliente, en un renglón: sin "Abono" y sin flecha (atrás lo hace el gesto o el botón del sistema, como en el detalle de cliente y de venta).
+      Debajo el producto (2 renglones y desplegable) con el saldo grande, la cifra con su franja, y los sugeridos. La franja sin aviso dice <b>Saldo nuevo</b>.</p>
+    <div class="beds">
+      <div class="unit"><div class="cap rec">Sin aviso · claro</div>
+        <div class="phone lt" data-kind="A" data-monto="220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">Sin aviso · oscuro</div>
+        <div class="phone dk" data-kind="A" data-monto="220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">Aviso nivel 2 · $905</div>
+        <div class="phone" data-kind="A" data-monto="905" data-nivel="ambar" data-aviso="Los pagos van de 50 en 50|Son 4 cuotas de $220"></div><div class="meas" data-out></div>
+        <p class="note">El aviso más largo que da esta venta: las dos señales de nivel 2 de <code>AvisosDelAbono</code>. Cabe en la franja de dos renglones.</p></div>
+      <div class="unit"><div class="cap rec">Aviso nivel 3 · $1,400</div>
+        <div class="phone" data-kind="A" data-monto="1400" data-nivel="rojo" data-aviso="Son 6 cuotas de $220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">Bloqueo · $300,000</div>
+        <div class="phone" data-kind="A" data-monto="300000" data-nivel="rojo" data-bloqueo="1" data-aviso="El abono excede el saldo · máximo $1,450"></div><div class="meas" data-out></div>
+        <p class="note">La cifra se encoge para caber en su tarjeta (dentro del rango legible) y el botón se apaga, como hoy.</p></div>
+      <div class="unit"><div class="cap rec">Nombre largo · colapsado</div>
+        <div class="phone" data-kind="A" data-monto="220" data-prod="Recamara cantaro king size chocolate, Refrigerador Mabe 14'"></div><div class="meas" data-out></div>
+        <p class="note">Dos renglones con puntos suspensivos; la flecha solo sale si el nombre no cupo. Toda la tarjeta es el área que lo abre.</p></div>
+      <div class="unit"><div class="cap rec">Nombre largo · desplegado</div>
+        <div class="phone" data-kind="A" data-monto="220" data-open="1" data-prod="Recamara cantaro king size chocolate, Refrigerador Mabe 14'"></div><div class="meas" data-out></div>
+        <p class="note">Se abre encima de la cifra, un producto por renglón (la descripción viene separada por comas, <code>CargarDetalleVenta.deLaDescripcion</code>).
+          Nunca baja del método. Se cierra con la flecha, el velo, atrás o la primera tecla.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Letra grande, 360 × 744</h2>
+    <p class="lede">Lo anclado no cambia de lugar. Lo de arriba cede en este orden hasta caber: se va "Monto recibido", el producto pasa a 1 renglón,
+      la cifra se encoge (nunca debajo de 28 sp), la franja pasa a 1 renglón y el separador baja de 8 a 4 dp. Los sugeridos van siempre en una fila que se desliza de lado.
+      Si el aviso no cabe en su franja se monta sobre los sugeridos, que vuelven al borrar.</p>
+    <div class="beds">
+      <div class="unit"><div class="cap rec">1.5× · sin aviso</div>
+        <div class="phone s15" data-kind="A" data-monto="220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">1.5× · aviso nivel 2</div>
+        <div class="phone s15" data-kind="A" data-monto="905" data-nivel="ambar" data-aviso="Los pagos van de 50 en 50|Son 4 cuotas de $220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">2.0× · sin aviso</div>
+        <div class="phone s20" data-kind="A" data-monto="220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">2.0× · aviso nivel 3</div>
+        <div class="phone s20" data-kind="A" data-monto="1400" data-nivel="rojo" data-aviso="Son 6 cuotas de $220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">2.0× · aviso nivel 2 · oscuro</div>
+        <div class="phone s20 dk" data-kind="A" data-monto="905" data-nivel="ambar" data-aviso="Los pagos van de 50 en 50|Son 4 cuotas de $220"></div><div class="meas" data-out></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · Pantalla más baja, 360 × 640</h2>
+    <p class="lede">104 dp menos. El bloque anclado mide lo mismo (botón, teclado y método), así que todo el recorte lo paga la zona de arriba.</p>
+    <div class="beds">
+      <div class="unit"><div class="cap rec">640 · 1.0× · sin aviso</div>
+        <div class="phone h640" data-kind="A" data-monto="220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">640 · 1.0× · aviso nivel 2</div>
+        <div class="phone h640" data-kind="A" data-monto="905" data-nivel="ambar" data-aviso="Los pagos van de 50 en 50|Son 4 cuotas de $220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">640 · 1.5× · aviso nivel 3</div>
+        <div class="phone h640 s15" data-kind="A" data-monto="1400" data-nivel="rojo" data-aviso="Son 6 cuotas de $220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">640 · 2.0× · sin aviso</div>
+        <div class="phone h640 s20" data-kind="A" data-monto="220"></div><div class="meas" data-out></div></div>
+      <div class="unit"><div class="cap rec">640 · 2.0× · aviso nivel 2</div>
+        <div class="phone h640 s20" data-kind="A" data-monto="905" data-nivel="ambar" data-aviso="Los pagos van de 50 en 50|Son 4 cuotas de $220"></div><div class="meas" data-out></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Foto del comprobante</h2>
+    <p class="lede">Hoy la sección "Fotos y archivos" vive <b>debajo del teclado</b>, dentro del scroll, y sale con <b>cualquier método</b> (no solo transferencia):
+      un cuadro punteado "Agregar", una miniatura por comprobante con su "Quitar", y un cuadro ámbar por cada intento que no entró
+      ("No se adjuntó", "No se acepta", "Ya no caben"). Máximo 5. El "Agregar" desaparece cuando ya no se puede capturar.
+      Propuesta: un botón <b>Foto</b> sin caja al final de la fila del método (es lo que acompaña al método) que abre la misma rejilla en una hoja.</p>
+    <div class="beds">
+      <div class="unit"><div class="cap rec">Con 2 fotos y 1 que no entró</div>
+        <div class="phone" data-kind="A" data-monto="220" data-fotos="2" data-fallidas="1" data-metodo="t"></div><div class="meas" data-out></div>
+        <p class="note">El número dice cuántos comprobantes van; si hay un intento que no entró, se pinta ámbar (y si solo hay intentos fallidos, dice "!"). El área tocable es de 56 × 56 dp aunque no tenga caja.</p></div>
+      <div class="unit"><div class="cap rec">Hoja "Fotos y archivos"</div>
+        <div class="phone" data-kind="A" data-monto="220" data-fotos="2" data-fallidas="1" data-metodo="t" data-hoja="fotos"></div><div class="meas" data-out></div>
+        <p class="note">La rejilla de hoy, tal cual, en una hoja. Tapa el teclado solo mientras el cobrador la tiene abierta; se cierra con el velo, deslizando o con atrás.</p></div>
+      <div class="unit"><div class="cap rec">Sin fotos: directo a "Agregar"</div>
+        <div class="phone" data-kind="A" data-monto="220" data-metodo="t" data-hoja="origen"></div><div class="meas" data-out></div>
+        <p class="note">Con cero comprobantes, el toque abre de una vez la hoja de origen que ya existe (<code>HojaDeOrigenDelComprobante</code>): mismos tres renglones y el pie "Quedan 5 espacios de 5".</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>5 · Mensaje de error</h2>
+    <p class="lede">Sale al intentar registrar (<code>MensajeDeFallo</code>). Hoy son cinco textos: "La venta ya no está en el teléfono", "Falta el cobrador, vuelve a entrar",
+      "No se pudo guardar, intenta de nuevo", "El monto no se puede registrar" y "No se pudo confirmar, revisa de nuevo". Solo el último trae
+      "Volver a revisar", y solo mientras la verificación está pendiente: en ese estado el botón Registrar está apagado y el teclado no acepta teclas (<code>sePuedeCapturar</code>).
+      Propuesta: el texto va en la <b>franja</b> (manda sobre todo lo demás) y "Volver a revisar" toma el lugar del botón, que de todas formas estaba muerto.</p>
+    <div class="beds">
+      <div class="unit"><div class="cap rec">No se pudo confirmar</div>
+        <div class="phone" data-kind="A" data-monto="220" data-nivel="rojo" data-fallo="No se pudo confirmar, revisa de nuevo" data-revisar="1"></div><div class="meas" data-out></div>
+        <p class="note">Las teclas se ven apagadas porque no responden. Al revisar, la pantalla vuelve a cargar y resuelve la duda con el historial.</p></div>
+      <div class="unit"><div class="cap rec">No se pudo guardar</div>
+        <div class="phone" data-kind="A" data-monto="220" data-nivel="rojo" data-fallo="No se pudo guardar, intenta de nuevo"></div><div class="meas" data-out></div>
+        <p class="note">Sin "Volver a revisar": el reintento es el mismo botón Registrar, que sigue vivo.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Medidas</h2>
+    <div class="tscroll"><table class="t" id="tabla"></table></div>
+    <div class="meas" id="resumen" style="margin-top:12px;max-width:900px"></div>
+  </section>
+
+  <section>
+    <h2>Por qué así</h2>
+    <ol class="dec">
+      <li><b>De abajo hacia arriba.</b> Botón (56), teclado (4 filas de 56 con 8 entre ellas) y método (56) se colocan desde el fondo. En 744 el teclado queda en 416–664 y el botón termina en 736;
+        en 640, en 312–560 y 632. Todo lo que no es eso vive en la zona de arriba, que tiene el alto que sobre y cede, nunca empuja.</li>
+      <li><b>Los sugeridos ya no están anclados</b>: son lo último de la zona de arriba, pegados al método. Siempre en una sola fila; a letra grande se deslizan de lado.</li>
+      <li><b>La franja manda un solo mensaje</b>, en este orden: error, bloqueo, aviso en vivo, parcialidad dudosa, "Saldo nuevo". Error y bloqueo ya son excluyentes en el código;
+        la banda de parcialidad dudosa deja de empujar.</li>
+      <li><b>A pleno sol</b> el aviso lleva fondo tintado, borde de 2 dp, icono lleno y texto en negritas de 14.5 sp en un tono más oscuro que el borde (claro) o más claro (oscuro).</li>
+      <li><b>Nada nuevo que decir</b>: los textos son los de <code>TextosDelAviso</code>, <code>MensajeDeBloqueo</code>, <code>MensajeDeFallo</code> y <code>PiezasDelComprobante</code>. "Saldo nuevo" ya lo calcula <code>VeredictoDelAbono</code>.</li>
+    </ol>
+    <div class="meas" id="contraste" style="margin-top:14px;max-width:900px"></div>
+  </section>
+
+  <section>
+    <h2>Decisiones para el dueño</h2>
+    <ol class="dec" id="decisiones">
+      <li><b>Foto:</b> ¿el botón "Foto" sale con los dos métodos, como la sección de hoy, o solo con transferencia? En el mock sale con los dos.</li>
+      <li><b>En 360 × 640 a 1.5× y 2.0× el producto sale de la pantalla</b> (quedan cliente, saldo, cifra, franja y sugeridos, y el teclado completo).
+        La flecha para verlo no tiene dónde ir. Propuesta: en ese caso el toque en el nombre del cliente abre el desplegable del producto. En 744 dp no pasa: el producto siempre se ve.</li>
+      <li><b>Topes de letra:</b> el texto de "Efectivo / Transferencia" se queda en 1.2× (15.6 sp) para que quepa el botón de foto al lado, y el del aviso en 1.5×. Sin eso,
+        el método o el teclado no caben. El nombre del cliente también se topa en 1.5× para que el renglón de arriba sea lo más bajo posible.</li>
+      <li><b>Teclado apagado en la verificación pendiente:</b> hoy no acepta teclas pero se ve igual. El mock lo pinta apagado para que no parezca roto.</li>
+      <li><b>Caso raro de tres mensajes</b> del mismo nivel (con historial de pagos, p. ej. cuotas, "Suele dar…" y "Nadie en la ruta ha pagado tanto"): la banda se monta sobre los sugeridos.
+        El comentario de <code>BandaDeAviso</code> dice "como mucho dos"; por el código pueden ser tres.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+  (function(){var m=/theme=(dark|light)/.exec(location.search);if(m)document.documentElement.dataset.theme=m[1];})();
+  function money(n){return '$'+Number(n).toLocaleString('en-US');}
+  var SALDO=1450, PROD_CORTO="Refrigerador Mabe 14'";
+  var ic=function(id,cls){return '<svg class="i'+(cls?' '+cls:'')+'"><use href="#'+id+'"/></svg>';};
+  function keypad(){var k='';[1,2,3,4,5,6,7,8,9].forEach(function(d){k+='<div class="key">'+d+'</div>';});
+    return k+'<div class="key m">.</div><div class="key">0</div><div class="key m">'+ic('del')+'</div>';}
+  function chips(){return '<div class="chip c1"><b>$220</b><span>Esperado hoy</span></div><div class="chip c2"><b>$440</b><span>Al corriente</span></div><div class="chip c3"><b>$1,290</b><span>Liquidar</span></div>';}
+  function franja(ph){
+    var d=ph.dataset, msg=d.fallo||d.aviso;
+    if(!msg) return '<div class="aviso neutro"><div class="tx">Saldo nuevo <b class="num">'+money(SALDO-(+d.monto))+'</b></div></div>';
+    return '<div class="aviso '+d.nivel+'">'+ic('warn')+'<div class="tx">'+msg.split('|').map(function(t){return '<div>'+t+'</div>';}).join('')+'</div></div>';
+  }
+  function buildHoy(ph){
+    var monto=+ph.dataset.monto;
+    ph.innerHTML='<div class="hoy">'+
+      '<div class="head"><div class="back">'+ic('back')+'</div><div><b>Abono</b><small>Victoria Flores Olmedo</small></div></div>'+
+      '<div class="card ctx">Venta <b>V-5188</b> · '+PROD_CORTO+' · Saldo <b>$1,450</b></div>'+
+      '<div class="card cap2"><div class="ovl">Monto recibido</div><div class="hero num">'+money(monto)+'</div><small>Efectivo</small></div>'+
+      (ph.dataset.aviso?'<div class="band">'+ic('warn')+ph.dataset.aviso+'</div>':'')+
+      '<div class="chips">'+chips()+'</div>'+
+      '<div class="meth"><div class="pill on">Efectivo</div><div class="pill">Transferencia</div></div>'+
+      '<div class="kp">'+keypad()+'</div></div>'+
+      '<div class="dock"><div class="cta">Registrar abono '+money(monto)+'</div></div>';
+  }
+  /* la pila anclada, medida desde el fondo */
+  function pila(H){var ctaB=H-8, ctaT=ctaB-56, kpB=ctaT-16, kpT=kpB-248, mT=kpT-64, zB=mT-8; return {ctaB:ctaB,ctaT:ctaT,kpB:kpB,kpT:kpT,mT:mT,zB:zB};}
+  function buildA(ph){
+    var d=ph.dataset, H=ph.classList.contains('h640')?640:744, P=pila(H), monto=+d.monto, prod=d.prod||PROD_CORTO, big=ph.classList.contains('s15')||ph.classList.contains('s20');
+    ph._P=P; ph._H=H;
+    var fotos=+(d.fotos||0), fall=+(d.fallidas||0), n=fotos+fall;
+    var cta=d.revisar?'<div class="cta ghost">Volver a revisar</div>':'<div class="cta'+(d.bloqueo?' off':'')+'">Registrar abono '+money(monto)+'</div>';
+    ph.innerHTML='<div class="zone" style="height:'+P.zB+'px">'+
+        '<div class="who">Victoria Flores Olmedo</div>'+
+        '<div class="card ctx2"><div class="prod"><div class="pname">'+prod+'</div>'+ic(d.open?'up':'down','chev')+'</div><div class="saldo"><span>Saldo</span><b>$1,450</b></div></div>'+
+        '<div class="card amt'+(d.bloqueo?' err':'')+'"><div class="ovl">Monto recibido</div><div class="hero num">'+money(monto)+'</div><div class="slot">'+franja(ph)+'</div></div>'+
+        '<div class="chips'+(big?' fade':'')+'">'+chips()+'</div>'+
+      '</div>'+
+      '<div class="fixed meth con-foto" style="top:'+P.mT+'px"><div class="pill'+(d.metodo==='t'?'':' on')+'">Efectivo</div><div class="pill'+(d.metodo==='t'?' on':'')+'">Transferencia</div>'+
+        '<div class="foto">'+ic('cam')+'<small>Foto</small>'+(n?'<span class="bdg'+(fall?' amb':'')+'">'+(fotos||'!')+'</span>':'')+'</div></div>'+
+      '<div class="fixed kp'+(d.revisar?' inerte':'')+'" style="top:'+P.kpT+'px">'+keypad()+'</div>'+
+      '<div class="dock">'+cta+'</div>';
+    if(d.hoja==='fotos'){
+      var t='<div class="tile add">'+ic('plus')+'Agregar</div>';
+      for(var i=0;i<fotos;i++) t+='<div class="tile ph'+(i%2+1)+'"><span class="x">'+ic('del')+'</span></div>';
+      for(i=0;i<fall;i++) t+='<div class="tile bad">No se adjuntó<span class="x">'+ic('del')+'</span></div>';
+      ph.insertAdjacentHTML('beforeend','<div class="scrimall"></div><div class="sheet"><div class="grab"></div><h3>Fotos y archivos</h3><div class="grid">'+t+'</div></div>');
+    }
+    if(d.hoja==='origen'){
+      ph.insertAdjacentHTML('beforeend','<div class="scrimall"></div><div class="sheet"><div class="grab"></div><h3>Agregar</h3>'+
+        '<div class="orow"><span class="g">'+ic('cam')+'</span><div><b>Tomar foto</b><small>Se abre la cámara</small></div></div>'+
+        '<div class="orow"><span class="g">'+ic('img')+'</span><div><b>Elegir de la galería</b><small>Puedes escoger varias</small></div></div>'+
+        '<div class="orow"><span class="g">'+ic('doc')+'</span><div><b>Subir un archivo</b><small>Imagen o PDF</small></div></div>'+
+        '<div class="pie">Quedan 5 espacios de 5</div></div>');
+    }
+  }
+  document.querySelectorAll('.phone[data-kind]').forEach(function(ph){ if(ph.dataset.kind==='hoy') buildHoy(ph); else buildA(ph); });
+
+  function rel(el,ph){var r0=ph.getBoundingClientRect(),z=r0.width/ph.offsetWidth,r=el.getBoundingClientRect();
+    return {top:(r.top-r0.top)/z,bottom:(r.bottom-r0.top)/z,left:(r.left-r0.left)/z,right:(r.right-r0.left)/z,h:r.height/z};}
+  function cabe(z){return z.scrollHeight<=z.clientHeight+0.5;}
+  function heroCabe(ph){var h=ph.querySelector('.amt .hero');return h.scrollWidth<=h.clientWidth+0.5;}
+  /* lo que cede, en orden; se aplica hasta que todo cabe */
+  function ceder(ph){
+    var z=ph.querySelector('.zone'), big=ph.classList.contains('s15')||ph.classList.contains('s20'), pasos=[];
+    var kH=ph.classList.contains('s20')?1.21:1, max=Math.round(40*kH), min=28, hero=max;
+    function setH(v){hero=v;ph.style.setProperty('--hero',v+'px');}
+    setH(max); if(big){ph.classList.add('sin-rotulo');ph.querySelector('.ctx2').classList.add('una');pasos.push('a letra grande: sin "Monto recibido", producto en 1 renglón');}
+    while(!heroCabe(ph)&&hero>min) setH(hero-1);
+    if(!big&&!cabe(z)){ph.classList.add('sin-rotulo');pasos.push('sin "Monto recibido"');}
+    if(!big&&!cabe(z)){ph.querySelector('.ctx2').classList.add('una');pasos.push('producto en 1 renglón');}
+    if(!cabe(z)){while(!cabe(z)&&hero>min) setH(hero-1); if(hero<max) pasos.push('cifra a '+hero+' sp');}
+    if(!cabe(z)){ph.style.setProperty('--slotH',big?'40px':'36px');pasos.push('franja de 1 renglón');}
+    if(!cabe(z)){ph.style.setProperty('--gap','4px');pasos.push('separación 4 dp');}
+    if(!cabe(z)){ph.classList.add('apretado');pasos.push('márgenes mínimos');}
+    if(!cabe(z)){ph.querySelector('.ctx2 .prod').style.display='none';ph.querySelector('.ctx2').style.padding='4px 12px';pasos.push('producto fuera (queda en el desplegable)');}
+    ph._hero=hero; ph._pasos=pasos; z.classList.add('listo');
+  }
+  function linea(ph,cls,y,txt){var e=document.createElement('div');e.className='edge '+cls;e.style.top=y+'px';e.innerHTML='<span>'+txt+'</span>';ph.appendChild(e);}
+  var filas=[];
+  function medir(){
+    filas=[]; var problemas=[];
+    document.querySelectorAll('.phone[data-kind]').forEach(function(ph){
+      ph.querySelectorAll('.edge').forEach(function(e){e.remove();});
+      var kind=ph.dataset.kind, H=ph._H||744;
+      if(kind!=='hoy'&&!ph._cedido){ceder(ph);ph._cedido=1;}
+      if(ph.dataset.open&&!ph._drop){var c=rel(ph.querySelector('.ctx2'),ph),P=ph._P,prod=ph.dataset.prod;
+        var s=document.createElement('div');s.className='scrim';s.style.height=P.kpT+'px';ph.appendChild(s);
+        var dd=document.createElement('div');dd.className='card drop';dd.style.top=(c.bottom+6)+'px';dd.style.maxHeight=(P.mT+56-c.bottom-6)+'px';
+        dd.innerHTML='<div class="row"><div class="k">'+(prod.indexOf(',')>=0?'Productos':'Producto')+'</div><span style="color:var(--mut);display:flex;width:22px;height:22px">'+ic('up')+'</span></div><ul>'+
+          prod.split(',').map(function(x){return '<li>'+x.trim()+'</li>';}).join('')+'</ul>';
+        ph.appendChild(dd);ph._drop=dd;if(dd.scrollHeight>dd.clientHeight+1)dd.classList.add('corta');}
+      var pn=ph.querySelector('.pname'),ch=ph.querySelector('.ctx2 .chev');
+      if(pn&&ch&&(pn.scrollHeight>pn.clientHeight+1||ph.dataset.open)) ch.classList.add('show');
+      var kp=ph.querySelector('.kp'),keys=kp.querySelectorAll('.key'),k=rel(kp,ph),last=rel(keys[keys.length-1],ph),cta=rel(ph.querySelector('.cta'),ph);
+      var t=Math.round(k.top), lb=Math.round(last.bottom), cb=Math.round(cta.bottom);
+      linea(ph,'',t,'Teclado desde '+t);
+      if(kind==='hoy'){
+        if(ph.dataset.aviso) linea(ph,'ref',404,'sin aviso: 404');
+        var out0=ph.parentElement.querySelector('[data-out]');
+        out0.innerHTML='Teclado '+t+'–'+lb+' dp · botón '+Math.round(cta.top)+'–'+cb+' dp · '+(ph.dataset.aviso?'<span class="bad">baja '+(t-404)+' dp; la última fila queda bajo el botón</span>':'<span class="ok">golden: 404 dp</span>');
+        return;
+      }
+      linea(ph,'b2',lb,'Última fila hasta '+lb);
+      linea(ph,'b3',cb,'Botón hasta '+cb+' / '+H);
+      var bad=[];
+      if(cb>H) bad.push('el botón se sale');
+      if(lb>Math.round(cta.top)-8) bad.push('la última fila toca el botón');
+      var z=ph.querySelector('.zone'); if(!cabe(z)) bad.push('la zona de arriba no cabe');
+      ph.querySelectorAll('.pill,.cta,.chip b,.saldo b').forEach(function(x){if(x.scrollWidth>x.clientWidth+1) bad.push('"'+x.textContent.trim()+'" cortado');});
+      if(!heroCabe(ph)) bad.push('cifra cortada');
+      var av=ph.querySelector('.aviso'),info='';
+      if(av){var a=rel(av,ph),sb=rel(av.parentElement,ph).bottom;
+        if(a.bottom>sb+1&&!av.classList.contains('neutro')&&!ph._sobre){ph._sobre=1;av.classList.add('sobre');
+          var chs=rel(ph.querySelector('.chips'),ph);av.style.minHeight=(chs.bottom-a.top)+'px';ph.querySelector('.chips').classList.add('tapados');a=rel(av,ph);}
+        info='franja '+Math.round(a.top)+'–'+Math.round(a.bottom)+(ph._sobre?' (sobre los sugeridos)':'');
+        if(a.bottom>ph._P.mT-2) bad.push('el aviso toca el método');
+        ph.querySelectorAll('.aviso .tx div').forEach(function(x){if(x.scrollWidth>x.clientWidth+1) bad.push('aviso cortado');});}
+      if(ph._drop){var dr=rel(ph._drop,ph);if(dr.bottom>ph._P.kpT) bad.push('el desplegable tapa el teclado');}
+      var out=ph.parentElement.querySelector('[data-out]'), cap=ph.parentElement.querySelector('.cap').textContent;
+      out.innerHTML='Teclado '+t+'–'+lb+' · botón hasta '+cb+' de '+H+' dp · cifra '+ph._hero+' sp'+(info?' · '+info:'')+
+        (ph._pasos.length?' · cede: '+ph._pasos.join(', '):' · no cede nada')+' · '+(bad.length?'<span class="bad">'+bad.join(', ')+'</span>':'<span class="ok">cabe sin desplazar</span>');
+      if(bad.length) problemas.push(cap+': '+bad.join(', '));
+      filas.push([cap,H,t,lb,cb,ph._hero,ph._pasos.join(', ')||'nada',bad.length?'no':'sí']);
+    });
+    document.getElementById('tabla').innerHTML='<tr><th>Aparato</th><th>Alto</th><th>Teclado desde</th><th>Última fila hasta</th><th>Botón hasta</th><th>Cifra</th><th>Qué cedió</th><th>Cabe</th></tr>'+
+      filas.map(function(f){return '<tr>'+f.map(function(x,i){return '<td>'+(i===7?'<span class="'+(x==='sí'?'ok':'bad')+'">'+x+'</span>':x)+'</td>';}).join('')+'</tr>';}).join('');
+    var t744=filas.filter(function(f){return f[1]===744;}).map(function(f){return f[2];}), t640=filas.filter(function(f){return f[1]===640;}).map(function(f){return f[2];});
+    var u=function(a){return a.every(function(x){return x===a[0];});};
+    var sc=document.documentElement.scrollWidth>document.documentElement.clientWidth;
+    document.getElementById('resumen').innerHTML=filas.length+' aparatos · teclado en 744: <span class="'+(u(t744)?'ok':'bad')+'">'+(u(t744)?'siempre desde '+t744[0]+' dp':t744.join(','))+'</span>'+
+      ' · en 640: <span class="'+(u(t640)?'ok':'bad')+'">'+(u(t640)?'siempre desde '+t640[0]+' dp':t640.join(','))+'</span> · '+
+      (problemas.length?'<span class="bad">'+problemas.join(' | ')+'</span>':'<span class="ok">todo cabe sin desplazar, nada cortado</span>')+
+      ' · Scroll horizontal: <span class="'+(sc?'bad':'ok')+'">'+(sc?'sí':'no')+'</span>';
+    contraste();
+  }
+  function lum(hex){var c=hex.replace('#','');var v=[0,2,4].map(function(i){var x=parseInt(c.substr(i,2),16)/255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4);});return .2126*v[0]+.7152*v[1]+.0722*v[2];}
+  function ratio(a,b){var l1=lum(a),l2=lum(b);return ((Math.max(l1,l2)+.05)/(Math.min(l1,l2)+.05)).toFixed(1);}
+  function contraste(){document.getElementById('contraste').innerHTML='Contraste del texto del aviso sobre su fondo · claro: ámbar '+ratio('#7A4600','#FCEFD9')+':1, rojo '+ratio('#9A1B12','#FBE6E3')+':1 · oscuro: ámbar '+ratio('#F2C36F','#2D210C')+':1, rojo '+ratio('#FF8A7D','#2C1210')+':1 · hoy (texto del color del borde) ámbar claro '+ratio('#B26A00','#FCEFD9')+':1.';}
+  window.addEventListener('load',medir); window.addEventListener('resize',medir);
+</script>
+</body>
+</html>

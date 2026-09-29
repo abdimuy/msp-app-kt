@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Confirmación escrita del abono</title>
+<style>
+  :root, .lt{
+    --bg:#EDF1EF; --page:#F3F5F4; --surf:#FFFFFF; --surf2:#FAFBFB; --line:#E4E8E6;
+    --ink:#141A18; --mut:#5C6863; --faint:#8C9994;
+    --brand:#2563EB; --brandTint:#EAF0FE;
+    --paid:#177245; --paidTint:#E3F3EA; --partial:#B26A00; --partialTint:#FBEFDB;
+    --overdue:#B42318; --overdueTint:#FBE6E3; --danger:#A3143A;
+    --shadow:0 1px 2px rgba(16,24,20,.10),0 6px 18px rgba(16,24,20,.12);
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+      --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+      --brand:#3B82F6; --brandTint:#0E2440;
+      --paid:#40CB84; --paidTint:#0E2A1C; --partial:#E3AC4E; --partialTint:#2E2410;
+      --overdue:#F26A5C; --overdueTint:#2C1210; --danger:#F4677A;
+      --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"], .dk{
+    --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+    --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+    --brand:#3B82F6; --brandTint:#0E2440;
+    --paid:#40CB84; --paidTint:#0E2A1C; --partial:#E3AC4E; --partialTint:#2E2410;
+    --overdue:#F26A5C; --overdueTint:#2C1210; --danger:#F4677A;
+    --shadow:0 1px 2px rgba(0,0,0,.6),0 6px 18px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+       -webkit-font-smoothing:antialiased;padding:0 16px 80px;line-height:1.45}
+  .wrap{max-width:1280px;margin:0 auto;padding-top:36px}
+  h1{font-size:28px;letter-spacing:-.02em;margin:0 0 6px;line-height:1.15}
+  h2{font-size:20px;letter-spacing:-.02em;margin:0 0 4px}
+  section{margin-top:48px}
+  .sub{color:var(--mut);margin:0 0 12px;max-width:80ch;font-size:14.5px}
+  .lede{color:var(--mut);margin:0 0 22px;max-width:80ch;font-size:14px}
+  code{font-family:var(--mono);font-size:12px;background:var(--surf2);border:1px solid var(--line);padding:1px 5px;border-radius:5px}
+  .tog{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surf);color:var(--ink);
+       border-radius:999px;padding:8px 16px;cursor:pointer;min-height:40px}
+  .beds{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
+  .cap{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .cap.rec{color:var(--paid)}
+  .note{font-size:13px;color:var(--mut);margin:0}
+  .note b{color:var(--ink)}
+  .ok{color:var(--paid)} .bad{color:var(--overdue)}
+  svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ── el aparato: 360 × 744 dp ── */
+  .phone{width:360px;height:744px;overflow:hidden;background:var(--page);color:var(--ink);
+         border:1px solid var(--line);border-radius:4px;position:relative;font-size:16px}
+  .body{padding:0 16px}
+  .topbar{display:flex;align-items:center;gap:10px;padding:14px 16px 0;opacity:.45}
+  .back{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .topbar b{display:block;font-size:19px;font-weight:780}
+  .topbar small{display:block;font-size:13px;color:var(--mut)}
+  .card0{margin:14px 16px 0;padding:12px 14px;border:1px solid var(--line);border-radius:16px;
+         background:var(--surf2);color:var(--mut);font-size:13px;opacity:.45}
+  .card0 b{color:var(--ink)}
+
+  /* la hoja de confirmación */
+  .scrim{position:absolute;inset:0;background:color-mix(in srgb, var(--ink) 72%, transparent);z-index:5}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--surf);border-radius:22px 22px 0 0;
+         box-shadow:0 -8px 30px rgba(0,0,0,.25);padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
+  .sheet.scroll{overflow-y:auto}
+  .grab{width:36px;height:4px;border-radius:9px;background:var(--line);margin:0 auto}
+
+  .aviso{display:flex;gap:10px;border-radius:14px;border:1.5px solid var(--overdue);
+         background:var(--overdueTint);color:var(--overdue);padding:12px 13px}
+  .aviso svg.i{width:20px;height:20px;margin-top:1px}
+  .aviso b{display:block;font-size:calc(15px * var(--k,1));font-weight:750;line-height:1.3}
+  .aviso span{display:block;font-size:calc(12.5px * var(--k,1));font-weight:650;margin-top:4px}
+
+  .who{display:flex;align-items:center;gap:12px}
+  .av{width:40px;height:40px;border-radius:12px;background:var(--overdueTint);color:var(--overdue);
+      display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:750;flex:none}
+  .who b{display:block;font-size:calc(16.5px * var(--k,1));font-weight:750;line-height:1.25}
+  .who small{display:block;font-size:calc(12.5px * var(--k,1));color:var(--mut)}
+
+  .cifra{text-align:center;padding:4px 0}
+  .cifra .n{font-size:calc(38px * var(--k,1));font-weight:820;letter-spacing:-.02em;color:var(--overdue);line-height:1.05}
+  .cifra small{display:block;font-size:calc(13px * var(--k,1));color:var(--mut);margin-top:4px}
+  .cifra .sc{font-size:calc(12px * var(--k,1));color:var(--faint);margin-top:2px}
+
+  .flowb{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--surf2);
+         border-radius:14px;padding:12px 13px}
+  .flowb .cell{flex:1}
+  .flowb .k{font-size:calc(10.5px * var(--k,1));font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  .flowb .v{font-size:calc(16px * var(--k,1));font-weight:750;margin-top:2px}
+  .flowb .v.bad{color:var(--overdue)}
+  .flowb .arrow{color:var(--mut)}
+
+  .lbl2{font-size:calc(12.5px * var(--k,1));font-weight:650;color:var(--mut)}
+
+  /* HOY: campo chico del sistema */
+  .field-old{height:56px;border:1px solid var(--line);border-radius:14px;background:var(--surf)}
+
+  /* Variante A: campo grande con cursor y coincidencia en vivo */
+  .field-big{min-height:72px;border-radius:16px;border:2px solid var(--line);background:var(--surf2);
+             display:flex;align-items:center;justify-content:center;gap:10px;position:relative;padding:8px 44px}
+  .field-big .txt{font-size:calc(30px * var(--k,1));font-weight:800;letter-spacing:.01em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .field-big .txt.ph{color:var(--faint);font-weight:700}
+  .field-big .caret{width:2.5px;height:30px;background:var(--brand);border-radius:2px;animation:blink 1s step-end infinite}
+  .field-big.match{border-color:var(--paid);background:var(--paidTint)}
+  .field-big.match .txt{color:var(--paid)}
+  .field-big.wrong{border-color:var(--partial)}
+  .field-mark{position:absolute;right:16px;display:flex;align-items:center;justify-content:center;
+              width:28px;height:28px;border-radius:50%}
+  .field-mark.ok{background:var(--paid);color:#fff}
+  .field-mark.no{background:var(--partial);color:#fff}
+  @keyframes blink{50%{opacity:0}}
+  .livehint{font-size:calc(13px * var(--k,1));font-weight:650;text-align:center;min-height:16px}
+  .livehint.ok{color:var(--paid)} .livehint.no{color:var(--partial)}
+
+  /* Variante B: dígitos-caja + teclado propio */
+  .digits{display:flex;justify-content:center;gap:7px}
+  .dbox{width:38px;height:52px;border-radius:10px;border:2px solid var(--line);background:var(--surf2);
+        display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;
+        font-variant-numeric:tabular-nums;color:var(--ink)}
+  .dbox.cur{border-color:var(--brand)}
+  .dbox.empty{color:var(--faint)}
+  .dbox.match{border-color:var(--paid);background:var(--paidTint);color:var(--paid)}
+  .dbox.wrong{border-color:var(--partial)}
+  .pad{display:flex;flex-direction:column;gap:8px}
+  .prow{display:flex;gap:8px}
+  .key{flex:1;height:52px;border-radius:12px;border:1px solid var(--line);background:var(--surf);
+       display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;color:var(--ink)}
+  .key.mut{color:var(--faint)}
+  .key.del svg.i{width:20px;height:20px}
+
+  .btn{min-height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+       font-weight:750;font-size:16px;text-align:center;padding:6px 14px;line-height:1.2}
+  .btn.k2{font-size:calc(15px * var(--k,1))}
+  .btn.danger{background:var(--overdue);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--overdue) 30%,transparent)}
+  .btn.off{background:var(--line);color:var(--faint);box-shadow:none}
+  .btn.ghost{border:1.5px solid var(--brand);color:var(--brand);background:transparent}
+
+  .twosteps{display:flex;align-items:center;justify-content:center;gap:7px;font-size:12.5px;
+            font-weight:650;color:var(--mut);padding-top:2px}
+  .stepn{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+         font-size:10.5px;font-weight:800;flex:none}
+  .stepn.done{background:var(--paid);color:var(--paidTint)}
+  .stepn.next{border:1.5px solid var(--line);color:var(--mut)}
+
+  .strip{width:360px;max-width:100%;position:relative;background:var(--page);border:1px solid var(--line);
+         border-radius:4px;overflow:hidden}
+
+  .dec{margin:0;padding-left:20px;font-size:14.5px;max-width:82ch}
+  .dec li{margin:0 0 10px}
+  @media (max-width:400px){ .phone,.strip{zoom:.9} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="warn" viewBox="0 0 24 24"><path d="M12 3.5 2 20.5h20L12 3.5z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></symbol>
+  <symbol id="cross" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+  <symbol id="del" viewBox="0 0 24 24"><path d="M9 5H4v14h5l7-7-7-7z"/><path d="M13 10l5 5M18 10l-5 5"/></symbol>
+</svg>
+
+<div class="wrap">
+  <h1>Confirmación escrita del abono · nivel 3</h1>
+  <p class="sub">El dueño decidió mantener la segunda escritura del monto en el nivel 3 de aviso (0.08 % de los abonos,
+    cinco de 6,165) — "para mí la 2ª escritura es bastante buena" — pero hacerla más visible: los cobradores se
+    quejan de que hoy no queda claro qué hay que hacer. Este mock reproduce la hoja de HOY (goldens
+    <code>pagos_abono_teclear_light/dark.png</code>) y propone dos variantes más claras. Ningún texto de razón es
+    inventado: <b>"Son 6 cuotas de $220"</b> y el par <b>"Esperado $220 · este abono $1,400"</b> son los mismos que
+    calcula <code>AvisosDelAbono</code>/<code>TextosDelAviso</code> hoy, con la venta de la fixture (Victoria Flores
+    Olmedo, V-5188, saldo $1,450, parcialidad $220). Cada aparato mide 360 × 744 dp.</p>
+  <button class="tog" onclick="var r=document.documentElement;r.dataset.theme=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark'">Claro / oscuro</button>
+
+  <section>
+    <h2>Hoy</h2>
+    <p class="lede">Lo que ya está en producción. El campo es un <code>OutlinedTextField</code> del sistema, del mismo
+      alto (56 dp) que cualquier campo normal — no distinto del resto de la pantalla — y sin ninguna pista de si lo
+      tecleado coincide hasta tocar "Sí, el monto es correcto". El botón se ve <b>apagado</b> (gris, sin su color de
+      peligro) mientras el campo está vacío o no coincide, porque <code>PrimaryFieldButton</code> pinta cualquier
+      botón deshabilitado del mismo gris sin importar su <code>variant</code> — el rojo de "esto es serio" desaparece
+      justo cuando más se necesita.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">Hoy · claro · campo vacío</div>
+        <div class="phone lt" data-build="hoy" data-field="" data-theme-force="light"></div>
+        <p class="note">Reproduce el golden <code>pagos_abono_teclear_light.png</code> tal cual.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">Hoy · oscuro · campo vacío</div>
+        <div class="phone dk" data-build="hoy" data-field="" data-theme-force="dark"></div>
+        <p class="note">Reproduce <code>pagos_abono_teclear_dark.png</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Variante A — Campo grande, coincidencia en vivo <span class="cap rec">recomendada</span></h2>
+    <p class="lede">Mismo mecanismo de hoy (un campo de texto, teclado numérico del sistema) pero con tres cambios:
+      el campo pasa de 56 a 72 dp con la cifra al tamaño del teclado de montos (30 sp, no el cuerpo normal), aparece
+      un ✓/✗ en vivo dentro del campo apenas hay algo escrito, y el botón queda <b>rojo desde que abre</b> — apagado de
+      verdad (gris, sin sombra) mientras no coincide, y se enciende en <code>Danger</code> en el instante que coincide,
+      sin paso intermedio ambiguo. El cursor se ve porque el campo autoenfoca al abrir la hoja: el cobrador no tiene
+      que tocar nada para empezar a escribir.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">A1 · al abrir (vacío)</div>
+        <div class="phone" data-build="A" data-field="" ></div>
+        <p class="note">El campo ya tiene el foco y el cursor parpadeando — el teclado numérico del sistema sale
+          solo, sin que el cobrador toque el campo primero.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">A2 · escribiendo (no coincide)</div>
+        <div class="phone" data-build="A" data-field="1200"></div>
+        <p class="note">Cruz ámbar + "Faltan $200" debajo del campo. Ámbar y no rojo: todavía está escribiendo, no es
+          un error, es un estado normal de a medio camino.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">A3 · coincide (botón encendido)</div>
+        <div class="phone" data-build="A" data-field="1400"></div>
+        <p class="note">Borde y cifra en verde, ✓ dentro del campo, "Coincide" debajo, y el botón "Sí, el monto es
+          correcto" ya es sólido rojo — un solo toque más y registra.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">A4 · letra grande 2.0×</div>
+        <div class="phone" data-build="A" data-field="1400" data-scale="2" ></div>
+        <p class="note">La cifra grande, el campo y los botones escalan con el sistema; el campo sigue centrado y
+          legible sin partirse en dos líneas.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Variante B — Teclado propio de la pantalla</h2>
+    <p class="lede">En vez del teclado del sistema, reutiliza <code>TecladoDeMontos</code> — el mismo componente que ya
+      usa el paso uno de esta pantalla para teclear el monto — dibujado DENTRO de la hoja. Cada dígito escrito llena
+      una casilla grande (38×52 dp) y compara contra el monto objetivo dígito por dígito, así que el cobrador ve el
+      matiz sin salir de la hoja ni depender de que el teclado del sistema decida aparecer sobre un bottom sheet. El
+      costo es el espacio: cuatro filas de teclas de 56 dp no caben junto con todo lo demás de la hoja sin recortar
+      contenido o desplazar — abajo se anota dónde se sacrificó espacio.</p>
+    <div class="beds">
+      <div class="unit">
+        <div class="cap">B1 · al abrir (vacío)</div>
+        <div class="phone" data-build="B" data-field=""></div>
+        <p class="note">Casillas vacías con guion, la primera con el borde azul del cursor. El teclado propio ya está
+          dibujado — no hay que invocar nada del sistema.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">B2 · escribiendo (no coincide)</div>
+        <div class="phone" data-build="B" data-field="1200"></div>
+        <p class="note">Casillas llenas en ámbar mientras no coincide; "Faltan $200" arriba del teclado.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">B3 · coincide (botón encendido)</div>
+        <div class="phone" data-build="B" data-field="1400"></div>
+        <p class="note">Casillas verdes con ✓, botón rojo sólido. Nota el recorte: para que quepa el teclado completo
+          se quitó la fila "Sin comprobante" y el "Corregir monto" pasó a texto simple sobre el dock, no a un botón
+          propio — eso es exactamente el tipo de compromiso que esta variante obliga a hacer en cada pantalla nueva.</p>
+      </div>
+      <div class="unit">
+        <div class="cap">B4 · letra grande 2.0× (se desplaza)</div>
+        <div class="phone" data-build="B" data-field="1400" data-scale="2" data-tall="1"></div>
+        <p class="note">A 2.0× ya no cabe de pie: la hoja tiene que desplazarse por dentro para llegar al botón de
+          confirmar, con el teclado empujado fuera de la vista inicial.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recomendación</h2>
+    <ol class="dec">
+      <li><b>Variante A.</b> Resuelve la queja real —"no se ve qué pide la pantalla"— con el menor cambio de
+        mecanismo: sigue siendo un campo de texto con el teclado del sistema, así que no hereda el riesgo de la
+        Variante B de no caber en 744 dp ni de duplicar el teclado de montos dentro de un bottom sheet ya angosto.
+        El ✓/✗ en vivo y el botón que enciende en rojo sólo al coincidir son la parte que sí faltaba.</li>
+      <li><b>Variante B</b> queda documentada porque es la respuesta más literal a "que se vea clarísimo qué hacer" —
+        nada compite con el teclado del sistema por espacio ni por foco — pero el costo de espacio (B3/B4) es real y
+        no se resuelve sin sacrificar otra pieza de la hoja o aceptar desplazamiento en el caso más grande de letra,
+        que es precisamente el que más lo necesita.</li>
+      <li>Ninguna variante toca los tres pasos de seguridad (monto/método/veredicto congelados al primer toque, el
+        dinero se mueve solo en <code>confirmar()</code>, anti-doble-toque) ni el resto de los niveles de aviso.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(function(){var m=/theme=(dark|light)/.exec(location.search);if(m)document.documentElement.dataset.theme=m[1];})();
+
+function el(tag, cls, html){var e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+
+function fondo(ph){
+  var top=el('div','topbar','<span class="back"><svg class="i"><use href="#back"/></svg></span>'+
+    '<div><b>Abono</b><small>Victoria Flores Olmedo</small></div>');
+  ph.appendChild(top);
+  ph.appendChild(el('div','card0','Venta <b>V-5188</b> · Refrigerador Mabe 14\' · Saldo <b>$1,450</b>'));
+  ph.appendChild(el('div','scrim'));
+}
+
+function avisoYCifra(sheet){
+  sheet.appendChild(el('div','aviso',
+    '<svg class="i"><use href="#warn"/></svg><div><b>Son 6 cuotas de $220</b><span>Esperado $220 · este abono $1,400</span></div>'));
+  sheet.appendChild(el('div','who',
+    '<div class="av">VF</div><div><b>Victoria Flores Olmedo</b><small>Refrigerador Mabe 14\' · V-5188</small></div>'));
+  sheet.appendChild(el('div','cifra','<div class="n num">$1,400</div><small>Efectivo</small><div class="sc">Sin comprobante</div>'));
+}
+
+function flujoSaldo(sheet){
+  sheet.appendChild(el('div','flowb',
+    '<div class="cell"><div class="k">SALDO ANTERIOR</div><div class="v num">$1,450</div></div>'+
+    '<div class="arrow">→</div>'+
+    '<div class="cell"><div class="k">SALDO NUEVO</div><div class="v bad num">$50</div></div>'));
+}
+
+function dosPasos(texto){
+  return '<div class="twosteps"><span class="stepn done">1</span><span>Revisado</span>'+
+    '<span class="stepn next">2</span><span>'+texto+'</span></div>';
+}
+
+function buildHoy(ph){
+  fondo(ph);
+  var sheet=el('div','sheet');sheet.style.height='560px';
+  sheet.appendChild(el('div','grab'));
+  avisoYCifra(sheet);
+  flujoSaldo(sheet);
+  sheet.appendChild(el('div','lbl2','Teclea otra vez $1,400'));
+  sheet.appendChild(el('div','field-old'));
+  sheet.appendChild(el('div','btn off','Sí, el monto es correcto'));
+  sheet.appendChild(el('div','btn ghost','Corregir monto'));
+  var dp=el('div',null,dosPasos('Teclear el monto'));dp.style.marginTop='2px';sheet.appendChild(dp);
+  ph.appendChild(sheet);
+}
+
+function estadoDe(field){
+  if(field==='') return 'empty';
+  return field==='1400' ? 'match' : 'wrong';
+}
+
+function fmtMiles(s){
+  return s.replace(/\B(?=(\d{3})+(?!\d))/g,',');
+}
+
+function buildA(ph, field, scale){
+  fondo(ph);
+  var sheet=el('div','sheet');
+  if(scale) sheet.style.setProperty('--k', scale);
+  sheet.style.height = scale==='2' ? '700px' : '624px';
+  sheet.appendChild(el('div','grab'));
+  avisoYCifra(sheet);
+  flujoSaldo(sheet);
+  sheet.appendChild(el('div','lbl2','Teclea otra vez $1,400'));
+
+  var st=estadoDe(field);
+  var fb=el('div','field-big'+(st==='match'?' match':st==='wrong'?' wrong':''));
+  if(field){
+    fb.appendChild(el('span','txt num', '$'+fmtMiles(field)));
+  } else {
+    fb.appendChild(el('span','txt ph num','$0'));
+  }
+  if(st!=='match') fb.appendChild(el('span','caret'));
+  if(st==='match') fb.appendChild(el('span','field-mark ok','<svg class="i" style="width:16px;height:16px"><use href="#check"/></svg>'));
+  if(st==='wrong') fb.appendChild(el('span','field-mark no','<svg class="i" style="width:16px;height:16px"><use href="#cross"/></svg>'));
+  sheet.appendChild(fb);
+
+  var hint=el('div','livehint'+(st==='match'?' ok':st==='wrong'?' no':''));
+  hint.textContent = st==='match' ? 'Coincide' : (st==='wrong' ? 'Faltan $200' : '');
+  sheet.appendChild(hint);
+
+  sheet.appendChild(el('div','btn k2 '+(st==='match'?'danger':'off'),'Sí, el monto es correcto'));
+  sheet.appendChild(el('div','btn k2 ghost','Corregir monto'));
+  var dp=el('div',null,dosPasos('Teclear el monto'));dp.style.marginTop='2px';sheet.appendChild(dp);
+  ph.appendChild(sheet);
+}
+
+function buildB(ph, field, scale, tall){
+  fondo(ph);
+  var sheet=el('div','sheet'+(tall?' scroll':''));
+  if(scale) sheet.style.setProperty('--k', scale);
+  sheet.style.height = tall ? '700px' : '676px';
+  sheet.appendChild(el('div','grab'));
+  avisoYCifra(sheet);
+  if(!tall){
+    // en B se recorta "Sin comprobante" y el flujo de saldo se compacta para que
+    // el teclado propio quepa sin desplazar en el caso normal.
+    sheet.querySelector('.sc').remove();
+  }
+  flujoSaldo(sheet);
+  sheet.appendChild(el('div','lbl2','Teclea otra vez $1,400'));
+
+  var st=estadoDe(field);
+  var target='1400';
+  var digits=el('div','digits');
+  for(var i=0;i<target.length;i++){
+    var has = i < field.length;
+    var ch = has ? field[i] : '–';
+    var cls='dbox';
+    if(!has){ cls+= (i===field.length ? ' cur' : ' empty'); }
+    else if(st==='match'){ cls+=' match'; }
+    else if(st==='wrong'){ cls+=' wrong'; }
+    var box=el('div',cls, ch);
+    digits.appendChild(box);
+  }
+  sheet.appendChild(digits);
+
+  var hint=el('div','livehint'+(st==='match'?' ok':st==='wrong'?' no':''));
+  hint.textContent = st==='match' ? 'Coincide' : (st==='wrong' ? 'Faltan $200' : '');
+  sheet.appendChild(hint);
+
+  var pad=el('div','pad');
+  [['1','2','3'],['4','5','6'],['7','8','9'],['.','0','del']].forEach(function(row){
+    var pr=el('div','prow');
+    row.forEach(function(k){
+      if(k==='del'){ pr.appendChild(el('div','key del','<svg class="i"><use href="#del"/></svg>')); }
+      else if(k==='.'){ pr.appendChild(el('div','key mut','.')); }
+      else { pr.appendChild(el('div','key',k)); }
+    });
+    pad.appendChild(pr);
+  });
+  sheet.appendChild(pad);
+
+  sheet.appendChild(el('div','btn k2 '+(st==='match'?'danger':'off'),'Sí, el monto es correcto'));
+  var edit=el('div',null,'<span style="color:var(--brand);font-size:13.5px;font-weight:650">Corregir monto</span>');
+  edit.style.textAlign='center';edit.style.padding='4px 0';
+  sheet.appendChild(edit);
+  ph.appendChild(sheet);
+}
+
+document.querySelectorAll('.phone[data-build]').forEach(function(ph){
+  var kind=ph.dataset.build, field=ph.dataset.field||'', scale=ph.dataset.scale, tall=ph.dataset.tall;
+  if(kind==='hoy') buildHoy(ph);
+  else if(kind==='A') buildA(ph, field, scale);
+  else if(kind==='B') buildB(ph, field, scale, tall);
+});
+</script>
+</body>
+</html>
