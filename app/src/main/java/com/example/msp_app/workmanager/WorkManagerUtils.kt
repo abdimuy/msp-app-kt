@@ -19,6 +19,7 @@ import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
 import com.example.msp_app.workers.RefrescarSaldoDeVentaWorker
 import com.example.msp_app.workers.ReparacionDeCondonacionesWorker
+import com.example.msp_app.workers.ResolucionDeCapturasSueltasWorker
 import com.example.msp_app.workers.VisitsReconcileWorker
 import java.util.concurrent.TimeUnit
 
@@ -119,6 +120,25 @@ fun enqueueReparacionDeCondonacionesSiFalta(context: Context) {
         .build()
     WorkManager.getInstance(context).enqueueUniqueWork(
         ReparacionDeCondonacionesWorker.NOMBRE_UNICO,
+        ExistingWorkPolicy.KEEP,
+        request
+    )
+}
+
+/**
+ * Encola la resolución de capturas sueltas ([ResolucionDeCapturasSueltasWorker],
+ * E-APP-048). Se llama en cada arranque (`CobranzaSyncObserver`, ya con sesión).
+ * `KEEP`: una corrida en cola o en curso sirve igual, y ninguna pisa a otra.
+ */
+fun enqueueResolucionDeCapturasSueltas(context: Context) {
+    val request = OneTimeWorkRequestBuilder<ResolucionDeCapturasSueltasWorker>()
+        .setConstraints(
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        )
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, REFRESCO_BACKOFF_SEGUNDOS, TimeUnit.SECONDS)
+        .build()
+    WorkManager.getInstance(context).enqueueUniqueWork(
+        ResolucionDeCapturasSueltasWorker.NOMBRE_UNICO,
         ExistingWorkPolicy.KEEP,
         request
     )

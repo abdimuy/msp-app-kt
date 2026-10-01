@@ -1,5 +1,6 @@
 package com.example.msp_app.features.sales
 
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
@@ -95,6 +96,14 @@ object SaleIdSpaces {
      * `forSaleRow(Sale)` se borró en el Arreglo A justamente por no tenerlos.
      */
     fun forSalePayments(payment: Payment): Int = payment.DOCTO_CC_ACR_ID
+
+    /**
+     * El mismo cargo, desde la fila de Room. Lo usa
+     * `ResolucionDeCapturasSueltas` (E-APP-048) para refrescar el saldo de la
+     * venta de una captura suelta: `RefrescoDelSaldoDeLaVenta.refrescar(cargo)`
+     * casa con `sales.DOCTO_CC_ID`.
+     */
+    fun forSalePayments(payment: PaymentEntity): Int = payment.DOCTO_CC_ACR_ID
 
     /**
      * El id para todo lo que direcciona **la garantía de la venta** —

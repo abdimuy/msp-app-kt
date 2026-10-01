@@ -10,6 +10,7 @@ import androidx.lifecycle.coroutineScope
 import com.example.msp_app.workmanager.enqueueCobranzaReconcileNowWorker
 import com.example.msp_app.workmanager.enqueueCobranzaReconcilePeriodicWorker
 import com.example.msp_app.workmanager.enqueueReparacionDeCondonacionesSiFalta
+import com.example.msp_app.workmanager.enqueueResolucionDeCapturasSueltas
 
 /**
  * Wires a [CobranzaSyncManager] and a [CobranzaSseSubscriber] to the host's
@@ -54,6 +55,9 @@ fun CobranzaSyncObserver(manager: CobranzaSyncManager) {
                     // negativos (E-APP-029/E-APP-030): sólo encola si todavía
                     // no se completó en este teléfono.
                     enqueueReparacionDeCondonacionesSiFalta(context)
+                    // Las capturas soltadas sin documento que el servidor sí
+                    // aplicó dejaban el saldo por debajo de Microsip (E-APP-048).
+                    enqueueResolucionDeCapturasSueltas(context)
                     // Iniciar SSE después del sync manager para que syncNow()
                     // ya esté disponible cuando llegue el primer evento.
                     val sseSubscriber = CobranzaSseProvider.get(manager, scope)

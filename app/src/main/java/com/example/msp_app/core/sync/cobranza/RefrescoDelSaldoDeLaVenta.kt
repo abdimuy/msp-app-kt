@@ -92,12 +92,22 @@ class RefrescoDelSaldoDeLaVenta(
     suspend fun refrescar(
         zona: Int,
         cargo: Int,
-        nivelarNegativoSinDato: Boolean = false
+        nivelarNegativoSinDato: Boolean = false,
+        cambiosEnLaMismaTransaccion: suspend () -> Unit = {}
     ): ResultadoDelRefresco = cobranzaWriteMutex.mutex.withLock {
         val venta = api.saldosByIds(zonaId = zona, ids = cargo.toString())
             .firstOrNull { it.docto_cc_id == cargo && !it.cargo_cancelado }
-            ?: return@withLock sinDato(cargo, nivelarNegativoSinDato)
+        if (venta == null) {
+            // Sin dato del servidor el saldo no se toca, pero lo que el que llama
+            // ya decidió con evidencia propia (p.ej. anotar un documento) sí se
+            // escribe: no depende de que la venta venga en esta respuesta.
+            db.withTransaction { cambiosEnLaMismaTransaccion() }
+            return@withLock sinDato(cargo, nivelarNegativoSinDato)
+        }
         db.withTransaction {
+            // Primero los cambios del que llama y DESPUÉS la suma: si anotó el
+            // documento de una captura, la suma ya no la incluye (E-APP-048).
+            cambiosEnLaMismaTransaccion()
             val enVuelo = paymentDao.sumImporteNoReconocidoPorElServidor(cargo)
             paymentDao.fijarSaldoDeLaVenta(
                 cargo = cargo,
