@@ -102,7 +102,8 @@ const val LISTA_VACIA_TAG: String = "pagos_lista_vacia"
 fun ListaDeClientesScreen(
     viewModel: ListaDeClientesViewModel,
     onAbrirCliente: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAbrirVenta: (Int) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Vuelve a leer al reanudarse — no al recibir un pago o una visita nuevos:
@@ -122,6 +123,7 @@ fun ListaDeClientesScreen(
             onBuscar = viewModel::buscar,
             onElegirSegmento = viewModel::elegirSegmento,
             onAbrirCliente = onAbrirCliente,
+            onAbrirVenta = onAbrirVenta,
             onReintentar = viewModel::cargar,
             onAlternarTema = viewModel::alternarTema,
             onAlternarPrivacidad = viewModel::alternarPrivacidad,
@@ -208,7 +210,8 @@ fun ListaDeClientesContent(
     onReintentar: () -> Unit,
     onAlternarTema: () -> Unit,
     onAlternarPrivacidad: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAbrirVenta: (Int) -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -341,7 +344,8 @@ fun ListaDeClientesContent(
                     else -> Clientes(
                         clientes = state.clientes,
                         montosOcultos = state.montosOcultos,
-                        onAbrirCliente = onAbrirCliente
+                        onAbrirCliente = onAbrirCliente,
+                        onAbrirVenta = onAbrirVenta
                     )
                 }
             }
@@ -358,7 +362,8 @@ fun ListaDeClientesContent(
 private fun Clientes(
     clientes: List<ClienteEnLista>,
     montosOcultos: Boolean,
-    onAbrirCliente: (Int) -> Unit
+    onAbrirCliente: (Int) -> Unit,
+    onAbrirVenta: (Int) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -370,7 +375,8 @@ private fun Clientes(
             FilaDeCliente(
                 cliente = cliente,
                 montosOcultos = montosOcultos,
-                onAbrirCliente = { onAbrirCliente(cliente.clienteId) }
+                onAbrirCliente = { onAbrirCliente(cliente.clienteId) },
+                onAbrirVenta = onAbrirVenta
             )
         }
     }

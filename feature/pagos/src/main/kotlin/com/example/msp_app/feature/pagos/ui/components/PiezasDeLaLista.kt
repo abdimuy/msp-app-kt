@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
@@ -36,6 +38,12 @@ const val CHIP_DE_SEGMENTO_TAG: String = "pagos_chip_"
 
 /** `testTag` de la tarjeta de un cliente en la lista. */
 const val FILA_DE_CLIENTE_TAG: String = "pagos_fila_cliente"
+
+/** El encabezado (nombre e info) de la tarjeta: lleva al CLIENTE. */
+const val ENCABEZADO_DE_CLIENTE_TAG: String = "pagos_encabezado_cliente"
+
+/** Cada venta dentro de la tarjeta: lleva a ESA venta. Se le suma el `ventaId`. */
+const val RENGLON_DE_VENTA_TAG: String = "pagos_renglon_venta_"
 
 /**
  * El filtro de la lista, como **un solo control de cuatro estados**.
@@ -151,14 +159,35 @@ fun FilaDeCliente(
     onAbrirCliente: () -> Unit,
     modifier: Modifier = Modifier,
     /** "Esconder cantidades": el monto de cada venta se pinta enmascarado. */
-    montosOcultos: Boolean = false
+    montosOcultos: Boolean = false,
+    /** Abre la venta tocada; recibe su `ventaId` (`DOCTO_CC_ACR_ID`). */
+    onAbrirVenta: (Int) -> Unit = {}
 ) {
-    Tarjeta(modifier = modifier.testTag(FILA_DE_CLIENTE_TAG), onClick = onAbrirCliente) {
+    // Dos puertas en la misma tarjeta (decisión del dueño, 2026-10-01): el
+    // encabezado lleva al CLIENTE y cada venta a ESA venta. Revierte la tarjeta
+    // de una sola puerta —"desde la lista siempre se entra por el cliente"— porque
+    // los cobradores se quejaron de que para abonar tenían que dar un paso de más.
+    // La tarjeta ya no tiene `onClick` propio: cada zona tocable es suya.
+    Tarjeta(modifier = modifier.testTag(FILA_DE_CLIENTE_TAG)) {
         Column {
-            EncabezadoDeCliente(cliente)
-            Spacer(Modifier.height(AIRE_ANTES_DE_LA_PRIMERA_VENTA))
+            // El aire bajo el encabezado va DENTRO de su zona tocable: el
+            // encabezado solo medía 47dp (medido, `LaTarjetaTieneDosPuertasTest`) y
+            // así llega a los 50 sin mover un píxel de lo que se ve.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button, onClick = onAbrirCliente)
+                    .testTag(ENCABEZADO_DE_CLIENTE_TAG)
+            ) {
+                EncabezadoDeCliente(cliente)
+                Spacer(Modifier.height(AIRE_ANTES_DE_LA_PRIMERA_VENTA))
+            }
             cliente.ventas.forEach { enLista ->
-                RenglonDeVenta(venta = enLista.venta, montosOcultos = montosOcultos)
+                RenglonDeVenta(
+                    venta = enLista.venta,
+                    montosOcultos = montosOcultos,
+                    onAbrir = { onAbrirVenta(enLista.venta.ventaId) }
+                )
             }
         }
     }
@@ -251,7 +280,7 @@ private fun NombreDelCliente(nombre: String) {
  * único que se les pide.
  */
 @Composable
-private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean) {
+private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbrir: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -259,13 +288,13 @@ private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean) {
             .background(MspTheme.colors.outline)
     )
     Column(
-        // SIN `clickable`: desde la lista **siempre se entra por el cliente**, y la
-        // venta se elige dentro de su pantalla. Un renglón tocable dentro de una
-        // tarjeta tocable obliga al cobrador a apuntar —el renglón abría la venta
-        // y el resto de la tarjeta al cliente—, y con la ruta en la mano se apunta
-        // mal. Ahora toda la tarjeta hace lo mismo.
+        // Tocable: abre ESTA venta (decisión del dueño, 2026-10-01; ver
+        // `FilaDeCliente`). El renglón entero es la zona tocable —nombre, monto,
+        // estado y barra—, así que mide bastante más de los 50dp mínimos.
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onAbrir)
+            .testTag(RENGLON_DE_VENTA_TAG + venta.ventaId)
             .padding(vertical = AIRE_DEL_RENGLON)
     ) {
         Row(

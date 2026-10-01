@@ -58,8 +58,11 @@ import dagger.hilt.android.EntryPointAccessors
 fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Context) {
     // Sin `onAtras`: la lista es pantalla de nivel superior y ya no pinta flecha
     // de volver — se llega desde el cajón.
+    // El encabezado de la tarjeta abre el cliente y cada venta abre ESA venta
+    // (decisión del dueño del 2026-10-01; antes toda la tarjeta abría el cliente).
     destinoDeListaDeClientes(
-        onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) }
+        onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) },
+        onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) }
     )
 
     // El detalle de cliente va aparte: perdió el "⋯" y su sección "últimos
