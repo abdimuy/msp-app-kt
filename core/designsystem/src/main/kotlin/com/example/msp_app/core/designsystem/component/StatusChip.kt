@@ -1,6 +1,7 @@
 package com.example.msp_app.core.designsystem.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /**
@@ -74,13 +76,36 @@ fun MspStatusChip(
     text: String,
     contentColor: Color,
     containerColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * `true`: el badge **sólido** (decisión del dueño del 2026-10-02, opción A):
+     * ícono de 18 dp, letra de 13 y más relleno, para leerse a pleno sol. El
+     * llamador pasa el color pleno en [containerColor].
+     */
+    grande: Boolean = false,
+    /** Borde opcional, para el estado neutro que va sin relleno de color. */
+    borderColor: Color? = null
 ) {
+    val shape = MspTheme.shapes.chip
     Row(
         modifier = modifier
-            .clip(MspTheme.shapes.chip)
+            .clip(shape)
             .background(containerColor)
-            .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.xs),
+            .then(
+                if (borderColor != null) {
+                    Modifier.border(
+                        BORDE_DEL_CHIP,
+                        borderColor,
+                        shape
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .padding(
+                horizontal = if (grande) RELLENO_HORIZONTAL_GRANDE else MspTheme.spacing.sm,
+                vertical = if (grande) RELLENO_VERTICAL_GRANDE else MspTheme.spacing.xs
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
@@ -89,13 +114,26 @@ fun MspStatusChip(
             contentDescription = null,
             tint = contentColor,
             modifier = Modifier
-                .size(14.dp)
+                .size(if (grande) ICONO_GRANDE else ICONO_NORMAL)
                 .testTag(STATUS_CHIP_ICON_TAG)
         )
         Text(
             text = text,
-            style = MspTheme.type.chipLabel,
+            style = if (grande) {
+                MspTheme.type.chipLabel.copy(
+                    fontSize = LETRA_GRANDE
+                )
+            } else {
+                MspTheme.type.chipLabel
+            },
             color = contentColor
         )
     }
 }
+
+private val ICONO_NORMAL = 14.dp
+private val ICONO_GRANDE = 18.dp
+private val LETRA_GRANDE = 13.sp
+private val RELLENO_HORIZONTAL_GRANDE = 10.dp
+private val RELLENO_VERTICAL_GRANDE = 6.dp
+private val BORDE_DEL_CHIP = 1.5.dp

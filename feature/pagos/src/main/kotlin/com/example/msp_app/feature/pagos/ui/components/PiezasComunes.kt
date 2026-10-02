@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -32,7 +34,9 @@ import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspStatusChip
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
+import com.example.msp_app.feature.pagos.ui.BadgeSolido
 import com.example.msp_app.feature.pagos.ui.EstadoVisual
+import com.example.msp_app.feature.pagos.ui.TratoDelEstado
 import com.example.msp_app.feature.pagos.ui.estadoVisualDe
 
 /** `testTag` del cuadro de estado — lo localiza el test de "nunca solo color". */
@@ -81,11 +85,17 @@ fun CuadroDeEstado(visual: EstadoVisual, lado: Dp = 28.dp, modifier: Modifier = 
 @Composable
 fun ChipDeEstado(estado: EstadoDelPeriodo, modifier: Modifier = Modifier) {
     val visual = estadoVisualDe(estado)
+    val colors = MspTheme.colors
+    // Sólido y grande (decisión del dueño del 2026-10-02, opción A): con el tint
+    // pálido y el ícono de 14 dp los cobradores no distinguían el estado en la
+    // calle. Ícono + texto + color siguen juntos: la regla del chip no cambia.
     MspStatusChip(
         icon = visual.icono,
         text = visual.etiqueta,
-        contentColor = visual.contenido,
-        containerColor = visual.fondo,
+        contentColor = BadgeSolido.sobreSolidoDe(visual.trato, colors),
+        containerColor = BadgeSolido.solidoDe(visual.trato, colors),
+        grande = true,
+        borderColor = BadgeSolido.bordeDelSolido(visual.trato, colors),
         modifier = modifier.testTag(ETIQUETA_DE_ESTADO_TAG)
     )
 }
@@ -105,29 +115,68 @@ fun EstadoEnGrande(
     ocultos: Boolean = false
 ) {
     val visual = estadoVisualDe(estado)
-    MspCard(modifier = modifier.fillMaxWidth(), shape = MspTheme.shapes.card) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)
+    val colors = MspTheme.colors
+    // **Tarjeta entera sólida** (decisión del dueño del 2026-10-02, opción A): el
+    // estado es lo primero que el cobrador busca al abrir la venta, y con un
+    // cuadrito de tinte pálido no se veía. Toda la tarjeta toma el color del
+    // estado; "Falta pasar" queda neutra con borde, como su badge.
+    val neutro = visual.trato == TratoDelEstado.SIN_TRABAJAR
+    val sobre = BadgeSolido.sobreSolidoDe(visual.trato, colors)
+    val shape = MspTheme.shapes.card
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(BadgeSolido.solidoDe(visual.trato, colors))
+            .then(
+                if (neutro) {
+                    Modifier.border(BORDE_DEL_ESTADO_NEUTRO, colors.onSurfaceMuted, shape)
+                } else {
+                    Modifier
+                }
+            )
+            .padding(horizontal = MspTheme.spacing.md, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(LADO_DEL_CIRCULO)
+                .clip(CircleShape)
+                .background(
+                    if (neutro) colors.onSurfaceMuted else sobre.copy(alpha = HALO_DEL_ICONO)
+                )
+                .testTag(CUADRO_DE_ESTADO_TAG),
+            contentAlignment = Alignment.Center
         ) {
-            CuadroDeEstado(visual, lado = 36.dp)
-            Column {
-                Text(
-                    text = if (ocultos) enmascaraMontos(visual.etiqueta) else visual.etiqueta,
-                    style = MspTheme.type.name,
-                    color = MspTheme.colors.onSurface,
-                    modifier = Modifier.testTag(ETIQUETA_DE_ESTADO_TAG)
-                )
-                Text(
-                    text = visual.detalle,
-                    style = MspTheme.type.saleMeta,
-                    color = MspTheme.colors.onSurfaceMuted
-                )
-            }
+            Icon(
+                imageVector = visual.icono,
+                contentDescription = null,
+                tint = if (neutro) colors.surface else sobre,
+                modifier = Modifier.size(ICONO_DEL_ESTADO)
+            )
+        }
+        Column {
+            Text(
+                text = if (ocultos) enmascaraMontos(visual.etiqueta) else visual.etiqueta,
+                style = MspTheme.type.name,
+                color = if (neutro) colors.onSurface else sobre,
+                modifier = Modifier.testTag(ETIQUETA_DE_ESTADO_TAG)
+            )
+            Text(
+                text = visual.detalle,
+                style = MspTheme.type.saleMeta,
+                color = if (neutro) colors.onSurfaceMuted else sobre.copy(alpha = TEXTO_SECUNDARIO)
+            )
         }
     }
 }
+
+private val LADO_DEL_CIRCULO = 44.dp
+private val ICONO_DEL_ESTADO = 22.dp
+private val BORDE_DEL_ESTADO_NEUTRO = 1.5.dp
+private const val HALO_DEL_ICONO = 0.2f
+private const val TEXTO_SECUNDARIO = 0.86f
 
 /** Cambia cada `$1,234` de un texto por [MASKED_MONEY]. */
 internal fun enmascaraMontos(texto: String): String = MONTO_EN_TEXTO.replace(texto) { MASKED_MONEY }
@@ -214,6 +263,9 @@ fun Tarjeta(
     MspCard(
         modifier = modifier.fillMaxWidth(),
         shape = MspTheme.shapes.card,
+        // Sombra suave para que la tarjeta se despegue del fondo (decisión del
+        // dueño del 2026-10-02, opción A); en oscuro no se ve y no estorba.
+        shadowElevation = SOMBRA_DE_LA_TARJETA,
         onClick = onClick
     ) {
         Box(modifier = Modifier.padding(MspTheme.spacing.md)) { content() }
@@ -305,3 +357,5 @@ fun RecargaAlVolver(recargar: () -> Unit) {
         onPauseOrDispose { }
     }
 }
+
+private val SOMBRA_DE_LA_TARJETA = 2.dp

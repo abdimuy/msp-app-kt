@@ -322,3 +322,39 @@ private fun prometio(estado: EstadoDelPeriodo): String {
     val monto = estado.montoPrometido?.let { formatMoneyMxn(it.amount) + " " }.orEmpty()
     return "Prometió " + monto + "el " + DIA_Y_MES.format(estado.fechaPromesa)
 }
+
+/**
+ * Los colores del **badge sólido** (decisión del dueño del 2026-10-02, opción A
+ * de los mockups). Aparte de [EstadoCuentaUi] porque es la presentación de un
+ * solo componente —`ChipDeEstado`—, no el mapa de estados.
+ */
+object BadgeSolido {
+    /**
+     * **El badge sólido de la lista** (decisión del dueño del 2026-10-02, opción A
+     * de los mockups): el color PLENO del estado, no su tint, para que se lea a
+     * pleno sol. "Se negó" toma `danger` (carmesí) para no confundirse con la
+     * promesa, que también es roja; "Falta pasar" queda neutro: `surface` con
+     * borde (ver [bordeDelSolido]), porque no hay nada que celebrar ni que alarmar.
+     */
+    fun solidoDe(trato: TratoDelEstado, colors: MspColors): Color = when (trato) {
+        TratoDelEstado.PAGADO -> colors.statusPaid
+        TratoDelEstado.PARCIAL -> colors.statusTeal
+        TratoDelEstado.REGRESAS -> colors.statusPartial
+        TratoDelEstado.DIFERIDO -> colors.statusOverdue
+        TratoDelEstado.ESCALAR -> colors.danger
+        TratoDelEstado.CITA -> colors.promise
+        TratoDelEstado.NADIE -> colors.statusPending
+        TratoDelEstado.SIN_TRABAJAR -> colors.surface
+    }
+
+    /**
+     * El color del ícono y del texto sobre [solidoDe]: `surface` —blanco en claro,
+     * casi negro en oscuro—, que contrasta con los colores plenos de los dos temas.
+     */
+    fun sobreSolidoDe(trato: TratoDelEstado, colors: MspColors): Color =
+        if (trato == TratoDelEstado.SIN_TRABAJAR) colors.onSurfaceMuted else colors.surface
+
+    /** Sólo el estado neutro lleva borde: sin él, se perdería en la tarjeta. */
+    fun bordeDelSolido(trato: TratoDelEstado, colors: MspColors): Color? =
+        if (trato == TratoDelEstado.SIN_TRABAJAR) colors.onSurfaceMuted else null
+}

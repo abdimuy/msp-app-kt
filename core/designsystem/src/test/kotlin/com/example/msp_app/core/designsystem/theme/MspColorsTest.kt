@@ -85,9 +85,27 @@ class MspColorsTest {
 
     // --- 5. Muestreo anti-regresión de neutros/status (1:1 kollect) --------
 
+    /**
+     * Se aparta de kollect (#E4E8E6) a propósito: tarjeta opción A, decisión del
+     * dueño del 2026-10-02. La tarjeta blanca no se distinguía del fondo.
+     */
     @Test
-    fun `outline light 1 a 1 kollect`() {
-        assertEquals(Color(0xFFE4E8E6), light.outline)
+    fun `tarjeta opcion A - outline y fondo de light`() {
+        assertEquals(Color(0xFFD3DAD6), light.outline)
+        assertEquals(Color(0xFFE6EBE8), light.background)
+    }
+
+    @Test
+    fun `tarjeta opcion A - surface y outline de dark se separan del negro`() {
+        assertEquals(Color(0xFF1B2320), dark.surface)
+        assertEquals(Color(0xFF3A4640), dark.outline)
+        assertEquals(Color(0xFF000000), dark.background)
+    }
+
+    /** El ámbar baja a #9A5B00 para que el badge sólido con texto blanco pase 4.5:1. */
+    @Test
+    fun `statusPartial light alcanza 4,5 a 1 con texto blanco`() {
+        assertEquals(Color(0xFF9A5B00), light.statusPartial)
     }
 
     @Test

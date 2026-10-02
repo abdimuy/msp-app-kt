@@ -63,7 +63,12 @@ data class MspColors(
 )
 
 /**
- * Paleta light. Únicos 4 valores que se apartan de `campoLightColors()`:
+ * Paleta light. **Tarjeta y badge, decisión del dueño del 2026-10-02** (opción A
+ * de los mockups): `background` #F4F6F5 → #E6EBE8 y `outline` #E4E8E6 → #D3DAD6
+ * para que la tarjeta blanca se despegue del fondo, y `statusPartial` #B26A00 →
+ * #9A5B00 para que el badge sólido con texto blanco pase 4.5:1 (5.2:1; antes 3.9:1).
+ *
+ * Únicos 4 valores que se apartan de `campoLightColors()`:
  * `brand` (`#0D4A45` verde → `#2563EB` azul), `brand2` (`#0A3B37` →
  * `#1D4ED8`), `brandTint` (`#EEF5F4` → `#EAF0FE`) y `heroProgressFill`
  * (`#7FE0A6` mint-verde → `#6FE3C2` mint-teal). Todo lo demás (neutros y
@@ -75,15 +80,15 @@ fun mspLightColors(): MspColors = MspColors(
     brand2 = Color(0xFF1D4ED8),
     onBrand = Color(0xFFFFFFFF),
     brandTint = Color(0xFFEAF0FE),
-    background = Color(0xFFF4F6F5),
+    background = Color(0xFFE6EBE8),
     surface = Color(0xFFFFFFFF),
     surface2 = Color(0xFFFBFCFC),
     onSurface = Color(0xFF141A18),
     onSurfaceMuted = Color(0xFF5C6863),
-    outline = Color(0xFFE4E8E6),
+    outline = Color(0xFFD3DAD6),
     statusPaid = Color(0xFF177245),
     statusPaidTint = Color(0xFFE4F1E9),
-    statusPartial = Color(0xFFB26A00),
+    statusPartial = Color(0xFF9A5B00),
     statusPartialTint = Color(0xFFFBEEDC),
     statusOverdue = Color(0xFFB42318),
     statusOverdueTint = Color(0xFFFBE7E4),
@@ -105,7 +110,12 @@ fun mspLightColors(): MspColors = MspColors(
 )
 
 /**
- * Paleta dark (OLED puro: `background = #000000`). Únicos 4 valores que se
+ * Paleta dark (OLED puro: `background = #000000`). **Tarjeta, decisión del dueño
+ * del 2026-10-02** (opción A): `surface` #141917 → #1B2320 y `outline` #28322C →
+ * #3A4640 para que la tarjeta se separe del negro; `surface2` sube a #222B27 para
+ * seguir un escalón arriba de `surface`.
+ *
+ * Únicos 4 valores que se
  * apartan de `campoDarkColors()`: `brand` (`#1E9E86` → `#3B82F6`), `brand2`
  * (`#14705C` → `#1D5FB0`), `brandTint` (`#123029` → `#0E2440`) y
  * `heroProgressFill` (`#7FE0A6` → `#6FE3C2`, **el mismo mint-teal que
@@ -118,11 +128,11 @@ fun mspDarkColors(): MspColors = MspColors(
     onBrand = Color(0xFFFFFFFF),
     brandTint = Color(0xFF0E2440),
     background = Color(0xFF000000),
-    surface = Color(0xFF141917),
-    surface2 = Color(0xFF1C2320),
+    surface = Color(0xFF1B2320),
+    surface2 = Color(0xFF222B27),
     onSurface = Color(0xFFE9EFEC),
     onSurfaceMuted = Color(0xFF8B968F),
-    outline = Color(0xFF28322C),
+    outline = Color(0xFF3A4640),
     statusPaid = Color(0xFF40CB84),
     statusPaidTint = Color(0xFF0F2A1C),
     statusPartial = Color(0xFFE3AC4E),

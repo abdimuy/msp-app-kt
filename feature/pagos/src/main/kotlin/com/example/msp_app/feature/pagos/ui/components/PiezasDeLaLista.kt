@@ -18,8 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.component.MspProgressBar
@@ -41,6 +44,13 @@ const val FILA_DE_CLIENTE_TAG: String = "pagos_fila_cliente"
 
 /** El encabezado (nombre e info) de la tarjeta: lleva al CLIENTE. */
 const val ENCABEZADO_DE_CLIENTE_TAG: String = "pagos_encabezado_cliente"
+
+/** La distancia del encabezado, sólo en la lista de cercanos. */
+const val DISTANCIA_DEL_CLIENTE_TAG: String = "pagos_distancia_cliente"
+
+private val LETRA_DEL_NOMBRE = 19.sp
+private val TRACKING_DEL_NOMBRE = (-0.01).em
+private val LETRA_DE_LA_DISTANCIA = 22.sp
 
 /** Cada venta dentro de la tarjeta: lleva a ESA venta. Se le suma el `ventaId`. */
 const val RENGLON_DE_VENTA_TAG: String = "pagos_renglon_venta_"
@@ -161,7 +171,12 @@ fun FilaDeCliente(
     /** "Esconder cantidades": el monto de cada venta se pinta enmascarado. */
     montosOcultos: Boolean = false,
     /** Abre la venta tocada; recibe su `ventaId` (`DOCTO_CC_ACR_ID`). */
-    onAbrirVenta: (Int) -> Unit = {}
+    onAbrirVenta: (Int) -> Unit = {},
+    /**
+     * La distancia ya formateada ("350 m"), sólo en la lista de **cercanos** de
+     * Inicio, que reutiliza esta tarjeta (decisión del dueño del 2026-10-02).
+     */
+    distancia: String? = null
 ) {
     // Dos puertas en la misma tarjeta (decisión del dueño, 2026-10-01): el
     // encabezado lleva al CLIENTE y cada venta a ESA venta. Revierte la tarjeta
@@ -179,7 +194,7 @@ fun FilaDeCliente(
                     .clickable(role = Role.Button, onClick = onAbrirCliente)
                     .testTag(ENCABEZADO_DE_CLIENTE_TAG)
             ) {
-                EncabezadoDeCliente(cliente)
+                EncabezadoDeCliente(cliente, distancia)
                 Spacer(Modifier.height(AIRE_ANTES_DE_LA_PRIMERA_VENTA))
             }
             cliente.ventas.forEach { enLista ->
@@ -206,7 +221,7 @@ fun FilaDeCliente(
  * una unidad y no confunde la dirección con la primera venta.
  */
 @Composable
-private fun EncabezadoDeCliente(cliente: ClienteEnLista) {
+private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs),
         verticalAlignment = Alignment.Top
@@ -228,7 +243,23 @@ private fun EncabezadoDeCliente(cliente: ClienteEnLista) {
             )
         }
         Column(horizontalAlignment = Alignment.End) {
-            Aviso(cliente)
+            // En cercanos manda la distancia, grande y en el color del texto
+            // (blanco en oscuro), y el "Falta x de x" se quita (decisión del dueño
+            // del 2026-10-02): ahí el cobrador decide a qué puerta caminar.
+            if (distancia != null) {
+                Text(
+                    text = distancia,
+                    style = MspTheme.type.chipLabel.copy(
+                        fontSize = LETRA_DE_LA_DISTANCIA,
+                        fontWeight = FontWeight.ExtraBold
+                    ),
+                    color = MspTheme.colors.onSurface,
+                    maxLines = 1,
+                    modifier = Modifier.testTag(DISTANCIA_DEL_CLIENTE_TAG)
+                )
+            } else {
+                Aviso(cliente)
+            }
             cliente.ultimoPago?.let { dia ->
                 Spacer(Modifier.height(MspTheme.spacing.xs))
                 Text(
@@ -259,7 +290,14 @@ private fun NombreDelCliente(nombre: String) {
     val quieto = LocalReduceMotion.current
     Text(
         text = nombre,
-        style = MspTheme.type.listTitle,
+        // Jerarquía (decisión del dueño del 2026-10-02, opción A): el nombre manda
+        // —19 extra negrita— y el mueble baja a seminegrita. Con los dos en
+        // negrita y casi del mismo tamaño había que leerlo dos veces.
+        style = MspTheme.type.listTitle.copy(
+            fontSize = LETRA_DEL_NOMBRE,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = TRACKING_DEL_NOMBRE
+        ),
         color = MspTheme.colors.onSurface,
         maxLines = 1,
         softWrap = false,
@@ -303,7 +341,7 @@ private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbr
         ) {
             Text(
                 text = venta.descripcion.ifBlank { venta.folio },
-                style = MspTheme.type.saleTitle,
+                style = MspTheme.type.saleTitle.copy(fontWeight = FontWeight.SemiBold),
                 color = MspTheme.colors.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
