@@ -43,10 +43,13 @@ fun interface FuenteDePosicion {
  *   Del 2026-09-22 (`0471941f`) al 2026-09-26 leía **una sola vez**, y la lista
  *   se quedaba con la primera lectura mientras el cobrador avanzaba: lo reportó
  *   el dueño y **el 2026-09-26 decidió que la lista siga al cobrador**. Por eso
- *   [updates] es un flujo, pero **de bajo costo**: `PRIORITY_BALANCED_POWER_ACCURACY`,
- *   cada [INTERVALO_MS] como máximo y sólo tras moverse [DISTANCIA_MINIMA_M].
- *   Alta precisión cada dos segundos para reordenar diez renglones seguiría
- *   siendo batería quemada.
+ *   [updates] es un flujo, cada [INTERVALO_MS] como máximo y sólo tras moverse
+ *   [DISTANCIA_MINIMA_M] — no cada dos segundos como el mapa.
+ * - **Alta precisión siempre** (`PRIORITY_HIGH_ACCURACY`, decisión del dueño del
+ *   2026-10-02): con `BALANCED_POWER_ACCURACY` el proveedor resolvía por wifi y
+ *   antenas, con errores de decenas a cientos de metros, y los cobradores
+ *   reportaban distancias que "no marcan bien". No se le pregunta nada al
+ *   cobrador: la app ya pide `ACCESS_FINE_LOCATION` al arrancar.
  *
  * **Contesta `null`, no lanza.** Los tres caminos por los que no hay coordenada
  * —permiso negado, proveedor sin fix (GPS apagado, bajo techo) y error de Play
@@ -75,7 +78,7 @@ class CurrentLocationReader(private val context: Context) : FuenteDePosicion {
 
         val client = LocationServices.getFusedLocationProviderClient(context)
         val request = LocationRequest.Builder(
-            Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+            Priority.PRIORITY_HIGH_ACCURACY,
             INTERVALO_MS
         )
             .setMinUpdateIntervalMillis(INTERVALO_MINIMO_MS)
@@ -106,7 +109,7 @@ class CurrentLocationReader(private val context: Context) : FuenteDePosicion {
         val cancellation = CancellationTokenSource()
         return try {
             client
-                .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellation.token)
+                .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellation.token)
                 .await()
                 ?.let { Coord(lat = it.latitude, lng = it.longitude) }
         } catch (cancelled: CancellationException) {
@@ -136,8 +139,12 @@ class CurrentLocationReader(private val context: Context) : FuenteDePosicion {
         /** Tope de frecuencia aunque otra app pida ubicación más seguido. */
         const val INTERVALO_MINIMO_MS = 15_000L
 
-        /** Parado frente a una puerta no se reordena nada. */
-        const val DISTANCIA_MINIMA_M = 30f
+        /**
+         * Parado frente a una puerta no se reordena nada. 10 m y no 30: con alta
+         * precisión el ruido del GPS ya cabe en ese margen, y en una calle de
+         * casas juntas 30 m eran dos o tres puertas sin reordenar.
+         */
+        const val DISTANCIA_MINIMA_M = 10f
 
         /**
          * Cualquiera de los dos basta: ordenar puertas por cercanía no necesita
