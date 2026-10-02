@@ -17,6 +17,7 @@ import com.example.msp_app.core.database.entities.PaymentLocation
 import com.example.msp_app.core.utils.Coord
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -190,6 +191,38 @@ class HomeNearbyClientsSectionTest {
         composeTestRule.onNodeWithText("Ernesto Zúñiga Palomares").performClick()
 
         assertEquals(listOf(99), tocados)
+    }
+
+    /**
+     * **Con tarjeta, la sección pinta la tarjeta de la lista de clientes**
+     * (decisión del dueño del 2026-10-02); el cliente sin tarjeta —la cartera
+     * todavía no lo trae— cae al renglón de siempre, sin perderse.
+     */
+    @Test
+    fun `con tarjeta se pinta la tarjeta, y el que no tiene cae al renglon`() {
+        val clientes = listOf(
+            NearbyClient(88, "Cliente 88", "Calle 1", accounts = 1, SaleDistance.of(850.0)),
+            NearbyClient(99, "Cliente 99", "Calle 2", accounts = 1, SaleDistance.of(900.0))
+        )
+        composeTestRule.setContent {
+            MaterialTheme {
+                Column {
+                    HomeNearbyClientsSection(
+                        clients = clientes,
+                        isDark = false,
+                        onClientClick = {},
+                        tarjeta = { client ->
+                            if (client.clientId == 88) ({ Text("TARJETA 88") }) else null
+                        }
+                    )
+                }
+            }
+        }
+
+        val textos = composeTestRule.textosVisibles()
+        assertTrue("la tarjeta reemplaza al renglón", "TARJETA 88" in textos)
+        assertFalse("el renglón del 88 ya no se pinta", "Cliente 88" in textos)
+        assertTrue("el 99 cae al renglón de siempre", "Cliente 99" in textos)
     }
 
     @Test

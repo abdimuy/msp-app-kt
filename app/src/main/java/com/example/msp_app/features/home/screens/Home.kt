@@ -42,10 +42,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
+import com.example.msp_app.core.common.location.label
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.CurrentLocationReader
@@ -55,6 +57,10 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.SaleWithProducts
+import com.example.msp_app.feature.pagos.ui.CercanosViewModel
+import com.example.msp_app.feature.pagos.ui.PagosRutas
+import com.example.msp_app.feature.pagos.ui.TarjetaDeCercano
+import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
@@ -108,6 +114,12 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
 
     val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
+
+    // Para pintar los cercanos con la tarjeta de la lista de clientes.
+    val cercanosViewModel: CercanosViewModel = hiltViewModel()
+    val carteraCercanos by cercanosViewModel.clientes.collectAsState()
+    val montosOcultosCercanos by cercanosViewModel.montosOcultos.collectAsState()
+    RecargaAlVolver(cercanosViewModel::recargar)
 
     val updateStartOfWeekDateState by authViewModel.updateStartOfWeekDateState.collectAsState()
 
@@ -373,6 +385,30 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                                 navController.navigate(
                                     DestinosDeCobranza.clienteCercano(client)
                                 )
+                            },
+                            // La misma tarjeta de la lista de clientes, con la
+                            // distancia (decisión del dueño del 2026-10-02): el
+                            // encabezado abre el cliente y cada venta, esa venta.
+                            tarjeta = { client ->
+                                carteraCercanos[client.clientId]?.let { cliente ->
+                                    {
+                                        TarjetaDeCercano(
+                                            cliente = cliente,
+                                            distancia = client.distance.label(),
+                                            montosOcultos = montosOcultosCercanos,
+                                            onAbrirCliente = {
+                                                navController.navigate(
+                                                    DestinosDeCobranza.clienteCercano(client)
+                                                )
+                                            },
+                                            onAbrirVenta = { ventaId ->
+                                                navController.navigate(
+                                                    PagosRutas.detalleVenta(ventaId)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         )
                     }

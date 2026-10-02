@@ -62,7 +62,13 @@ fun HomeNearbyClientsSection(
     clients: List<NearbyClient>,
     isDark: Boolean,
     onClientClick: (NearbyClient) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * La tarjeta de la lista de clientes para ese cliente (decisión del dueño del
+     * 2026-10-02), o `null` si todavía no se puede pintar —la cartera no cargó—:
+     * entonces cae al renglón de siempre, que no depende de nada más.
+     */
+    tarjeta: ((NearbyClient) -> (@Composable () -> Unit)?)? = null
 ) {
     if (clients.isEmpty()) return
 
@@ -77,11 +83,16 @@ fun HomeNearbyClientsSection(
         Spacer(Modifier.height(8.dp))
 
         clients.forEach { client ->
-            NearbyClientRow(
-                client = client,
-                isDark = isDark,
-                onClick = { onClientClick(client) }
-            )
+            val propia = tarjeta?.invoke(client)
+            if (propia != null) {
+                propia()
+            } else {
+                NearbyClientRow(
+                    client = client,
+                    isDark = isDark,
+                    onClick = { onClientClick(client) }
+                )
+            }
             Spacer(Modifier.height(8.dp))
         }
 
