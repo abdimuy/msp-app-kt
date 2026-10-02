@@ -87,6 +87,26 @@ class CondonacionesDeLaVentaTest : RoomTestBase() {
         assertTrue(porId.getValue("aplicada").aplicada)
     }
 
+    /**
+     * E-APP-052: un abono que el servidor NO tiene (-1) no sale en el historial
+     * (decisión del dueño del 2026-10-02). Control en el mismo lote: el aplicado
+     * y el pendiente de subir siguen saliendo.
+     */
+    @Test
+    fun `el abono que el servidor no tiene no sale en el historial`() = runTest {
+        db.paymentDao().saveAll(
+            listOf(
+                fila("no-aplicado", EFECTIVO, 350.0, "2026-08-12T17:00:00Z")
+                    .copy(DOCTO_CC_ID = DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR),
+                fila("aplicado", EFECTIVO, 400.0, "2026-09-01T15:00:00Z"),
+                fila("pendiente", EFECTIVO, 200.0, "2026-09-02T15:00:00Z")
+                    .copy(DOCTO_CC_ID = 0, GUARDADO_EN_MICROSIP = false)
+            )
+        )
+
+        assertEquals(listOf("pendiente", "aplicado"), pagos.pagosDe(VENTA).map { it.pagoId })
+    }
+
     // `raw` (no `importe`) para no disparar NoDoubleForMoney: es el Double crudo del schema.
     private fun fila(id: String, formaCobro: Int, raw: Double, fecha: String, venta: Int = VENTA) =
         PaymentEntity(

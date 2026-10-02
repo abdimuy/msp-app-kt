@@ -133,7 +133,7 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
         }
     }
     fun buildPaymentLines(payments: List<Payment>): List<String> {
-        return payments.asReversed().map { pago ->
+        return abonosDelTicket(payments).asReversed().map { pago ->
             val datepayment = AppTime.formatIsoForDisplay(
                 iso = pago.FECHA_HORA_PAGO,
                 pattern = "dd/MM/yyyy"
@@ -143,7 +143,7 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
     }
 
     fun buildPaymentLineData(payments: List<Payment>): List<PaymentLine> {
-        return payments.asReversed().map { pago ->
+        return abonosDelTicket(payments).asReversed().map { pago ->
             val date = AppTime.formatIsoForDisplay(
                 iso = pago.FECHA_HORA_PAGO,
                 pattern = "EEEE, dd/MM/yyyy"

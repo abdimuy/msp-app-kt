@@ -99,7 +99,14 @@ class RoomPagosAdapter(
     }
 
     private fun aHistorial(crudos: List<PaymentEntity>): List<PagoDelHistorial> {
-        val delaCobranza = crudos.filter { it.FORMA_COBRO_ID in VentanaCobro.FORMAS_COBRO_COBRANZA }
+        // Un abono que el servidor NO tiene (marcado -1, E-APP-048/052) no se
+        // lista: el saldo ya es el del servidor y mostrarlo como pagado sería
+        // incoherente (decisión del dueño del 2026-10-02: ocultarlo). Se filtra
+        // antes de contar los descartes para no reportarlo como fecha ilegible.
+        val delaCobranza = crudos.filter {
+            it.FORMA_COBRO_ID in VentanaCobro.FORMAS_COBRO_COBRANZA &&
+                it.DOCTO_CC_ID != DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
+        }
         val legibles = delaCobranza.mapNotNull { it.aPagoDelHistorial() }
         reportarLosQueSeCayeron(delaCobranza.size - legibles.size)
         return legibles.sortedByDescending { it.fecha }
