@@ -23,8 +23,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
-import com.example.msp_app.feature.pagos.ui.components.MENU_CONDONAR_TAG
-import com.example.msp_app.feature.pagos.ui.components.MENU_DEL_DOCK_TAG
+import com.example.msp_app.feature.pagos.ui.components.CTA_CONDONAR_TAG
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -131,9 +130,8 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
             )
         }
 
-        // Condonar vive en el "⋯": primero se abre el menú, luego el renglón.
-        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
-        composeTestRule.onNodeWithTag(MENU_CONDONAR_TAG).performClick()
+        // Condonar es el botón "Cond." del dock: un toque, sin menú.
+        composeTestRule.onNodeWithTag(CTA_CONDONAR_TAG).performClick()
 
         assertEquals(PagosFixtures.VENTA_EN_PROMESA, recibido)
     }
@@ -161,9 +159,8 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
             )
         }
 
-        // Condonar vive en el "⋯": primero se abre el menú, luego el renglón.
-        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
-        composeTestRule.onNodeWithTag(MENU_CONDONAR_TAG).performClick()
+        // Condonar es el botón "Cond." del dock: un toque, sin menú.
+        composeTestRule.onNodeWithTag(CTA_CONDONAR_TAG).performClick()
 
         assertEquals(PagosFixtures.VENTA_PAGADA, recibido)
     }

@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -20,6 +21,7 @@ import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
+import com.example.msp_app.feature.pagos.ui.components.CTA_CONDONAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_PRIMARIO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_VISITA_TAG
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
@@ -149,16 +151,20 @@ class ElRedisenoDeLaVentaTest : RobolectricTestBase() {
 
         val cta = composeTestRule.onNodeWithTag(CTA_PRIMARIO_TAG).getUnclippedBoundsInRoot()
         val visita = composeTestRule.onNodeWithTag(CTA_VISITA_TAG).getUnclippedBoundsInRoot()
-        val menu = composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).getUnclippedBoundsInRoot()
+        val condonar = composeTestRule.onNodeWithTag(CTA_CONDONAR_TAG).getUnclippedBoundsInRoot()
         assertTrue(
             "el dock se apiló: CTA ${cta.top}..${cta.bottom}, Visita ${visita.top}",
             visita.top < cta.bottom
         )
-        assertTrue("el ⋯ se fue a otro renglón", menu.top < cta.bottom)
+        assertTrue("Cond. se fue a otro renglón", condonar.top < cta.bottom)
         assertTrue("Visita no va a la derecha del CTA", visita.left >= cta.right)
-        assertTrue("el ⋯ se sale de la pantalla: ${menu.right}", menu.right.value <= 360f)
+        assertTrue("Cond. no va a la derecha de Visita", condonar.left >= visita.right)
+        assertTrue("Cond. se sale de la pantalla: ${condonar.right}", condonar.right.value <= 360f)
         assertEquals("el CTA se partió", 1, renglonesDe("Abonar"))
         assertEquals("Visita se partió", 1, renglonesDe("Visita"))
+        assertEquals("Cond. se partió", 1, renglonesDe("Cond."))
+        // Sin "⋯": Condonar era lo único del menú del detalle de venta.
+        composeTestRule.onAllNodesWithTag(MENU_DEL_DOCK_TAG).assertCountEquals(0)
     }
 
     // --- (f) la hoja a 2.0 -------------------------------------------------------

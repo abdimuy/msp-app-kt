@@ -97,6 +97,9 @@ const val CTA_VISITA_TAG: String = "pagos_cta_visita"
 /** `testTag` del botón de Notas del dock — el tercer espacio del detalle de cliente. */
 const val CTA_NOTAS_TAG: String = "pagos_cta_notas"
 
+/** El botón "Cond." del dock: sólo el detalle de VENTA lo monta (decisión del dueño, 2026-10-01). */
+const val CTA_CONDONAR_TAG: String = "pagos_cta_condonar"
+
 /**
  * `testTag` del distintivo del botón de Notas: el punto que dice que esa puerta
  * tiene algo anotado. Aparte del botón porque el botón existe SIEMPRE y el punto
@@ -349,7 +352,14 @@ fun DockDeAcciones(
     backdrop: MspBackdrop? = null,
     menu: MenuDelDock? = null,
     notas: AccionDeNotas? = null,
-    unaSolaFila: Boolean = false
+    unaSolaFila: Boolean = false,
+    /**
+     * Condonar como botón del dock, abreviado "Cond.". Lo usa sólo el detalle de
+     * VENTA, donde Condonar era lo único del "⋯": con el botón a la vista el menú
+     * queda vacío y no se pinta (decisión del dueño, 2026-10-01). El detalle de
+     * cliente lo sigue llevando en el menú.
+     */
+    onCondonar: (() -> Unit)? = null
 ) {
     // **Apilar antes de partir** (principio 9). Con tres celdas en una sola fila,
     // a escala 2.0 los 360 dp dejan ~74 dp por botón y el texto se rompe A MITAD
@@ -447,7 +457,7 @@ fun DockDeAcciones(
                         maxLines = if (unaSolaFila) 1 else Int.MAX_VALUE
                     )
                     if (!apilado) {
-                        AccionesDelDock(onVisita, notas, visitaASuPalabra = letraGrande)
+                        AccionesDelDock(onVisita, notas, onCondonar, visitaASuPalabra = letraGrande)
                         if (conMenu) {
                             BotonDelMenu(
                                 abierto = abierto,
@@ -464,7 +474,7 @@ fun DockDeAcciones(
                         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AccionesDelDock(onVisita, notas)
+                        AccionesDelDock(onVisita, notas, onCondonar)
                         if (conMenu) {
                             BotonDelMenu(
                                 abierto = abierto,
@@ -489,6 +499,7 @@ fun DockDeAcciones(
 private fun RowScope.AccionesDelDock(
     onVisita: () -> Unit,
     notas: AccionDeNotas?,
+    onCondonar: (() -> Unit)?,
     visitaASuPalabra: Boolean = false
 ) {
     BotonDelDock(
@@ -518,6 +529,20 @@ private fun RowScope.AccionesDelDock(
             modifier = Modifier
                 .weight(1f)
                 .testTag(CTA_NOTAS_TAG)
+        )
+    }
+    if (onCondonar != null) {
+        // Mismo trato que "Visita": a letra grande va a su palabra y en un
+        // renglón, para no partirse.
+        BotonDelDock(
+            texto = "Cond.",
+            relleno = MspTheme.colors.surface,
+            contenido = MspTheme.colors.onSurface,
+            onClick = onCondonar,
+            modifier = (if (visitaASuPalabra) Modifier else Modifier.weight(1f))
+                .semantics { contentDescription = "Condonar" }
+                .testTag(CTA_CONDONAR_TAG),
+            unRenglon = visitaASuPalabra
         )
     }
 }

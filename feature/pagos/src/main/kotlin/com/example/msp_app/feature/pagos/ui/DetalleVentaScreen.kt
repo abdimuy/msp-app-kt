@@ -75,7 +75,6 @@ import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.AIRE_DEL_DOCK_TAG
-import com.example.msp_app.feature.pagos.ui.components.AccionDeCondonar
 import com.example.msp_app.feature.pagos.ui.components.BloqueDelMes
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.ControlesFlotantes
@@ -87,7 +86,6 @@ import com.example.msp_app.feature.pagos.ui.components.EstadoEnGrande
 import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
-import com.example.msp_app.feature.pagos.ui.components.MenuDelDock
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.RitmoDeSemanas
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
@@ -137,7 +135,7 @@ private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", 
  * **pregunta** qué abrir —ubicación o ticket—. Quién lo decide es
  * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto].
  *
- * ## [onCondonar] — desde el "⋯" del dock
+ * ## [onCondonar] — el botón "Cond." del dock
  *
  * Recibe siempre el `ventaId` —el `DOCTO_CC_ACR_ID` que la captura legada
  * (`NewForgivenessDialog`) necesita para prellenar el saldo—. Condonar y usar la
@@ -221,7 +219,7 @@ data class ControlesDeLaVenta(
  *    ESTA venta y el enlace a la hoja con los once datos.
  *  - **El ojo tapa toda cantidad** —saldo, parcialidad, promesa, pastillas,
  *    liquidación, hoja, línea de tiempo— y el CTA queda en "Abonar".
- *  - **Condonar vive en el "⋯"**, idéntico al del cliente.
+ *  - **Condonar es el botón "Cond." del dock** (antes vivía en el "⋯"; ver el dock).
  *
  * Composable PURO sobre [DetalleVentaUiState].
  */
@@ -328,9 +326,11 @@ fun DetalleVentaContent(
                 onPrimario = onRegistrarAbono,
                 onVisita = onRegistrarVisita,
                 backdrop = backdrop,
-                // Condonar en el "⋯", idéntico al del cliente, con un solo
-                // renglón. Aquí no hay "¿a cuál cuenta?": la venta ya es una.
-                menu = MenuDelDock(condonar = AccionDeCondonar(onAbrir = onCondonar, cuentas = 1)),
+                // Condonar como botón "Cond." a la vista, sin "⋯": era lo único del
+                // menú (decisión del dueño, 2026-10-01). El detalle de cliente lo
+                // sigue llevando en su menú. Aquí no hay "¿a cuál cuenta?": la venta
+                // ya es una.
+                onCondonar = onCondonar,
                 unaSolaFila = true
             )
         }
