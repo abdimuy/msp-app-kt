@@ -332,6 +332,26 @@ class ResolucionDeCapturasSueltasTest : RoomTestBase() {
     }
 
     /**
+     * La gemela de la de arriba para la rama 404 (compuerta DESPUÉS del
+     * 2026-10-02, M1): la marca -1 va en la MISMA transacción que fija el saldo.
+     * Si se marcara antes y fallara la lectura del saldo, la captura dejaría de
+     * ser suelta —nadie la volvería a intentar— con la venta todavía abajo.
+     */
+    @Test
+    fun `sin red al leer el saldo no marca la no aplicada y pide reintento`() {
+        sembrar(venta(CARGO_A, saldo = 650.0, base = 1000.0))
+        guardar(captura(X1, CARGO_A, 350.0))
+        respuestas[X1] = { throw noExiste() }
+        sinRedEnByIds = true
+
+        val resumen = runBlocking { resolucion().resolver() }
+
+        assertFalse(resumen.completa)
+        assertEquals("nada a medias", 0, documento(X1))
+        assertEquals(650.0, saldo(CARGO_A), 1e-9)
+    }
+
+    /**
      * El servidor no trae la venta (liquidada u otra zona): una ausencia no es un
      * saldo. Se reconoce la captura —tiene sus dos pruebas— y el saldo no se toca.
      */

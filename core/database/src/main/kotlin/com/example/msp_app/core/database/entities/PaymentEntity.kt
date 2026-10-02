@@ -54,10 +54,15 @@ data class PaymentEntity(
  * cuenta; y los tres cerrojos del gemelo legacy (`DOCTO_CC_ID > 0`) tampoco la
  * tocan. No es columna nueva: el schema no cambia.
  *
- * Hoy lo escribe UN solo camino — `PaymentDao.soltarCondonacionRechazada`,
- * desde `PendingPaymentsWorker` ante un `422 pago_saldo_insuficiente` con
- * `X-Intent-Captured` sobre una condonación (E-APP-029: el servidor rechazó las
- * tres de más con ese código).
+ * Lo escriben TRES caminos:
+ * - `PaymentDao.soltarCondonacionRechazada`, desde `PendingPaymentsWorker` ante un
+ *   `422 pago_saldo_insuficiente` con `X-Intent-Captured` sobre una condonación
+ *   (E-APP-029);
+ * - `PaymentDao.marcarCondonacionFantasma`, desde `ReparacionDeCondonaciones`;
+ * - `CapturasSueltasDao.marcarCapturaSueltaNoAplicada`, desde
+ *   `ResolucionDeCapturasSueltas`, para **cualquier** forma de cobro cuando el API
+ *   contesta 404 `pago_no_encontrado` (E-APP-048). Desde ahí también abonos de
+ *   efectivo y transferencia llevan -1 (ver E-APP-052: el historial no lo distingue).
  */
 const val DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR: Int = -1
 
