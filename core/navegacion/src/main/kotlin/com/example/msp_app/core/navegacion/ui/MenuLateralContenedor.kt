@@ -33,9 +33,15 @@ import kotlinx.coroutines.launch
  *   velo cambia de tema sin animación, porque no es Msp y no se le puede
  *   envolver sin repintar la app legada entera (mismo Ruling BJ que ya
  *   documenta [MspThemeRevealHost]). [onAlternarTema] es el `onToggleTheme`
- *   real que el dueño del estado (el ViewModel del menú) expone — con
- *   default `{}` porque no todo caller necesita pintar el toggle de tema
- *   dentro de [hoja] (p. ej. las cuatro primeras pruebas de este archivo).
+ *   real que el dueño del estado (el ViewModel del menú) expone — **sin
+ *   default**: es el único eslabón de la cadena (`EncabezadoDelMenu`,
+ *   `MenuLateral`, [MspThemeRevealHost]) que lo exige. Con default `{}` el
+ *   botón de tema de la hoja quedaba mudo sin error de compilación ni
+ *   prueba roja si quien compone este contenedor olvidaba conectarlo
+ *   (hallazgo de la revisión de esta tarea; el par de pruebas
+ *   `(con/sin) movimiento reducido ... MspThemeRevealHost (R2)` cobra que
+ *   [hoja] siga envuelta en el host de verdad). Cada caller que no pinte el
+ *   toggle de tema dentro de [hoja] pasa `{}` explícito.
  * - **Atrás**: `ModalDrawerSheet(drawerState, …)` de material3 1.3.0 registra el
  *   manejador de atrás (predictivo en Android 14+) que cierra el menú — medido
  *   que la sobrecarga existe (decisión D10 del plan).
@@ -48,7 +54,7 @@ import kotlinx.coroutines.launch
 fun MenuLateralContenedor(
     hoja: @Composable (cerrar: () -> Unit, apertura: AperturaDelMenu) -> Unit,
     onAbierto: () -> Unit,
-    onAlternarTema: () -> Unit = {},
+    onAlternarTema: () -> Unit,
     contenido: @Composable (abrir: () -> Unit) -> Unit
 ) {
     val estadoDelCajon = rememberDrawerState(DrawerValue.Closed)
