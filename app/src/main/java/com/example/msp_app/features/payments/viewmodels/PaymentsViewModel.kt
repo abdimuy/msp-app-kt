@@ -5,12 +5,11 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
-import com.example.msp_app.core.database.entities.PaymentLocation
 import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.logReportSnapshot
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.core.utils.computeCentroids
+import com.example.msp_app.core.utils.centroidesPorVenta
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
 import com.example.msp_app.data.api.services.payment.PaymentsApi
@@ -351,29 +350,9 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             _centroidsBySaleState.value = ResultState.Loading
             try {
                 val locations = paymentStore.getLocationsGroupedBySaleId()
-                val locationsSale = locations.map { group ->
-                    group.saleId to group.locations.map { loc ->
-                        loc.LAT to loc.LNG
-                    }
-                }
-
-                val centroidsBySale = locationsSale.map { (saleId, locations) ->
-                    val centroids = computeCentroids(
-                        locations,
-                        eps = 0.0005,
-                        minPts = 3
-                    )
-                    PaymentLocationsGroup(
-                        saleId = saleId,
-                        locations = centroids.map { point ->
-                            PaymentLocation(
-                                LAT = point.lat,
-                                LNG = point.lng,
-                                DOCTO_CC_ACR_ID = saleId
-                            )
-                        }
-                    )
-                }
+                // Mismo cálculo que `CentroidesCercaniaAdapter` de `:app` usa para
+                // "más cerca" en la lista de clientes — ver `centroidesPorVenta`.
+                val centroidsBySale = centroidesPorVenta(locations)
 
                 _centroidsBySaleState.value = ResultState.Success(centroidsBySale)
             } catch (e: Exception) {

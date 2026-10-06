@@ -1,6 +1,7 @@
 package com.example.msp_app.core.utils
 
 import com.example.msp_app.core.common.location.SaleDistance
+import com.example.msp_app.core.database.entities.PaymentLocation
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -40,6 +41,36 @@ fun computeCentroids(
         }
         Coord(sumLat / cluster.points.size, sumLng / cluster.points.size)
     }
+}
+
+/**
+ * Centroides de pagos **por venta**, a partir de ubicaciones ya agrupadas por
+ * `DOCTO_CC_ACR_ID` (p.ej.
+ * [com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource.getLocationsGroupedBySaleId]).
+ *
+ * Extraído de lo que `PaymentsViewModel.getCentroidsBySale()` hacía en línea,
+ * para que un segundo consumidor —el adaptador de `CercaniaPort` en `:app`,
+ * que resuelve "más cerca" para la lista de clientes— use EXACTAMENTE el mismo
+ * cálculo que Inicio (mismo `eps`/`minPts`) en vez de una copia que se pueda
+ * despegar con el tiempo. `PaymentsViewModel` quedó llamando a esta función;
+ * su comportamiento no cambió.
+ */
+fun centroidesPorVenta(
+    ubicacionesPorVenta: List<PaymentLocationsGroup>,
+    eps: Double = 0.0005,
+    minPts: Int = 3
+): List<PaymentLocationsGroup> = ubicacionesPorVenta.map { grupo ->
+    val centroides = computeCentroids(
+        grupo.locations.map { it.LAT to it.LNG },
+        eps = eps,
+        minPts = minPts
+    )
+    PaymentLocationsGroup(
+        saleId = grupo.saleId,
+        locations = centroides.map { punto ->
+            PaymentLocation(LAT = punto.lat, LNG = punto.lng, DOCTO_CC_ACR_ID = grupo.saleId)
+        }
+    )
 }
 
 /**

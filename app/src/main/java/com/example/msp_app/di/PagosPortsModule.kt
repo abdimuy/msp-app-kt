@@ -1,6 +1,10 @@
 package com.example.msp_app.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
@@ -10,11 +14,12 @@ import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkManagerEnqueuer
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.core.utils.CurrentLocationReader
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
-import com.example.msp_app.data.pagos.CercaniaPortProvisional
+import com.example.msp_app.data.pagos.CentroidesCercaniaAdapter
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
+import com.example.msp_app.data.pagos.DataStoreOrdenGuardadoAdapter
 import com.example.msp_app.data.pagos.FichaDelClienteAdapter
-import com.example.msp_app.data.pagos.OrdenGuardadoPortProvisional
 import com.example.msp_app.data.pagos.RegistroDeAbonoAdapter
 import com.example.msp_app.data.pagos.SettingsPrivacidadAdapter
 import com.example.msp_app.data.pagos.SettlementLiquidacionAdapter
@@ -36,6 +41,18 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Qualifier
+import javax.inject.Singleton
+
+/**
+ * El DataStore Preferences del orden de la lista de clientes — cualificado
+ * porque `SettingsModule` ya provee un `DataStore<Preferences>` SIN cualificar
+ * (`msp_settings`) en el mismo `SingletonComponent`, y Dagger no permite dos
+ * bindings del mismo tipo sin distinguirlos.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class OrdenListaClientesDataStore
 
 /**
  * Cablea los puertos de `:feature:pagos` cuyas fuentes viven en `:app`: el
@@ -68,18 +85,53 @@ object PagosPortsModule {
     fun provideTemaDeLaAppPort(): TemaDeLaAppPort = ThemeControllerTemaDeLaAppAdapter()
 
     /**
-     * Provisional: ver KDoc de `CercaniaPortProvisional`. La siguiente tarea
-     * pone el adaptador real (posición del cobrador vs. centroides de pago).
+     * [CercaniaPort] real: posición del cobrador (`CurrentLocationReader`,
+     * `play-services-location`) contra el centroide de pagos más cercano de
+     * cada venta — ver el KDoc de [CentroidesCercaniaAdapter].
+     *
+     * `PaymentsLocalDataSource` se construye aquí y no se inyecta, mismo
+     * reparto que [provideRegistroDeAbonoPort]: no tiene binding propio en el
+     * grafo, y sus dos DAOs sí lo tienen.
      */
     @Provides
-    fun provideCercaniaPort(): CercaniaPort = CercaniaPortProvisional()
+    fun provideCercaniaPort(
+        @ApplicationContext context: Context,
+        paymentDao: PaymentDao,
+        saleDao: SaleDao,
+        telemetry: Telemetry
+    ): CercaniaPort = CentroidesCercaniaAdapter(
+        paymentStore = PaymentsLocalDataSource(paymentDao, saleDao),
+        telemetry = telemetry,
+        posicionActual = { CurrentLocationReader(context).current() }
+    )
 
     /**
-     * Provisional: ver KDoc de `OrdenGuardadoPortProvisional`. La siguiente
-     * tarea pone el adaptador real de la persistencia "durante el día".
+     * El DataStore Preferences propio del orden de la lista de clientes — mismo
+     * mecanismo que `SettingsModule.provideSettingsDataStore` y que
+     * `Context.saleDraftDataStore` (`SaleDraftManager`): un archivo aparte, no
+     * una clave más en el `msp_settings` de `SettingsRepository`. Ver el KDoc
+     * de [DataStoreOrdenGuardadoAdapter].
+     *
+     * `@Singleton`, no opcional: DataStore revienta en tiempo de ejecución
+     * ("multiple DataStores active for the same file") si dos instancias
+     * abren el mismo archivo — igual que `SettingsModule` lo hace para
+     * `msp_settings`.
      */
     @Provides
-    fun provideOrdenGuardadoPort(): OrdenGuardadoPort = OrdenGuardadoPortProvisional()
+    @Singleton
+    @OrdenListaClientesDataStore
+    fun provideOrdenListaClientesDataStore(
+        @ApplicationContext context: Context
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        produceFile = { context.preferencesDataStoreFile("orden_lista_clientes") }
+    )
+
+    /** [OrdenGuardadoPort] real, sobre el DataStore de arriba. */
+    @Provides
+    fun provideOrdenGuardadoPort(
+        @OrdenListaClientesDataStore dataStore: DataStore<Preferences>,
+        telemetry: Telemetry
+    ): OrdenGuardadoPort = DataStoreOrdenGuardadoAdapter(dataStore, telemetry)
 
     @Provides
     fun provideLiquidacionPort(saleDao: SaleDao, telemetry: Telemetry): LiquidacionPort =

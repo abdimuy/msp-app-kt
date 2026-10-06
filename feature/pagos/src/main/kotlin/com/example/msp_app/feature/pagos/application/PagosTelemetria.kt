@@ -343,4 +343,23 @@ object PagosTelemetria {
      * técnico de catálogo cerrado, no un dato del cliente: no es PII.
      */
     const val PROP_TIPO: String = "tipo"
+
+    /**
+     * No se pudo calcular la distancia del cobrador a las ventas (orden "Más
+     * cerca" de la lista de clientes). Nunca es dinero ni bloquea la pantalla
+     * —[com.example.msp_app.feature.pagos.domain.port.CercaniaPort] degrada a
+     * mapa vacío, y `OrdenDeLaLista.MAS_CERCA` ya sabe caer a orden de
+     * cobranza—, pero un cálculo que empieza a fallar siempre tiene que verse.
+     * Ninguna coordenada del cobrador ni de la venta se emite.
+     */
+    const val CODE_CERCANIA_FALLO: String = "pagos_cercania_fallo"
+
+    /**
+     * El orden guardado de la hoja "Ordenar por" no se pudo leer (enum
+     * desconocido, fecha ilegible, DataStore corrupto).
+     * [com.example.msp_app.feature.pagos.domain.port.OrdenGuardadoPort.leer]
+     * degrada a `null` —la lista vuelve al orden de cobranza por default, nunca
+     * truena—, pero un valor que deja de leerse tiene que quedar grepeable.
+     */
+    const val CODE_ORDEN_GUARDADO_ILEGIBLE: String = "pagos_orden_guardado_ilegible"
 }
