@@ -443,11 +443,18 @@ interface SaleDao {
 
     /**
      * El `ZONA_NOMBRE` (p.ej. `"R/25"`, el mismo texto que muestran las
-     * tarjetas de cliente vía `RoomVentasAdapter`) de alguna venta de
-     * [zonaId], observado. Nulo si no hay ninguna venta de esa zona o si su
+     * tarjetas de cliente vía `RoomVentasAdapter`) de la venta MÁS RECIENTE
+     * (`FECHA DESC`, desempate por PK `DOCTO_CC_ACR_ID DESC`) de [zonaId],
+     * observado. Nulo si no hay ninguna venta de esa zona o si su
      * `ZONA_NOMBRE` está vacío/en blanco. La usa la cabecera del menú
      * lateral para mostrar el nombre de zona en vez del id crudo (plan
      * 2026-10-06-menu-lateral, Task 6, ruling R3).
+     *
+     * El `ORDER BY` es obligatorio, no cosmético: sin él, `LIMIT 1` depende
+     * del orden de escaneo de SQLite (en la práctica, orden de inserción por
+     * rowid), así que una zona renombrada o un sync a medias con dos
+     * `ZONA_NOMBRE` distintos coexistiendo podía hacer que la cabecera
+     * cambiara de texto entre aperturas sin que llegara ningún dato nuevo.
      */
     @Query(
         """
@@ -455,6 +462,7 @@ interface SaleDao {
         WHERE ZONA_CLIENTE_ID = :zonaId
           AND ZONA_NOMBRE IS NOT NULL
           AND TRIM(ZONA_NOMBRE) <> ''
+        ORDER BY FECHA DESC, DOCTO_CC_ACR_ID DESC
         LIMIT 1
         """
     )

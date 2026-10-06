@@ -83,7 +83,12 @@ class ConteosDelMenuLateralDaoTest : RobolectricTestBase() {
         LAST_ERROR = null
     )
 
-    private fun ventaDeZona(doctoCcAcrId: Int, zonaId: Int, zonaNombre: String) = SaleEntity(
+    private fun ventaDeZona(
+        doctoCcAcrId: Int,
+        zonaId: Int,
+        zonaNombre: String,
+        fecha: String = "2026-10-06T15:30:00Z"
+    ) = SaleEntity(
         DOCTO_CC_ACR_ID = doctoCcAcrId,
         DOCTO_CC_ID = doctoCcAcrId,
         FOLIO = "F-$doctoCcAcrId",
@@ -98,7 +103,7 @@ class ConteosDelMenuLateralDaoTest : RobolectricTestBase() {
         IMPORTE_PAGO_PROMEDIO = null,
         TOTAL_IMPORTE = 0.0,
         NUM_IMPORTES = 0,
-        FECHA = "2026-10-06T15:30:00Z",
+        FECHA = fecha,
         PARCIALIDAD = 1,
         ENGANCHE = 0.0,
         TIEMPO_A_CORTO_PLAZOMESES = 0,
@@ -188,5 +193,44 @@ class ConteosDelMenuLateralDaoTest : RobolectricTestBase() {
         dao.insertAll(listOf(ventaDeZona(1, zonaId = 99, zonaNombre = "R/99")))
 
         assertNull(dao.observarNombreDeZona(25).first())
+    }
+
+    /**
+     * Control de determinismo: dos ventas de la MISMA zona con `ZONA_NOMBRE`
+     * distinto (zona renombrada o sync a medias). Debe ganar la más reciente
+     * por `FECHA`, no la que SQLite devuelva "por casualidad" sin orden.
+     *
+     * La vieja se inserta PRIMERO a propósito: sin `ORDER BY`, SQLite escanea
+     * por rowid ascendente, es decir, en orden de inserción — así que un
+     * `LIMIT 1` sin orden devolvería la vieja (la primera insertada), no la
+     * más reciente. Si este control pasara con el query viejo, no probaría
+     * nada; invertir el orden de inserción respecto al orden cronológico
+     * esperado es lo que lo vuelve un control real.
+     */
+    @Test
+    fun `nombre de zona usa la venta mas reciente, no la insertada primero`() = runTest {
+        val dao = database.saleDao()
+        dao.insertAll(
+            listOf(
+                ventaDeZona(
+                    1,
+                    zonaId = 25,
+                    zonaNombre = "R/25-viejo",
+                    fecha = "2026-09-01T10:00:00Z"
+                )
+            )
+        )
+        dao.insertAll(
+            listOf(
+                ventaDeZona(
+                    2,
+                    zonaId = 25,
+                    zonaNombre = "R/25-nuevo",
+                    fecha = "2026-10-06T15:30:00Z"
+                )
+            )
+        )
+
+        assertEquals("R/25-nuevo", dao.observarNombreDeZona(25).first())
     }
 }
