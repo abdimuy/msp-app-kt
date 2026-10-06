@@ -246,6 +246,9 @@ dependencies {
     // (no llegan transitivos: `:core:settings`/`:feature:collectionReport` los declaran
     // `implementation`, no `api`).
     implementation(project(":core:designsystem"))
+    // Menú lateral nuevo (plan 2026-10-06-menu-lateral): puertos, hoja y contenedor.
+    // Los adaptadores viven aquí porque leen Room, DataStore y `ReunirCartera`.
+    implementation(project(":core:navegacion"))
     // ConnectivityMonitor + su módulo Hilt (Task 5, Plan 4) — mismo package
     // `com.example.msp_app.core.network`, ningún import de consumidor cambia.
     implementation(project(":core:network"))

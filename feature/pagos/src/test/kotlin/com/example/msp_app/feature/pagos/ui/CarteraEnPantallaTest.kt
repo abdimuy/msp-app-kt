@@ -228,4 +228,26 @@ class CarteraEnPantallaTest {
             vacia.conteos
         )
     }
+
+    /**
+     * El contador "N por volver" del menú lateral es EL MISMO número que el chip
+     * "Volver" de la lista con la búsqueda vacía — si alguna vez divergen, el
+     * cobrador ve dos verdades.
+     */
+    @Test
+    fun `clientes por volver es el conteo del chip volver sin busqueda`() {
+        val clientes = ListaFixtures.rutaConPromesaDeHoy()
+        val delChip = proyectar(clientes = clientes, segmento = SegmentoDeCobranza.VOLVER_A_VISITAR)
+            .conteos[SegmentoDeCobranza.VOLVER_A_VISITAR]
+
+        assertEquals(delChip, CarteraEnPantalla.clientesPorVolver(clientes, hoyDePrueba))
+    }
+
+    /** Control positivo: la promesa de hoy de Esperanza cae en VOLVER, así que el número no es un cero vacío. */
+    @Test
+    fun `control positivo, la ruta con promesa de hoy tiene alguien por volver`() {
+        assertTrue(
+            CarteraEnPantalla.clientesPorVolver(ListaFixtures.rutaConPromesaDeHoy(), hoyDePrueba) > 0
+        )
+    }
 }

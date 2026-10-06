@@ -56,6 +56,9 @@ data class CarteraProyectada(
  * propia clave primero y, en empate, caen al comparador de cobranza y luego a
  * `clienteId`: el desempate estable no es exclusivo de un orden, es de todos.
  */
+@Suppress(
+    "TooManyFunctions"
+) // clientesPorVolver (Task 8) cruzó el umbral; son helpers de UN solo algoritmo (orden/filtro)
 object CarteraEnPantalla {
 
     fun proyectar(
@@ -79,6 +82,15 @@ object CarteraEnPantalla {
             }
         )
     }
+
+    /**
+     * Cuántos clientes caen en el chip "Volver" con la búsqueda vacía: el
+     * contador "N por volver" del menú lateral (spec §4). Es [proyectar] mismo,
+     * no una copia de la regla — así el menú y la lista no pueden diferir.
+     */
+    fun clientesPorVolver(clientes: List<ClienteEnLista>, hoy: LocalDate): Int =
+        proyectar(clientes, SegmentoDeCobranza.VOLVER_A_VISITAR, query = "", hoy = hoy)
+            .conteos[SegmentoDeCobranza.VOLVER_A_VISITAR] ?: 0
 
     private fun tieneVentasDe(
         cliente: ClienteEnLista,

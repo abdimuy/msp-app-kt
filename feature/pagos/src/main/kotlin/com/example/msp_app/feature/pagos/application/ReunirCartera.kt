@@ -57,7 +57,19 @@ class ReunirCartera @Inject constructor(
     private val telemetry: Telemetry
 ) {
 
-    suspend operator fun invoke(): Cartera {
+    /**
+     * [reportarIncidencias] en `false` arma la MISMA cartera sin emitir
+     * [PagosTelemetria.CODE_VENTA_SIN_FECHA_LEGIBLE] (ruling R6 del plan
+     * `2026-10-06-menu-lateral`): el contador "N por volver" del menú lateral
+     * llama a [invoke] en cada apertura del cajón, y esa apertura no es una
+     * carga nueva de datos — es la MISMA condición que ya reportó (o reportará)
+     * la lista de clientes. Sin este apagador, abrir el menú repetidas veces
+     * multiplica el mismo evento en la telemetría de producción sin que nada
+     * nuevo haya pasado. El valor por defecto (`true`) deja a
+     * [ListaDeClientesViewModel][com.example.msp_app.feature.pagos.ui.ListaDeClientesViewModel],
+     * el llamador original, exactamente como estaba.
+     */
+    suspend operator fun invoke(reportarIncidencias: Boolean = true): Cartera {
         val ventas = ventasPort.todasLasVentas()
         // UNA lectura del reloj para la ventana Y para "hoy". Con dos lecturas,
         // una carga que cruza la medianoche emparejaba una ventana que cierra el
@@ -68,7 +80,7 @@ class ReunirCartera @Inject constructor(
         val pagos = ventana?.let { pagosPort.pagosDelPeriodo(it) }.orEmpty()
         val visitas = ventana?.let { visitasPort.visitasDelPeriodo(it) }.orEmpty()
         val estados = derivarEstadoDelPeriodo(ventas, pagos, visitas, ventana)
-        reportarVentasSinFecha(ventas)
+        if (reportarIncidencias) reportarVentasSinFecha(ventas)
         return Cartera(clientes = agrupar(ventas, estados), hoy = periodo.hoy)
     }
 

@@ -1,5 +1,6 @@
 package com.example.msp_app.data.pagos
 
+import com.example.msp_app.core.navegacion.domain.port.PrivacidadDelMenuPort
 import com.example.msp_app.core.settings.SettingsRepository
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import javax.inject.Inject
@@ -13,8 +14,24 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * [PrivacidadPort] sobre [SettingsRepository] — el adaptador vive en `:app`
- * porque es el único módulo que ve el puerto y la preferencia a la vez.
+ * [PrivacidadPort] (`:feature:pagos`) **y** [PrivacidadDelMenuPort]
+ * (`:core:navegacion`, Task 8, ruling R2 del controlador, 2026-10-06) sobre
+ * [SettingsRepository] — el adaptador vive en `:app` porque es el único
+ * módulo que ve los dos puertos y la preferencia a la vez.
+ *
+ * **Un solo singleton para los dos puertos, a propósito.** A diferencia del
+ * tema (ver [ThemeControllerTemaDeLaAppAdapter]), aquí SÍ importa que sea la
+ * MISMA instancia: el estado real vive en [cache], no en `SettingsRepository`
+ * (que solo expone un `Flow` frío). Si la lista de clientes y el menú
+ * recibieran cada uno su propia instancia, cada una abriría su PROPIO
+ * `CoroutineScope`/`StateFlow` sobre el mismo `Flow` — dos cachés que podrían
+ * quedar unos milisegundos desincronizados entre sí, en vez de una sola
+ * verdad. `@Singleton` en la clase más `fun providePrivacidadDelMenuPort(a:
+ * SettingsPrivacidadAdapter): PrivacidadDelMenuPort = a` en `MenuLateralModule`
+ * (igual que ya hace `PagosPortsModule.providePrivacidadPort`) le entregan a
+ * Dagger la misma garantía: cualquier punto de inyección que pida
+ * [SettingsPrivacidadAdapter] —directo o a través de cualquiera de los dos
+ * puertos— recibe el mismo objeto.
  *
  * ## Por qué `stateIn(Eagerly)` y no leer el `Flow` cada vez
  *
@@ -28,7 +45,7 @@ import kotlinx.coroutines.flow.stateIn
 @Singleton
 class SettingsPrivacidadAdapter @Inject constructor(
     private val settings: SettingsRepository
-) : PrivacidadPort {
+) : PrivacidadPort, PrivacidadDelMenuPort {
 
     // Scope propio del singleton, como `RemoteLogger` y `RemoteDbDebugger`: no
     // hay un scope de aplicación inyectable en el grafo y este vive lo que la app.

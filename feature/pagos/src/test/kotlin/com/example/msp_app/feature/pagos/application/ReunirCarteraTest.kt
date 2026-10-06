@@ -242,6 +242,30 @@ class ReunirCarteraTest {
         assertEquals(0, errores(PagosTelemetria.CODE_VENTA_SIN_FECHA_LEGIBLE))
     }
 
+    /**
+     * Ruling R6 (plan `2026-10-06-menu-lateral`): el contador del menú lateral
+     * llama a [ReunirCartera] en cada apertura del cajón sin que eso sea una
+     * carga nueva, así que pide `reportarIncidencias = false` para no repetir
+     * el mismo evento cada vez que el cobrador abre el menú.
+     */
+    @Test
+    fun `reportarIncidencias en false no emite la telemetria de fecha ilegible`() = runTest {
+        ventasPort.ventas = ListaFixtures.datosDeLaRuta() + ListaFixtures.datos(
+            clienteId = 9500,
+            nombre = "Efraín Cordero Lagos",
+            ventaId = 95001,
+            folio = "V-9500",
+            saldo = "1000",
+            total = "5000",
+            enganche = "500",
+            fecha = null
+        )
+        val cartera = reunir()(reportarIncidencias = false)
+        assertEquals(0, errores(PagosTelemetria.CODE_VENTA_SIN_FECHA_LEGIBLE))
+        // La cartera se arma igual: lo único que cambia es la telemetría.
+        assertEquals(5, cartera.clientes.sumOf { it.ventas.size })
+    }
+
     @Test
     fun `sin ventana de cobro no se inventa periodo y se reporta`() = runTest {
         periodoPort.inicio = null
