@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.data.fake
 
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
@@ -15,11 +16,14 @@ import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
 import com.example.msp_app.feature.pagos.domain.port.AccionesExternasPort
+import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.DestinoEnElMapa
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
+import com.example.msp_app.feature.pagos.domain.port.OrdenGuardado
+import com.example.msp_app.feature.pagos.domain.port.OrdenGuardadoPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
@@ -31,6 +35,7 @@ import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import com.example.msp_app.feature.pagos.domain.port.VisitasPort
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -449,5 +454,41 @@ class FakePrivacidadPort(ocultosIniciales: Boolean = false) : PrivacidadPort {
     override suspend fun alternar() {
         alternaciones++
         estado.value = !estado.value
+    }
+}
+
+/**
+ * La distancia a cada venta, fingida. `mapa` vacío por default: el caso
+ * "sin ubicación" que [OrdenDeLaLista.MAS_CERCA] tiene que degradar a
+ * cobranza sin tronar.
+ */
+class FakeCercaniaPort : CercaniaPort {
+
+    var mapa: Map<Int, Double> = emptyMap()
+
+    /** Cuántas veces se pidieron distancias, en orden de llegada. */
+    var lecturas: Int = 0
+        private set
+
+    override suspend fun distanciasPorVenta(): Map<Int, Double> {
+        lecturas++
+        return mapa
+    }
+}
+
+/** La persistencia "durante el día" del orden elegido, fingida con un campo en memoria. */
+class FakeOrdenGuardadoPort(guardadoInicial: OrdenGuardado? = null) : OrdenGuardadoPort {
+
+    var guardado: OrdenGuardado? = guardadoInicial
+
+    /** Cuántas veces se guardó, en orden de llegada. */
+    var escrituras: Int = 0
+        private set
+
+    override suspend fun leer(): OrdenGuardado? = guardado
+
+    override suspend fun guardar(orden: OrdenDeLaLista, dia: LocalDate) {
+        escrituras++
+        guardado = OrdenGuardado(orden, dia)
     }
 }

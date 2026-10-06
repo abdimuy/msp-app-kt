@@ -11,17 +11,21 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkManagerEnqueuer
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
+import com.example.msp_app.data.pagos.CercaniaPortProvisional
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
 import com.example.msp_app.data.pagos.FichaDelClienteAdapter
+import com.example.msp_app.data.pagos.OrdenGuardadoPortProvisional
 import com.example.msp_app.data.pagos.RegistroDeAbonoAdapter
 import com.example.msp_app.data.pagos.SettingsPrivacidadAdapter
 import com.example.msp_app.data.pagos.SettlementLiquidacionAdapter
 import com.example.msp_app.data.pagos.ThemeControllerTemaDeLaAppAdapter
 import com.example.msp_app.data.pagos.UserCyclePeriodoDeCobroAdapter
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
+import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
+import com.example.msp_app.feature.pagos.domain.port.OrdenGuardadoPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
@@ -62,6 +66,20 @@ object PagosPortsModule {
      */
     @Provides
     fun provideTemaDeLaAppPort(): TemaDeLaAppPort = ThemeControllerTemaDeLaAppAdapter()
+
+    /**
+     * Provisional: ver KDoc de `CercaniaPortProvisional`. La siguiente tarea
+     * pone el adaptador real (posición del cobrador vs. centroides de pago).
+     */
+    @Provides
+    fun provideCercaniaPort(): CercaniaPort = CercaniaPortProvisional()
+
+    /**
+     * Provisional: ver KDoc de `OrdenGuardadoPortProvisional`. La siguiente
+     * tarea pone el adaptador real de la persistencia "durante el día".
+     */
+    @Provides
+    fun provideOrdenGuardadoPort(): OrdenGuardadoPort = OrdenGuardadoPortProvisional()
 
     @Provides
     fun provideLiquidacionPort(saleDao: SaleDao, telemetry: Telemetry): LiquidacionPort =

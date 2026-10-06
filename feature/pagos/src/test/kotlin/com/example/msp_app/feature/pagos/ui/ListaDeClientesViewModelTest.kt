@@ -5,17 +5,23 @@ import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.feature.pagos.application.ControladorDeOrden
 import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCartera
+import com.example.msp_app.feature.pagos.application.TogglesDeCabecera
+import com.example.msp_app.feature.pagos.data.fake.FakeCercaniaPort
+import com.example.msp_app.feature.pagos.data.fake.FakeOrdenGuardadoPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
+import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
+import com.example.msp_app.feature.pagos.domain.port.OrdenGuardado
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +58,20 @@ class ListaDeClientesViewModelTest {
     private val visitasPort = FakeVisitasPort()
     private val periodoPort = FakePeriodoDeCobroPort()
     private val temaPort = FakeTemaDeLaAppPort()
+    private val cercaniaPort = FakeCercaniaPort()
+    private val ordenGuardadoPort = FakeOrdenGuardadoPort()
+
+    /**
+     * Un [ControladorDeOrden] nuevo por llamada — como en producción, donde
+     * Hilt arma uno por instancia de ViewModel (sin `@Singleton`). Los fakes
+     * que envuelve SÍ son compartidos ([cercaniaPort], [ordenGuardadoPort]):
+     * son ellos quienes sostienen el estado que las pruebas afirman.
+     */
+    private fun controladorDeOrden() = ControladorDeOrden(
+        cercaniaPort,
+        ordenGuardadoPort,
+        testDispatcher
+    )
 
     @Before
     fun setUp() {
@@ -87,8 +107,8 @@ class ListaDeClientesViewModelTest {
             derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
             telemetry = telemetria
         ),
-        tema = temaPort,
-        privacidad = FakePrivacidadPort(),
+        toggles = TogglesDeCabecera(temaPort, FakePrivacidadPort()),
+        controladorDeOrden = controladorDeOrden(),
         telemetry = telemetria,
         io = testDispatcher
     )
@@ -171,8 +191,8 @@ class ListaDeClientesViewModelTest {
                 derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
                 telemetry = telemetria
             ),
-            tema = temaPort,
-            privacidad = FakePrivacidadPort(),
+            toggles = TogglesDeCabecera(temaPort, FakePrivacidadPort()),
+            controladorDeOrden = controladorDeOrden(),
             telemetry = telemetria,
             io = testDispatcher
         )
@@ -343,5 +363,126 @@ class ListaDeClientesViewModelTest {
             "cargar ya no enciende cargando: el contraste de arriba no prueba nada",
             estados.any { it }
         )
+    }
+
+    // --- Orden (hoja "Ordenar por", decisión del dueño 2026-10-05) -----------
+
+    /**
+     * Bajo *sin visitar* cobranza pone a Ricardo primero (su venta es la más
+     * vieja sin abonos). Victoria debe $7,600 contra los $4,300 de Ricardo, así
+     * que "Mayor saldo" la pone primero — el control positivo de que SÍ
+     * reproyectó con el orden nuevo, y no sólo cambió el campo del estado.
+     */
+    @Test
+    fun `elegir un orden reproyecta la lista`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(OrdenDeLaLista.COBRANZA, vm.state.value.orden)
+        assertEquals(
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            vm.state.value.clientes.map { it.clienteId }
+        )
+
+        vm.elegirOrden(OrdenDeLaLista.MAYOR_SALDO)
+        advanceUntilIdle()
+
+        assertEquals(OrdenDeLaLista.MAYOR_SALDO, vm.state.value.orden)
+        assertEquals(
+            listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO),
+            vm.state.value.clientes.map { it.clienteId }
+        )
+    }
+
+    @Test
+    fun `un orden guardado hoy se restaura al cargar`() = runTest(testDispatcher) {
+        ordenGuardadoPort.guardado = OrdenGuardado(OrdenDeLaLista.MAYOR_SALDO, ListaFixtures.HOY)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(OrdenDeLaLista.MAYOR_SALDO, vm.state.value.orden)
+    }
+
+    /**
+     * **Control positivo de [restaurarOrden][ListaDeClientesViewModel]**: un
+     * orden guardado un día distinto de `hoy` NO se restaura — cae a
+     * [OrdenDeLaLista.COBRANZA], el default. Sin este caso, el test de arriba
+     * no distingue "se restauró porque el día coincide" de "nunca se
+     * comparó el día".
+     */
+    @Test
+    fun `un orden guardado ayer cae a Cobranza`() = runTest(testDispatcher) {
+        ordenGuardadoPort.guardado = OrdenGuardado(
+            OrdenDeLaLista.MAYOR_SALDO,
+            ListaFixtures.HOY.minusDays(1)
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(OrdenDeLaLista.COBRANZA, vm.state.value.orden)
+    }
+
+    @Test
+    fun `quitar el orden vuelve a Cobranza y lo persiste`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.elegirOrden(OrdenDeLaLista.MAYOR_SALDO)
+        advanceUntilIdle()
+        assertEquals(OrdenDeLaLista.MAYOR_SALDO, vm.state.value.orden)
+
+        vm.quitarOrden()
+        advanceUntilIdle()
+
+        assertEquals(OrdenDeLaLista.COBRANZA, vm.state.value.orden)
+        assertEquals(OrdenDeLaLista.COBRANZA, ordenGuardadoPort.guardado?.orden)
+    }
+
+    @Test
+    fun `elegir Mas cerca pide distancias`() = runTest(testDispatcher) {
+        cercaniaPort.mapa = mapOf(78400 to 120.0)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.elegirOrden(OrdenDeLaLista.MAS_CERCA)
+        advanceUntilIdle()
+
+        assertEquals(OrdenDeLaLista.MAS_CERCA, vm.state.value.orden)
+        assertEquals(1, cercaniaPort.lecturas)
+        assertFalse(vm.state.value.avisoSinUbicacion)
+    }
+
+    /**
+     * Mapa vacío de [FakeCercaniaPort] (su default): "Más cerca" no puede
+     * tronar ni dejar la lista en un orden que nadie pidió. `CarteraEnPantalla`
+     * ya garantiza la caída a cobranza; acá se mide que el aviso se enciende.
+     */
+    @Test
+    fun `Mas cerca sin ubicaciones deja la lista en orden de cobranza y avisa`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.elegirOrden(OrdenDeLaLista.MAS_CERCA)
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.avisoSinUbicacion)
+        assertEquals(
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            vm.state.value.clientes.map { it.clienteId }
+        )
+    }
+
+    @Test
+    fun `recargar con Mas cerca activo vuelve a pedir distancias`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.elegirOrden(OrdenDeLaLista.MAS_CERCA)
+        advanceUntilIdle()
+        assertEquals(1, cercaniaPort.lecturas)
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(2, cercaniaPort.lecturas)
     }
 }

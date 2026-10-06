@@ -27,9 +27,13 @@ import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.feature.pagos.application.ControladorDeOrden
 import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCartera
+import com.example.msp_app.feature.pagos.application.TogglesDeCabecera
+import com.example.msp_app.feature.pagos.data.fake.FakeCercaniaPort
+import com.example.msp_app.feature.pagos.data.fake.FakeOrdenGuardadoPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
@@ -113,8 +117,12 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
             derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
             telemetry = telemetria
         ),
-        tema = temaPort,
-        privacidad = FakePrivacidadPort(),
+        toggles = TogglesDeCabecera(temaPort, FakePrivacidadPort()),
+        controladorDeOrden = ControladorDeOrden(
+            FakeCercaniaPort(),
+            FakeOrdenGuardadoPort(),
+            Dispatchers.Unconfined
+        ),
         telemetry = telemetria,
         // `Dispatchers.Unconfined` y no el del `MainDispatcherRule`: la carga de
         // la cartera tiene que haber terminado ANTES de que el test toque algo,
@@ -142,7 +150,8 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
     private fun Pantalla(vm: ListaDeClientesViewModel) {
         ListaDeClientesScreen(
             viewModel = vm,
-            onAbrirCliente = {}
+            onAbrirCliente = {},
+            onAbrirMenu = {}
         )
     }
 

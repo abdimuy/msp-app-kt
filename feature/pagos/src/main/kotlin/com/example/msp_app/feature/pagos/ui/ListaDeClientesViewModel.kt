@@ -6,10 +6,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.Cartera
+import com.example.msp_app.feature.pagos.application.ControladorDeOrden
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ReunirCartera
+import com.example.msp_app.feature.pagos.application.TogglesDeCabecera
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
+import com.example.msp_app.feature.pagos.domain.SemanaEnCurso
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
+import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -61,7 +66,27 @@ data class ListaDeClientesUiState(
      * tarjeta, así que el valor nunca se muestra; existe para que el tipo no
      * sea anulable (mismo patrón que `RegistrarVisitaUiState.hoy`).
      */
-    val hoy: LocalDate = EPOCA
+    val hoy: LocalDate = EPOCA,
+    /**
+     * La línea de contexto bajo el título grande — "semana del D al D mes",
+     * ver [SemanaEnCurso]. Cadena vacía mientras no se conoce [hoy] (cargando
+     * o cartera nula): el renglón del título simplemente no la pinta.
+     */
+    val contextoSemana: String = "",
+    /**
+     * El orden elegido en la hoja "Ordenar por" (decisión del dueño,
+     * 2026-10-05). [OrdenDeLaLista.COBRANZA] es el de siempre y el único que
+     * no se persiste "durante el día" — ver [OrdenGuardadoPort].
+     */
+    val orden: OrdenDeLaLista = OrdenDeLaLista.COBRANZA,
+    /**
+     * `true` cuando [orden] es [OrdenDeLaLista.MAS_CERCA] y
+     * [CercaniaPort.distanciasPorVenta] no trajo ni una distancia — la lista
+     * ya cayó a orden de cobranza ([CarteraEnPantalla] lo garantiza) y el
+     * renglón de orden enseña el aviso apagado "Sin ubicación: orden de
+     * cobranza".
+     */
+    val avisoSinUbicacion: Boolean = false
 )
 
 /**
@@ -95,8 +120,15 @@ private val EPOCA: LocalDate = LocalDate.of(1970, 1, 1)
 class ListaDeClientesViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val reunirCartera: ReunirCartera,
-    private val tema: TemaDeLaAppPort,
-    private val privacidad: PrivacidadPort,
+    /** Sol/luna y el ojo de privacidad del encabezado — ver el KDoc de [TogglesDeCabecera]. */
+    private val toggles: TogglesDeCabecera,
+    /**
+     * El orden de la hoja "Ordenar por" — [CercaniaPort] y
+     * [com.example.msp_app.feature.pagos.domain.port.OrdenGuardadoPort]
+     * agrupados detrás de una sola clase para no cruzar el umbral
+     * `LongParameterList` de detekt. Ver su KDoc.
+     */
+    private val controladorDeOrden: ControladorDeOrden,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -131,17 +163,21 @@ class ListaDeClientesViewModel @Inject constructor(
      * era eager, colgada de `viewModelScope`.
      */
     val state: StateFlow<ListaDeClientesUiState> =
-        combine(mutableState, tema.oscuro, privacidad.ocultos) { cartera, oscuro, ocultos ->
+        combine(
+            mutableState,
+            toggles.tema.oscuro,
+            toggles.privacidad.ocultos
+        ) { cartera, oscuro, ocultos ->
             cartera.copy(temaOscuro = oscuro, montosOcultos = ocultos)
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = ListaDeClientesUiState(
-                temaOscuro = tema.oscuroAhora(),
+                temaOscuro = toggles.tema.oscuroAhora(),
                 // Síncrono por la misma razón que el tema, y con más motivo: sin
                 // esto la pantalla enseñaría los montos un frame antes de
                 // esconderlos, que es justo lo que el botón existe para evitar.
-                montosOcultos = privacidad.ocultosAhora()
+                montosOcultos = toggles.privacidad.ocultosAhora()
             )
         )
 
@@ -164,11 +200,19 @@ class ListaDeClientesViewModel @Inject constructor(
         cargar()
     }
 
-    /** Vuelve a leer la ruta completa. Cada llamada es UNA carga. */
+    /**
+     * Vuelve a leer la ruta completa. Cada llamada es UNA carga.
+     *
+     * Es también el único lugar que restaura el orden persistido
+     * ([ControladorDeOrden.restaurar]): "Reintentar" sólo aparece cuando la
+     * carga anterior falló, y una carga que falló nunca llegó a enseñar el
+     * renglón de orden, así que no hay elección de esta sesión que proteger.
+     */
     fun cargar() {
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(cargando = true, fallo = false)
             cartera = leer()
+            cartera?.let { controladorDeOrden.restaurar(it.hoy) }
             proyectar()
         }
     }
@@ -183,12 +227,42 @@ class ListaDeClientesViewModel @Inject constructor(
      * No hace falta conservar nada a mano como en el detalle: [query] y
      * [segmento] ya viven en el `SavedStateHandle` y no en [mutableState], así
      * que [proyectar] los vuelve a aplicar sobre la cartera fresca sin que
-     * nadie los pise.
+     * nadie los pise. El orden tampoco se toca — a diferencia de [cargar], una
+     * recarga NO vuelve a leer la persistencia: el cobrador pudo haber elegido
+     * "Más cerca" hace un segundo y un regreso de la cámara no debe pisarlo con
+     * lo último persistido.
+     *
+     * Lo que sí se repite si el orden es [OrdenDeLaLista.MAS_CERCA] es la
+     * lectura de [CercaniaPort] (decisión del dueño): la posición del cobrador
+     * cambia con cada recarga y una distancia vieja dejaría de ser cierta.
      */
     fun recargar() {
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(fallo = false)
             cartera = leer()
+            controladorDeOrden.actualizarDistanciasSiHaceFalta()
+            proyectar()
+        }
+    }
+
+    /**
+     * Elige un nuevo orden desde la hoja "Ordenar por". [ControladorDeOrden]
+     * pide distancias si hace falta, persiste la elección con el día de
+     * [cartera] (sin [cartera] — la carga falló — no se persiste; el renglón
+     * que dispara esto no se pinta en ese estado, ver
+     * [ListaDeClientesUiState.fallo]) y reproyecta.
+     */
+    fun elegirOrden(nuevo: OrdenDeLaLista) {
+        viewModelScope.launch {
+            controladorDeOrden.elegir(nuevo, cartera?.hoy)
+            proyectar()
+        }
+    }
+
+    /** "✕ Quitar" del renglón de orden: vuelve a cobranza, y lo persiste igual que cualquier otro. */
+    fun quitarOrden() {
+        viewModelScope.launch {
+            controladorDeOrden.quitar(cartera?.hoy)
             proyectar()
         }
     }
@@ -221,7 +295,7 @@ class ListaDeClientesViewModel @Inject constructor(
      */
     fun alternarTema() {
         telemetry.tap(PANTALLA, ACCION_TEMA)
-        tema.alternar()
+        toggles.tema.alternar()
     }
 
     /**
@@ -230,7 +304,7 @@ class ListaDeClientesViewModel @Inject constructor(
      */
     fun alternarPrivacidad() {
         telemetry.tap(PANTALLA, ACCION_PRIVACIDAD)
-        viewModelScope.launch { privacidad.alternar() }
+        viewModelScope.launch { toggles.privacidad.alternar() }
     }
 
     /**
@@ -241,12 +315,15 @@ class ListaDeClientesViewModel @Inject constructor(
      */
     private fun proyectar() {
         val cargada = cartera
+        val orden = controladorDeOrden.orden
         val proyeccion = cargada?.let {
             CarteraEnPantalla.proyectar(
                 clientes = it.clientes,
                 segmento = segmento,
                 query = query,
-                hoy = it.hoy
+                hoy = it.hoy,
+                orden = orden,
+                distanciasPorVenta = controladorDeOrden.distancias
             )
         }
         mutableState.update {
@@ -257,7 +334,10 @@ class ListaDeClientesViewModel @Inject constructor(
                 segmento = segmento,
                 query = query,
                 fallo = cargada == null,
-                hoy = cargada?.hoy ?: EPOCA
+                hoy = cargada?.hoy ?: EPOCA,
+                contextoSemana = cargada?.let { SemanaEnCurso.etiqueta(it.hoy) }.orEmpty(),
+                orden = orden,
+                avisoSinUbicacion = orden == OrdenDeLaLista.MAS_CERCA && controladorDeOrden.distancias.isEmpty()
             )
         }
     }

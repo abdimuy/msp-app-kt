@@ -8,35 +8,43 @@ package com.example.msp_app.feature.pagos.domain
  * con el orden de cobranza de siempre y, al final, por `clienteId` — ver
  * [com.example.msp_app.feature.pagos.ui.CarteraEnPantalla.proyectar].
  */
-enum class OrdenDeLaLista {
+enum class OrdenDeLaLista(
+    /**
+     * El nombre corto que pinta el renglón bajo los chips y la hoja "Ordenar
+     * por" — mismo patrón que [SegmentoDeCobranza.etiqueta]: el texto de
+     * usuario vive junto al valor que representa, no repetido en cada
+     * composable que lo pinta.
+     */
+    val etiqueta: String
+) {
     /**
      * El predeterminado, el de siempre: primero quien no ha abonado nada,
      * después la venta más vieja. Es exactamente [OrdenDeCobranza.PRIMERO] vía
      * [RangoDeCobranza] — no se toca.
      */
-    COBRANZA,
+    COBRANZA("Cobranza"),
 
     /** Primero el cliente con la venta más reciente, descendente. */
-    VENTAS_NUEVAS,
+    VENTAS_NUEVAS("Ventas nuevas"),
 
     /** Primero el cliente con más pagos atrasados en cualquiera de sus ventas. */
-    MAS_ATRASOS,
+    MAS_ATRASOS("Más atrasos"),
 
     /**
      * Primero quien nunca ha pagado, luego por el pago más viejo entre los que
      * sí han pagado alguna vez.
      */
-    SIN_PAGAR_HACE_MAS,
+    SIN_PAGAR_HACE_MAS("Sin pagar hace más"),
 
     /** Primero el cliente con el saldo total más alto. */
-    MAYOR_SALDO,
+    MAYOR_SALDO("Mayor saldo"),
 
     /** De la A a la Z, ignorando acentos y mayúsculas. */
-    NOMBRE,
+    NOMBRE("Nombre"),
 
     /**
      * Primero el cliente cuya venta más cercana está a menos distancia del
      * cobrador; quien no tiene ninguna ubicación calculada va al final.
      */
-    MAS_CERCA
+    MAS_CERCA("Más cerca")
 }
