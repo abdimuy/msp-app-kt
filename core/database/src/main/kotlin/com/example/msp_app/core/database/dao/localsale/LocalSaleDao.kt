@@ -9,11 +9,28 @@ import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
 import com.example.msp_app.core.database.entities.RemoteCorrectionSnapshot
 import com.example.msp_app.core.database.entities.SaleClaimSnapshot
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LocalSaleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSale(localsale: LocalSaleEntity)
+
+    /**
+     * Ventas que todavía esperan subir. Excluye `LAST_UPLOAD_PERMANENT = 1`: con
+     * fallo permanente el servidor ya resguardó el intento (`LaRevisaLaOficina`,
+     * ver el KDoc de la consulta de corrección de nivel 2 más abajo), así que no
+     * está "esperando señal". La observan la tarjeta de envío y el contador
+     * "N sin subir" del menú lateral.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM local_sale
+        WHERE ENVIADO = 0
+          AND (LAST_UPLOAD_PERMANENT IS NULL OR LAST_UPLOAD_PERMANENT = 0)
+        """
+    )
+    fun observarSinSubir(): Flow<Int>
 
     @Query(
         """

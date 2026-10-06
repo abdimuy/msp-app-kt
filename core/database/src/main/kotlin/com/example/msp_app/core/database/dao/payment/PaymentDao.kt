@@ -321,6 +321,14 @@ interface PaymentDao {
     )
     suspend fun getPendingPayments(): List<PaymentEntity>
 
+    /**
+     * Cuántas capturas esperan subir — el MISMO filtro que [getPendingPayments]
+     * (`GUARDADO_EN_MICROSIP = 0`). La observa la tarjeta de envío del menú
+     * lateral (plan 2026-10-06-menu-lateral, Task 6).
+     */
+    @Query("SELECT COUNT(*) FROM Payment WHERE GUARDADO_EN_MICROSIP = 0")
+    fun observarPendientesDeSubir(): Flow<Int>
+
     @Query(
         """
         SELECT

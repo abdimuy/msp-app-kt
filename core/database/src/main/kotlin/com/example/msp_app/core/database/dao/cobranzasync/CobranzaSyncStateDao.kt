@@ -5,12 +5,21 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CobranzaSyncStateDao {
 
     @Query("SELECT * FROM cobranza_sync_state WHERE RESOURCE = :resource")
     suspend fun get(resource: String): CobranzaSyncStateEntity?
+
+    /**
+     * Las filas de estado de [recursos] (`ventas`, `pagos`), observadas. El menú
+     * lateral saca de aquí el "hace N min" — ojo: [recordError] también escribe
+     * `LAST_SYNCED_AT`, así que quien lea esto debe mirar `LAST_ERROR`.
+     */
+    @Query("SELECT * FROM cobranza_sync_state WHERE RESOURCE IN (:recursos)")
+    fun observarRecursos(recursos: List<String>): Flow<List<CobranzaSyncStateEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(state: CobranzaSyncStateEntity)

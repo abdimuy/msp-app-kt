@@ -442,6 +442,25 @@ interface SaleDao {
     suspend fun countByZonaIdNot(zonaActual: Int): Int
 
     /**
+     * El `ZONA_NOMBRE` (p.ej. `"R/25"`, el mismo texto que muestran las
+     * tarjetas de cliente vía `RoomVentasAdapter`) de alguna venta de
+     * [zonaId], observado. Nulo si no hay ninguna venta de esa zona o si su
+     * `ZONA_NOMBRE` está vacío/en blanco. La usa la cabecera del menú
+     * lateral para mostrar el nombre de zona en vez del id crudo (plan
+     * 2026-10-06-menu-lateral, Task 6, ruling R3).
+     */
+    @Query(
+        """
+        SELECT ZONA_NOMBRE FROM sales
+        WHERE ZONA_CLIENTE_ID = :zonaId
+          AND ZONA_NOMBRE IS NOT NULL
+          AND TRIM(ZONA_NOMBRE) <> ''
+        LIMIT 1
+        """
+    )
+    fun observarNombreDeZona(zonaId: Int): Flow<String?>
+
+    /**
      * Borra las ventas saldadas (`SALDO_REST <= 0`) cuyos pagos quedaron
      * todos fuera de la ventana del cobrador. Conserva las saldadas con
      * al menos un pago dentro de la ventana — el cobrador necesita verlas
