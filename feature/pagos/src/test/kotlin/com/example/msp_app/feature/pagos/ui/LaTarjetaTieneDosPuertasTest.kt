@@ -48,6 +48,9 @@ class LaTarjetaTieneDosPuertasTest : RobolectricTestBase() {
                     onReintentar = {},
                     onAlternarTema = {},
                     onAlternarPrivacidad = {},
+                    onElegirOrden = {},
+                    onQuitarOrden = {},
+                    onAbrirMenu = {},
                     onAbrirVenta = { ventasAbiertas += it }
                 )
             }

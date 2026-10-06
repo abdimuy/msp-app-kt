@@ -401,16 +401,24 @@ fun NavGraphBuilder.destinoDeBitacora(
  * (7) que detekt aplica a este módulo, y una lista de siete lambdas sueltas ya
  * es difícil de leer en la llamada. Son dos registros cohesivos en vez de uno
  * largo; la Task 21, que cablea los puntos de entrada, llama a los dos.
+ *
+ * [onAbrirMenu] abre el cajón de navegación — nuevo con la cabecera que se
+ * encoge al bajar (decisión del dueño, 2026-10-05). Sale de `:app` porque el
+ * cajón (`DrawerContainer`) es legado y vive fuera de este grafo; quien cablea
+ * este destino hoy le pasa un no-op comentado — la siguiente tarea conecta el
+ * cajón real.
  */
 fun NavGraphBuilder.destinoDeListaDeClientes(
     onAbrirCliente: (Int) -> Unit,
-    onAbrirVenta: (Int) -> Unit
+    onAbrirVenta: (Int) -> Unit,
+    onAbrirMenu: () -> Unit
 ) {
     composable(route = PagosRutas.LISTA_CLIENTES) {
         ListaDeClientesScreen(
             viewModel = hiltViewModel(),
             onAbrirCliente = onAbrirCliente,
-            onAbrirVenta = onAbrirVenta
+            onAbrirVenta = onAbrirVenta,
+            onAbrirMenu = onAbrirMenu
         )
     }
 }

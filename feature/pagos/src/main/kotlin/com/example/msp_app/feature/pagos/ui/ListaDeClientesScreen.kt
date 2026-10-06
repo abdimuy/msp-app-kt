@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,39 +19,76 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
+import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
+import com.example.msp_app.feature.pagos.ui.components.HojaDeOrdenarPor
+import com.example.msp_app.feature.pagos.ui.components.PildoraDeBuscar
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
+import com.example.msp_app.feature.pagos.ui.components.RenglonDeOrden
 import com.example.msp_app.feature.pagos.ui.components.SegmentadoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
 import java.time.LocalDate
 
-/** `testTag` del campo de búsqueda. */
+/** `testTag` del campo de búsqueda grande (cabecera expandida). */
 const val BUSCADOR_TAG: String = "pagos_buscador"
+
+/** `testTag` del campo de búsqueda compacto (barra encogida, abierto desde la píldora). */
+const val BUSCADOR_COMPACTO_TAG: String = "pagos_buscador_compacto"
+
+/** `testTag` del botón de menú (hamburguesa). */
+const val BOTON_MENU_TAG: String = "pagos_boton_menu"
+
+/** `testTag` del título grande "Clientes" (26sp) de la cabecera expandida. */
+const val TITULO_GRANDE_TAG: String = "pagos_titulo_grande"
+
+/** `testTag` del título "Clientes" compacto (19sp) de la barra encogida. */
+const val TITULO_COMPACTO_TAG: String = "pagos_titulo_compacto"
+
+/** `testTag` de la ✕ que borra el texto del campo compacto. */
+const val BORRAR_BUSQUEDA_COMPACTA_TAG: String = "pagos_buscador_compacto_borrar"
+
+/** `testTag` del `LazyColumn` de clientes — lo usan las pruebas para simular scroll. */
+const val LISTA_DE_CLIENTES_TAG: String = "pagos_lista_de_clientes"
 
 /** `testTag` del mensaje que se pinta cuando no queda ningún cliente. */
 const val LISTA_VACIA_TAG: String = "pagos_lista_vacia"
@@ -103,6 +141,7 @@ const val LISTA_VACIA_TAG: String = "pagos_lista_vacia"
 fun ListaDeClientesScreen(
     viewModel: ListaDeClientesViewModel,
     onAbrirCliente: (Int) -> Unit,
+    onAbrirMenu: () -> Unit,
     modifier: Modifier = Modifier,
     onAbrirVenta: (Int) -> Unit = {}
 ) {
@@ -128,6 +167,9 @@ fun ListaDeClientesScreen(
             onReintentar = viewModel::cargar,
             onAlternarTema = viewModel::alternarTema,
             onAlternarPrivacidad = viewModel::alternarPrivacidad,
+            onElegirOrden = viewModel::elegirOrden,
+            onQuitarOrden = viewModel::quitarOrden,
+            onAbrirMenu = onAbrirMenu,
             modifier = modifier
         )
     }
@@ -147,60 +189,40 @@ fun ListaDeClientesScreen(
  *
  * ## La cercanía queda relegada, y por qué
  *
- * El orden de esta lista es el de cobranza: primero quien no ha abonado nada,
- * después las ventas más viejas. La distancia **no participa**. Ordenar por
- * cercanía optimiza gasolina, no cobranza: pone al principio al vecino que ya
- * pagó y manda al final la puerta donde no ha entrado un peso desde que se
- * entregó el mueble. La cercanía tiene su lugar —"estoy aquí, muéstrame su
- * venta"— y ese lugar es entrar por el mapa o por el bloque de cercanas, no
- * reordenar el día.
+ * El orden de esta lista es el de cobranza por default. La distancia sólo
+ * participa cuando el cobrador elige "Más cerca" en la hoja "Ordenar por"
+ * (decisión del dueño, 2026-10-05) — ver [RenglonDeOrden] y
+ * [HojaDeOrdenarPor]. Antes de esa decisión el orden de cercanía reemplazaba
+ * por completo al de cobranza en Home; ahora es uno más entre siete, elegido
+ * a propósito y recordado sólo "durante el día".
  *
  * Composable PURO sobre [ListaDeClientesUiState]: no lee puertos, no deriva
  * estados, no ordena y no emite telemetría. Ordenar aquí sería reordenar la
  * ruta en cada recomposición.
  *
- * ## El botón de modo oscuro, y por qué en ESTA pantalla
+ * ## La cabecera que se encoge al bajar (mock "Título" §1, decisión del dueño 2026-10-05)
  *
- * El encabezado cuelga [MspThemeToggle] del hueco de la derecha que
- * `BarraDeDetalle` ya tenía. kollect pone su cluster de toggles en el
- * encabezado de sus **5 pantallas de nivel superior** y en ninguna de las
- * empujadas, donde el encabezado es del botón de atrás y del contexto. De las
- * siete pantallas de cobranza, **ésta es la única de nivel superior**: es la que
- * el cajón abre (`DrawerContainer` → `PagosRutas.LISTA_CLIENTES`); a las otras
- * seis se llega empujadas desde otra pantalla, y las dos de ticket ni eso —
- * aparecen después de cobrar. Ponerlo en las siete sería copiarle a kollect algo
- * que kollect no hace.
+ * El título grande "Clientes" (26sp) y su línea de contexto —"semana del D al
+ * D mes", [ListaDeClientesUiState.contextoSemana]— viven ARRIBA de la lista,
+ * no dentro de ella. Al bajar lo suficiente desaparecen y "Clientes" pasa a
+ * 19sp junto a la hamburguesa, en la misma fila que ya tenían los dos botones
+ * del encabezado. Los chips de segmento y [RenglonDeOrden] NO se mueven con
+ * este cambio: viven, igual que antes, en el bloque estático sobre la lista —
+ * cuando el título grande se retira, simplemente quedan más arriba. Es lo que
+ * el mock llama "quedan pegados arriba (sticky)", pero no hace falta un
+ * mecanismo de *sticky header* dentro de un `LazyColumn`: nunca estuvieron
+ * dentro de uno.
  *
- * **Sin `HeaderToggles`.** El envoltorio de kollect existe para juntar DOS
- * controles (tema + ojo de privacidad) y darlos "de forma consistente en todas
- * partes". Acá el ojo no se construye —enmascarar montos es funcionalidad
- * nueva que nadie pidió—, así que un `Row` de un solo hijo, en un solo sitio,
- * sería una abstracción sin nada que abstraer (YAGNI). El día que exista el
- * ojo, `HeaderToggles` es el molde y este `accion` es donde entra.
- *
- * [onAlternarTema] **no tiene default**. Un `= {}` habría dejado compilar a
- * cualquier host que se olvidara de cablearlo, y el síntoma sería un botón que
- * se ve, se puede tocar y no hace nada — un defecto que ningún golden
- * fotografía.
- *
- * ## Y pasó igual, por la otra puerta: `statusBarsPadding()`
- *
- * El cableado estaba bien y el botón estaba muerto de todos modos. La app corre
- * `enableEdgeToEdge()`, así que el contenido arranca en `y = 0` y la ventana
- * `StatusBar` del sistema —156 px en el emulador donde se midió— queda ENCIMA
- * del encabezado: se come todo tap por arriba de su borde, el centro del toggle
- * incluido. Medido: taps a `y ≤ 155` perdidos, taps a `y ≥ 157` llegados, sobre
- * un botón cuya caja tocable va de 36 a 180. Nada en logcat, porque el evento
- * nunca entró al proceso.
- *
- * Ninguna pantalla de este módulo ni de `:feature:visitas` consumía el inset, y
- * **todas las demás del repo sí** (las siete legadas, el reporte de cobranza,
- * Configuración). Ruling BR las arregló las siete. La compuerta es
- * `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`, que despacha un inset de
- * barra de estado al árbol de vistas —lo único que una composición de test nunca
- * recibe— y exige que ningún control tocable arranque por encima de él.
- * `performClick()` no podía verlo: despacha sobre el nodo de semántica, sin
- * pasar por el sistema de ventanas.
+ * [rememberCabeceraGrande] deriva el encogido de [LazyListState] —el mismo que
+ * usa [Clientes]— en vez de `TopAppBarScrollBehavior`/`NestedScroll` de
+ * Material 3: ese mecanismo está pensado para alimentar un `TopAppBar`/
+ * `LargeTopAppBar` reales dentro de un `Scaffold`, y esta pantalla no usa
+ * ninguno de los dos — tendría que fijar a mano un `heightOffsetLimit` sin
+ * ninguna `TopAppBar` real que lo consuma. Derivar de `(index, offset)` del
+ * propio `LazyListState` da exactamente las dos propiedades que el mock pide
+ * —colapsa al bajar, "regreso rápido" con cualquier scroll hacia arriba— sin
+ * ese rodeo, y es trivial de probar: un test de Compose sólo necesita mover el
+ * `LazyListState` y leer si el título grande sigue en el árbol semántico.
  */
 @Composable
 fun ListaDeClientesContent(
@@ -211,9 +233,52 @@ fun ListaDeClientesContent(
     onReintentar: () -> Unit,
     onAlternarTema: () -> Unit,
     onAlternarPrivacidad: () -> Unit,
+    onElegirOrden: (OrdenDeLaLista) -> Unit,
+    onQuitarOrden: () -> Unit,
+    onAbrirMenu: () -> Unit,
     modifier: Modifier = Modifier,
-    onAbrirVenta: (Int) -> Unit = {}
+    onAbrirVenta: (Int) -> Unit = {},
+    /**
+     * Hospedado y no fijo adentro: los goldens de la barra compacta
+     * (`ListaMatrixScreenshotTest`) necesitan arrancar YA desplegados — sin
+     * una interacción de scroll real que disparar bajo Roborazzi— y la única
+     * forma de pedir eso es traer el `LazyListState` ya posicionado
+     * (`rememberLazyListState(initialFirstVisibleItemIndex = N)`) desde fuera.
+     */
+    listState: LazyListState = rememberLazyListState()
 ) {
+    val cabeceraGrande by rememberCabeceraGrande(listState)
+    var hojaDeOrdenAbierta by remember { mutableStateOf(false) }
+    var buscadorCompactoAbierto by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val teclado = LocalSoftwareKeyboardController.current
+
+    // Vuelta al título grande: ya no hace falta el campo pegado arriba. Sin
+    // esto, bajar-subir-bajar podía dejar el campo compacto abierto sin foco
+    // y sin forma de saber por qué seguía ahí.
+    LaunchedEffect(cabeceraGrande) {
+        if (cabeceraGrande) buscadorCompactoAbierto = false
+    }
+    LaunchedEffect(buscadorCompactoAbierto) {
+        if (buscadorCompactoAbierto) {
+            focusRequester.requestFocus()
+            teclado?.show()
+        }
+    }
+
+    /**
+     * Cierra el campo compacto SÓLO si está vacío (atrás o tocar fuera, mock
+     * "Buscador" §1b): con texto, el cobrador sigue viendo su filtro activo y
+     * sólo se le retira el foco/teclado — cerrar el campo de un toque
+     * perdería de vista qué está filtrando la lista.
+     */
+    fun cerrarBuscadorCompactoSiVacio() {
+        if (!buscadorCompactoAbierto) return
+        if (state.query.isBlank()) buscadorCompactoAbierto = false
+    }
+
+    BackHandler(enabled = buscadorCompactoAbierto) { cerrarBuscadorCompactoSiVacio() }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -234,9 +299,6 @@ fun ListaDeClientesContent(
             // el cajón, verificado en el aparato, y kollect tampoco lo pone en
             // ninguna de sus cuatro pestañas. La flecha no llevaba a ningún lado
             // útil y se comía una franja entera para ella sola.
-            //
-            // Los dos botones comparten el renglón del título en vez de tener el
-            // suyo, que era el otro reclamo del dueño sobre esta cabecera.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -244,29 +306,73 @@ fun ListaDeClientesContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
             ) {
-                Text(
-                    text = "Clientes",
-                    style = MspTheme.type.screenTitle,
-                    color = MspTheme.colors.onSurface,
-                    modifier = Modifier.weight(1f)
+                BotonDeMenu(
+                    onAbrirMenu = {
+                        cerrarBuscadorCompactoSiVacio()
+                        onAbrirMenu()
+                    }
                 )
+                // Con la cabecera grande, la fila sólo trae la hamburguesa y los
+                // dos toggles — "Clientes" vive abajo, en [TituloGrande]. Encogida,
+                // el título (o el campo compacto) ocupa el hueco de en medio.
+                if (cabeceraGrande) {
+                    Spacer(Modifier.weight(1f))
+                } else if (buscadorCompactoAbierto) {
+                    CampoDeBusquedaCompacto(
+                        query = state.query,
+                        onBuscar = onBuscar,
+                        focusRequester = focusRequester,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Text(
+                        text = "Clientes",
+                        style = MspTheme.type.screenTitleCompact,
+                        color = MspTheme.colors.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(TITULO_COMPACTO_TAG)
+                    )
+                }
                 MspPrivacyEyeToggle(
                     masked = state.montosOcultos,
-                    onToggle = onAlternarPrivacidad
+                    onToggle = {
+                        cerrarBuscadorCompactoSiVacio()
+                        onAlternarPrivacidad()
+                    }
                 )
                 MspThemeToggle(
                     darkTheme = state.temaOscuro,
-                    onToggle = onAlternarTema
+                    onToggle = {
+                        cerrarBuscadorCompactoSiVacio()
+                        onAlternarTema()
+                    }
                 )
             }
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-            CampoDeBusqueda(query = state.query, onBuscar = onBuscar)
+            if (cabeceraGrande) {
+                Spacer(Modifier.height(MspTheme.spacing.sm))
+                TituloGrande(contextoSemana = state.contextoSemana)
+                Spacer(Modifier.height(MspTheme.spacing.sm))
+                CampoDeBusqueda(query = state.query, onBuscar = onBuscar)
+            }
             Spacer(Modifier.height(MspTheme.spacing.sm))
             SegmentadoDeCobranza(
                 seleccionado = state.segmento,
                 conteos = state.conteos,
                 onElegir = onElegirSegmento
             )
+            // Con búsqueda activa el orden no se aplica ([CarteraEnPantalla] ya lo
+            // hace) y el renglón que lo cambiaría no tiene nada que cambiar.
+            if (state.query.isBlank()) {
+                Spacer(Modifier.height(MspTheme.spacing.sm))
+                RenglonDeOrden(
+                    orden = state.orden,
+                    conteo = state.clientes.size,
+                    avisoSinUbicacion = state.avisoSinUbicacion,
+                    onAbrirHoja = { hojaDeOrdenAbierta = true },
+                    onQuitar = onQuitarOrden
+                )
+            }
             Spacer(Modifier.height(MspTheme.spacing.sm))
         }
         // Deslizar de lado cambia de filtro, sin tener que estirar el pulgar hasta
@@ -274,29 +380,31 @@ fun ListaDeClientesContent(
         // horizontal, así que el desplazamiento vertical de la lista no se toca:
         // los dos gestos conviven porque no compiten por el mismo eje.
         Box(
-            modifier = Modifier.pointerInput(state.segmento) {
-                var recorrido = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { recorrido = 0f },
-                    onDragEnd = {
-                        // Un umbral, y no cualquier movimiento: la lista se
-                        // recorre con el pulgar y casi ningún deslizamiento
-                        // vertical sale perfectamente recto. Sin este mínimo, el
-                        // filtro cambiaría solo mientras alguien baja la lista.
-                        if (kotlin.math.abs(recorrido) >= UMBRAL_DEL_GESTO_PX) {
-                            val paso = if (recorrido < 0) 1 else -1
-                            val destino = SegmentoDeCobranza.entries
-                                .indexOf(state.segmento) + paso
-                            // Sin dar la vuelta: llegar al último y seguir
-                            // deslizando no debe regresar al primero. En una fila
-                            // de cuatro, saltar de "Pagados" a "Sin visitar" se
-                            // lee como un error, no como una vuelta.
-                            SegmentoDeCobranza.entries.getOrNull(destino)
-                                ?.let(onElegirSegmento)
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(state.segmento) {
+                    var recorrido = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { recorrido = 0f },
+                        onDragEnd = {
+                            // Un umbral, y no cualquier movimiento: la lista se
+                            // recorre con el pulgar y casi ningún deslizamiento
+                            // vertical sale perfectamente recto. Sin este mínimo, el
+                            // filtro cambiaría solo mientras alguien baja la lista.
+                            if (kotlin.math.abs(recorrido) >= UMBRAL_DEL_GESTO_PX) {
+                                val paso = if (recorrido < 0) 1 else -1
+                                val destino = SegmentoDeCobranza.entries
+                                    .indexOf(state.segmento) + paso
+                                // Sin dar la vuelta: llegar al último y seguir
+                                // deslizando no debe regresar al primero. En una fila
+                                // de cuatro, saltar de "Pagados" a "Sin visitar" se
+                                // lee como un error, no como una vuelta.
+                                SegmentoDeCobranza.entries.getOrNull(destino)
+                                    ?.let(onElegirSegmento)
+                            }
                         }
-                    }
-                ) { _, arrastre -> recorrido += arrastre }
-            }
+                    ) { _, arrastre -> recorrido += arrastre }
+                }
         ) {
             // La lista entra deslizándose desde el lado hacia el que se fue el
             // dedo, y la anterior sale hacia el contrario. El movimiento no es
@@ -346,11 +454,113 @@ fun ListaDeClientesContent(
                         clientes = state.clientes,
                         hoy = state.hoy,
                         montosOcultos = state.montosOcultos,
+                        listState = listState,
                         onAbrirCliente = onAbrirCliente,
                         onAbrirVenta = onAbrirVenta
                     )
                 }
             }
+            PildoraDeBuscar(
+                visible = !cabeceraGrande && !buscadorCompactoAbierto,
+                reducedMotion = reducirMovimiento,
+                onTocar = { buscadorCompactoAbierto = true },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+    }
+    HojaDeOrdenarPor(
+        abierta = hojaDeOrdenAbierta,
+        seleccionado = state.orden,
+        onElegir = onElegirOrden,
+        onCerrar = { hojaDeOrdenAbierta = false }
+    )
+}
+
+/**
+ * Deriva si la cabecera grande debe mostrarse, a partir del scroll de
+ * [listState] — ver el KDoc de [ListaDeClientesContent], sección "La cabecera
+ * que se encoge al bajar", para por qué es esto y no
+ * `TopAppBarScrollBehavior`.
+ *
+ * Tres reglas, en este orden:
+ * 1. En el tope (`index == 0` y `offset` por debajo de [UMBRAL_INICIO]):
+ *    siempre grande. Cubre el caso "la lista se repobló y el scroll volvió a
+ *    cero".
+ * 2. Cualquier movimiento HACIA el principio (`index` o `offset` bajando):
+ *    siempre grande. Es el "regreso rápido" del mock — no hace falta llegar
+ *    al tope, un solo gesto hacia arriba basta.
+ * 3. Movimiento hacia ABAJO más allá de [UMBRAL_COLAPSO] (o que ya salió
+ *    del primer elemento): encoge. El umbral evita que el primer pixel de un
+ *    scroll a medias encoja la cabecera por un temblor del dedo.
+ */
+@Composable
+private fun rememberCabeceraGrande(listState: LazyListState): State<Boolean> {
+    val umbralColapsoPx = with(LocalDensity.current) { UMBRAL_COLAPSO.toPx() }
+    val umbralInicioPx = with(LocalDensity.current) { UMBRAL_INICIO.toPx() }
+    // `derivedStateOf` y no `LaunchedEffect` + `snapshotFlow`: la primera versión
+    // media el (index, offset) dentro de una corrutina lanzada por el efecto, y
+    // bajo Robolectric esa corrutina no se alcanzaba a ejecutar dentro de la misma
+    // pasada de "idle" que `performScrollToIndex` espera — medido:
+    // `ListaDeClientesHeaderTest` quedaba con el título grande puesto después de
+    // scrollear al último índice, en las cuatro pruebas que dependían de bajar.
+    // `derivedStateOf` recalcula de forma síncrona, como parte del propio sistema
+    // de snapshots que ya invalida `firstVisibleItemIndex`/`Offset` — sin pasar
+    // por un dispatcher de corrutinas intermedio.
+    return remember(listState, umbralColapsoPx, umbralInicioPx) {
+        var indicePrevio = listState.firstVisibleItemIndex
+        var offsetPrevio = listState.firstVisibleItemScrollOffset
+        var grande = indicePrevio == 0
+        derivedStateOf {
+            val indice = listState.firstVisibleItemIndex
+            val offset = listState.firstVisibleItemScrollOffset
+            if (indice != indicePrevio || offset != offsetPrevio) {
+                val haciaElPrincipio = indice < indicePrevio ||
+                    (indice == indicePrevio && offset < offsetPrevio)
+                val haciaAbajo = indice > indicePrevio ||
+                    (indice == indicePrevio && offset > offsetPrevio)
+                grande = when {
+                    indice == 0 && offset <= umbralInicioPx -> true
+                    haciaElPrincipio -> true
+                    haciaAbajo && (indice > 0 || offset > umbralColapsoPx) -> false
+                    else -> grande
+                }
+                indicePrevio = indice
+                offsetPrevio = offset
+            }
+            grande
+        }
+    }
+}
+
+@Composable
+private fun BotonDeMenu(onAbrirMenu: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(
+        onClick = onAbrirMenu,
+        modifier = modifier
+            .size(BOTON_MENU_SIZE)
+            .testTag(BOTON_MENU_TAG)
+    ) {
+        Icon(imageVector = Icons.Default.Menu, contentDescription = "Abrir menú")
+    }
+}
+
+/** El título grande y su línea de contexto — cabecera expandida. */
+@Composable
+private fun TituloGrande(contextoSemana: String) {
+    Column {
+        Text(
+            text = "Clientes",
+            style = MspTheme.type.screenTitleLarge,
+            color = MspTheme.colors.onSurface,
+            modifier = Modifier.testTag(TITULO_GRANDE_TAG)
+        )
+        if (contextoSemana.isNotBlank()) {
+            Spacer(Modifier.height(MspTheme.spacing.xs))
+            Text(
+                text = contextoSemana,
+                style = MspTheme.type.contextNote,
+                color = MspTheme.colors.onSurfaceMuted
+            )
         }
     }
 }
@@ -359,19 +569,25 @@ fun ListaDeClientesContent(
  * **Una fila por cliente.** `key = { it.clienteId }` es literalmente el arreglo
  * del defecto: la lista vieja usaba `key = { it.DOCTO_CC_ID }` y un cliente con
  * dos ventas salía dos veces, como si fueran dos personas.
+ *
+ * [listState] se hospeda — no se crea aquí — porque [ListaDeClientesContent]
+ * lo necesita para derivar si la cabecera grande sigue vigente.
  */
 @Composable
 private fun Clientes(
     clientes: List<ClienteEnLista>,
     hoy: LocalDate,
     montosOcultos: Boolean,
+    listState: LazyListState,
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit
 ) {
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = MspTheme.spacing.md),
+            .padding(horizontal = MspTheme.spacing.md)
+            .testTag(LISTA_DE_CLIENTES_TAG),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
     ) {
         items(clientes, key = { it.clienteId }) { cliente ->
@@ -410,6 +626,55 @@ private fun CampoDeBusqueda(query: String, onBuscar: (String) -> Unit) {
                 IconButton(
                     onClick = { onBuscar("") },
                     modifier = Modifier.heightIn(min = MspTheme.spacing.touchTarget)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Borrar búsqueda")
+                }
+            }
+        }
+    )
+}
+
+/**
+ * El campo compacto que aparece pegado arriba, en la barra encogida, al tocar
+ * [PildoraDeBuscar] (mock "Buscador" §1b, decisión del dueño 2026-10-05).
+ *
+ * La ✕ borra el texto y **pide el foco de vuelta** explícitamente
+ * (`focusRequester.requestFocus()`): tocar el `IconButton` le pasa el foco a
+ * él por un instante, y sin este empujón el teclado se cerraría justo cuando
+ * el cobrador querría seguir escribiendo — lo contrario de lo que pide el mock
+ * ("deja el foco/teclado para seguir escribiendo").
+ */
+@Composable
+private fun CampoDeBusquedaCompacto(
+    query: String,
+    onBuscar: (String) -> Unit,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onBuscar,
+        modifier = modifier
+            .heightIn(min = MspTheme.spacing.touchTarget)
+            .focusRequester(focusRequester)
+            .testTag(BUSCADOR_COMPACTO_TAG),
+        placeholder = { Text("Buscar cliente", style = MspTheme.type.body) },
+        singleLine = true,
+        shape = MspTheme.shapes.field,
+        textStyle = MspTheme.type.body,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            imeAction = ImeAction.Search
+        ),
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(
+                    onClick = {
+                        onBuscar("")
+                        focusRequester.requestFocus()
+                    },
+                    modifier = Modifier
+                        .heightIn(min = MspTheme.spacing.touchTarget)
+                        .testTag(BORRAR_BUSQUEDA_COMPACTA_TAG)
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "Borrar búsqueda")
                 }
@@ -464,3 +729,17 @@ private fun MensajeDeFallo(onReintentar: () -> Unit) {
  * propósito y no el temblor de bajar el dedo.
  */
 private const val UMBRAL_DEL_GESTO_PX = 80f
+
+/**
+ * Tamaño del botón de menú — 50dp, el extremo alto del rango 48-50dp que pide
+ * el mock. Medido: a 48dp, `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`
+ * lo marcaba en 96px contra el mínimo de 100px (≥50dp) que exige todo control
+ * tocable del repo — el mock cede ante la compuerta, no al revés.
+ */
+private val BOTON_MENU_SIZE = 50.dp
+
+/** Debajo de este offset, en el primer elemento, la cabecera sigue grande sin importar nada más. */
+private val UMBRAL_INICIO = 8.dp
+
+/** Más allá de este offset hacia abajo (todavía en el primer elemento) la cabecera encoge. */
+private val UMBRAL_COLAPSO = 24.dp

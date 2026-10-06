@@ -344,7 +344,10 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
             onAbrirCliente = {},
             onReintentar = {},
             onAlternarTema = {},
-            onAlternarPrivacidad = {}
+            onAlternarPrivacidad = {},
+            onElegirOrden = {},
+            onQuitarOrden = {},
+            onAbrirMenu = {}
         )
     }
 

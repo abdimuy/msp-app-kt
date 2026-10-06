@@ -62,7 +62,9 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Co
     // (decisión del dueño del 2026-10-01; antes toda la tarjeta abría el cliente).
     destinoDeListaDeClientes(
         onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) },
-        onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) }
+        onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) },
+        // la siguiente tarea conecta el menú actual
+        onAbrirMenu = {}
     )
 
     // El detalle de cliente va aparte: perdió el "⋯" y su sección "últimos

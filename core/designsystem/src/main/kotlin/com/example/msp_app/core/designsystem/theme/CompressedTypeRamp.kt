@@ -148,6 +148,8 @@ fun MspTypography.compressed(level: FontSizeLevel): MspTypography {
         greeting = greeting.compressed(level),
         detailTitle = detailTitle.compressed(level),
         screenTitle = screenTitle.compressed(level),
+        screenTitleLarge = screenTitleLarge.compressed(level),
+        screenTitleCompact = screenTitleCompact.compressed(level),
         cardTitle = cardTitle.compressed(level),
         listTitle = listTitle.compressed(level),
         saleTitle = saleTitle.compressed(level),

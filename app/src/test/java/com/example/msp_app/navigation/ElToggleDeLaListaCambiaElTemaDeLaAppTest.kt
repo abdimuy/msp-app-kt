@@ -177,7 +177,8 @@ class ElToggleDeLaListaCambiaElTemaDeLaAppTest {
                 Column {
                     ListaDeClientesScreen(
                         viewModel = viewModel,
-                        onAbrirCliente = {}
+                        onAbrirCliente = {},
+                        onAbrirMenu = {}
                     )
                     // La sonda: el MISMO default de `MspTheme` que usa toda
                     // pantalla Msp a la que se navegue después. No emite nada.

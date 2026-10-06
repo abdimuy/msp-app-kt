@@ -110,6 +110,19 @@ data class MspTypography(
     val greeting: TextStyle,
     val detailTitle: TextStyle,
     val screenTitle: TextStyle,
+    /**
+     * El título grande de una pantalla de nivel superior con cabecera que se
+     * encoge al bajar (lista de clientes, mock "Título" §1, decisión del
+     * dueño 2026-10-05). 26sp/ExtraBold — no es parte de la tabla transcrita
+     * de kollect; lo dicta el mock, no una investigación previa.
+     */
+    val screenTitleLarge: TextStyle,
+    /**
+     * La misma pantalla, cabecera ya encogida: el título pasa a la barra
+     * compacta junto a la hamburguesa. 19sp/ExtraBold — mismo origen que
+     * [screenTitleLarge].
+     */
+    val screenTitleCompact: TextStyle,
     val cardTitle: TextStyle,
     val listTitle: TextStyle,
     val saleTitle: TextStyle,
@@ -172,6 +185,8 @@ fun mspTypography(): MspTypography = MspTypography(
     greeting = campoStyle(22.0, FontWeight.ExtraBold, -0.02),
     detailTitle = campoStyle(18.0, FontWeight.ExtraBold, -0.02),
     screenTitle = campoStyle(16.5, FontWeight.Bold, -0.01),
+    screenTitleLarge = campoStyle(26.0, FontWeight.ExtraBold, -0.02),
+    screenTitleCompact = campoStyle(19.0, FontWeight.ExtraBold, -0.01),
     cardTitle = campoStyle(17.0, FontWeight.ExtraBold, -0.01),
     listTitle = campoStyle(15.0, FontWeight.Bold, -0.01),
     saleTitle = campoStyle(14.0, FontWeight.ExtraBold, -0.01),
