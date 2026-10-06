@@ -140,16 +140,21 @@ class MenuLateralContenedorTest : RobolectricTestBase() {
      * [MspThemeRevealHost] y no de un `MspTheme` pelado — que es lo único que hace que, en
      * producción, un toque en el toggle de tema de la hoja llegue a `onAlternarTema`.
      *
-     * **Por qué el par mide la instalación del host y no un tap real completando la reveal**:
-     * se intentó (ver `task-4-report.md`) click real sobre un [MspThemeToggle] compuesto dentro
-     * de [hoja], tanto por `testTag` como por descripción — AMBOS caminos midieron que el tap
-     * nunca llega a ningún `onToggle`/`onToggleTheme` cuando la hoja vive dentro del
-     * `ModalDrawerSheet`/`ModalNavigationDrawer` de este contenedor (0 invocaciones en los dos
-     * casos, sin excepción — un límite nuevo, propio de esta anidación, no sólo el ya conocido
-     * `toImageBitmap()` de `MspThemeRevealHostTest`). En vez de inventar una prueba que mida otra
-     * cosa, este par usa la MISMA técnica —sin gestos— con la que `MspThemeRevealHostTest`
-     * (`:core:designsystem`) prueba el mecanismo: leer [LocalThemeReveal] dentro del contenido
-     * para saber si el host está instalado.
+     * **Por qué el par mide la instalación del host y no un tap real completando la cadena**:
+     * en la re-revisión se midió, con evidencia exacta (ver `task-4-report.md`), que
+     * `performClick()` sobre CUALQUIER nodo dentro de [hoja] —un `MspThemeToggle` real, un
+     * `Button` ajeno al menú, con o sin relación con `cerrar`— cierra el cajón en este arnés de
+     * prueba (`createAndroidComposeRule<ComponentActivity>()` + Robolectric + Material3 1.3.0
+     * `ModalNavigationDrawer`), SIN que el `onClick`/`onToggle` propio del nodo tocado se
+     * ejecute: un `Button` cuyo único trabajo es incrementar un contador llega en 0 tras
+     * tocarlo, mientras el cajón igual termina cerrado — la prueba de control
+     * (`boton puro sin cerrar tambien cierra el drawer solo`) lo confirma para CUALQUIER nodo,
+     * no sólo el toggle. No es el límite ya documentado de `toImageBitmap()`
+     * (`MspThemeRevealHostTest`): ni siquiera se llega a pedir la reveal. Por eso este par no
+     * clickea nada: usa la misma técnica sin gestos con la que `MspThemeRevealHostTest`
+     * (`:core:designsystem`) prueba el mecanismo — leer [LocalThemeReveal] dentro del contenido
+     * para saber si el host está instalado — y no abre el cajón primero porque `drawerContent`
+     * se compone igual con el cajón cerrado (medido).
      */
     @Test
     fun `con movimiento reducido no instala la reveal dentro de la hoja (R2, rama de respaldo)`() {
@@ -165,8 +170,6 @@ class MenuLateralContenedorTest : RobolectricTestBase() {
                 }
             }
         }
-
-        compose.onNodeWithTag("abrir").performClick()
         compose.waitForIdle()
 
         assertFalse(
@@ -179,7 +182,8 @@ class MenuLateralContenedorTest : RobolectricTestBase() {
     /**
      * El contraste del par: sin movimiento reducido, [MenuLateralContenedor] SÍ envuelve [hoja]
      * en [MspThemeRevealHost] — [LocalThemeReveal] llega no nulo adentro. Si alguien revirtiera
-     * la hoja a un `MspTheme` pelado (perdiendo R2), esto daría `null` y la prueba enrojecería.
+     * la hoja a un `MspTheme` pelado (perdiendo R2), esto daría `null` y la prueba enrojecería
+     * (control de rojo medido: ver `task-4-report.md`).
      */
     @Test
     fun `sin movimiento reducido MenuLateralContenedor envuelve la hoja en MspThemeRevealHost (R2)`() {
@@ -195,8 +199,6 @@ class MenuLateralContenedorTest : RobolectricTestBase() {
                 }
             }
         }
-
-        compose.onNodeWithTag("abrir").performClick()
         compose.waitForIdle()
 
         assertTrue(
