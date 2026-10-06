@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -239,58 +238,47 @@ fun FilaDeCliente(
  * Antes la columna derecha siempre llevaba algo encima de "Últ. pago": la
  * distancia en cercanos, o la píldora "Falta x de x" en todo lo demás. La
  * píldora se retiró sin reemplazo — el nombre es quien hereda ese ancho, por
- * eso ahora ocupa toda la fila (`weight(1f)` dentro de [NombreDelCliente]) — y
- * lo único
- * que puede volver a quitarle espacio es [MspInsigniaNueva], cuando el cliente
- * tiene una venta sin abonos.
+ * eso ahora ocupa toda la fila (`weight(1f)` dentro de [NombreDelCliente]).
  *
- * ## Dónde cae la insignia, y por qué DOS lugares distintos
+ * ## Dos renglones FIJOS, no dos columnas (corregido 2026-10-05)
  *
- * En la variante normal (`distancia == null`) la insignia va junto al nombre,
- * en la MISMA línea — es la fila que queda libre al quitar la píldora.
+ * El primer intento reusaba la forma vieja —columna izquierda (nombre +
+ * dirección) y columna derecha (lo demás), las dos alineadas arriba— y le
+ * quitó el relleno a la columna derecha junto con la píldora. El resultado:
+ * "Últ. pago" ya no tenía nada encima que lo empujara hacia abajo, así que
+ * flotaba junto al NOMBRE en vez de junto a la dirección — medido en
+ * `pagos_lista_light_1_0`, con "Victoria Flores" apretada contra "Últ. pago 6
+ * sept" en el primer renglón.
  *
- * En cercanos (`distancia != null`) esa primera línea ya está ocupada por la
- * distancia, grande y pegada al nombre: meter la insignia ahí también
- * apretaría al nombre contra dos vecinos en vez de uno. Por eso baja a la
- * SEGUNDA línea, a la derecha, en el lugar que dejaba "Últ. pago" — decisión
- * del orquestador, no del mock, que no distingue las dos variantes. "Últ.
- * pago" y la insignia nunca contestan la misma pregunta ("¿hace cuánto pagó?"
- * no aplica a una cuenta que nunca ha pagado), así que una desplaza a la otra
- * sin perder información: si hay venta nueva no hay último pago que mostrar.
+ * La forma correcta no son dos columnas: son **dos renglones**, cada uno su
+ * propio `Row` de ancho completo.
+ *
+ * | Renglón | Variante normal (`distancia == null`) | Variante cercanos (`distancia != null`) |
+ * |---|---|---|
+ * | 1: nombre | nombre + [MspInsigniaNueva] si hay venta nueva | nombre + distancia |
+ * | 2: dirección | dirección + "Últ. pago …" | dirección + [MspInsigniaNueva] si hay venta nueva, si no "Últ. pago …" |
+ *
+ * En cercanos la insignia baja al renglón 2 porque el renglón 1 ya lo ocupa la
+ * distancia —grande y pegada al nombre— y meterla ahí apretaría al nombre
+ * contra dos vecinos en vez de uno. Ahí sí "Últ. pago" y la insignia compiten
+ * por el mismo lugar y una desplaza a la otra.
+ *
+ * En la variante normal NO compiten: [ClienteEnLista.ultimoPago] es el último
+ * pago en CUALQUIERA de las ventas del cliente, y un cliente puede tener una
+ * venta nueva Y otra ya pagada — es exactamente el caso de Victoria en el
+ * golden. Esconder "Últ. pago" ahí borraría información real de una cuenta
+ * que sí ha pagado, sólo porque OTRA de sus cuentas es nueva.
  */
 @Composable
 private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
     val hayVentaNueva = cliente.ventas.any { it.esNueva }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs),
-        verticalAlignment = Alignment.Top
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                NombreDelCliente(cliente.nombre, modifier = Modifier.weight(1f))
-                // Sólo en la variante normal: en cercanos la insignia baja a la
-                // segunda línea del lado derecho (ver el bloque de abajo).
-                if (distancia == null && hayVentaNueva) {
-                    Spacer(Modifier.width(MspTheme.spacing.xs))
-                    MspInsigniaNueva()
-                }
-            }
-            Spacer(Modifier.height(AIRE_BAJO_EL_NOMBRE))
-            Text(
-                // Zona y calle en un renglón. El teléfono salió: no se cobra por
-                // teléfono, y su hueco es lo que deja respirar al nombre.
-                text = listOf(cliente.zona, cliente.direccion)
-                    .filter { it.isNotBlank() }
-                    .joinToString(SEPARADOR_DE_META)
-                    .ifBlank { SIN_DATO },
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.onSurfaceMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        if (distancia != null) {
-            Column(horizontalAlignment = Alignment.End) {
+    Column {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            NombreDelCliente(cliente.nombre, modifier = Modifier.weight(1f))
+            if (distancia != null) {
                 // En cercanos manda la distancia, grande y en el color del texto
                 // (blanco en oscuro): ahí el cobrador decide a qué puerta caminar.
                 Text(
@@ -303,24 +291,32 @@ private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
                     maxLines = 1,
                     modifier = Modifier.testTag(DISTANCIA_DEL_CLIENTE_TAG)
                 )
-                if (hayVentaNueva) {
-                    Spacer(Modifier.height(MspTheme.spacing.xs))
-                    MspInsigniaNueva()
-                } else {
-                    cliente.ultimoPago?.let { dia ->
-                        Spacer(Modifier.height(MspTheme.spacing.xs))
-                        Text(
-                            text = PREFIJO_ULTIMO_PAGO + DIA_Y_MES_DEL_PAGO.format(dia),
-                            style = MspTheme.type.caption,
-                            color = MspTheme.colors.onSurfaceMuted,
-                            maxLines = 1
-                        )
-                    }
-                }
+            } else if (hayVentaNueva) {
+                MspInsigniaNueva()
             }
-        } else {
-            cliente.ultimoPago?.let { dia ->
-                Column(horizontalAlignment = Alignment.End) {
+        }
+        Spacer(Modifier.height(AIRE_BAJO_EL_NOMBRE))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                // Zona y calle en un renglón. El teléfono salió: no se cobra por
+                // teléfono, y su hueco es lo que deja respirar al nombre.
+                text = listOf(cliente.zona, cliente.direccion)
+                    .filter { it.isNotBlank() }
+                    .joinToString(SEPARADOR_DE_META)
+                    .ifBlank { SIN_DATO },
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (distancia != null && hayVentaNueva) {
+                MspInsigniaNueva()
+            } else {
+                cliente.ultimoPago?.let { dia ->
                     Text(
                         text = PREFIJO_ULTIMO_PAGO + DIA_Y_MES_DEL_PAGO.format(dia),
                         style = MspTheme.type.caption,
