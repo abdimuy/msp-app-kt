@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /** `testTag` de la píldora flotante "Buscar cliente". */
@@ -33,6 +34,16 @@ const val BUSCAR_CLIENTE: String = "Buscar cliente"
  * La píldora flotante "Buscar cliente" que aparece abajo, a la altura del
  * pulgar, cuando el buscador de arriba salió de la pantalla al bajar la lista
  * (mock "Buscador" opción 3, decisión del dueño 2026-10-05).
+ *
+ * **Colores invertidos a propósito** (decisión del dueño, revisión de
+ * goldens): `color = MspTheme.colors.onSurface` / contenido =
+ * `MspTheme.colors.background`, al revés de cualquier tarjeta de la pantalla.
+ * Medido: con los colores "normales" (`surface`/`onSurface`), la píldora se
+ * perdía sobre las tarjetas en tema oscuro —fondo casi idéntico al de la
+ * tarjeta de abajo— y apenas se distinguía en claro. Invertida, es SIEMPRE
+ * el único elemento oscuro sobre fondo claro (claro) o claro sobre fondo
+ * oscuro (oscuro) de toda la pantalla, con sombra para despegarla de la
+ * lista.
  *
  * `AnimatedVisibility` con fade+slide corto cuando hay movimiento; con
  * [reducedMotion] cae a aparecer/desaparecer sin desplazamiento — mismo
@@ -65,8 +76,8 @@ fun PildoraDeBuscar(
             Surface(
                 onClick = onTocar,
                 shape = MspTheme.shapes.chip,
-                color = MspTheme.colors.surface,
-                shadowElevation = MspTheme.spacing.xs,
+                color = MspTheme.colors.onSurface,
+                shadowElevation = ELEVACION_DE_LA_PILDORA,
                 modifier = Modifier
                     .heightIn(min = MspTheme.spacing.touchTarget)
                     .testTag(PILDORA_DE_BUSCAR_TAG)
@@ -82,15 +93,23 @@ fun PildoraDeBuscar(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = null,
-                        tint = MspTheme.colors.onSurfaceMuted
+                        tint = MspTheme.colors.background
                     )
                     Text(
                         text = BUSCAR_CLIENTE,
                         style = MspTheme.type.bodyStrong,
-                        color = MspTheme.colors.onSurface
+                        color = MspTheme.colors.background
                     )
                 }
             }
         }
     }
 }
+
+/**
+ * Sombra de la píldora — más que la [MspTheme.spacing.xs] que llevaba antes:
+ * con colores invertidos el contraste de color ya la separa de las tarjetas,
+ * pero una sombra visible es lo que dice "esto flota encima", no "es la
+ * primera tarjeta de la lista".
+ */
+private val ELEVACION_DE_LA_PILDORA = 6.dp

@@ -532,6 +532,18 @@ private fun rememberCabeceraGrande(listState: LazyListState): State<Boolean> {
     }
 }
 
+/**
+ * El botón de menú (hamburguesa).
+ *
+ * `tint = MspTheme.colors.onSurface` explícito — medido: sin él, `Icon` cae al
+ * `LocalContentColor` por defecto (negro) y en tema oscuro queda negro sobre
+ * negro, invisible (`pagos_lista_dark_1_0.png`/`pagos_barra_compacta_dark_1_0.png`,
+ * antes de este arreglo). `IconButton` no fuerza un color de contenido
+ * propio, sólo hereda el ambiente — a diferencia de `OutlinedTextField`, que
+ * sí resuelve el color de sus iconos contra `colorScheme` y por eso la lupa y
+ * la ✕ del buscador nunca tuvieron este problema (verificado en el mismo
+ * golden: se ven bien en oscuro).
+ */
 @Composable
 private fun BotonDeMenu(onAbrirMenu: () -> Unit, modifier: Modifier = Modifier) {
     IconButton(
@@ -540,7 +552,11 @@ private fun BotonDeMenu(onAbrirMenu: () -> Unit, modifier: Modifier = Modifier) 
             .size(BOTON_MENU_SIZE)
             .testTag(BOTON_MENU_TAG)
     ) {
-        Icon(imageVector = Icons.Default.Menu, contentDescription = "Abrir menú")
+        Icon(
+            imageVector = Icons.Default.Menu,
+            contentDescription = "Abrir menú",
+            tint = MspTheme.colors.onSurface
+        )
     }
 }
 
