@@ -9,7 +9,7 @@ import org.junit.Test
 class ReglasDelMenuTest {
 
     @Test
-    fun `el buscador aparece con diez opciones contando secciones plegadas o no`() {
+    fun `el buscador aparece con diez opciones`() {
         assertEquals(10, ReglasDelMenu.totalDeOpciones(MenuFixtures.todas))
         assertTrue(ReglasDelMenu.muestraBuscador(MenuFixtures.todas))
     }
