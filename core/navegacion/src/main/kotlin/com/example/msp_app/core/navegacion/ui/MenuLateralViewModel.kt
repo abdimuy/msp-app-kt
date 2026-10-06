@@ -76,9 +76,20 @@ class MenuLateralViewModel @Inject constructor(
      * No escribe `temaOscuro` aquí: lo hace la colecta de [TogglesDelMenu.tema]
      * instalada en [estado], igual razón que `ListaDeClientesViewModel.alternarTema`.
      * `alternar()` real es síncrono, así que no hace falta una corrutina.
+     *
+     * Hallazgo de revisión (Task 2): sin el `try/catch` una falla al escribir
+     * la preferencia (p. ej. `SharedPreferences` corrupta) tumbaba el menú por
+     * tocar un botón. Reusa [NavegacionTelemetria.CODE_TEMA_FALLO] — el mismo
+     * código del `catch` de lectura en [combinar] — porque es la misma fuente,
+     * igual que [escribirPlegado] reusa `CODE_PLEGADAS_FALLARON`.
      */
+    @Suppress("TooGenericExceptionCaught") // alternar el tema no debe tumbar el menu por un boton
     fun alternarTema() {
-        toggles.tema.alternar()
+        try {
+            toggles.tema.alternar()
+        } catch (falla: Exception) {
+            reportar(NavegacionTelemetria.CODE_TEMA_FALLO, falla)
+        }
     }
 
     /**
@@ -87,7 +98,21 @@ class MenuLateralViewModel @Inject constructor(
      * SÍ suspende, así que va en una corrutina.
      */
     fun alternarMontos() {
-        viewModelScope.launch { toggles.privacidad.alternar() }
+        viewModelScope.launch { alternarPrivacidad() }
+    }
+
+    /** Ver el KDoc de [alternarTema]: mismo hallazgo, mismo criterio de reusar el código del lector. */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // alternar los montos no debe tumbar el menu por un boton
+    private suspend fun alternarPrivacidad() {
+        try {
+            toggles.privacidad.alternar()
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (falla: Exception) {
+            reportar(NavegacionTelemetria.CODE_MONTOS_FALLO, falla)
+        }
     }
 
     private fun combinar(

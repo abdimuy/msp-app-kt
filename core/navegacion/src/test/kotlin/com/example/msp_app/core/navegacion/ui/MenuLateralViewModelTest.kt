@@ -233,4 +233,30 @@ class MenuLateralViewModelTest {
         assertFalse(vm.estado.value.montosOcultos)
         assertEquals(1, errores(NavegacionTelemetria.CODE_MONTOS_FALLO).size)
     }
+
+    @Test
+    fun `si alternar el tema falla no truena y se reporta`() = runTest(dispatcher) {
+        tema.fallaAlAlternar = IOException("no se pudo escribir la preferencia")
+        val vm = viewModel()
+        backgroundScope.launch { vm.estado.collect {} }
+        advanceUntilIdle()
+
+        vm.alternarTema()
+        advanceUntilIdle()
+
+        assertEquals(1, errores(NavegacionTelemetria.CODE_TEMA_FALLO).size)
+    }
+
+    @Test
+    fun `si alternar los montos falla no truena y se reporta`() = runTest(dispatcher) {
+        privacidad.fallaAlAlternar = IOException("no se pudo escribir el datastore")
+        val vm = viewModel()
+        backgroundScope.launch { vm.estado.collect {} }
+        advanceUntilIdle()
+
+        vm.alternarMontos()
+        advanceUntilIdle()
+
+        assertEquals(1, errores(NavegacionTelemetria.CODE_MONTOS_FALLO).size)
+    }
 }

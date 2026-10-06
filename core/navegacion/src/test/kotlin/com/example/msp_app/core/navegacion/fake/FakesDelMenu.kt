@@ -74,6 +74,9 @@ class FakeZonaDelUsuarioPort : ZonaDelUsuarioPort {
 class FakeTemaDelMenuPort(oscuroInicial: Boolean = false) : TemaDelMenuPort {
     private val estado = MutableStateFlow(oscuroInicial)
     var falla: Throwable? = null
+
+    /** Falla sólo al ESCRIBIR (distinta de [falla], que es al leer [oscuro]). */
+    var fallaAlAlternar: Throwable? = null
     var alternaciones: Int = 0
         private set
 
@@ -86,6 +89,7 @@ class FakeTemaDelMenuPort(oscuroInicial: Boolean = false) : TemaDelMenuPort {
     override fun oscuroAhora(): Boolean = estado.value
 
     override fun alternar() {
+        fallaAlAlternar?.let { throw it }
         alternaciones++
         estado.value = !estado.value
     }
@@ -95,6 +99,9 @@ class FakeTemaDelMenuPort(oscuroInicial: Boolean = false) : TemaDelMenuPort {
 class FakePrivacidadDelMenuPort(ocultosIniciales: Boolean = false) : PrivacidadDelMenuPort {
     private val estado = MutableStateFlow(ocultosIniciales)
     var falla: Throwable? = null
+
+    /** Falla sólo al ESCRIBIR (distinta de [falla], que es al leer [ocultos]). */
+    var fallaAlAlternar: Throwable? = null
     var alternaciones: Int = 0
         private set
 
@@ -107,6 +114,7 @@ class FakePrivacidadDelMenuPort(ocultosIniciales: Boolean = false) : PrivacidadD
     override fun ocultosAhora(): Boolean = estado.value
 
     override suspend fun alternar() {
+        fallaAlAlternar?.let { throw it }
         alternaciones++
         estado.value = !estado.value
     }
