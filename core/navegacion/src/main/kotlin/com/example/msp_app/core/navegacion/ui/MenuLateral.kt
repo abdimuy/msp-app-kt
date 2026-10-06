@@ -37,6 +37,9 @@ const val DESVANECIDO_DEL_MENU_TAG: String = "menu_lateral_desvanecido"
 const val ENVIO_DEL_MENU_TAG: String = "menu_lateral_envio"
 const val ID_CONFIGURACION: String = "configuracion"
 
+/** La columna de nombre + zona de la cabecera (revisión Task 3: no debe apretarse). */
+const val NOMBRE_DEL_MENU_TAG: String = "menu_lateral_nombre"
+
 /** 360 dp de teléfono menos 56 dp de velo para tocar fuera y cerrar. */
 val ANCHO_DEL_MENU: Dp = 304.dp
 

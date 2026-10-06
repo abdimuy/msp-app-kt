@@ -15,7 +15,7 @@ import com.composables.icons.lucide.UserCog
 import com.composables.icons.lucide.Users
 import com.example.msp_app.core.navegacion.domain.model.IconoDelMenu
 
-/** Medido 2026-10-06: los doce nombres existen en `icons-lucide-1.0.0` (`unzip -l` del jar del caché). */
+/** Medido 2026-10-06: los once nombres existen en `icons-lucide-1.0.0` (`unzip -l` del jar del caché). */
 internal fun IconoDelMenu.vector(): ImageVector = when (this) {
     IconoDelMenu.INICIO -> Lucide.House
     IconoDelMenu.CLIENTES -> Lucide.Users

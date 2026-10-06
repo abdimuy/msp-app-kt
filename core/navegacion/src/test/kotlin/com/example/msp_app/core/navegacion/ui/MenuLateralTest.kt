@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -250,5 +251,17 @@ class MenuLateralTest : RobolectricTestBase() {
         montar(montosOcultos = false)
         compose.onNodeWithTag("msp_privacy_eye_toggle").assertExists().performClick()
         assertEquals(1, alternanciasDeMontos)
+    }
+
+    // Hallazgo de revisión (Task 3): con los dos toggles + avatar en la misma
+    // fila que nombre+zona, a la columna del nombre le quedaban ~56 dp de 304 —
+    // un nombre real se parte en 3-4 renglones. El encabezado va en dos filas:
+    // toggles arriba, avatar+nombre+zona abajo con todo el ancho disponible.
+    @Test
+    fun `un nombre largo no aprieta la columna del nombre`() {
+        montar(
+            cabecera = MenuFixtures.cabecera().copy(nombre = "María Guadalupe Hernández de la Cruz")
+        )
+        compose.onNodeWithTag(NOMBRE_DEL_MENU_TAG).assertWidthIsAtLeast(150.dp)
     }
 }

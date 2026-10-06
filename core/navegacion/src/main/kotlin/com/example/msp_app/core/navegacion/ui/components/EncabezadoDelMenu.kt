@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.msp_app.core.designsystem.component.MspInitialsAvatar
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
@@ -22,6 +23,7 @@ import com.example.msp_app.core.navegacion.application.TextoDelEnvio
 import com.example.msp_app.core.navegacion.domain.model.CabeceraDelMenu
 import com.example.msp_app.core.navegacion.domain.model.EstadoDeEnvio
 import com.example.msp_app.core.navegacion.ui.ENVIO_DEL_MENU_TAG
+import com.example.msp_app.core.navegacion.ui.NOMBRE_DEL_MENU_TAG
 
 /**
  * La cabecera fija del menú. Sin campo de rol (ruling R4 del plan: el dueño
@@ -29,6 +31,13 @@ import com.example.msp_app.core.navegacion.ui.ENVIO_DEL_MENU_TAG
  * es `null`; si es `null` no se pinta nada — ni un respaldo "Zona N" (ruling
  * R3). Los botones de tema y de ocultar/mostrar dinero (ruling R2, decisión del
  * dueño) llegan por parámetro para que la hoja siga siendo pura.
+ *
+ * Dos filas, no una (hallazgo de revisión de la Task 3): con avatar + los dos
+ * toggles + nombre/zona en la MISMA fila, a la columna del nombre le quedaban
+ * ~56 dp de 304 — un nombre real se parte en 3-4 renglones. Fila 1: los
+ * toggles alineados a la derecha. Fila 2: avatar + nombre/zona con todo el
+ * ancho disponible, cada texto con `maxLines`/`overflow` para que un nombre o
+ * una zona larga recorten con "…" en vez de partirse en N renglones.
  */
 @Composable
 internal fun EncabezadoDelMenu(
@@ -45,26 +54,9 @@ internal fun EncabezadoDelMenu(
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm, Alignment.End)
         ) {
-            MspInitialsAvatar(initials = cabecera.iniciales, size = MspTheme.spacing.touchTarget)
-            Column(Modifier.weight(1f)) {
-                if (cabecera.nombre.isNotBlank()) {
-                    Text(
-                        text = cabecera.nombre,
-                        style = MspTheme.type.name,
-                        color = MspTheme.colors.onSurface
-                    )
-                }
-                cabecera.nombreDeZona?.let { zona ->
-                    Text(
-                        text = zona,
-                        style = MspTheme.type.caption,
-                        color = MspTheme.colors.onSurfaceMuted
-                    )
-                }
-            }
             MspPrivacyEyeToggle(
                 masked = montosOcultos,
                 onToggle = onAlternarMontos,
@@ -75,6 +67,33 @@ internal fun EncabezadoDelMenu(
                 onToggle = onAlternarTema,
                 modifier = Modifier.size(MspTheme.spacing.touchTarget)
             )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+        ) {
+            MspInitialsAvatar(initials = cabecera.iniciales, size = MspTheme.spacing.touchTarget)
+            Column(Modifier.weight(1f).testTag(NOMBRE_DEL_MENU_TAG)) {
+                if (cabecera.nombre.isNotBlank()) {
+                    Text(
+                        text = cabecera.nombre,
+                        style = MspTheme.type.name,
+                        color = MspTheme.colors.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                cabecera.nombreDeZona?.let { zona ->
+                    Text(
+                        text = zona,
+                        style = MspTheme.type.caption,
+                        color = MspTheme.colors.onSurfaceMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
         cabecera.envio?.let { TarjetaDeEnvio(it) }
     }
