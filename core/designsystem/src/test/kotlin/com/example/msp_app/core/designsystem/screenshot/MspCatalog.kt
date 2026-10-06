@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.component.ChipStatus
@@ -14,12 +15,14 @@ import com.example.msp_app.core.designsystem.component.MspBentoTile
 import com.example.msp_app.core.designsystem.component.MspCarteraCard
 import com.example.msp_app.core.designsystem.component.MspHeroTodayCard
 import com.example.msp_app.core.designsystem.component.MspInitialsAvatar
+import com.example.msp_app.core.designsystem.component.MspInsigniaNueva
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.component.MspPaymentSyncPill
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspProgressBar
 import com.example.msp_app.core.designsystem.component.MspProgressRing
+import com.example.msp_app.core.designsystem.component.MspPuntoNuevo
 import com.example.msp_app.core.designsystem.component.MspSegmentChips
 import com.example.msp_app.core.designsystem.component.MspStatusChip
 import com.example.msp_app.core.designsystem.component.MspSyncBand
@@ -314,6 +317,26 @@ fun CatalogAvatar() {
         MspInitialsAvatar(initials = "ML")
         MspInitialsAvatar(initials = "JR")
         MspInitialsAvatar(initials = "AC")
+    }
+}
+
+/**
+ * Insignia "Nueva" + punto de venta sin abonos, lado a lado (decisión del dueño
+ * del 2026-10-05) — captura SIEMPRE en reposo: [MspScreenshotTest] fuerza
+ * reduce-motion para todo el catálogo (mismo motivo que [CatalogSync] con
+ * [MspPaymentSyncPill]), así que ninguno de los dos pulsos se compone aquí. El
+ * frame intermedio del anillo/halo vive en su propio golden
+ * (`screenshot/MspPulseRingFrameScreenshotTest`), fuera de esta matriz.
+ */
+@Composable
+fun CatalogNuevoPulse() {
+    Row(
+        modifier = Modifier.padding(MspTheme.spacing.md),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MspInsigniaNueva()
+        MspPuntoNuevo()
     }
 }
 

@@ -79,6 +79,9 @@ class CatalogScreenshotTest : MspScreenshotTest() {
     @Test
     fun `catalogo progress tier1`() = captureTier1("progress") { CatalogProgress() }
 
+    @Test
+    fun `catalogo nuevo pulse tier1`() = captureTier1("nuevo_pulse") { CatalogNuevoPulse() }
+
     private fun captureTier1(component: String, content: @Composable () -> Unit) {
         for (theme in THEMES) {
             for (scale in SCALES) {
