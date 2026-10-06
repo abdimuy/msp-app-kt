@@ -2,16 +2,23 @@ package com.example.msp_app.feature.pagos.screenshot
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
+import com.example.msp_app.feature.pagos.domain.SemanaEnCurso
 import com.example.msp_app.feature.pagos.ui.CarteraEnPantalla
 import com.example.msp_app.feature.pagos.ui.ListaDeClientesContent
 import com.example.msp_app.feature.pagos.ui.ListaDeClientesUiState
 import com.example.msp_app.feature.pagos.ui.ListaFixtures
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
+import com.example.msp_app.feature.pagos.ui.components.CuerpoDeOrdenarPor
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
+import com.example.msp_app.feature.pagos.ui.components.RenglonDeOrden
 import org.junit.Test
 
 /**
@@ -100,6 +107,151 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
     fun `tarjeta nueva dark muy grande`() =
         tarjetaNueva(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
 
+    // --- Cabecera compacta (bajar la lista), decisión del dueño 2026-10-05 -----
+
+    /**
+     * La barra encogida con la píldora flotante visible — se arranca YA
+     * desplazada (`listState` hospedado con `initialFirstVisibleItemIndex`) en
+     * vez de simular un gesto de scroll: Roborazzi no tiene cómo despachar un
+     * `swipeUp()` sobre la captura de un solo frame, así que el `LazyListState`
+     * se pide ya en la posición que un scroll real habría dejado.
+     *
+     * Con la ruta de dos puertas de [estadoDeLaRuta] no alcanza: si el
+     * contenido no desborda el viewport, `LazyColumn` ignora el índice inicial
+     * y vuelve a 0 — medido, el primer intento salió con la cabecera grande
+     * puesta. [clientesParaDesbordar] trae filas de sobra para que el índice
+     * inicial sea real.
+     */
+    @Test
+    fun `barra compacta light normal`() = barraCompacta(dark = false, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `barra compacta light muy grande`() =
+        barraCompacta(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `barra compacta dark normal`() = barraCompacta(dark = true, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `barra compacta dark muy grande`() =
+        barraCompacta(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
+
+    private fun barraCompacta(dark: Boolean, nivel: FontSizeLevel) = capture(
+        name = "pagos_barra_compacta_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Lista(
+            estadoDesbordado(dark),
+            listState = rememberLazyListState(initialFirstVisibleItemIndex = INDICE_DESBORDADO)
+        )
+    }
+
+    /** Quince puertas sintéticas — de sobra para desbordar el viewport y forzar un índice inicial real. */
+    private fun estadoDesbordado(dark: Boolean): ListaDeClientesUiState {
+        val clientes = (1..QUINCE).map { n ->
+            ListaFixtures.cliente(
+                clienteId = 90_000 + n,
+                nombre = "Cliente Desbordado $n",
+                ventas = listOf(
+                    ListaFixtures.venta(
+                        ventaId = 95_000 + n,
+                        folio = "V-$n",
+                        descripcion = "Mueble $n",
+                        saldo = ListaFixtures.dinero("1000"),
+                        totalVenta = ListaFixtures.dinero("2000"),
+                        enganche = ListaFixtures.dinero("200"),
+                        fechaVenta = ListaFixtures.HOY.minusDays(n.toLong()),
+                        estado = ListaFixtures.estado(EstadoCuenta.SIN_TOCAR)
+                    )
+                )
+            )
+        }
+        val proyeccion = CarteraEnPantalla.proyectar(
+            clientes = clientes,
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            query = "",
+            hoy = ListaFixtures.HOY
+        )
+        return ListaDeClientesUiState(
+            cargando = false,
+            clientes = proyeccion.clientes,
+            conteos = proyeccion.conteos,
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            temaOscuro = dark,
+            hoy = ListaFixtures.HOY,
+            contextoSemana = SemanaEnCurso.etiqueta(ListaFixtures.HOY)
+        )
+    }
+
+    // --- Hoja "Ordenar por", decisión del dueño 2026-10-05 ----------------------
+
+    /**
+     * El CUERPO de la hoja, sin el `ModalBottomSheet` — un `ModalBottomSheet`
+     * real se monta en un `Popup`/`Dialog` que `captureRoboImage` no ve
+     * (trampa ya documentada en `HojaDeLaFicha`/`HojaDeAbono`): el golden de
+     * "la hoja abierta" sale en blanco si se intenta sobre
+     * [com.example.msp_app.feature.pagos.ui.components.HojaDeOrdenarPor]
+     * completa.
+     */
+    @Test
+    fun `hoja de orden light normal`() = hojaDeOrden(dark = false, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `hoja de orden light muy grande`() =
+        hojaDeOrden(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `hoja de orden dark normal`() = hojaDeOrden(dark = true, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `hoja de orden dark muy grande`() =
+        hojaDeOrden(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
+
+    private fun hojaDeOrden(dark: Boolean, nivel: FontSizeLevel) = capture(
+        name = "pagos_hoja_orden_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Box(modifier = Modifier.padding(MspTheme.spacing.md)) {
+            CuerpoDeOrdenarPor(seleccionado = OrdenDeLaLista.COBRANZA, onElegir = {})
+        }
+    }
+
+    // --- Renglón de orden con un orden distinto de cobranza ---------------------
+
+    @Test
+    fun `renglon de orden distinto light normal`() =
+        renglonDistinto(dark = false, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `renglon de orden distinto light muy grande`() =
+        renglonDistinto(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `renglon de orden distinto dark normal`() =
+        renglonDistinto(dark = true, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `renglon de orden distinto dark muy grande`() =
+        renglonDistinto(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
+
+    private fun renglonDistinto(dark: Boolean, nivel: FontSizeLevel) = capture(
+        name = "pagos_renglon_orden_distinto_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Box(modifier = Modifier.padding(MspTheme.spacing.md)) {
+            RenglonDeOrden(
+                orden = OrdenDeLaLista.MAYOR_SALDO,
+                conteo = 2,
+                avisoSinUbicacion = false,
+                onAbrirHoja = {},
+                onQuitar = {}
+            )
+        }
+    }
+
     private fun tarjetaNueva(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_tarjeta_nueva_${tema(dark)}_${sufijoDe(nivel)}",
         dark = dark,
@@ -170,13 +322,22 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
             // 1970, no contra el "hoy" que de verdad proyectó la cartera — un
             // golden que la app no puede producir, por la misma razón que el
             // comentario de arriba protege `segmento`.
-            hoy = ListaFixtures.HOY
+            hoy = ListaFixtures.HOY,
+            contextoSemana = SemanaEnCurso.etiqueta(ListaFixtures.HOY)
         )
+    }
+
+    private companion object {
+        const val QUINCE = 15
+        const val INDICE_DESBORDADO = 6
     }
 }
 
 @Composable
-private fun Lista(state: ListaDeClientesUiState) {
+private fun Lista(
+    state: ListaDeClientesUiState,
+    listState: LazyListState = rememberLazyListState()
+) {
     ListaDeClientesContent(
         state = state,
         onBuscar = {},
@@ -184,6 +345,10 @@ private fun Lista(state: ListaDeClientesUiState) {
         onAbrirCliente = {},
         onReintentar = {},
         onAlternarTema = {},
-        onAlternarPrivacidad = {}
+        onAlternarPrivacidad = {},
+        onElegirOrden = {},
+        onQuitarOrden = {},
+        onAbrirMenu = {},
+        listState = listState
     )
 }
