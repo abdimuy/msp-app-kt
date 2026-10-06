@@ -720,7 +720,11 @@ fun AppNavigation() {
             // en `DrawerContainer` (mismo criterio que `RouteMapScreen`/`GuaranteeListScreen`,
             // pantallas simples que no re-abren el drawer).
             composable(Screen.Configuracion.route) {
-                ConfiguracionScreen(navController = navController)
+                ConfiguracionScreen(
+                    navController = navController,
+                    // "Cerrar sesión" vive aquí desde el menú lateral nuevo (spec §2.1.4).
+                    onCerrarSesion = { authViewModel.logout() }
+                )
             }
         }
     }

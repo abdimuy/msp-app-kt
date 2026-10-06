@@ -35,6 +35,7 @@ import com.example.msp_app.feature.configuracion.domain.port.AppThemeMode
 import com.example.msp_app.feature.configuracion.ui.components.AppearanceSection
 import com.example.msp_app.feature.configuracion.ui.components.DescargasSection
 import com.example.msp_app.feature.configuracion.ui.components.FontSizeSection
+import com.example.msp_app.feature.configuracion.ui.components.SesionSection
 
 /** `testTag` del botón de regreso del header. */
 const val CONFIGURACION_BACK_BUTTON_TAG = "msp_configuracion_back_button"
@@ -56,6 +57,7 @@ private val SECTION_GAP = 28.dp
 @Composable
 fun ConfiguracionScreen(
     navController: NavController,
+    onCerrarSesion: (() -> Unit)? = null,
     viewModel: ConfiguracionViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -82,7 +84,8 @@ fun ConfiguracionScreen(
                         DescargaOpcional.DICTADO -> DictadoRutas.DESCARGA
                     }
                 )
-            }
+            },
+            onCerrarSesion = onCerrarSesion
         )
     }
 }
@@ -96,7 +99,8 @@ fun ConfiguracionContent(
     onSelectThemeMode: (AppThemeMode) -> Unit,
     onPrivacyMaskedChanged: (Boolean) -> Unit,
     onReduceMotionChanged: (Boolean) -> Unit,
-    onAbrirDescarga: (DescargaOpcional) -> Unit
+    onAbrirDescarga: (DescargaOpcional) -> Unit,
+    onCerrarSesion: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -137,6 +141,10 @@ fun ConfiguracionContent(
                     onAbrir = onAbrirDescarga,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+            if (onCerrarSesion != null) {
+                Spacer(Modifier.height(SECTION_GAP))
+                SesionSection(onCerrarSesion = onCerrarSesion, modifier = Modifier.fillMaxWidth())
             }
             Spacer(Modifier.height(MspTheme.spacing.lg))
         }

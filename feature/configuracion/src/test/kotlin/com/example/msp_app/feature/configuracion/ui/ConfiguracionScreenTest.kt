@@ -3,6 +3,7 @@ package com.example.msp_app.feature.configuracion.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -13,6 +14,7 @@ import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.configuracion.domain.port.AppThemeMode
+import com.example.msp_app.feature.configuracion.ui.components.CERRAR_SESION_TAG
 import com.example.msp_app.feature.configuracion.ui.components.FONT_SIZE_OPTION_TAG_PREFIX
 import com.example.msp_app.feature.configuracion.ui.components.MINI_REPORT_PREVIEW_TAG
 import com.example.msp_app.feature.configuracion.ui.components.PRIVACY_MASKED_TOGGLE_TAG
@@ -272,5 +274,67 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
         val LAS_DESCARGAS = listOf(
             FilaDeDescarga(DescargaOpcional.DICTADO, "43.5", EstadoDeLaDescarga.AUSENTE)
         )
+    }
+
+    // -----------------------------------------------------------------------
+    // "Cerrar sesión" (Task 9) — reubicado desde `DrawerContainer`, mismos
+    // textos de confirmación.
+    // -----------------------------------------------------------------------
+
+    private fun setSesion(onCerrarSesion: (() -> Unit)?) {
+        composeTestRule.setContent {
+            MspTheme(animateColors = false) {
+                ConfiguracionContent(
+                    state = ConfiguracionUiState(),
+                    onBack = {},
+                    onSelectFontSize = {},
+                    onSelectThemeMode = {},
+                    onPrivacyMaskedChanged = {},
+                    onReduceMotionChanged = {},
+                    onAbrirDescarga = {},
+                    onCerrarSesion = onCerrarSesion
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `cerrar sesion pide confirmacion y si confirma la cierra`() {
+        var cerradas = 0
+        setSesion(onCerrarSesion = { cerradas += 1 })
+
+        composeTestRule.onNodeWithTag(CERRAR_SESION_TAG).performScrollTo().performClick()
+        composeTestRule.onNodeWithText("¿Estás seguro de que deseas cerrar sesión?").assertExists()
+        composeTestRule.onNodeWithText("Sí").performClick()
+
+        assertEquals(1, cerradas)
+    }
+
+    @Test
+    fun `decir no a la confirmacion no cierra la sesion`() {
+        var cerradas = 0
+        setSesion(onCerrarSesion = { cerradas += 1 })
+
+        composeTestRule.onNodeWithTag(CERRAR_SESION_TAG).performScrollTo().performClick()
+        composeTestRule.onNodeWithText("No").performClick()
+
+        assertEquals(0, cerradas)
+        composeTestRule.onNodeWithText(
+            "¿Estás seguro de que deseas cerrar sesión?"
+        ).assertDoesNotExist()
+    }
+
+    @Test
+    fun `el boton de cerrar sesion mide el toque del repo`() {
+        setSesion(onCerrarSesion = {})
+        composeTestRule.onNodeWithTag(
+            CERRAR_SESION_TAG
+        ).performScrollTo().assertHeightIsAtLeast(56.dp)
+    }
+
+    @Test
+    fun `sin accion de sesion la seccion no existe`() {
+        setSesion(onCerrarSesion = null)
+        composeTestRule.onNodeWithTag(CERRAR_SESION_TAG).assertDoesNotExist()
     }
 }
