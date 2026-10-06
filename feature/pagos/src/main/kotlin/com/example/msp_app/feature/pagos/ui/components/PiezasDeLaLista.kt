@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,16 +25,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspInsigniaNueva
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.component.MspProgressBar
+import com.example.msp_app.core.designsystem.component.MspPuntoNuevo
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
-import com.example.msp_app.feature.pagos.ui.EstadoCuentaUi
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /** Prefijo de `testTag` de cada chip: `"${CHIP_DE_SEGMENTO_TAG}todos"`, etc. */
@@ -167,6 +170,15 @@ private fun segmentosVisibles(): List<SegmentoDeCobranza> = SegmentoDeCobranza.e
 fun FilaDeCliente(
     cliente: ClienteEnLista,
     onAbrirCliente: () -> Unit,
+    /**
+     * El día de negocio contra el que se lee "Vendida hace N días" en cada
+     * venta sin abonos. **Sin default** (decisión del dueño, 2026-10-05): la
+     * pantalla lo trae del mismo "hoy" que ya usa para ordenar y filtrar
+     * ([com.example.msp_app.feature.pagos.application.Cartera.hoy]), nunca de
+     * `LocalDate.now()` leído aquí adentro — dos renglones de la misma tarjeta
+     * no pueden contestar sobre dos días distintos.
+     */
+    hoy: LocalDate,
     modifier: Modifier = Modifier,
     /** "Esconder cantidades": el monto de cada venta se pinta enmascarado. */
     montosOcultos: Boolean = false,
@@ -201,6 +213,8 @@ fun FilaDeCliente(
                 RenglonDeVenta(
                     venta = enLista.venta,
                     montosOcultos = montosOcultos,
+                    esNueva = enLista.esNueva,
+                    hoy = hoy,
                     onAbrir = { onAbrirVenta(enLista.venta.ventaId) }
                 )
             }
@@ -219,15 +233,48 @@ fun FilaDeCliente(
  * mismo bloque** — [AIRE_BAJO_EL_NOMBRE] contra
  * [AIRE_ANTES_DE_LA_PRIMERA_VENTA]. Así el ojo agrupa nombre y dirección como
  * una unidad y no confunde la dirección con la primera venta.
+ *
+ * ## "Falta x de x" se fue de las CUATRO tarjetas (decisión del dueño, 2026-10-05)
+ *
+ * Antes la columna derecha siempre llevaba algo encima de "Últ. pago": la
+ * distancia en cercanos, o la píldora "Falta x de x" en todo lo demás. La
+ * píldora se retiró sin reemplazo — el nombre es quien hereda ese ancho, por
+ * eso ahora ocupa toda la fila (`weight(1f)` dentro de [NombreDelCliente]) — y
+ * lo único
+ * que puede volver a quitarle espacio es [MspInsigniaNueva], cuando el cliente
+ * tiene una venta sin abonos.
+ *
+ * ## Dónde cae la insignia, y por qué DOS lugares distintos
+ *
+ * En la variante normal (`distancia == null`) la insignia va junto al nombre,
+ * en la MISMA línea — es la fila que queda libre al quitar la píldora.
+ *
+ * En cercanos (`distancia != null`) esa primera línea ya está ocupada por la
+ * distancia, grande y pegada al nombre: meter la insignia ahí también
+ * apretaría al nombre contra dos vecinos en vez de uno. Por eso baja a la
+ * SEGUNDA línea, a la derecha, en el lugar que dejaba "Últ. pago" — decisión
+ * del orquestador, no del mock, que no distingue las dos variantes. "Últ.
+ * pago" y la insignia nunca contestan la misma pregunta ("¿hace cuánto pagó?"
+ * no aplica a una cuenta que nunca ha pagado), así que una desplaza a la otra
+ * sin perder información: si hay venta nueva no hay último pago que mostrar.
  */
 @Composable
 private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
+    val hayVentaNueva = cliente.ventas.any { it.esNueva }
     Row(
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs),
         verticalAlignment = Alignment.Top
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            NombreDelCliente(cliente.nombre)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NombreDelCliente(cliente.nombre, modifier = Modifier.weight(1f))
+                // Sólo en la variante normal: en cercanos la insignia baja a la
+                // segunda línea del lado derecho (ver el bloque de abajo).
+                if (distancia == null && hayVentaNueva) {
+                    Spacer(Modifier.width(MspTheme.spacing.xs))
+                    MspInsigniaNueva()
+                }
+            }
             Spacer(Modifier.height(AIRE_BAJO_EL_NOMBRE))
             Text(
                 // Zona y calle en un renglón. El teléfono salió: no se cobra por
@@ -242,11 +289,10 @@ private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Column(horizontalAlignment = Alignment.End) {
-            // En cercanos manda la distancia, grande y en el color del texto
-            // (blanco en oscuro), y el "Falta x de x" se quita (decisión del dueño
-            // del 2026-10-02): ahí el cobrador decide a qué puerta caminar.
-            if (distancia != null) {
+        if (distancia != null) {
+            Column(horizontalAlignment = Alignment.End) {
+                // En cercanos manda la distancia, grande y en el color del texto
+                // (blanco en oscuro): ahí el cobrador decide a qué puerta caminar.
                 Text(
                     text = distancia,
                     style = MspTheme.type.chipLabel.copy(
@@ -257,17 +303,31 @@ private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
                     maxLines = 1,
                     modifier = Modifier.testTag(DISTANCIA_DEL_CLIENTE_TAG)
                 )
-            } else {
-                Aviso(cliente)
+                if (hayVentaNueva) {
+                    Spacer(Modifier.height(MspTheme.spacing.xs))
+                    MspInsigniaNueva()
+                } else {
+                    cliente.ultimoPago?.let { dia ->
+                        Spacer(Modifier.height(MspTheme.spacing.xs))
+                        Text(
+                            text = PREFIJO_ULTIMO_PAGO + DIA_Y_MES_DEL_PAGO.format(dia),
+                            style = MspTheme.type.caption,
+                            color = MspTheme.colors.onSurfaceMuted,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
+        } else {
             cliente.ultimoPago?.let { dia ->
-                Spacer(Modifier.height(MspTheme.spacing.xs))
-                Text(
-                    text = PREFIJO_ULTIMO_PAGO + DIA_Y_MES_DEL_PAGO.format(dia),
-                    style = MspTheme.type.caption,
-                    color = MspTheme.colors.onSurfaceMuted,
-                    maxLines = 1
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = PREFIJO_ULTIMO_PAGO + DIA_Y_MES_DEL_PAGO.format(dia),
+                        style = MspTheme.type.caption,
+                        color = MspTheme.colors.onSurfaceMuted,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -284,9 +344,14 @@ private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
  *
  * Con movimiento reducido no se anima: ahí sí se corta, porque para quien pidió
  * que nada se moviera un texto en movimiento es peor que un texto incompleto.
+ *
+ * [modifier] por default es `Modifier`, pero [EncabezadoDeCliente] pasa
+ * `Modifier.weight(1f)`: el nombre SIEMPRE manda el ancho de su fila, con o sin
+ * [MspInsigniaNueva] al lado — es lo que hace que ceda espacio sólo cuando la
+ * insignia de verdad está ahí, y lo recupere entero cuando no.
  */
 @Composable
-private fun NombreDelCliente(nombre: String) {
+private fun NombreDelCliente(nombre: String, modifier: Modifier = Modifier) {
     val quieto = LocalReduceMotion.current
     Text(
         text = nombre,
@@ -302,7 +367,7 @@ private fun NombreDelCliente(nombre: String) {
         maxLines = 1,
         softWrap = false,
         overflow = if (quieto) TextOverflow.Ellipsis else TextOverflow.Clip,
-        modifier = if (quieto) Modifier else Modifier.basicMarquee()
+        modifier = modifier.then(if (quieto) Modifier else Modifier.basicMarquee())
     )
 }
 
@@ -316,9 +381,27 @@ private fun NombreDelCliente(nombre: String) {
  * una con menos avance podría verse más llena. Con renglón propio la pista mide
  * siempre lo mismo y dos barras se pueden comparar de un vistazo, que es lo
  * único que se les pide.
+ *
+ * ## Una venta SIN abonos no tiene estado que mostrar (decisión del dueño, 2026-10-05)
+ *
+ * [ChipDeEstado] y [PastillaDeAtrasos] leen el catálogo de ocho y los pagos
+ * atrasados — los dos suponen que la venta ya entró a cobranza. Una venta
+ * nueva (sin ningún abono) nunca entró: no hay estado que afirmar ni atraso
+ * que contar, así que en su lugar van [MspPuntoNuevo] junto al nombre,
+ * [ChipDePrimerAbono] (lo único que SÍ se sabe: cuánto se espera) y
+ * [TextoDeVendida] (cuándo se vendió, no cuándo se cobró — esta cuenta no ha
+ * cobrado nada). La forma del renglón
+ * —dos slots, uno a la izquierda y uno a la derecha, con el mismo quiebre a
+ * `MUY_GRANDE`— no cambia: sólo lo que cada slot pinta.
  */
 @Composable
-private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbrir: () -> Unit) {
+private fun RenglonDeVenta(
+    venta: VentaDelCliente,
+    montosOcultos: Boolean,
+    esNueva: Boolean,
+    hoy: LocalDate,
+    onAbrir: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -339,6 +422,9 @@ private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbr
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)
         ) {
+            if (esNueva) {
+                MspPuntoNuevo()
+            }
             Text(
                 text = venta.descripcion.ifBlank { venta.folio },
                 style = MspTheme.type.saleTitle.copy(fontWeight = FontWeight.SemiBold),
@@ -359,18 +445,40 @@ private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbr
         // "Al" — medido en `pagos_lista_light_2_0`. Un número de atrasos a medias
         // no es un dato incompleto, es un dato FALSO, así que en esa escala la
         // pastilla baja a su propio renglón en vez de encogerse. A 1.5 caben las
-        // dos en una fila, también medido, y ahí no se gasta alto de más.
+        // dos en una fila, también medido, y ahí no se gasta alto de más. La misma
+        // regla aplica al par nuevo (chip de primer abono + "Vendida …").
         val enUnaFila = LocalFontSizeLevel.current != FontSizeLevel.MUY_GRANDE
         if (enUnaFila) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ChipDeEstado(venta.estado)
+                if (esNueva) {
+                    ChipDePrimerAbono(
+                        venta.cuota,
+                        montosOcultos
+                    )
+                } else {
+                    ChipDeEstado(venta.estado)
+                }
                 Spacer(Modifier.weight(1f))
-                PastillaDeAtrasos(venta.atrasos)
+                if (esNueva) {
+                    TextoDeVendida(
+                        venta.fechaVenta,
+                        hoy
+                    )
+                } else {
+                    PastillaDeAtrasos(venta.atrasos)
+                }
             }
         } else {
-            ChipDeEstado(venta.estado)
+            if (esNueva) {
+                ChipDePrimerAbono(
+                    venta.cuota,
+                    montosOcultos
+                )
+            } else {
+                ChipDeEstado(venta.estado)
+            }
             Spacer(Modifier.height(MspTheme.spacing.xs))
-            PastillaDeAtrasos(venta.atrasos)
+            if (esNueva) TextoDeVendida(venta.fechaVenta, hoy) else PastillaDeAtrasos(venta.atrasos)
         }
         Spacer(Modifier.height(AIRE_SOBRE_LA_BARRA))
         MspProgressBar(
@@ -428,40 +536,6 @@ internal fun textoDeAtrasos(atrasos: Int): String = when {
     atrasos < 1 -> "Al corriente"
     atrasos == 1 -> "1 atraso"
     else -> "$atrasos atrasos"
-}
-
-/**
- * "Faltan 2 de 3" cuando quedan cuentas por trabajar, "N cuentas" cuando no.
- * El primer texto lo calcula [EstadoCuentaUi.avisoDeCuentas], el mismo que usa
- * el encabezado del detalle: el número que dice cuántas puertas quedan abiertas
- * tiene un solo dueño.
- */
-@Composable
-private fun Aviso(cliente: ClienteEnLista) {
-    val pendientes = EstadoCuentaUi.avisoDeCuentas(cliente.ventas.map { it.venta.estado })
-    Box(
-        modifier = Modifier
-            .background(
-                color = if (pendientes == null) {
-                    MspTheme.colors.surface2
-                } else {
-                    MspTheme.colors.statusPartialTint
-                },
-                shape = MspTheme.shapes.chip
-            )
-            .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.xs)
-    ) {
-        Text(
-            text = pendientes ?: "${cliente.cuentas} cuentas",
-            style = MspTheme.type.chipLabel,
-            color = if (pendientes == null) {
-                MspTheme.colors.onSurfaceMuted
-            } else {
-                MspTheme.colors.statusPartial
-            },
-            maxLines = 1
-        )
-    }
 }
 
 /** `testTag` de la pastilla de atrasos — la localiza el test que la afirma. */

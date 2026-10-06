@@ -119,6 +119,7 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
     val cercanosViewModel: CercanosViewModel = hiltViewModel()
     val carteraCercanos by cercanosViewModel.clientes.collectAsState()
     val montosOcultosCercanos by cercanosViewModel.montosOcultos.collectAsState()
+    val hoyCercanos by cercanosViewModel.hoy.collectAsState()
     RecargaAlVolver(cercanosViewModel::recargar)
 
     val updateStartOfWeekDateState by authViewModel.updateStartOfWeekDateState.collectAsState()
@@ -395,6 +396,7 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                                         TarjetaDeCercano(
                                             cliente = cliente,
                                             distancia = client.distance.label(),
+                                            hoy = hoyCercanos,
                                             montosOcultos = montosOcultosCercanos,
                                             onAbrirCliente = {
                                                 navController.navigate(

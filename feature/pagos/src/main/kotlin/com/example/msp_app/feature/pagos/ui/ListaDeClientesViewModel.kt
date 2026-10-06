@@ -13,6 +13,7 @@ import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -51,8 +52,23 @@ data class ListaDeClientesUiState(
      * [TemaDeLaAppPort], que es `ThemeController`. Ver el KDoc de
      * [ListaDeClientesViewModel.alternarTema].
      */
-    val temaOscuro: Boolean = false
+    val temaOscuro: Boolean = false,
+    /**
+     * El "hoy" de [com.example.msp_app.feature.pagos.application.Cartera], el
+     * mismo que ya usa [CarteraEnPantalla] para ordenar y filtrar — lo necesita
+     * cada `FilaDeCliente` para "Vendida hace N días" en una venta sin abonos.
+     * [EPOCA] mientras la pantalla está cargando: ahí no se pinta ni una
+     * tarjeta, así que el valor nunca se muestra; existe para que el tipo no
+     * sea anulable (mismo patrón que `RegistrarVisitaUiState.hoy`).
+     */
+    val hoy: LocalDate = EPOCA
 )
+
+/**
+ * El "hoy" de un estado que todavía no cargó. No es `LocalDate.now()` —la
+ * pantalla no pregunta la hora del sistema— ni `LocalDate.EPOCH` (Java 9).
+ */
+private val EPOCA: LocalDate = LocalDate.of(1970, 1, 1)
 
 /**
  * La lista de cobranza **por cliente** — el reemplazo de las dos listas que
@@ -240,7 +256,8 @@ class ListaDeClientesViewModel @Inject constructor(
                 conteos = proyeccion?.conteos.orEmpty(),
                 segmento = segmento,
                 query = query,
-                fallo = cargada == null
+                fallo = cargada == null,
+                hoy = cargada?.hoy ?: EPOCA
             )
         }
     }

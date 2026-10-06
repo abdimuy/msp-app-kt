@@ -1,12 +1,17 @@
 package com.example.msp_app.feature.pagos.screenshot
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
+import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.ui.CarteraEnPantalla
 import com.example.msp_app.feature.pagos.ui.ListaDeClientesContent
 import com.example.msp_app.feature.pagos.ui.ListaDeClientesUiState
 import com.example.msp_app.feature.pagos.ui.ListaFixtures
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
+import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import org.junit.Test
 
 /**
@@ -61,6 +66,54 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
     @Test
     fun `lista vacia dark`() = vacia(dark = true)
 
+    /**
+     * **La tarjeta con una venta nueva, por sí sola** (decisión del dueño,
+     * 2026-10-05, mock "Decidido · v3"): insignia junto al nombre, punto sobre
+     * el nombre del mueble, chip "Primer abono $X" con contorno y "Vendida
+     * hace 5 días" donde antes iba la pastilla de atrasos.
+     *
+     * [ListaFixtures.conVentaNueva] y no [ListaFixtures.ricardo]: Ricardo
+     * también es `esNueva`, pero su venta es vieja y cae al escalón de la
+     * fecha completa ("Vendida 12 mar 2026") — este golden quiere el escalón
+     * de días, que es el que más se va a ver en producción. Una sola cuenta,
+     * toda ella nueva: el golden retrata el caso puro, sin una segunda venta
+     * (no nueva) al lado que reparta la atención. La matriz de arriba
+     * (`lista *`) ya trae el caso mixto de Victoria (una nueva, una no) y el
+     * de Ricardo encabezando la ruta; éste existe para que el estado "Nueva"
+     * tenga un golden que no dependa de leer una tarjeta ajena.
+     *
+     * Sólo `{claro, oscuro} × {1.0, 2.0}`: el 1.5 no agrega nada que 1.0 y 2.0
+     * no demuestren ya para una tarjeta de un solo renglón —no hay quiebre de
+     * dos líneas que medir aquí, a diferencia del control segmentado—.
+     */
+    @Test
+    fun `tarjeta nueva light normal`() = tarjetaNueva(dark = false, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `tarjeta nueva light muy grande`() =
+        tarjetaNueva(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `tarjeta nueva dark normal`() = tarjetaNueva(dark = true, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `tarjeta nueva dark muy grande`() =
+        tarjetaNueva(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
+
+    private fun tarjetaNueva(dark: Boolean, nivel: FontSizeLevel) = capture(
+        name = "pagos_tarjeta_nueva_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Box(modifier = Modifier.padding(MspTheme.spacing.md)) {
+            FilaDeCliente(
+                cliente = ListaFixtures.conVentaNueva(),
+                hoy = ListaFixtures.HOY,
+                onAbrirCliente = {}
+            )
+        }
+    }
+
     private fun lista(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_lista_${tema(dark)}_${sufijoDe(nivel)}",
         dark = dark,
@@ -112,7 +165,12 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
             // filtró la lista tienen que ser el mismo, o el golden retrataría una
             // pantalla que la app no puede producir.
             segmento = SegmentoDeCobranza.SIN_VISITAR,
-            temaOscuro = dark
+            temaOscuro = dark,
+            // Faltaba: sin esto cada "Vendida …" se leía contra el sentinel de
+            // 1970, no contra el "hoy" que de verdad proyectó la cartera — un
+            // golden que la app no puede producir, por la misma razón que el
+            // comentario de arriba protege `segmento`.
+            hoy = ListaFixtures.HOY
         )
     }
 }

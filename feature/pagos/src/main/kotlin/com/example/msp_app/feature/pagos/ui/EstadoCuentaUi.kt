@@ -265,12 +265,18 @@ object EstadoCuentaUi {
     }
 
     /**
-     * El aviso del encabezado del cliente (`.tip` del mock): cuántas de sus
-     * cuentas siguen pidiendo trabajo esta semana. `null` cuando ninguna —
-     * entonces no hay nada que avisar y la banda no se pinta.
+     * Cuántas de las cuentas de un cliente siguen pidiendo trabajo esta
+     * semana. `null` cuando ninguna — entonces no hay nada que avisar.
      *
      * Es el número que el brief protege: con dos ventas, una pagada y otra en
      * promesa, aquí dice "Falta 1 de 2" en vez de dar por cerrado al cliente.
+     *
+     * **Ya no se pinta en el encabezado de la tarjeta** (decisión del dueño,
+     * 2026-10-05, mock "Decidido · v3"): la píldora "Falta x de x" se retiró de
+     * las cuatro variantes de `FilaDeCliente` y el nombre heredó ese ancho. La
+     * función se queda — sigue probada por `EstadoCuentaUiTest` — como la
+     * cuenta de "pendientes" que el detalle de cliente puede volver a pedir el
+     * día que la necesite, sin que nadie tenga que redescubrir la fórmula.
      */
     fun avisoDeCuentas(estados: List<EstadoDelPeriodo>): String? {
         val pendientes = estados.count { requiereAtencion(tratoDe(it)) }

@@ -12,6 +12,7 @@ import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -47,6 +48,16 @@ class CercanosViewModel @Inject constructor(
     /** Cada cliente de la cartera por su `clienteId`. */
     val clientes: StateFlow<Map<Int, ClienteEnLista>> = porCliente.asStateFlow()
 
+    private val hoyState = MutableStateFlow(EPOCA)
+
+    /**
+     * El "hoy" de la misma [ReunirCartera] que ya arma [clientes] — lo necesita
+     * `TarjetaDeCercano` para "Vendida hace N días" en una venta sin abonos.
+     * [EPOCA] mientras no ha cargado nada; ver el KDoc de
+     * `ListaDeClientesUiState.hoy` para el mismo patrón.
+     */
+    val hoy: StateFlow<LocalDate> = hoyState.asStateFlow()
+
     /** "Esconder cantidades", el mismo de la lista. */
     val montosOcultos: StateFlow<Boolean> = privacidad.ocultos
         .stateIn(
@@ -63,20 +74,25 @@ class CercanosViewModel @Inject constructor(
     @Suppress("TooGenericExceptionCaught") // Room o lo que sea: Inicio no se tumba
     fun recargar() {
         viewModelScope.launch {
-            porCliente.value = try {
-                withContext(io) { reunirCartera().clientes.associateBy { it.clienteId } }
+            val cartera = try {
+                withContext(io) { reunirCartera() }
             } catch (cancelada: CancellationException) {
                 throw cancelada
             } catch (fallo: Exception) {
                 Log.w(TAG, "no se pudo leer la cartera para los cercanos", fallo)
-                emptyMap()
+                null
             }
+            porCliente.value = cartera?.clientes?.associateBy { it.clienteId }.orEmpty()
+            hoyState.value = cartera?.hoy ?: EPOCA
         }
     }
 
     private companion object {
         const val SUSCRIPCION_MS = 5_000L
         const val TAG = "Cercanos"
+
+        /** Ver el KDoc de `ListaDeClientesUiState.hoy`: mismo sentinel, mismo porqué. */
+        val EPOCA: LocalDate = LocalDate.of(1970, 1, 1)
     }
 }
 
@@ -90,6 +106,8 @@ class CercanosViewModel @Inject constructor(
 fun TarjetaDeCercano(
     cliente: ClienteEnLista,
     distancia: String,
+    /** El mismo "hoy" de [CercanosViewModel.hoy] — ver el KDoc de `FilaDeCliente.hoy`. */
+    hoy: LocalDate,
     montosOcultos: Boolean,
     onAbrirCliente: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
@@ -99,6 +117,7 @@ fun TarjetaDeCercano(
         FilaDeCliente(
             cliente = cliente,
             onAbrirCliente = onAbrirCliente,
+            hoy = hoy,
             modifier = modifier,
             montosOcultos = montosOcultos,
             onAbrirVenta = onAbrirVenta,

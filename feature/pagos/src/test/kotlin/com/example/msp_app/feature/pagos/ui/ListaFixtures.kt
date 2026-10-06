@@ -30,6 +30,7 @@ object ListaFixtures {
     const val RICARDO: Int = 6102
     const val GUADALUPE: Int = 7310
     const val ESPERANZA: Int = 8412
+    const val ARACELI: Int = 9210
 
     fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
 
@@ -86,7 +87,11 @@ object ListaFixtures {
                 abonosTotales = plan.totales,
                 avance = plan.avance,
                 estado = estado,
-                atrasos = atrasos
+                atrasos = atrasos,
+                // Faltaba: antes sólo alimentaba `rango` (el orden), y
+                // `VentaDelCliente.fechaVenta` se quedaba en su default `null`
+                // — el mismo campo que ahora lee "Vendida hace N días".
+                fechaVenta = fechaVenta
             ),
             rango = OrdenDeCobranza.rangoDe(
                 saldo = saldo,
@@ -228,6 +233,36 @@ object ListaFixtures {
                     fechaPromesa = HOY,
                     montoPrometido = dinero("400")
                 )
+            )
+        )
+    )
+
+    /**
+     * **Araceli: una sola venta, SIN ningún abono, vendida hace 5 días** — el
+     * caso "Nueva" al escalón de días (decisión del dueño, 2026-10-05).
+     *
+     * A diferencia de [ricardo] —que también es `esNueva`, pero vieja, y por
+     * eso cae al escalón de la fecha completa, "Vendida 12 mar 2026"— esta
+     * cuenta existe para que un golden o una prueba puedan afirmar el texto
+     * "Vendida hace 5 días" sin construirlo a mano con `LocalDate` sueltas.
+     * `saldo == totalVenta - enganche` a propósito: es exactamente
+     * `RangoDeCobranza.sinAbonos`, la definición de [VentaEnLista.esNueva].
+     */
+    fun conVentaNueva(): ClienteEnLista = cliente(
+        clienteId = ARACELI,
+        nombre = "Araceli Montes Rubio",
+        telefono = "238 170 9821",
+        direccion = "C. Morelos 56, Analco",
+        ventas = listOf(
+            venta(
+                ventaId = 81500,
+                folio = "V-8500",
+                descripcion = "Estufa Mabe 4 quemadores",
+                saldo = dinero("6200"),
+                totalVenta = dinero("7100"),
+                enganche = dinero("900"),
+                fechaVenta = HOY.minusDays(5),
+                estado = estado(EstadoCuenta.SIN_TOCAR, parcialidad = dinero("280"))
             )
         )
     )

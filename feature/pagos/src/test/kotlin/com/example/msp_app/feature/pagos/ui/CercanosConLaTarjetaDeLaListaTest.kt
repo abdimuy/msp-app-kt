@@ -110,6 +110,7 @@ class CercanosConLaTarjetaDeLaListaTest : RobolectricTestBase() {
             TarjetaDeCercano(
                 cliente = victoria,
                 distancia = "350 m",
+                hoy = ListaFixtures.HOY,
                 montosOcultos = false,
                 onAbrirCliente = { clientes += Unit },
                 onAbrirVenta = { ventas += it }
@@ -123,7 +124,8 @@ class CercanosConLaTarjetaDeLaListaTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(RENGLON_DE_VENTA_TAG + VENTA_2_DE_VICTORIA).performClick()
         composeTestRule.onAllNodesWithTag(ENCABEZADO_DE_CLIENTE_TAG)[0].performClick()
 
-        // En cercanos no va el "Falta x de x": manda la distancia.
+        // La píldora "Falta x de x" se quitó de las cuatro variantes de la
+        // tarjeta (decisión del dueño, 2026-10-05) — ya no sólo de cercanos.
         composeTestRule.onAllNodesWithText("Falta 1 de 2", useUnmergedTree = true)
             .assertCountEquals(0)
         assertEquals(listOf(VENTA_2_DE_VICTORIA), ventas)
@@ -135,7 +137,11 @@ class CercanosConLaTarjetaDeLaListaTest : RobolectricTestBase() {
     fun `en la lista de clientes la tarjeta no pinta distancia`() {
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
-                FilaDeCliente(cliente = ListaFixtures.ruta().first(), onAbrirCliente = {})
+                FilaDeCliente(
+                    cliente = ListaFixtures.ruta().first(),
+                    hoy = ListaFixtures.HOY,
+                    onAbrirCliente = {}
+                )
             }
         }
 
@@ -145,18 +151,51 @@ class CercanosConLaTarjetaDeLaListaTest : RobolectricTestBase() {
         ).assertCountEquals(0)
     }
 
-    /** Control: en la lista el aviso sigue, así que la ausencia de arriba se puede medir. */
+    /**
+     * **Antes era el control**: con la píldora todavía viva se afirmaba que
+     * seguía en la lista de clientes (y sólo se iba de cercanos). El dueño
+     * decidió el 2026-10-05 quitarla de las CUATRO variantes, así que ahora
+     * esto es la MISMA ausencia que arriba, medida en la otra variante —ya no
+     * hay ningún lugar donde la píldora siga viva para contrastar—.
+     */
     @Test
-    fun `en la lista de clientes el aviso Falta x de x sigue`() {
+    fun `en la lista de clientes el aviso Falta x de x ya no aparece`() {
         val victoria = ListaFixtures.ruta().first { it.clienteId == ListaFixtures.VICTORIA }
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
-                FilaDeCliente(cliente = victoria, onAbrirCliente = {})
+                FilaDeCliente(cliente = victoria, hoy = ListaFixtures.HOY, onAbrirCliente = {})
             }
         }
 
         composeTestRule.onAllNodesWithText("Falta 1 de 2", useUnmergedTree = true)
-            .assertCountEquals(1)
+            .assertCountEquals(0)
+    }
+
+    /**
+     * **Variante cercanos: la insignia baja a la segunda línea y la distancia
+     * se queda intacta** (decisión del dueño, 2026-10-05) — en la variante
+     * normal la insignia va junto al nombre; en cercanos ese lugar ya lo
+     * ocupa la distancia, así que baja de línea en vez de apretar al nombre
+     * contra dos vecinos.
+     */
+    @Test
+    fun `en cercanos la insignia va en la segunda linea y no mueve la distancia`() {
+        composeTestRule.setContent {
+            TarjetaDeCercano(
+                cliente = ListaFixtures.conVentaNueva(),
+                distancia = "120 m",
+                hoy = ListaFixtures.HOY,
+                montosOcultos = false,
+                onAbrirCliente = {},
+                onAbrirVenta = {}
+            )
+        }
+
+        composeTestRule.onNodeWithTag(
+            DISTANCIA_DEL_CLIENTE_TAG,
+            useUnmergedTree = true
+        ).assertTextEquals("120 m")
+        composeTestRule.onAllNodesWithText("Nueva", useUnmergedTree = true).assertCountEquals(1)
     }
 
     private companion object {

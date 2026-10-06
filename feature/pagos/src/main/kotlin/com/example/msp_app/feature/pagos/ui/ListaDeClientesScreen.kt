@@ -47,6 +47,7 @@ import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.SegmentadoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
+import java.time.LocalDate
 
 /** `testTag` del campo de búsqueda. */
 const val BUSCADOR_TAG: String = "pagos_buscador"
@@ -343,6 +344,7 @@ fun ListaDeClientesContent(
                     state.clientes.isEmpty() -> ListaVacia()
                     else -> Clientes(
                         clientes = state.clientes,
+                        hoy = state.hoy,
                         montosOcultos = state.montosOcultos,
                         onAbrirCliente = onAbrirCliente,
                         onAbrirVenta = onAbrirVenta
@@ -361,6 +363,7 @@ fun ListaDeClientesContent(
 @Composable
 private fun Clientes(
     clientes: List<ClienteEnLista>,
+    hoy: LocalDate,
     montosOcultos: Boolean,
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit
@@ -374,6 +377,7 @@ private fun Clientes(
         items(clientes, key = { it.clienteId }) { cliente ->
             FilaDeCliente(
                 cliente = cliente,
+                hoy = hoy,
                 montosOcultos = montosOcultos,
                 onAbrirCliente = { onAbrirCliente(cliente.clienteId) },
                 onAbrirVenta = onAbrirVenta
