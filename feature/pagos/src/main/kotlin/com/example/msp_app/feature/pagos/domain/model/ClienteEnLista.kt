@@ -79,4 +79,13 @@ data class ClienteEnLista(
 data class VentaEnLista(
     val venta: VentaDelCliente,
     val rango: RangoDeCobranza
-)
+) {
+    /**
+     * Una venta es "nueva" si no tiene ningún abono: el saldo sigue siendo
+     * exactamente lo financiado. Decisión del dueño (2026-10-05): sin límite
+     * de días, así que una venta vieja sin abonos también es nueva.
+     *
+     * Es exactamente [RangoDeCobranza.sinAbonos] — no se reinterpreta aquí.
+     */
+    val esNueva: Boolean get() = rango.sinAbonos
+}

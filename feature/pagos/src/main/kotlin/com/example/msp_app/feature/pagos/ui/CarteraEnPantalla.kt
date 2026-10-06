@@ -2,10 +2,14 @@ package com.example.msp_app.feature.pagos.ui
 
 import com.example.msp_app.feature.pagos.domain.BusquedaDeClientes
 import com.example.msp_app.feature.pagos.domain.OrdenDeCobranza
+import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.RangoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.model.VentaEnLista
+import java.text.Collator
+import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 
 /** Lo que la pantalla pinta: la lista ya buscada, filtrada y ordenada, con sus conteos. */
 data class CarteraProyectada(
@@ -37,13 +41,20 @@ data class CarteraProyectada(
  * buscando, respetaba el orden natural de la fuente. Se copia: quien teclea un
  * nombre está buscando a UNA
  * persona, y reordenar el resultado por prioridad de cobranza mueve de lugar lo
- * que ya encontró.
+ * que ya encontró. Esto aplica a los SIETE órdenes, no solo a cobranza.
  *
  * ## Y el cliente se queda con TODAS sus ventas
  *
  * El chip decide si el cliente aparece y de cuál de sus ventas hereda su
  * posición; no recorta lo que se pinta. Esconder la segunda cuenta del cliente
  * porque no cae en el filtro sería volver a la lista por venta con otra ropa.
+ *
+ * ## Los siete órdenes (hoja "Ordenar por", decisión del dueño 2026-10-05)
+ *
+ * [OrdenDeLaLista.COBRANZA] es el de siempre —el único que existía antes de
+ * esta tarea— y no cambia ni un bit. Los otros seis ([OrdenDeLaLista]) ponen su
+ * propia clave primero y, en empate, caen al comparador de cobranza y luego a
+ * `clienteId`: el desempate estable no es exclusivo de un orden, es de todos.
  */
 object CarteraEnPantalla {
 
@@ -51,12 +62,18 @@ object CarteraEnPantalla {
         clientes: List<ClienteEnLista>,
         segmento: SegmentoDeCobranza,
         query: String,
-        hoy: LocalDate
+        hoy: LocalDate,
+        orden: OrdenDeLaLista = OrdenDeLaLista.COBRANZA,
+        distanciasPorVenta: Map<Int, Double> = emptyMap()
     ): CarteraProyectada {
         val buscados = clientes.filter { BusquedaDeClientes.coincide(it.textoBuscable, query) }
         val delSegmento = buscados.filter { tieneVentasDe(it, segmento, hoy) }
         return CarteraProyectada(
-            clientes = if (query.isBlank()) ordenar(delSegmento, segmento, hoy) else delSegmento,
+            clientes = if (query.isBlank()) {
+                ordenar(delSegmento, segmento, hoy, orden, distanciasPorVenta)
+            } else {
+                delSegmento
+            },
             conteos = SegmentoDeCobranza.entries.associateWith { chip ->
                 buscados.count { tieneVentasDe(it, chip, hoy) }
             }
@@ -70,24 +87,77 @@ object CarteraEnPantalla {
     ): Boolean = cliente.ventas.any { segmento.contiene(it.venta.estado, hoy) }
 
     /**
-     * Ordena por el rango heredado y, cuando dos clientes empatan en él, por
-     * `CLIENTE_ID` ascendente.
+     * Ordena por la clave del [orden] elegido y, en empate, por el orden de
+     * cobranza heredado del segmento y luego por `CLIENTE_ID` ascendente.
      *
-     * El desempate no es decorativo: dos clientes sin un solo abono y con
-     * ventas del mismo día empatan de verdad, y sin un criterio estable
+     * El desempate no es decorativo: dos clientes que empatan en la clave
+     * principal (dos "nunca pagó", dos con el mismo saldo, dos sin ubicación)
      * intercambiarían lugares entre cargas por el orden en que Room devolvió
-     * las filas. `CLIENTE_ID` no cambia nunca, así que la lista tampoco.
+     * las filas si no hubiera un criterio estable. `CLIENTE_ID` no cambia
+     * nunca, así que la lista tampoco.
      */
     private fun ordenar(
         clientes: List<ClienteEnLista>,
         segmento: SegmentoDeCobranza,
-        hoy: LocalDate
-    ): List<ClienteEnLista> = clientes.sortedWith(
-        compareBy<ClienteEnLista, RangoDeCobranza>(OrdenDeCobranza.PRIMERO) {
-            rangoDe(it, segmento, hoy)
+        hoy: LocalDate,
+        orden: OrdenDeLaLista,
+        distanciasPorVenta: Map<Int, Double>
+    ): List<ClienteEnLista> {
+        val cobranza = cobranzaComparator(segmento, hoy)
+        val clave: Comparator<ClienteEnLista> = when (orden) {
+            OrdenDeLaLista.COBRANZA -> cobranza
+            OrdenDeLaLista.VENTAS_NUEVAS ->
+                compareByDescending<ClienteEnLista> { instanteMasRecienteDe(it) }.then(cobranza)
+            OrdenDeLaLista.MAS_ATRASOS ->
+                compareByDescending<ClienteEnLista> { mayorAtrasoDe(it) }.then(cobranza)
+            OrdenDeLaLista.SIN_PAGAR_HACE_MAS ->
+                compareBy<ClienteEnLista> { it.ultimoPago }.then(cobranza)
+            OrdenDeLaLista.MAYOR_SALDO ->
+                compareByDescending<ClienteEnLista> { it.saldoTotal }.then(cobranza)
+            OrdenDeLaLista.NOMBRE -> nombreComparator().then(cobranza)
+            OrdenDeLaLista.MAS_CERCA ->
+                compareBy<ClienteEnLista, Double?>(nullsLast()) {
+                    distanciaDe(it, distanciasPorVenta)
+                }.then(cobranza)
         }
-            .thenBy { it.clienteId }
-    )
+        return clientes.sortedWith(clave.thenBy { it.clienteId })
+    }
+
+    /** El orden de cobranza de siempre: el rango heredado del segmento, sin tocar. */
+    private fun cobranzaComparator(
+        segmento: SegmentoDeCobranza,
+        hoy: LocalDate
+    ): Comparator<ClienteEnLista> = compareBy<ClienteEnLista, RangoDeCobranza>(
+        OrdenDeCobranza.PRIMERO
+    ) {
+        rangoDe(it, segmento, hoy)
+    }
+
+    /** El `instanteDeVenta` más reciente entre las ventas del cliente; `null` si ninguna lo tiene. */
+    private fun instanteMasRecienteDe(cliente: ClienteEnLista): Instant? =
+        cliente.ventas.mapNotNull { it.rango.instanteDeVenta }.maxOrNull()
+
+    /** El máximo `atrasos` entre las ventas del cliente. */
+    private fun mayorAtrasoDe(cliente: ClienteEnLista): Int =
+        cliente.ventas.maxOfOrNull { it.venta.atrasos } ?: 0
+
+    /** La distancia a la venta más cercana del cliente; `null` si ninguna de sus ventas la tiene. */
+    private fun distanciaDe(
+        cliente: ClienteEnLista,
+        distanciasPorVenta: Map<Int, Double>
+    ): Double? = cliente.ventas.mapNotNull { distanciasPorVenta[it.venta.ventaId] }.minOrNull()
+
+    /**
+     * Comparador por nombre con fuerza `PRIMARY`: ignora acentos y mayúsculas,
+     * como pide la decisión del dueño. Se crea por llamada —no es un recurso
+     * costoso y así no hay un `Collator` mutable compartido entre hilos.
+     */
+    private fun nombreComparator(): Comparator<ClienteEnLista> {
+        val collator = Collator.getInstance(
+            Locale("es", "MX")
+        ).apply { strength = Collator.PRIMARY }
+        return Comparator { a, b -> collator.compare(a.nombre, b.nombre) }
+    }
 
     /**
      * El rango que el cliente hereda: el de su venta mejor rankeada **de entre
