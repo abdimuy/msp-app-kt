@@ -3,6 +3,8 @@ package com.example.msp_app.core.navegacion.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -14,9 +16,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.navegacion.domain.model.IconoDelMenu
 
@@ -56,18 +62,99 @@ fun FilaDelMenu(
             tint = if (activo) colores.brand else colores.onSurfaceMuted,
             modifier = Modifier.size(MspTheme.spacing.lg)
         )
-        Text(
-            text = etiqueta,
-            style = if (activo) MspTheme.type.bodyStrong else MspTheme.type.body,
-            color = tinta,
+        ContenidoDeLaOpcion(
+            etiqueta = etiqueta,
+            contador = contador,
+            estiloEtiqueta = if (activo) MspTheme.type.bodyStrong else MspTheme.type.body,
+            colorEtiqueta = tinta,
+            colorContador = if (activo) colores.brand else colores.onSurfaceMuted,
             modifier = Modifier.weight(1f)
         )
-        if (contador != null) {
-            Text(
+    }
+}
+
+/**
+ * Etiqueta + contador (ruling R13 del controlador, 2026-10-06): la etiqueta
+ * NUNCA se parte a media palabra. Antes, con `etiqueta` a `weight(1f)` y
+ * `contador` como hermano fijo en el mismo `Row`, un contador largo ("8 por
+ * volver") le quitaba ancho a la etiqueta hasta forzar a Compose a partir la
+ * única palabra que no cabía ("Client" / "es") — visible en los goldens
+ * `menu_*_2_0` de la Task 5.
+ *
+ * El arreglo mide con `TextMeasurer` (sin restricción de ancho, así da el
+ * ancho natural de una sola línea) cuánto ocupan etiqueta y contador juntos
+ * contra el ancho real disponible (`BoxWithConstraints`): si caben, van en la
+ * misma fila igual que antes (contador pegado al borde derecho vía
+ * `SpaceBetween`); si no caben, el contador baja a su propio renglón debajo de
+ * la etiqueta, alineado a la izquierda con ella y con el mismo estilo — nunca
+ * se trunca ni se parte la palabra, porque la etiqueta recibe entonces el
+ * ancho completo de la fila.
+ *
+ * Elegí medir-y-decidir (`BoxWithConstraints` + `TextMeasurer`) en vez de
+ * `FlowRow` porque `FlowRow` decide si un hijo entra en la fila actual
+ * midiéndolo YA acotado al espacio que queda — el mismo defecto que se está
+ * arreglando, sólo que dentro del propio `FlowRow`. Medir el ancho natural
+ * aparte, antes de decidir el layout, es lo único que evita partir la palabra
+ * en el primer intento.
+ */
+@Composable
+private fun ContenidoDeLaOpcion(
+    etiqueta: String,
+    contador: String?,
+    estiloEtiqueta: TextStyle,
+    colorEtiqueta: Color,
+    colorContador: Color,
+    modifier: Modifier = Modifier
+) {
+    if (contador == null) {
+        Text(text = etiqueta, style = estiloEtiqueta, color = colorEtiqueta, modifier = modifier)
+        return
+    }
+    val estiloContador = MspTheme.type.caption
+    val medidor = rememberTextMeasurer()
+    val densidad = LocalDensity.current
+    BoxWithConstraints(modifier) {
+        val holguraPx = with(densidad) { MspTheme.spacing.sm.roundToPx() }
+        val anchoEtiqueta =
+            medidor.measure(
+                text = etiqueta,
+                style = estiloEtiqueta,
+                maxLines = 1,
+                softWrap = false
+            ).size.width
+        val anchoContador =
+            medidor.measure(
                 text = contador,
-                style = MspTheme.type.caption,
-                color = if (activo) colores.brand else colores.onSurfaceMuted
-            )
+                style = estiloContador,
+                maxLines = 1,
+                softWrap = false
+            ).size.width
+        val cabenEnUnaLinea = anchoEtiqueta + holguraPx + anchoContador <= constraints.maxWidth
+
+        if (cabenEnUnaLinea) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = etiqueta, style = estiloEtiqueta, color = colorEtiqueta)
+                Text(text = contador, style = estiloContador, color = colorContador)
+            }
+        } else {
+            Column(Modifier.fillMaxWidth()) {
+                Text(
+                    text = etiqueta,
+                    style = estiloEtiqueta,
+                    color = colorEtiqueta,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = contador,
+                    style = estiloContador,
+                    color = colorContador,
+                    modifier = Modifier.padding(top = MspTheme.spacing.xs)
+                )
+            }
         }
     }
 }
