@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.speech.ui.DescargaDelDictadoConectada
 import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.feature.pagos.ui.DineroDeLaCuenta
@@ -63,8 +64,16 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Co
     destinoDeListaDeClientes(
         onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) },
         onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) },
-        // la siguiente tarea conecta el menú actual
-        onAbrirMenu = {}
+        // ÚNICO punto de cableado del cajón de HOY (`DrawerContainer`, legado):
+        // provisional hasta el menú nuevo
+        // (docs/superpowers/specs/2026-10-05-menu-lateral-design.md) — ver el
+        // KDoc de `destinoDeListaDeClientes.envoltura`. El día que el menú
+        // cambie, se cambia aquí y sólo aquí.
+        envoltura = { contenido ->
+            DrawerContainer(navController = navController) { abrirCajon ->
+                contenido(abrirCajon)
+            }
+        }
     )
 
     // El detalle de cliente va aparte: perdió el "⋯" y su sección "últimos

@@ -402,24 +402,37 @@ fun NavGraphBuilder.destinoDeBitacora(
  * es difícil de leer en la llamada. Son dos registros cohesivos en vez de uno
  * largo; la Task 21, que cablea los puntos de entrada, llama a los dos.
  *
- * [onAbrirMenu] abre el cajón de navegación — nuevo con la cabecera que se
- * encoge al bajar (decisión del dueño, 2026-10-05). Sale de `:app` porque el
- * cajón (`DrawerContainer`) es legado y vive fuera de este grafo; quien cablea
- * este destino hoy le pasa un no-op comentado — la siguiente tarea conecta el
- * cajón real.
+ * ## [envoltura] — el ÚNICO punto de cableado del cajón de navegación
+ *
+ * La hamburguesa de esta pantalla abre un cajón (decisión del dueño,
+ * 2026-10-05), y el cajón de HOY (`DrawerContainer`) es legado y vive en
+ * `:app`, fuera del alcance de este módulo — `:feature:pagos` no puede
+ * depender de `:app`. [envoltura] es la bisagra: recibe el contenido de esta
+ * pantalla ya armado —una función que solo necesita un `onAbrirMenu` resuelto—
+ * y decide cómo (y si) lo envuelve. `:app` pasa la real
+ * (`DrawerContainer(navController) { abrir -> contenido(abrir) }`); el default
+ * no envuelve nada (`onAbrirMenu` es un no-op), que es lo que deja montar esta
+ * ruta en un test de este módulo sin saber que existe un cajón.
+ *
+ * **PROVISIONAL**, a propósito: el día que llegue el menú nuevo
+ * (`docs/superpowers/specs/2026-10-05-menu-lateral-design.md`), lo que cambia
+ * es la [envoltura] que `:app` pasa — este destino no se vuelve a tocar.
  */
 fun NavGraphBuilder.destinoDeListaDeClientes(
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit,
-    onAbrirMenu: () -> Unit
+    envoltura: @Composable (contenido: @Composable (onAbrirMenu: () -> Unit) -> Unit) -> Unit =
+        { contenido -> contenido {} }
 ) {
     composable(route = PagosRutas.LISTA_CLIENTES) {
-        ListaDeClientesScreen(
-            viewModel = hiltViewModel(),
-            onAbrirCliente = onAbrirCliente,
-            onAbrirVenta = onAbrirVenta,
-            onAbrirMenu = onAbrirMenu
-        )
+        envoltura { onAbrirMenu ->
+            ListaDeClientesScreen(
+                viewModel = hiltViewModel(),
+                onAbrirCliente = onAbrirCliente,
+                onAbrirVenta = onAbrirVenta,
+                onAbrirMenu = onAbrirMenu
+            )
+        }
     }
 }
 

@@ -31,6 +31,8 @@ import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -158,6 +160,20 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
             Settings.Global.ANIMATOR_DURATION_SCALE,
             0f
         )
+        // `DrawerContainer` —ahora en el camino de `pagos/clientes`— pinta
+        // `UpdateBanner`, que toca `FirebaseFirestore.getInstance()` en el
+        // `init` de `UpdateChecker`. Mismo fixture que `CorreccionSubeCorregidaTest`.
+        val context: Context = ApplicationProvider.getApplicationContext()
+        if (FirebaseApp.getApps(context).isEmpty()) {
+            FirebaseApp.initializeApp(
+                context,
+                FirebaseOptions.Builder()
+                    .setApplicationId("1:000000000000:android:stub")
+                    .setApiKey("stub-api-key")
+                    .setProjectId("stub-project")
+                    .build()
+            )
+        }
     }
 
     /**

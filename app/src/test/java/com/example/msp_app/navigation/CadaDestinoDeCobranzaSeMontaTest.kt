@@ -1,5 +1,6 @@
 package com.example.msp_app.navigation
 
+import android.content.Context
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -84,6 +87,20 @@ class CadaDestinoDeCobranzaSeMontaTest {
     @Before
     fun setUp() {
         hiltRule.inject()
+        // `DrawerContainer` —ahora en el camino de `pagos/clientes`— pinta
+        // `UpdateBanner`, que toca `FirebaseFirestore.getInstance()` en el
+        // `init` de `UpdateChecker`. Mismo fixture que `CorreccionSubeCorregidaTest`.
+        val context: Context = ApplicationProvider.getApplicationContext()
+        if (FirebaseApp.getApps(context).isEmpty()) {
+            FirebaseApp.initializeApp(
+                context,
+                FirebaseOptions.Builder()
+                    .setApplicationId("1:000000000000:android:stub")
+                    .setApiKey("stub-api-key")
+                    .setProjectId("stub-project")
+                    .build()
+            )
+        }
     }
 
     /**

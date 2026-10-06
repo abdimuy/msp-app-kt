@@ -52,14 +52,22 @@ fun DrawerContainer(
     navController: NavController,
     content: @Composable (openDrawer: () -> Unit) -> Unit
 ) {
-    val authViewModel = LocalAuthViewModel.current
+    // `runCatching` y no `LocalAuthViewModel.current` directo: en producción
+    // `AppNavigation` siempre lo provee alrededor de TODO el `NavHost`, pero una
+    // red de prueba que compone un destino de cobranza por su cuenta —sin ese
+    // envoltorio— no puede saberlo (`destinosDeCobranza` no es `:app` entera).
+    // Sin sesión el cajón pinta igual, sólo sin los ítems por `MODULOS` —el
+    // mismo "sin dato" que ya tolera `userData == null`—, nunca una
+    // `IllegalStateException` que tumbe la composición completa.
+    val authViewModel = runCatching { LocalAuthViewModel.current }.getOrNull()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val userDataState by authViewModel.userData.collectAsState()
-    val userData = when (userDataState) {
-        is ResultState.Success -> (userDataState as ResultState.Success<User?>).data
-        else -> null
+    val userData: User? = if (authViewModel != null) {
+        val userDataState by authViewModel.userData.collectAsState()
+        (userDataState as? ResultState.Success<User?>)?.data
+    } else {
+        null
     }
 
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -90,7 +98,15 @@ fun DrawerContainer(
                                 text = "Menú",
                                 style = MaterialTheme.typography.titleLarge
                             )
-                            IconButton(onClick = { ThemeController.toggle() }) {
+                            IconButton(
+                                onClick = { ThemeController.toggle() },
+                                // 50dp: mínimo de control tocable que exige todo el repo
+                                // (`CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest` lo mide
+                                // ahora en esta pantalla también, desde que el cajón entró al
+                                // camino de `pagos/clientes`). El default de `IconButton` no
+                                // llega.
+                                modifier = Modifier.size(50.dp)
+                            ) {
                                 Image(
                                     painter = painterResource(
                                         id = if (ThemeController.isDarkMode) {
@@ -367,7 +383,7 @@ fun DrawerContainer(
             confirmButton = {
                 TextButton(onClick = {
                     showLogoutDialog = false
-                    authViewModel.logout()
+                    authViewModel?.logout()
                 }) {
                     Text("Sí")
                 }
