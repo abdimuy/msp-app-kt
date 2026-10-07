@@ -33,6 +33,18 @@ internal class ScrollPorSegmento private constructor(
     fun de(segmento: SegmentoDeCobranza): LazyListState =
         estados.getOrPut(segmento) { LazyListState() }
 
+    /**
+     * Descarta la posición de todos los segmentos menos [visible]: al
+     * cambiar el orden, el índice guardado de otro segmento apunta a otros
+     * clientes en el orden nuevo. La próxima visita a ese segmento arranca
+     * en el tope con un estado nuevo (ver [de]). El visible no se toca aquí:
+     * su `LazyColumn` está montado y quien llama lo regresa al tope con
+     * `scrollToItem`.
+     */
+    fun olvidarTodosMenos(visible: SegmentoDeCobranza) {
+        estados.keys.retainAll(setOf(visible))
+    }
+
     companion object {
         /** Campos por segmento en la forma plana guardada: nombre, índice, desplazamiento. */
         private const val CAMPOS = 3

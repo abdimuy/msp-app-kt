@@ -220,6 +220,44 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
     }
 
+    /**
+     * Minor de la re-revisión final ("Final minors" en `progress.md`): elegir
+     * un orden nuevo regresaba al tope SÓLO el segmento visible; los demás
+     * conservaban la posición del orden viejo, que en el orden nuevo apunta a
+     * otros clientes. Al volver a ellos el cobrador caía a media lista sin
+     * saber por qué.
+     */
+    @Test
+    fun `cambiar el orden tambien regresa al tope a los otros segmentos`() {
+        var segmento by mutableStateOf(SegmentoDeCobranza.SIN_VISITAR)
+        var orden by mutableStateOf(OrdenDeLaLista.COBRANZA)
+        composeTestRule.setContent {
+            MspTheme(darkTheme = false, animateColors = false) {
+                ListaDeClientesContent(
+                    state = estadoDeDosSegmentos(segmento, orden),
+                    onBuscar = {},
+                    onElegirSegmento = { segmento = it },
+                    onAbrirCliente = {},
+                    onReintentar = {},
+                    onAlternarTema = {},
+                    onAlternarPrivacidad = {},
+                    onElegirOrden = { orden = it },
+                    onQuitarOrden = {},
+                    onAbrirMenu = {}
+                )
+            }
+        }
+        bajarLaLista()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+
+        orden = OrdenDeLaLista.VENTAS_NUEVAS
+        composeTestRule.waitForIdle()
+        elegirChip(SegmentoDeCobranza.SIN_VISITAR)
+
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertIsDisplayed()
+    }
+
     private fun elegirChip(segmento: SegmentoDeCobranza) {
         composeTestRule.onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
             .performClick()
@@ -302,14 +340,18 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         )
     }
 
-    private fun estadoDeDosSegmentos(segmento: SegmentoDeCobranza): ListaDeClientesUiState {
+    private fun estadoDeDosSegmentos(
+        segmento: SegmentoDeCobranza,
+        orden: OrdenDeLaLista = OrdenDeLaLista.COBRANZA
+    ): ListaDeClientesUiState {
         val clientes = clientesDePrueba(SegmentoDeCobranza.SIN_VISITAR, EstadoCuenta.SIN_TOCAR, CUARENTA, 0) +
             clientesDePrueba(SegmentoDeCobranza.YA_NO_ESTA_SEMANA, EstadoCuenta.SE_NEGO, CUARENTA, 1000)
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
             segmento = segmento,
             query = "",
-            hoy = ListaFixtures.HOY
+            hoy = ListaFixtures.HOY,
+            orden = orden
         )
         return ListaDeClientesUiState(
             cargando = false,
@@ -317,6 +359,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             conteos = proyeccion.conteos,
             segmento = segmento,
             hoy = ListaFixtures.HOY,
+            orden = orden,
             contextoSemana = "semana del 31 ago al 6 sep"
         )
     }

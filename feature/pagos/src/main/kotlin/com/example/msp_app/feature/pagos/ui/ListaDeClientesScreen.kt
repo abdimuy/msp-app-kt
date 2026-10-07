@@ -288,7 +288,8 @@ fun ListaDeClientesContent(
     }
 
     // Elegir un orden nuevo (o "✕ Quitar", que también cambia `state.orden`
-    // de vuelta a COBRANZA) vuelve al principio DEL SEGMENTO VISIBLE: con
+    // de vuelta a COBRANZA) vuelve al principio DEL SEGMENTO VISIBLE —y los
+    // demás olvidan su posición, así que arrancan en el tope al visitarlos—: con
     // `key = clienteId` el cliente que estaba primero sólo se MUEVE a su
     // posición nueva, y sin este efecto el `LazyListState` seguía mirando
     // ese mismo índice — medido: elegir "Ventas nuevas" estando en el tope
@@ -312,6 +313,9 @@ fun ListaDeClientesContent(
         val anterior = ordenMostrado
         ordenMostrado = state.orden
         if (anterior != null && anterior != state.orden) {
+            // Los OTROS segmentos también: su posición guardada es del orden
+            // viejo y en el nuevo apunta a otros clientes.
+            scrollPorSegmento.olvidarTodosMenos(state.segmento)
             estadoDe(state.segmento).scrollToItem(0)
         }
     }
