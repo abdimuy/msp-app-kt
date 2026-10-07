@@ -234,9 +234,11 @@ class MenuDeLaAppTogglesDelEncabezadoTest {
      * {}` (cableado roto) en `MenuLateralContenedor` — ninguna prueba que
      * dependa de completar este mecanismo real puede distinguir los dos
      * casos en este arnés. Por eso esta prueba sólo AFIRMA el límite (para que
-     * se note si algún día deja de ser cierto — sentinela inversa: si esta
-     * prueba se pone VERDE sin tocarla, es señal de que el límite se levantó y
-     * hay que volver a intentar la cobertura completa) y la prueba siguiente
+     * se note si algún día deja de ser cierto — sentinela inversa: con
+     * `assertThrows`, si el límite se levanta esta prueba se pone ROJA sin
+     * tocarla (el `IllegalArgumentException` esperado ya no se lanza), y esa
+     * falla es la señal de que hay que volver a intentar la cobertura
+     * completa) y la prueba siguiente
      * (`sin movimiento reducido… instala el host…`) cubre, en cambio, lo único
      * que SÍ se puede medir sin tocar el bitmap: que el camino real instala el
      * host de la reveal (y no cae, por error, a la rama de movimiento
