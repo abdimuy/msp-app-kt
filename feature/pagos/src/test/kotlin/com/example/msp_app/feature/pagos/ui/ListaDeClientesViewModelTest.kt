@@ -586,4 +586,38 @@ class ListaDeClientesViewModelTest {
             vm.state.value.clientes.map { it.clienteId }
         )
     }
+
+    /**
+     * Minor de la re-revisión final ("Final minors" en `progress.md`): en
+     * arranque en frío con "Más cerca" restaurado, la primera proyección —la
+     * que ya no espera al GPS— no tiene distancias todavía, y el renglón de
+     * orden enseñaba "Sin ubicación" mientras el GPS seguía buscando. Buscar
+     * no es lo mismo que no tener: el aviso sólo va cuando la consulta YA
+     * contestó sin distancias.
+     */
+    @Test
+    fun `con Mas Cerca restaurado no avisa Sin ubicacion mientras el GPS aun no contesta`() =
+        runTest(testDispatcher) {
+            ordenGuardadoPort.guardado = OrdenGuardado(OrdenDeLaLista.MAS_CERCA, ListaFixtures.HOY)
+            val espera = kotlinx.coroutines.CompletableDeferred<Map<Int, Double>>()
+            cercaniaPort.espera = espera
+
+            val vm = viewModel()
+            // `runCurrent()` y no `advanceUntilIdle()`: ver la prueba de arriba
+            // (el timeout virtual de 8s resolvería la espera por su cuenta).
+            testDispatcher.scheduler.runCurrent()
+
+            assertFalse("la cartera ya se proyectó", vm.state.value.cargando)
+            assertEquals(OrdenDeLaLista.MAS_CERCA, vm.state.value.orden)
+            assertFalse(
+                "el GPS sigue buscando: no hay que decir 'Sin ubicación' todavía",
+                vm.state.value.avisoSinUbicacion
+            )
+
+            // Control positivo: cuando el GPS contesta SIN distancias, el aviso sí aparece.
+            espera.complete(emptyMap())
+            testDispatcher.scheduler.runCurrent()
+
+            assertTrue(vm.state.value.avisoSinUbicacion)
+        }
 }

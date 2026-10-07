@@ -81,10 +81,11 @@ data class ListaDeClientesUiState(
     val orden: OrdenDeLaLista = OrdenDeLaLista.COBRANZA,
     /**
      * `true` cuando [orden] es [OrdenDeLaLista.MAS_CERCA] y
-     * [CercaniaPort.distanciasPorVenta] no trajo ni una distancia — la lista
-     * ya cayó a orden de cobranza ([CarteraEnPantalla] lo garantiza) y el
-     * renglón de orden enseña el aviso apagado "Sin ubicación: orden de
-     * cobranza".
+     * [CercaniaPort.distanciasPorVenta] YA contestó sin una sola distancia —
+     * la lista ya cayó a orden de cobranza ([CarteraEnPantalla] lo garantiza)
+     * y el renglón de orden enseña el aviso apagado "Sin ubicación: orden de
+     * cobranza". Mientras el GPS todavía no contesta es `false`: ver
+     * [ControladorDeOrden.sinUbicacion].
      */
     val avisoSinUbicacion: Boolean = false
 )
@@ -364,7 +365,7 @@ class ListaDeClientesViewModel @Inject constructor(
                 hoy = cargada?.hoy ?: EPOCA,
                 contextoSemana = cargada?.let { SemanaEnCurso.etiqueta(it.hoy) }.orEmpty(),
                 orden = orden,
-                avisoSinUbicacion = orden == OrdenDeLaLista.MAS_CERCA && controladorDeOrden.distancias.isEmpty()
+                avisoSinUbicacion = controladorDeOrden.sinUbicacion
             )
         }
     }

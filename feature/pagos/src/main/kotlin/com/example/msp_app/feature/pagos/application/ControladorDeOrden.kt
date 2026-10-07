@@ -42,6 +42,24 @@ class ControladorDeOrden @Inject constructor(
         private set
 
     /**
+     * `true` en cuanto [CercaniaPort] contestó (o se agotó su plazo) al menos
+     * una vez. Antes de eso, unas [distancias] vacías quieren decir "el GPS
+     * sigue buscando", no "no hay ubicación" — ver [sinUbicacion].
+     */
+    private var ubicacionContestada: Boolean = false
+
+    /**
+     * "Más cerca" está vigente y la ubicación YA contestó sin una sola
+     * distancia: la lista cayó a orden de cobranza y el renglón de orden lo
+     * avisa ("Sin ubicación"). Mientras el GPS no contesta —arranque en frío
+     * con "Más cerca" restaurado, cuando la cartera se proyecta antes de
+     * esperar al GPS— es `false`: buscar no es lo mismo que no tener
+     * (minor de la re-revisión final de `feat/lista-venta-nueva-orden`).
+     */
+    val sinUbicacion: Boolean
+        get() = orden == OrdenDeLaLista.MAS_CERCA && ubicacionContestada && distancias.isEmpty()
+
+    /**
      * El [hoy] con el que se restauró la última vez — `null` hasta la
      * primera restauración. Lo usa [restaurarSiCambioElDia] para decidir si
      * hay algo que hacer.
@@ -107,6 +125,7 @@ class ControladorDeOrden @Inject constructor(
         distancias = withContext(io) {
             withTimeoutOrNull(TIMEOUT_UBICACION_MS) { cercania.distanciasPorVenta() }.orEmpty()
         }
+        ubicacionContestada = true
     }
 
     /** Elige [nuevo], pide distancias si hace falta y persiste con el día [hoy] (si se conoce). */
