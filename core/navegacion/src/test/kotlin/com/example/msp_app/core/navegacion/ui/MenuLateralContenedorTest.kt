@@ -1,6 +1,9 @@
 package com.example.msp_app.core.navegacion.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -256,6 +259,67 @@ class MenuLateralContenedorTest : RobolectricTestBase() {
             "sin host instalado, el toggle de tema de la hoja haría crossfade en vez de " +
                 "reveal (R2) — MenuLateralContenedor dejó de envolver la hoja en MspThemeRevealHost",
             revealInstalada == true
+        )
+    }
+
+    /**
+     * Ruling R7: corrige el plan original (umbral absoluto de 50 %, efectivo ~55 % y frágil).
+     * En vez de un porcentaje fijo, compara el recorrido REAL del resorte (medido con un tap
+     * real sobre el contenedor de producción, igual que el resto de esta clase) contra el de la
+     * tween por defecto de `DrawerState.open()` — la que `abrir` usaba antes de esta tarea — EN
+     * EL MISMO INSTANTE (64 ms / 4 cuadros). Es una comparación relativa: sólo cobra que el
+     * resorte sea más rápido que la tween a ese instante, no una cifra concreta. Costo aceptado
+     * (R7): prueba menos estricta que el 50 % absoluto del plan.
+     *
+     * **Por qué el lado de la tween se evalúa matemáticamente y no con un segundo cajón en
+     * pantalla** (hallazgo de esta tarea, MEDIDO): montar un `ModalNavigationDrawer` de control
+     * junto al contenedor real, en la MISMA composición, da resultados no deterministas — en una
+     * corrida el resorte quedó congelado en su posición cerrada durante los cuatro cuadros
+     * medidos (dando ~0 % en vez de los ~70 % reales), en otra la tween del cajón de control
+     * saltó a 100 % de golpe; algo en tener dos `AnchoredDraggableState.anchoredDrag`
+     * compitiendo por el mismo [compose.mainClock] rompe el orden de los frames, con o sin tocar
+     * los dos cajones a la vez. En vez de arriesgar esa inestabilidad, la tween por defecto se
+     * evalúa con la misma API que el propio `animate()` de Compose usa internamente
+     * ([VectorizedAnimationSpec.getValueFromNanos], función pura, sin corrutina ni reloj) sobre
+     * `TweenSpec<Float>(durationMillis = 256)` — medida en el fuente de material3 1.3.0
+     * (`NavigationDrawer.kt:1160`, 2026-10-06; el mismo valor que ya documentaba el KDoc de
+     * [abrir]) — normalizada a initialValue=0f/targetValue=1f, que para un `TweenSpec` da
+     * exactamente la fracción de interpolación en ese instante, sin necesidad de cajón alguno.
+     *
+     * Antes de la implementación (Step 3), `abrir` del contenedor real también usa `open()` (la
+     * misma tween que se evalúa aquí matemáticamente), así que `recorridoResorte` sale MENOR que
+     * `recorridoTween` (la lectura por UI, con el desfase de 16 dp del borde cerrado real de
+     * [MenuLateralContenedor] frente a [ANCHO_DEL_MENU], subestima la fracción verdadera) y
+     * `recorridoResorte > recorridoTween` sale ROJO — ese es el rojo esperado del Step 2.
+     */
+    @Test
+    fun `la entrada con resorte recorre mas que la tween por defecto en el mismo instante y no rebota`() {
+        montar(reducido = false)
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag("abrir").performClick()
+        repeat(4) { compose.mainClock.advanceTimeByFrame() }
+        val izquierdaA64Ms = compose.onNodeWithTag(MENU_LATERAL_TAG).getBoundsInRoot().left.value
+        val recorridoResorte = 1f - (-izquierdaA64Ms / ANCHO_DEL_MENU.value)
+
+        val posiciones = (1..60).map {
+            compose.mainClock.advanceTimeByFrame()
+            compose.onNodeWithTag(MENU_LATERAL_TAG).getBoundsInRoot().left.value
+        }
+        assertTrue("el menú rebotó más allá del borde: $posiciones", posiciones.all { it <= 0.5f })
+        assertEquals(0f, posiciones.last(), 0.5f)
+
+        val tweenVectorizado = tween<Float>(durationMillis = 256).vectorize(Float.VectorConverter)
+        val recorridoTween = tweenVectorizado.getValueFromNanos(
+            playTimeNanos = 64_000_000L,
+            initialValue = AnimationVector1D(0f),
+            targetValue = AnimationVector1D(1f),
+            initialVelocity = AnimationVector1D(0f)
+        ).value
+
+        assertTrue(
+            "el resorte (${recorridoResorte * 100}%) debe recorrer más que la tween por defecto " +
+                "(${recorridoTween * 100}%) en el mismo instante (64 ms)",
+            recorridoResorte > recorridoTween
         )
     }
 }

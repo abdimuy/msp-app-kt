@@ -1,5 +1,8 @@
 package com.example.msp_app.core.navegacion.ui
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
@@ -50,6 +53,16 @@ import kotlinx.coroutines.launch
  * - **Movimiento reducido**: `snapTo`, sin animación (spec §2.1.7); el mismo
  *   criterio ([rememberMspReducedMotion]) gatea también la reveal de tema.
  */
+
+/**
+ * El resorte de entrada (spec §2.1.7): los mismos valores que
+ * `MspMotion.standard()` —críticamente amortiguado, sin rebote—. Se copian los
+ * dos números porque este contenedor vive FUERA de `MspTheme` (la pantalla puede
+ * ser legada) y `MspMotion` tiene constructor `internal`.
+ */
+internal val RESORTE_DE_ENTRADA: SpringSpec<Float> =
+    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuLateralContenedor(
@@ -68,11 +81,14 @@ fun MenuLateralContenedor(
     val abrir: () -> Unit = {
         alcance.launch {
             if (movimientoReducido) {
-                estadoDelCajon.snapTo(
-                    DrawerValue.Open
-                )
+                estadoDelCajon.snapTo(DrawerValue.Open)
             } else {
-                estadoDelCajon.open()
+                // `animateTo` está @Deprecated en material3 1.3.0 ("the animation spec is now an
+                // implementation detail of ModalDrawer"), pero es la ÚNICA vía para un resorte;
+                // medido 2026-10-06 con javap. Si una versión futura lo quita, este archivo no
+                // compila y se decide ahí: `open()` sin resorte, o envolver el cajón a mano.
+                @Suppress("DEPRECATION")
+                estadoDelCajon.animateTo(DrawerValue.Open, RESORTE_DE_ENTRADA)
             }
         }
     }
