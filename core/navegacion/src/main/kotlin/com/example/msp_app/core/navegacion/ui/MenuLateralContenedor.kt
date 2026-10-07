@@ -1,5 +1,6 @@
 package com.example.msp_app.core.navegacion.ui
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +56,7 @@ fun MenuLateralContenedor(
     hoja: @Composable (cerrar: () -> Unit, apertura: AperturaDelMenu) -> Unit,
     onAbierto: () -> Unit,
     onAlternarTema: () -> Unit,
+    gesto: AperturaPorGesto = AperturaPorGesto.DESLIZAR_EN_TODA_LA_PANTALLA,
     contenido: @Composable (abrir: () -> Unit) -> Unit
 ) {
     val estadoDelCajon = rememberDrawerState(DrawerValue.Closed)
@@ -94,6 +96,7 @@ fun MenuLateralContenedor(
 
     ModalNavigationDrawer(
         drawerState = estadoDelCajon,
+        gesturesEnabled = gesto == AperturaPorGesto.DESLIZAR_EN_TODA_LA_PANTALLA || estadoDelCajon.isOpen,
         drawerContent = {
             MspThemeRevealHost(
                 onToggleTheme = onAlternarTema,
@@ -118,6 +121,15 @@ fun MenuLateralContenedor(
             }
         }
     ) {
-        contenido(abrir)
+        if (gesto == AperturaPorGesto.DESDE_LA_BARRA) {
+            // `fillMaxSize`: la franja cubre el tope de la pantalla aunque el contenido
+            // todavía esté en su estado de carga y mida menos.
+            ZonaQueAbreElMenu(
+                onAbrir = abrir,
+                modifier = Modifier.fillMaxSize()
+            ) { contenido(abrir) }
+        } else {
+            contenido(abrir)
+        }
     }
 }

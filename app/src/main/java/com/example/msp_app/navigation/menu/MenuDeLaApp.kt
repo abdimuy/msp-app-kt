@@ -9,6 +9,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.msp_app.BuildConfig
 import com.example.msp_app.components.UpdateBanner
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.navegacion.ui.AperturaPorGesto
 import com.example.msp_app.core.navegacion.ui.MenuLateral
 import com.example.msp_app.core.navegacion.ui.MenuLateralContenedor
 import com.example.msp_app.core.navegacion.ui.MenuLateralViewModel
@@ -38,6 +39,7 @@ import com.example.msp_app.data.models.auth.User
 @Composable
 fun MenuDeLaApp(
     navController: NavController,
+    gesto: AperturaPorGesto = AperturaPorGesto.DESLIZAR_EN_TODA_LA_PANTALLA,
     contenido: @Composable (abrirMenu: () -> Unit) -> Unit
 ) {
     val authViewModel = runCatching { LocalAuthViewModel.current }.getOrNull()
@@ -85,6 +87,7 @@ fun MenuDeLaApp(
             viewModel.alAbrir(secciones.flatMap { seccion -> seccion.items.map { it.id } }.toSet())
         },
         onAlternarTema = viewModel::alternarTema,
+        gesto = gesto,
         contenido = contenido
     )
 }

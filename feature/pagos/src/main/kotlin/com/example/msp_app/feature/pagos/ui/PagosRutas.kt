@@ -140,6 +140,11 @@ object PagosRutas {
  * se tocó — el destino nuevo de [destinoDeBitacora], ahora por venta. Es el
  * reemplazo de lo que el detalle de CLIENTE ofrecía antes de perder su sección
  * "últimos contactos": la única puerta a la bitácora es hoy esta.
+ *
+ * [envoltura] es la bisagra del menú lateral, igual que en
+ * [destinoDeListaDeClientes]: `:app` pasa el menú con apertura desde la barra
+ * superior (spec §2.2.1); el default no envuelve nada, para montar la ruta en
+ * una prueba de este módulo sin saber que existe un menú.
  */
 // Un callback por destino al que esta pantalla puede llevar: no es fan-out
 // accidental, es la lista de puertas del detalle de venta. Agruparlos en un
@@ -155,7 +160,10 @@ fun NavGraphBuilder.destinosDePagos(
     onVerGarantia: (Int) -> Unit,
     onCondonar: (Int) -> Unit,
     onVerContactos: (Int) -> Unit = {},
-    ubicacion: UbicacionEnLaBitacora = UbicacionEnLaBitacora()
+    ubicacion: UbicacionEnLaBitacora = UbicacionEnLaBitacora(),
+    envoltura: @Composable (
+        contenido: @Composable () -> Unit
+    ) -> Unit = { contenido -> contenido() }
 ) {
     composable(
         route = PagosRutas.DETALLE_VENTA,
@@ -164,20 +172,22 @@ fun NavGraphBuilder.destinosDePagos(
         // Este destino conoce la VENTA, no al cliente. Viaja el `ventaId` y
         // quien lo resuelve es el módulo de ubicación, que es el que lee Room.
         val ventaId = entrada.arguments?.getInt(PagosRutas.ARG_VENTA_ID) ?: 0
-        DetalleVentaScreen(
-            viewModel = hiltViewModel(),
-            onAtras = onAtras,
-            onRegistrarAbono = onRegistrarAbono,
-            onRegistrarVisita = onRegistrarVisita,
-            onVerAbonos = onVerAbonos,
-            onVerGarantia = onVerGarantia,
-            onVerContactos = onVerContactos,
-            onVerUbicacion = { _, direccion, pagoId ->
-                ubicacion.onVerLugares(null, ventaId, direccion, pagoId)
-            },
-            onCondonar = onCondonar,
-            onVerTicket = ubicacion.onVerTicket
-        )
+        envoltura {
+            DetalleVentaScreen(
+                viewModel = hiltViewModel(),
+                onAtras = onAtras,
+                onRegistrarAbono = onRegistrarAbono,
+                onRegistrarVisita = onRegistrarVisita,
+                onVerAbonos = onVerAbonos,
+                onVerGarantia = onVerGarantia,
+                onVerContactos = onVerContactos,
+                onVerUbicacion = { _, direccion, pagoId ->
+                    ubicacion.onVerLugares(null, ventaId, direccion, pagoId)
+                },
+                onCondonar = onCondonar,
+                onVerTicket = ubicacion.onVerTicket
+            )
+        }
     }
 }
 
@@ -273,13 +283,21 @@ data class DineroDeLaCuenta(
  * porque con ellos esta función llega a los siete que detekt corta
  * (`LongParameterList`), que es el mismo motivo por el que el contenido de la
  * pantalla agrupa sus lambdas en `AccionesDeContacto` y `AccionesDeLaFicha`.
+ *
+ * [envoltura] es la bisagra del menú lateral, igual que en
+ * [destinoDeListaDeClientes]: `:app` pasa el menú con apertura desde la barra
+ * superior (spec §2.2.1); el default no envuelve nada, para montar la ruta en
+ * una prueba de este módulo sin saber que existe un menú.
  */
 fun NavGraphBuilder.destinoDeDetalleCliente(
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
     dinero: DineroDeLaCuenta = DineroDeLaCuenta(),
-    ubicacion: UbicacionEnElDetalle = UbicacionEnElDetalle()
+    ubicacion: UbicacionEnElDetalle = UbicacionEnElDetalle(),
+    envoltura: @Composable (
+        contenido: @Composable () -> Unit
+    ) -> Unit = { contenido -> contenido() }
 ) {
     composable(
         route = PagosRutas.DETALLE_CLIENTE,
@@ -289,18 +307,20 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
         // pantalla no lo lleva en su callback, así que el destino lo agrega al
         // pasar — ver `UbicacionEnElDetalle.onVerLugares`.
         val clienteId = entrada.arguments?.getInt(PagosRutas.ARG_CLIENTE_ID) ?: 0
-        DetalleClienteScreen(
-            viewModel = hiltViewModel(),
-            onAtras = onAtras,
-            onAbrirVenta = onAbrirVenta,
-            onRegistrarAbono = dinero.onRegistrarAbono,
-            onRegistrarVisita = onRegistrarVisita,
-            onVerUbicacion = { _, direccion ->
-                ubicacion.onVerLugares(clienteId, direccion)
-            },
-            onCondonar = dinero.onCondonar,
-            suelo = ubicacion.suelo
-        )
+        envoltura {
+            DetalleClienteScreen(
+                viewModel = hiltViewModel(),
+                onAtras = onAtras,
+                onAbrirVenta = onAbrirVenta,
+                onRegistrarAbono = dinero.onRegistrarAbono,
+                onRegistrarVisita = onRegistrarVisita,
+                onVerUbicacion = { _, direccion ->
+                    ubicacion.onVerLugares(clienteId, direccion)
+                },
+                onCondonar = dinero.onCondonar,
+                suelo = ubicacion.suelo
+            )
+        }
     }
 }
 

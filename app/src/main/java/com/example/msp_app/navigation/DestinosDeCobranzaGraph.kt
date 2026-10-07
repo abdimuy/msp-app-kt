@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.example.msp_app.core.navegacion.ui.AperturaPorGesto
 import com.example.msp_app.core.speech.ui.DescargaDelDictadoConectada
 import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.feature.pagos.ui.DineroDeLaCuenta
@@ -114,7 +115,15 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Co
             // cuadro se queda con su dibujo y los goldens del módulo siguen
             // fotografiando algo que no depende de la red.
             suelo = { punto, tocar -> SueloDelUltimoCobro(punto, tocar) }
-        )
+        ),
+        // Spec §2.2.1: pantalla con flecha → el menú se abre deslizando desde la
+        // barra superior, nunca desde el borde (que es "atrás" del sistema).
+        envoltura = { contenido ->
+            MenuDeLaApp(
+                navController = navController,
+                gesto = AperturaPorGesto.DESDE_LA_BARRA
+            ) { contenido() }
+        }
     )
 
     // El mapa de TODOS los lugares del cliente. Reemplazó a la pantalla de un
@@ -245,7 +254,15 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Co
             onVerTicket = { pagoId ->
                 navController.navigate(Screen.PaymentTicket.createRoute(pagoId))
             }
-        )
+        ),
+        // Spec §2.2.1: pantalla con flecha → el menú se abre deslizando desde la
+        // barra superior, nunca desde el borde (que es "atrás" del sistema).
+        envoltura = { contenido ->
+            MenuDeLaApp(
+                navController = navController,
+                gesto = AperturaPorGesto.DESDE_LA_BARRA
+            ) { contenido() }
+        }
     )
 
     destinoDeRegistrarAbono(
