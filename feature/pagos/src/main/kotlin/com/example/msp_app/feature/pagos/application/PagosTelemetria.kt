@@ -362,4 +362,15 @@ object PagosTelemetria {
      * truena—, pero un valor que deja de leerse tiene que quedar grepeable.
      */
     const val CODE_ORDEN_GUARDADO_ILEGIBLE: String = "pagos_orden_guardado_ilegible"
+
+    /**
+     * El orden elegido en la hoja "Ordenar por" no se pudo GUARDAR (DataStore
+     * respondió con [java.io.IOException] — disco lleno, archivo dañado,
+     * permiso retirado). [com.example.msp_app.feature.pagos.domain.port.OrdenGuardadoPort.guardar]
+     * degrada en silencio para quien lo llama —la elección sigue aplicada EN
+     * MEMORIA esta sesión, nunca se relanza la excepción—, pero no persistir
+     * un dato tiene que quedar grepeable: sin esto, "guardar" podía tronar la
+     * app entera por un disco lleno.
+     */
+    const val CODE_ORDEN_GUARDADO_NO_SE_PUDO_ESCRIBIR: String = "pagos_orden_guardado_no_se_pudo_escribir"
 }

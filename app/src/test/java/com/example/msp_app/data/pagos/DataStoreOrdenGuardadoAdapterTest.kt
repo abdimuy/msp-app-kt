@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
@@ -12,8 +13,11 @@ import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.port.OrdenGuardado
 import java.io.File
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -107,5 +111,38 @@ class DataStoreOrdenGuardadoAdapterTest {
 
         assertNull(adaptador(dataStore).leer())
         assertEquals(1, errores(PagosTelemetria.CODE_ORDEN_GUARDADO_ILEGIBLE).size)
+    }
+
+    /**
+     * **Hallazgo 7 de la revisión final** (`.superpowers/sdd/2026-10-06-menu-lateral/final-fix-report.md`):
+     * `DataStore.edit` puede lanzar [IOException] (disco lleno, archivo
+     * dañado, permiso retirado) y `guardar` no la atrapaba — un disco lleno
+     * mientras el cobrador elegía un orden podía tronar la app entera. Debe
+     * reportarse y NO relanzarse: la elección sigue aplicada en memoria esta
+     * sesión aunque no se haya podido persistir.
+     *
+     * [DataStoreQueTruena] es un fake —no un mock— que implementa
+     * [DataStore] directo, como exige la regla "fakes-only, sin MockK" del
+     * repo.
+     */
+    @Test
+    fun `IOException al guardar se reporta y no se relanza`() = runTest {
+        val adaptador = adaptador(DataStoreQueTruena())
+
+        // No debe lanzar: si todavía no está atrapada, esta línea tumba la prueba.
+        adaptador.guardar(OrdenDeLaLista.MAYOR_SALDO, LocalDate.parse("2026-10-05"))
+
+        assertEquals(1, errores(PagosTelemetria.CODE_ORDEN_GUARDADO_NO_SE_PUDO_ESCRIBIR).size)
+    }
+
+    /** Un [DataStore] fingido cuya escritura siempre falla con [IOException]. */
+    private class DataStoreQueTruena : DataStore<Preferences> {
+        override val data: Flow<Preferences> = flowOf(emptyPreferences())
+
+        override suspend fun updateData(
+            transform: suspend (Preferences) -> Preferences
+        ): Preferences {
+            throw IOException("disco lleno")
+        }
     }
 }

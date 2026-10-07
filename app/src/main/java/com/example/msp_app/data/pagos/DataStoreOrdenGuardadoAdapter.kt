@@ -13,6 +13,7 @@ import com.example.msp_app.feature.pagos.domain.port.OrdenGuardadoPort
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 
@@ -90,10 +91,26 @@ class DataStoreOrdenGuardadoAdapter(
         return OrdenGuardado(orden = orden, dia = dia)
     }
 
+    /**
+     * **No relanza [IOException]** (hallazgo de la revisión final de
+     * `feat/lista-venta-nueva-orden`): `DataStore.edit` puede fallar por disco
+     * lleno, archivo dañado o permiso retirado, y antes de este arreglo eso
+     * tumbaba la pantalla entera por el simple hecho de elegir un orden. El
+     * orden elegido YA quedó aplicado en memoria —[ControladorDeOrden.orden]
+     * se asigna antes de llamar a [guardar]— así que degradar aquí no deja al
+     * cobrador sin lo que acaba de elegir, sólo sin que sobreviva "durante el
+     * día" si el teléfono se reinicia.
+     */
     override suspend fun guardar(orden: OrdenDeLaLista, dia: LocalDate) {
-        dataStore.edit { prefs ->
-            prefs[OrdenListaClientesKeys.ORDEN] = orden.name
-            prefs[OrdenListaClientesKeys.DIA] = dia.toString()
+        try {
+            dataStore.edit { prefs ->
+                prefs[OrdenListaClientesKeys.ORDEN] = orden.name
+                prefs[OrdenListaClientesKeys.DIA] = dia.toString()
+            }
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: IOException) {
+            reportarFalloDeEscritura(fallo)
         }
     }
 
@@ -107,6 +124,20 @@ class DataStoreOrdenGuardadoAdapter(
         telemetry.error(
             code = PagosTelemetria.CODE_ORDEN_GUARDADO_ILEGIBLE,
             message = "el orden guardado de la lista de clientes no se pudo interpretar",
+            props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+        )
+    }
+
+    /**
+     * `DataStore.edit` falló al escribir (disco lleno, archivo dañado, permiso
+     * retirado). No es dinero y el orden sigue aplicado en memoria esta
+     * sesión —ver el KDoc de [guardar]—, pero una escritura que deja de
+     * persistirse tiene que quedar grepeable.
+     */
+    private fun reportarFalloDeEscritura(fallo: Throwable) {
+        telemetry.error(
+            code = PagosTelemetria.CODE_ORDEN_GUARDADO_NO_SE_PUDO_ESCRIBIR,
+            message = "el orden de la lista de clientes no se pudo guardar",
             props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
     }
