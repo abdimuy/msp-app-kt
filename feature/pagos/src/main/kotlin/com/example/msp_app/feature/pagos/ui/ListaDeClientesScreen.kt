@@ -14,7 +14,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,16 +33,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.runtime.Composable
@@ -60,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -69,8 +62,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -733,57 +725,26 @@ private fun CampoDeBusqueda(
     onFocoCambiado: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onBuscar,
+    CampoDeBuscarCliente(
+        query = query,
+        onBuscar = onBuscar,
+        conLupa = true,
+        tag = BUSCADOR_TAG,
         modifier = modifier
             .fillMaxWidth()
             .onFocusChanged { onFocoCambiado(it.isFocused) }
-            // El mínimo del plan es 50px; el default de Material ya está encima,
-            // pero se fija para que no dependa de un default que puede cambiar.
-            .heightIn(min = MspTheme.spacing.touchTarget)
-            .testTag(BUSCADOR_TAG),
-        placeholder = { Text("Buscar cliente", style = MspTheme.type.body) },
-        singleLine = true,
-        shape = MspTheme.shapes.field,
-        textStyle = MspTheme.type.body,
-        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-            imeAction = ImeAction.Search
-        ),
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(
-                    onClick = { onBuscar("") },
-                    modifier = Modifier.heightIn(min = MspTheme.spacing.touchTarget)
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Borrar búsqueda")
-                }
-            }
-        }
     )
 }
 
 /**
  * El campo compacto que aparece pegado arriba, en la barra encogida, al tocar
- * [PildoraDeBuscar] (mock "Buscador" §1b, decisión del dueño 2026-10-05).
- *
- * ## Más grande y más legible (decisión del dueño, 2026-10-07)
- *
- * Con `OutlinedTextField` el relleno interno fijo de Material (16 dp por lado) se
- * comía la altura y el texto `body` (13 sp) quedaba diminuto. Ahora es un
- * `BasicTextField` con la decoración de Material pero relleno `sm`/`xs`, y texto
- * [MspTheme.type.input] (15 sp, el estilo de entrada del tema — no hay un
- * "body grande" en `MspType`). Texto `onSurface` y placeholder `onSurfaceMuted`
- * sobre `surface`: el mismo contraste que el resto de la pantalla. Mientras está
- * abierto, los botones de tema y de montos se esconden y el campo toma su ancho.
+ * [PildoraDeBuscar] (mock "Buscador" §1b, decisión del dueño 2026-10-05). Mientras
+ * está abierto, los botones de tema y de montos se esconden y el campo toma su ancho.
  *
  * La ✕ borra el texto y **pide el foco de vuelta** explícitamente
- * (`focusRequester.requestFocus()`): tocar el `IconButton` le pasa el foco a
- * él por un instante, y sin este empujón el teclado se cerraría justo cuando
- * el cobrador querría seguir escribiendo.
+ * (`focusRequester.requestFocus()`): sin ese empujón el teclado se cerraría justo
+ * cuando el cobrador querría seguir escribiendo.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CampoDeBusquedaCompacto(
     query: String,
@@ -791,76 +752,14 @@ private fun CampoDeBusquedaCompacto(
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier
 ) {
-    val interaccion = remember { MutableInteractionSource() }
-    val colores = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = MspTheme.colors.onSurface,
-        unfocusedTextColor = MspTheme.colors.onSurface,
-        focusedPlaceholderColor = MspTheme.colors.onSurfaceMuted,
-        unfocusedPlaceholderColor = MspTheme.colors.onSurfaceMuted,
-        focusedContainerColor = MspTheme.colors.surface,
-        unfocusedContainerColor = MspTheme.colors.surface,
-        focusedBorderColor = MspTheme.colors.brand,
-        unfocusedBorderColor = MspTheme.colors.outline,
-        cursorColor = MspTheme.colors.brand,
-        focusedTrailingIconColor = MspTheme.colors.onSurfaceMuted,
-        unfocusedTrailingIconColor = MspTheme.colors.onSurfaceMuted
-    )
-    BasicTextField(
-        value = query,
-        onValueChange = onBuscar,
-        modifier = modifier
-            .heightIn(min = BOTON_MENU_SIZE)
-            .focusRequester(focusRequester)
-            .testTag(BUSCADOR_COMPACTO_TAG),
-        singleLine = true,
-        textStyle = MspTheme.type.input.copy(color = MspTheme.colors.onSurface),
-        cursorBrush = SolidColor(MspTheme.colors.brand),
-        interactionSource = interaccion,
-        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-            imeAction = ImeAction.Search
-        ),
-        decorationBox = { campo ->
-            OutlinedTextFieldDefaults.DecorationBox(
-                value = query,
-                innerTextField = campo,
-                enabled = true,
-                singleLine = true,
-                visualTransformation = VisualTransformation.None,
-                interactionSource = interaccion,
-                placeholder = { Text("Buscar cliente", style = MspTheme.type.input) },
-                trailingIcon = if (query.isNotEmpty()) {
-                    {
-                        IconButton(
-                            onClick = {
-                                onBuscar("")
-                                focusRequester.requestFocus()
-                            },
-                            modifier = Modifier
-                                .heightIn(min = MspTheme.spacing.touchTarget)
-                                .testTag(BORRAR_BUSQUEDA_COMPACTA_TAG)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Borrar búsqueda")
-                        }
-                    }
-                } else {
-                    null
-                },
-                colors = colores,
-                contentPadding = PaddingValues(
-                    horizontal = MspTheme.spacing.sm + MspTheme.spacing.xs,
-                    vertical = MspTheme.spacing.xs
-                ),
-                container = {
-                    OutlinedTextFieldDefaults.Container(
-                        enabled = true,
-                        isError = false,
-                        interactionSource = interaccion,
-                        colors = colores,
-                        shape = MspTheme.shapes.field
-                    )
-                }
-            )
-        }
+    CampoDeBuscarCliente(
+        query = query,
+        onBuscar = onBuscar,
+        conLupa = false,
+        tag = BUSCADOR_COMPACTO_TAG,
+        tagDeBorrar = BORRAR_BUSQUEDA_COMPACTA_TAG,
+        alBorrar = { focusRequester.requestFocus() },
+        modifier = modifier.focusRequester(focusRequester)
     )
 }
 
@@ -917,7 +816,7 @@ private const val UMBRAL_DEL_GESTO_PX = 80f
  * lo marcaba en 96px contra el mínimo de 100px (≥50dp) que exige todo control
  * tocable del repo — el mock cede ante la compuerta, no al revés.
  */
-private val BOTON_MENU_SIZE = 50.dp
+internal val BOTON_MENU_SIZE = 50.dp
 
 /** Más allá de esta fracción de colapso aparece la píldora "Buscar cliente". */
 private const val FRACCION_DE_LA_PILDORA = 0.5f
