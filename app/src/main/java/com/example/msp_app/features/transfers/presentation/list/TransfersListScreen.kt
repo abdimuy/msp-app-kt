@@ -51,10 +51,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
 import com.example.msp_app.features.transfers.presentation.components.WarehouseProductsBottomSheet
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import kotlinx.coroutines.launch
 
 /**
@@ -109,7 +109,7 @@ fun TransfersListScreen(
         }
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    MenuDeLaApp(navController = navController) { openDrawer ->
         Scaffold(
             topBar = {
                 TopAppBar(

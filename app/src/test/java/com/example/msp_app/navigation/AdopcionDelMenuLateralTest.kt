@@ -51,7 +51,11 @@ class AdopcionDelMenuLateralTest {
             "features/sales/screens/UnifiedSalesScreen.kt",
             "features/sales/screens/NewSaleScreen.kt",
             "features/cart/screens/CartScreen.kt",
-            "features/productsInventory/screens/ProductsCatalogScreen.kt"
+            "features/productsInventory/screens/ProductsCatalogScreen.kt",
+            "features/transfers/presentation/list/TransfersListScreen.kt",
+            "features/camionetaAssignment/presentation/screens/CamionetaAssignmentScreen.kt",
+            "features/guarantees/screens/GuaranteeListScreen.kt",
+            "features/guarantees/screens/CreateGuaranteeScreen.kt"
         )
     }
 }

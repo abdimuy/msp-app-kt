@@ -27,10 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.features.guarantees.screens.components.GuaranteeListItem
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteeListViewModel
 import com.example.msp_app.navigation.Screen
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +42,7 @@ fun GuaranteeListScreen(navController: NavController) {
         viewModel.loadGuarantees()
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    MenuDeLaApp(navController = navController) { openDrawer ->
         Scaffold(
             topBar = {
                 TopAppBar(

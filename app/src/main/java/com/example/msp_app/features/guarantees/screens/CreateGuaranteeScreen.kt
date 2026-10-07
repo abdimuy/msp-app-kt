@@ -36,11 +36,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.features.guarantees.screens.components.GuaranteeImagePicker
 import com.example.msp_app.features.guarantees.screens.viewmodels.CreateGuaranteeViewModel
 import com.example.msp_app.features.sales.screens.ClienteSearchBottomSheet
 import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +63,7 @@ fun CreateGuaranteeScreen(navController: NavController) {
     var showFallaError by remember { mutableStateOf(false) }
     var showImageError by remember { mutableStateOf(false) }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    MenuDeLaApp(navController = navController) { openDrawer ->
         Scaffold(
             topBar = {
                 TopAppBar(

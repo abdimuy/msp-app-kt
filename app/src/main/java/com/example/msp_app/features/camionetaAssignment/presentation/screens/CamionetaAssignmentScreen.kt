@@ -60,13 +60,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.CompactSearchField
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.matchesFuzzy
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.camionetaAssignment.domain.models.Camioneta
 import com.example.msp_app.features.camionetaAssignment.domain.models.UsuarioAsignado
 import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +100,7 @@ fun CamionetaAssignmentScreen(
         }
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    MenuDeLaApp(navController = navController) { openDrawer ->
         Scaffold(
             topBar = {
                 TopAppBar(
