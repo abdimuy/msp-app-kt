@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -209,6 +210,59 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(BUSCADOR_COMPACTO_TAG).assertIsFocused()
     }
 
+    /**
+     * Con la búsqueda compacta abierta, los botones de tema y de montos se retiran para
+     * dejarle el ancho al campo; al cerrarla (aquí: la cabecera vuelve a abrirse en el
+     * tope, que cierra el campo compacto) regresan. Decisión del dueño, 2026-10-07.
+     */
+    @Test
+    fun `con la busqueda compacta abierta los botones se esconden y al cerrarla vuelven`() {
+        montar()
+        bajarLaLista()
+        composeTestRule.onNodeWithTag(TEMA_TAG).assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag(PILDORA_DE_BUSCAR_TAG).performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(TEMA_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(OJO_TAG).assertDoesNotExist()
+
+        repeat(REPETICIONES_PARA_EL_TOPE) {
+            composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput { swipeDown() }
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(BUSCADOR_COMPACTO_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TEMA_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(OJO_TAG).assertIsDisplayed()
+    }
+
+    /**
+     * Teclear MIENTRAS los botones se están retirando no le quita el foco al campo: el
+     * campo sólo crece, no cambia de rama (la misma clase de defecto que
+     * `ElBuscadorNoPierdeElFocoTest`). Con el reloj detenido se teclea a media
+     * transición.
+     */
+    @Test
+    fun `teclear durante la transicion de los botones conserva el foco`() {
+        montar()
+        bajarLaLista()
+        composeTestRule.onNodeWithTag(PILDORA_DE_BUSCAR_TAG).performClick()
+        composeTestRule.mainClock.autoAdvance = false
+        composeTestRule.mainClock.advanceTimeBy(MEDIA_TRANSICION_MS)
+
+        val campo = composeTestRule.onNodeWithTag(BUSCADOR_COMPACTO_TAG)
+        campo.performTextInput("Cli")
+        composeTestRule.mainClock.advanceTimeBy(MEDIA_TRANSICION_MS)
+        campo.assertIsFocused()
+        campo.performTextInput("ente")
+        composeTestRule.mainClock.autoAdvance = true
+        composeTestRule.waitForIdle()
+
+        campo.assertIsFocused()
+        campo.assertTextContains("Cliente")
+    }
+
     @Test
     fun `la X del campo compacto borra el texto y conserva el foco`() {
         montar()
@@ -292,6 +346,9 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
         const val REPETICIONES_DEL_SWIPE = 6
         const val REPETICIONES_PARA_EL_TOPE = 30
         const val JALON_CORTO_PX = 150f
+        const val MEDIA_TRANSICION_MS = 120L
+        const val TEMA_TAG = "msp_theme_toggle"
+        const val OJO_TAG = "msp_privacy_eye_toggle"
         const val JALON_LARGO_PX = 500f
         const val LENTO_MS = 2_000L
         const val VELOCIDAD_DE_FLING_PX = 6_000f
