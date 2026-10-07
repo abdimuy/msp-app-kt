@@ -247,7 +247,24 @@ fun ListaDeClientesContent(
      */
     listState: LazyListState = rememberLazyListState()
 ) {
-    val cabeceraGrande by rememberCabeceraGrande(listState)
+    // **Un `LazyListState` POR SEGMENTO, no uno compartido.** Antes había un
+    // único `listState` hospedado aquí y pasado tal cual a [Clientes] sin
+    // importar qué segmento se pintara — eso dejaba el scroll de "Volver"
+    // pegado al volver de "Sin visitar" (medido: índice 19→19) y, peor, hace
+    // que DOS `LazyColumn` (el que sale y el que entra del `AnimatedContent`)
+    // compartan el mismo estado mientras se deslizan, algo que Compose no
+    // soporta. [listState] (el parámetro, con su default o el que trae un
+    // golden) sólo siembra el estado del PRIMER segmento que esta pantalla
+    // muestra — los demás nacen con uno propio la primera vez que se visitan
+    // y, a partir de ahí, lo conservan: cada segmento recuerda su propia
+    // posición, igual que antes de que todos compartieran uno solo.
+    val estadosPorSegmento = remember {
+        mutableMapOf(state.segmento to listState)
+    }
+    fun estadoDe(segmento: SegmentoDeCobranza): LazyListState =
+        estadosPorSegmento.getOrPut(segmento) { LazyListState() }
+
+    val cabeceraGrande by rememberCabeceraGrande(estadoDe(state.segmento))
     var hojaDeOrdenAbierta by remember { mutableStateOf(false) }
     var buscadorCompactoAbierto by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -263,6 +280,24 @@ fun ListaDeClientesContent(
         if (buscadorCompactoAbierto) {
             focusRequester.requestFocus()
             teclado?.show()
+        }
+    }
+
+    // Elegir un orden nuevo (o "✕ Quitar", que también cambia `state.orden`
+    // de vuelta a COBRANZA) vuelve al principio DEL SEGMENTO VISIBLE: con
+    // `key = clienteId` el cliente que estaba primero sólo se MUEVE a su
+    // posición nueva, y sin este efecto el `LazyListState` seguía mirando
+    // ese mismo índice — medido: elegir "Ventas nuevas" estando en el tope
+    // dejaba la lista en el índice 38, el final del orden nuevo. Se salta la
+    // primera composición (el flag) para no pelear con el orden restaurado
+    // de [com.example.msp_app.feature.pagos.application.ControladorDeOrden.restaurar]
+    // al entrar a la pantalla.
+    var yaComposoUnaVezElOrden by remember { mutableStateOf(false) }
+    LaunchedEffect(state.orden) {
+        if (yaComposoUnaVezElOrden) {
+            estadoDe(state.segmento).scrollToItem(0)
+        } else {
+            yaComposoUnaVezElOrden = true
         }
     }
 
@@ -445,7 +480,7 @@ fun ListaDeClientesContent(
                 },
                 contentAlignment = Alignment.TopStart,
                 label = "contenido_por_segmento"
-            ) { _ ->
+            ) { segmentoMostrado ->
                 when {
                     state.cargando -> Cargando()
                     state.fallo -> MensajeDeFallo(onReintentar)
@@ -454,7 +489,7 @@ fun ListaDeClientesContent(
                         clientes = state.clientes,
                         hoy = state.hoy,
                         montosOcultos = state.montosOcultos,
-                        listState = listState,
+                        listState = estadoDe(segmentoMostrado),
                         onAbrirCliente = onAbrirCliente,
                         onAbrirVenta = onAbrirVenta
                     )
