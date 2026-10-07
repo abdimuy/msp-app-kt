@@ -38,11 +38,10 @@ import org.robolectric.annotation.Config
  * que trae [ListaFixtures]— la lista no alcanza a desbordar el viewport.
  *
  * El scroll se simula con `performTouchInput { swipeUp()/swipeDown() }` y NO
- * con `performScrollToIndex`: medido, ese salto programático reporta un
- * "settle" de un índice hacia atrás justo después de saltar (`38,184` →
- * `37,357` en la corrida que lo descubrió) que la regla de "regreso rápido"
- * interpreta como que el cobrador subió el dedo — un falso colapso-se-deshace
- * que nunca ocurre con un gesto real, continuo, sin saltos.
+ * con `performScrollToIndex`: desde el 2026-10-07 la cabecera se mueve SÓLO con
+ * gestos (`nestedScroll`), y un salto programático no genera ninguno — a
+ * propósito: es lo que impide que un reordenamiento de la lista la encoja (ver
+ * `ElBuscadorNoPierdeElFocoTest`).
  */
 @Config(qualifiers = "w360dp-h640dp-xhdpi")
 class ListaDeClientesHeaderTest : RobolectricTestBase() {
