@@ -10,7 +10,6 @@ import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
-import com.example.msp_app.feature.pagos.domain.SemanaEnCurso
 import com.example.msp_app.feature.pagos.ui.CarteraEnPantalla
 import com.example.msp_app.feature.pagos.ui.ListaDeClientesContent
 import com.example.msp_app.feature.pagos.ui.ListaDeClientesUiState
@@ -179,8 +178,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
             conteos = proyeccion.conteos,
             segmento = SegmentoDeCobranza.SIN_VISITAR,
             temaOscuro = dark,
-            hoy = ListaFixtures.HOY,
-            contextoSemana = SemanaEnCurso.etiqueta(ListaFixtures.HOY)
+            hoy = ListaFixtures.HOY
         )
     }
 
@@ -244,8 +242,6 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         Box(modifier = Modifier.padding(MspTheme.spacing.md)) {
             RenglonDeOrden(
                 orden = OrdenDeLaLista.MAYOR_SALDO,
-                conteo = 2,
-                avisoSinUbicacion = false,
                 onAbrirHoja = {},
                 onQuitar = {}
             )
@@ -322,8 +318,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
             // 1970, no contra el "hoy" que de verdad proyectó la cartera — un
             // golden que la app no puede producir, por la misma razón que el
             // comentario de arriba protege `segmento`.
-            hoy = ListaFixtures.HOY,
-            contextoSemana = SemanaEnCurso.etiqueta(ListaFixtures.HOY)
+            hoy = ListaFixtures.HOY
         )
     }
 

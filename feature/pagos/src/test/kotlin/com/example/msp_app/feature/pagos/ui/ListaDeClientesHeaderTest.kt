@@ -1,11 +1,13 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -96,21 +98,55 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
     }
 
     /**
-     * **"Regreso rápido"**: subir un poco —sin llegar al principio— vuelve a
-     * mostrar la cabecera grande. Un solo `swipeDown()` después de bajar
-     * mucho no alcanza a devolver la lista al tope (`CUARENTA` filas de
-     * sobra), así que el control es real: si bastara con llegar al principio,
-     * un solo swipe de vuelta ya habría llegado.
+     * **`exitUntilCollapsed`** (decisión del dueño, 2026-10-07, sustituye al "regreso
+     * rápido" del mock): a media lista, un jalón corto hacia abajo NO abre la
+     * cabecera — sólo regresa un poco la lista. Control: la misma prueba con la regla
+     * vieja (cualquier movimiento hacia el principio reexpande) sale roja aquí.
      */
     @Test
-    fun `subir un poco sin llegar al principio reexpande la cabecera`() {
+    fun `a media lista un scroll corto hacia arriba deja la cabecera colapsada`() {
         montar()
         bajarLaLista()
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
 
-        composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput { swipeDown() }
+        composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput {
+            swipeDown(startY = centerY, endY = centerY + JALON_CORTO_PX)
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun `al regresar la lista al tope la cabecera queda expandida`() {
+        montar()
+        bajarLaLista()
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+
+        repeat(REPETICIONES_PARA_EL_TOPE) {
+            composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput { swipeDown() }
+        }
+        composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(BUSCADOR_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertDoesNotExist()
+    }
+
+    /** El colapso se guarda con `rememberSaveable`: volver de un abono no reabre la cabecera. */
+    @Test
+    fun `la cabecera colapsada sobrevive a la restauracion`() {
+        val restaurador = StateRestorationTester(composeTestRule)
+        restaurador.setContent { Contenido() }
+        bajarLaLista()
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+
+        restaurador.emulateSavedInstanceStateRestore()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -144,22 +180,25 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
     }
 
     private fun montar(query: String = "") {
-        composeTestRule.setContent {
-            MspTheme(darkTheme = false, animateColors = false) {
-                var texto by remember { mutableStateOf(query) }
-                ListaDeClientesContent(
-                    state = estado(texto),
-                    onBuscar = { texto = it },
-                    onElegirSegmento = {},
-                    onAbrirCliente = {},
-                    onReintentar = {},
-                    onAlternarTema = {},
-                    onAlternarPrivacidad = {},
-                    onElegirOrden = {},
-                    onQuitarOrden = {},
-                    onAbrirMenu = { menuAbierto++ }
-                )
-            }
+        composeTestRule.setContent { Contenido(query) }
+    }
+
+    @Composable
+    private fun Contenido(query: String = "") {
+        MspTheme(darkTheme = false, animateColors = false) {
+            var texto by remember { mutableStateOf(query) }
+            ListaDeClientesContent(
+                state = estado(texto),
+                onBuscar = { texto = it },
+                onElegirSegmento = {},
+                onAbrirCliente = {},
+                onReintentar = {},
+                onAlternarTema = {},
+                onAlternarPrivacidad = {},
+                onElegirOrden = {},
+                onQuitarOrden = {},
+                onAbrirMenu = { menuAbierto++ }
+            )
         }
     }
 
@@ -176,8 +215,7 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
             conteos = proyeccion.conteos,
             segmento = SegmentoDeCobranza.SIN_VISITAR,
             query = query,
-            hoy = ListaFixtures.HOY,
-            contextoSemana = "semana del 31 ago al 6 sep"
+            hoy = ListaFixtures.HOY
         )
     }
 
@@ -203,5 +241,7 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
     private companion object {
         const val CUARENTA = 40
         const val REPETICIONES_DEL_SWIPE = 6
+        const val REPETICIONES_PARA_EL_TOPE = 30
+        const val JALON_CORTO_PX = 150f
     }
 }

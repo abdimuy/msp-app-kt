@@ -12,7 +12,6 @@ import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.application.TogglesDeCabecera
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
-import com.example.msp_app.feature.pagos.domain.SemanaEnCurso
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
@@ -67,12 +66,6 @@ data class ListaDeClientesUiState(
      * sea anulable (mismo patrón que `RegistrarVisitaUiState.hoy`).
      */
     val hoy: LocalDate = EPOCA,
-    /**
-     * La línea de contexto bajo el título grande — "semana del D al D mes",
-     * ver [SemanaEnCurso]. Cadena vacía mientras no se conoce [hoy] (cargando
-     * o cartera nula): el renglón del título simplemente no la pinta.
-     */
-    val contextoSemana: String = "",
     /**
      * El orden elegido en la hoja "Ordenar por" (decisión del dueño,
      * 2026-10-05). [OrdenDeLaLista.COBRANZA] es el de siempre y el único que
@@ -363,7 +356,6 @@ class ListaDeClientesViewModel @Inject constructor(
                 query = query,
                 fallo = cargada == null,
                 hoy = cargada?.hoy ?: EPOCA,
-                contextoSemana = cargada?.let { SemanaEnCurso.etiqueta(it.hoy) }.orEmpty(),
                 orden = orden,
                 avisoSinUbicacion = controladorDeOrden.sinUbicacion
             )

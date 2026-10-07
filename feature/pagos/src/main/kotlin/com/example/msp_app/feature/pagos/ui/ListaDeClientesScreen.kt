@@ -12,6 +12,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,13 +32,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,10 +51,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -61,6 +71,7 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
+import com.example.msp_app.feature.pagos.ui.components.AvisoSinUbicacion
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import com.example.msp_app.feature.pagos.ui.components.HojaDeOrdenarPor
 import com.example.msp_app.feature.pagos.ui.components.PildoraDeBuscar
@@ -79,7 +90,7 @@ const val BUSCADOR_COMPACTO_TAG: String = "pagos_buscador_compacto"
 /** `testTag` del botón de menú (hamburguesa). */
 const val BOTON_MENU_TAG: String = "pagos_boton_menu"
 
-/** `testTag` del título grande "Clientes" (26sp) de la cabecera expandida. */
+/** `testTag` del título grande "Clientes" (26sp) de la parte de la cabecera que se esconde. */
 const val TITULO_GRANDE_TAG: String = "pagos_titulo_grande"
 
 /** `testTag` del título "Clientes" compacto (19sp) de la barra encogida. */
@@ -201,30 +212,25 @@ fun ListaDeClientesScreen(
  * estados, no ordena y no emite telemetría. Ordenar aquí sería reordenar la
  * ruta en cada recomposición.
  *
- * ## La cabecera que se encoge al bajar (mock "Título" §1, decisión del dueño 2026-10-05)
+ * ## La cabecera que se encoge al bajar
  *
- * El título grande "Clientes" (26sp) y su línea de contexto —"semana del D al
- * D mes", [ListaDeClientesUiState.contextoSemana]— viven ARRIBA de la lista,
- * no dentro de ella. Al bajar lo suficiente desaparecen y "Clientes" pasa a
- * 19sp junto a la hamburguesa, en la misma fila que ya tenían los dos botones
- * del encabezado. Los chips de segmento y [RenglonDeOrden] NO se mueven con
- * este cambio: viven, igual que antes, en el bloque estático sobre la lista —
- * cuando el título grande se retira, simplemente quedan más arriba. Es lo que
- * el mock llama "quedan pegados arriba (sticky)", pero no hace falta un
- * mecanismo de *sticky header* dentro de un `LazyColumn`: nunca estuvieron
- * dentro de uno.
+ * Arriba, fija: la hamburguesa, el título compacto y los dos botones. Debajo, la
+ * parte que se esconde ([ZonaQueSeEncoge]): "Clientes" en grande con el orden a su
+ * derecha, y el buscador. Debajo, fijos otra vez, los chips de segmento.
  *
- * [rememberCabeceraGrande] deriva el encogido de [LazyListState] —el mismo que
- * usa [Clientes]— en vez de `TopAppBarScrollBehavior`/`NestedScroll` de
- * Material 3: ese mecanismo está pensado para alimentar un `TopAppBar`/
- * `LargeTopAppBar` reales dentro de un `Scaffold`, y esta pantalla no usa
- * ninguno de los dos — tendría que fijar a mano un `heightOffsetLimit` sin
- * ninguna `TopAppBar` real que lo consuma. Derivar de `(index, offset)` del
- * propio `LazyListState` da exactamente las dos propiedades que el mock pide
- * —colapsa al bajar, "regreso rápido" con cualquier scroll hacia arriba— sin
- * ese rodeo, y es trivial de probar: un test de Compose sólo necesita mover el
- * `LazyListState` y leer si el título grande sigue en el árbol semántico.
+ * El colapso es **continuo y ligado al dedo** (decisión del dueño, 2026-10-07): la
+ * altura de la parte que se esconde, la escala y la opacidad del título grande, y la
+ * aparición del título compacto se interpolan con
+ * [androidx.compose.material3.TopAppBarState.collapsedFraction] — nada cambia de
+ * rama a medio camino. Comportamiento `exitUntilCollapsed`: la cabecera sólo se
+ * vuelve a abrir cuando la lista llega a su tope. Ver [rememberCabeceraQueSeEncoge],
+ * que además documenta la causa raíz del teclado que se bajaba solo.
+ *
+ * El estado del colapso es UNO para los cuatro segmentos: cambiar de chip no abre ni
+ * cierra la cabecera (decisión del dueño, 2026-10-07). Cada segmento sí conserva su
+ * propio scroll ([ScrollPorSegmento]).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListaDeClientesContent(
     state: ListaDeClientesUiState,
@@ -245,40 +251,44 @@ fun ListaDeClientesContent(
      * una interacción de scroll real que disparar bajo Roborazzi— y la única
      * forma de pedir eso es traer el `LazyListState` ya posicionado
      * (`rememberLazyListState(initialFirstVisibleItemIndex = N)`) desde fuera.
+     * Una lista que arranca desplazada hace nacer la cabecera compacta.
      */
     listState: LazyListState = rememberLazyListState()
 ) {
-    // **Un `LazyListState` POR SEGMENTO, no uno compartido.** Antes había un
-    // único `listState` hospedado aquí y pasado tal cual a [Clientes] sin
-    // importar qué segmento se pintara — eso dejaba el scroll de "Volver"
-    // pegado al volver de "Sin visitar" (medido: índice 19→19) y, peor, hace
-    // que DOS `LazyColumn` (el que sale y el que entra del `AnimatedContent`)
-    // compartan el mismo estado mientras se deslizan, algo que Compose no
-    // soporta. [listState] (el parámetro, con su default o el que trae un
-    // golden) sólo siembra el estado del PRIMER segmento que esta pantalla
-    // muestra — los demás nacen con uno propio la primera vez que se visitan
-    // y, a partir de ahí, lo conservan.
-    //
-    // `rememberSaveable` y no `remember`: ver [ScrollPorSegmento]. Al volver
-    // de otra pantalla (o al recrearse la actividad) se restaura el mapa
-    // entero y [listState] ya no siembra nada — su valor restaurado es el del
-    // primer segmento, no el del visible.
+    // **Un `LazyListState` POR SEGMENTO, no uno compartido.** Ver [ScrollPorSegmento]:
+    // con uno solo, el scroll de un segmento se pegaba al otro y dos `LazyColumn` (el
+    // que sale y el que entra del `AnimatedContent`) compartían estado. [listState]
+    // sólo siembra el PRIMER segmento que se muestra; `rememberSaveable` lo conserva
+    // al volver de otra pantalla o al recrearse la actividad.
     val scrollPorSegmento = rememberSaveable(saver = ScrollPorSegmento.Saver) {
         ScrollPorSegmento(state.segmento, listState)
     }
     fun estadoDe(segmento: SegmentoDeCobranza): LazyListState = scrollPorSegmento.de(segmento)
 
-    val cabeceraGrande by rememberCabeceraGrande(estadoDe(state.segmento))
+    val reducirMovimiento = rememberMspReducedMotion()
+    val cabecera = rememberCabeceraQueSeEncoge(
+        arrancaColapsada = listState.firstVisibleItemIndex > 0 ||
+            listState.firstVisibleItemScrollOffset > 0,
+        reducirMovimiento = reducirMovimiento,
+        listaVisible = estadoDe(state.segmento)
+    )
+    val estadoCabecera = cabecera.state
+    val expandida by remember { derivedStateOf { estadoCabecera.collapsedFraction <= 0f } }
+    val colapsada by remember { derivedStateOf { estadoCabecera.collapsedFraction >= 1f } }
+    val algoEncogida by remember { derivedStateOf { estadoCabecera.collapsedFraction > 0f } }
+    val pildoraVisible by remember {
+        derivedStateOf { estadoCabecera.collapsedFraction > FRACCION_DE_LA_PILDORA }
+    }
     var hojaDeOrdenAbierta by remember { mutableStateOf(false) }
     var buscadorCompactoAbierto by remember { mutableStateOf(false) }
+    var campoGrandeConFoco by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val teclado = LocalSoftwareKeyboardController.current
 
-    // Vuelta al título grande: ya no hace falta el campo pegado arriba. Sin
-    // esto, bajar-subir-bajar podía dejar el campo compacto abierto sin foco
-    // y sin forma de saber por qué seguía ahí.
-    LaunchedEffect(cabeceraGrande) {
-        if (cabeceraGrande) buscadorCompactoAbierto = false
+    // Cabecera abierta del todo: ya se ve el buscador grande, con el mismo texto.
+    // Sin esto, bajar-subir-bajar podía dejar el campo compacto abierto sin foco.
+    LaunchedEffect(expandida) {
+        if (expandida) buscadorCompactoAbierto = false
     }
     LaunchedEffect(buscadorCompactoAbierto) {
         if (buscadorCompactoAbierto) {
@@ -302,11 +312,9 @@ fun ListaDeClientesContent(
     // ViewModel NUEVO arranca `cargando` y en COBRANZA, y al terminar la carga
     // el orden restaurado por
     // [com.example.msp_app.feature.pagos.application.ControladorDeOrden.restaurar]
-    // llega como si fuera un cambio. La versión anterior (un `remember` que
-    // sólo se saltaba la primera composición) disparaba ahí y mandaba al tope
-    // la posición que acababa de restaurarse — medido con
-    // `StateRestorationTester`. Al entrar en frío [ordenMostrado] es `null`:
-    // el primer orden mostrado nunca mueve la lista.
+    // llega como si fuera un cambio. Medido con `StateRestorationTester`. Al
+    // entrar en frío [ordenMostrado] es `null`: el primer orden mostrado nunca
+    // mueve la lista.
     var ordenMostrado by rememberSaveable { mutableStateOf<OrdenDeLaLista?>(null) }
     LaunchedEffect(state.orden, state.cargando) {
         if (state.cargando) return@LaunchedEffect
@@ -318,6 +326,25 @@ fun ListaDeClientesContent(
             scrollPorSegmento.olvidarTodosMenos(state.segmento)
             estadoDe(state.segmento).scrollToItem(0)
         }
+    }
+
+    // **Cada búsqueda empieza en su primer resultado.** Buscar apaga el orden y la
+    // lista se reordena; sin esto el `LazyListState` seguía anclado (por `key`) al
+    // cliente que estaba arriba, ahora en el índice 24 de la lista nueva — el
+    // cobrador veía resultados a media lista. `requestScrollToItem` y no
+    // `scrollToItem`: se aplica en la MISMA medida que trae la lista nueva, sin un
+    // cuadro intermedio anclado al cliente viejo. En `DisposableEffect` (fase de
+    // aplicar, antes de medir) y comparando con la última consulta mostrada —que se
+    // guarda— para que restaurar la pantalla con una búsqueda puesta no la regrese
+    // al tope.
+    val consultaMostrada = rememberSaveable { mutableStateOf(state.query) }
+    DisposableEffect(state.query) {
+        if (consultaMostrada.value != state.query) {
+            consultaMostrada.value = state.query
+            scrollPorSegmento.olvidarTodosMenos(state.segmento)
+            estadoDe(state.segmento).requestScrollToItem(0)
+        }
+        onDispose {}
     }
 
     /**
@@ -339,24 +366,16 @@ fun ListaDeClientesContent(
             .background(MspTheme.colors.background)
             // DESPUÉS del `background` y no antes: el color se pinta a sangre —también DEBAJO
             // de la barra de estado, que es lo que `enableEdgeToEdge()` pide— y el inset solo
-            // baja el CONTENIDO. Al revés, la franja de la barra quedaría con el fondo del
-            // tema legado de `MainActivity` y se vería clara en modo oscuro.
-            // `systemBars` y no `statusBars`: el mismo argumento vale ABAJO. Con
-            // `enableEdgeToEdge()` la barra de navegación también queda encima, y el pie de
-            // la pantalla se pintaba detrás de los botones de Android (reportado en vidrio,
-            // SM-A256E). El fondo sigue a sangre porque este padding va después del
-            // `background`; lo único que se corre es el CONTENIDO.
+            // baja el CONTENIDO. `systemBars` y no `statusBars`: con `enableEdgeToEdge()` la
+            // barra de navegación también queda encima, y el pie de la pantalla se pintaba
+            // detrás de los botones de Android (reportado en vidrio, SM-A256E).
             .systemBarsPadding()
     ) {
         Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
             // Sin botón de volver: es pantalla de NIVEL SUPERIOR — se llega desde
-            // el cajón, verificado en el aparato, y kollect tampoco lo pone en
-            // ninguna de sus cuatro pestañas. La flecha no llevaba a ningún lado
-            // útil y se comía una franja entera para ella sola.
+            // el cajón. La fila es la parte fija de la cabecera.
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = MspTheme.spacing.sm),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
             ) {
@@ -366,27 +385,19 @@ fun ListaDeClientesContent(
                         onAbrirMenu()
                     }
                 )
-                // Con la cabecera grande, la fila sólo trae la hamburguesa y los
-                // dos toggles — "Clientes" vive abajo, en [TituloGrande]. Encogida,
-                // el título (o el campo compacto) ocupa el hueco de en medio.
-                if (cabeceraGrande) {
-                    Spacer(Modifier.weight(1f))
-                } else if (buscadorCompactoAbierto) {
-                    CampoDeBusquedaCompacto(
+                when {
+                    buscadorCompactoAbierto && !expandida -> CampoDeBusquedaCompacto(
                         query = state.query,
                         onBuscar = onBuscar,
                         focusRequester = focusRequester,
                         modifier = Modifier.weight(1f)
                     )
-                } else {
-                    Text(
-                        text = "Clientes",
-                        style = MspTheme.type.screenTitleCompact,
-                        color = MspTheme.colors.onSurface,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag(TITULO_COMPACTO_TAG)
+                    // Mismo `weight` que el `Spacer`: aparecer no mueve a nadie.
+                    algoEncogida -> TituloCompacto(
+                        estado = estadoCabecera,
+                        modifier = Modifier.weight(1f)
                     )
+                    else -> Spacer(Modifier.weight(1f))
                 }
                 MspPrivacyEyeToggle(
                     masked = state.montosOcultos,
@@ -403,39 +414,58 @@ fun ListaDeClientesContent(
                     }
                 )
             }
-            if (cabeceraGrande) {
-                Spacer(Modifier.height(MspTheme.spacing.sm))
-                TituloGrande(contextoSemana = state.contextoSemana)
-                Spacer(Modifier.height(MspTheme.spacing.sm))
-                CampoDeBusqueda(query = state.query, onBuscar = onBuscar)
+            ZonaQueSeEncoge(
+                estado = estadoCabecera,
+                // Toda escondida, fuera del árbol de accesibilidad: TalkBack no debe
+                // leer un título y un campo que no se ven. Con el campo enfocado no se
+                // toca nada — nunca se le quita el nodo a quien está escribiendo.
+                modifier = if (colapsada && !campoGrandeConFoco) {
+                    Modifier.clearAndSetSemantics {}
+                } else {
+                    Modifier
+                }
+            ) {
+                Column {
+                    FilaDelTitulo(
+                        estado = estadoCabecera,
+                        orden = state.orden,
+                        mostrarOrden = state.query.isBlank(),
+                        onAbrirHoja = { hojaDeOrdenAbierta = true },
+                        onQuitarOrden = onQuitarOrden
+                    )
+                    // Con búsqueda activa el orden no se aplica ([CarteraEnPantalla]).
+                    if (state.avisoSinUbicacion && state.query.isBlank()) {
+                        AvisoSinUbicacion()
+                    }
+                    CampoDeBusqueda(
+                        query = state.query,
+                        onBuscar = onBuscar,
+                        onFocoCambiado = { campoGrandeConFoco = it },
+                        modifier = Modifier.graphicsLayer {
+                            alpha = (1f - estadoCabecera.collapsedFraction * DESVANECER_CAMPO)
+                                .coerceIn(0f, 1f)
+                        }
+                    )
+                    Spacer(Modifier.height(MspTheme.spacing.sm))
+                }
             }
-            Spacer(Modifier.height(MspTheme.spacing.sm))
             SegmentadoDeCobranza(
                 seleccionado = state.segmento,
                 conteos = state.conteos,
                 onElegir = onElegirSegmento
             )
-            // Con búsqueda activa el orden no se aplica ([CarteraEnPantalla] ya lo
-            // hace) y el renglón que lo cambiaría no tiene nada que cambiar.
-            if (state.query.isBlank()) {
-                Spacer(Modifier.height(MspTheme.spacing.sm))
-                RenglonDeOrden(
-                    orden = state.orden,
-                    conteo = state.clientes.size,
-                    avisoSinUbicacion = state.avisoSinUbicacion,
-                    onAbrirHoja = { hojaDeOrdenAbierta = true },
-                    onQuitar = onQuitarOrden
-                )
-            }
             Spacer(Modifier.height(MspTheme.spacing.sm))
         }
         // Deslizar de lado cambia de filtro, sin tener que estirar el pulgar hasta
         // los chips. `detectHorizontalDragGestures` sólo consume el eje
         // horizontal, así que el desplazamiento vertical de la lista no se toca:
-        // los dos gestos conviven porque no compiten por el mismo eje.
+        // los dos gestos conviven porque no compiten por el mismo eje. El
+        // `nestedScroll` le entrega a la cabecera el desplazamiento VERTICAL que
+        // genera el dedo sobre la lista — y sólo ése.
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .nestedScroll(cabecera.nestedScrollConnection)
                 .pointerInput(state.segmento) {
                     var recorrido = 0f
                     detectHorizontalDragGestures(
@@ -450,9 +480,7 @@ fun ListaDeClientesContent(
                                 val destino = SegmentoDeCobranza.entries
                                     .indexOf(state.segmento) + paso
                                 // Sin dar la vuelta: llegar al último y seguir
-                                // deslizando no debe regresar al primero. En una fila
-                                // de cuatro, saltar de "Pagados" a "Sin visitar" se
-                                // lee como un error, no como una vuelta.
+                                // deslizando no debe regresar al primero.
                                 SegmentoDeCobranza.entries.getOrNull(destino)
                                     ?.let(onElegirSegmento)
                             }
@@ -461,15 +489,8 @@ fun ListaDeClientesContent(
                 }
         ) {
             // La lista entra deslizándose desde el lado hacia el que se fue el
-            // dedo, y la anterior sale hacia el contrario. El movimiento no es
-            // adorno: es lo que dice QUÉ cambió. Un cambio seco entre dos listas
-            // de nombres parecidos se lee como un parpadeo, y el cobrador no
-            // alcanza a ver que está mirando otro filtro.
-            //
-            // `reducedMotion` lo apaga a un fundido: quien pidió menos animación
-            // en el sistema no debe recibir desplazamientos laterales, y aun así
-            // necesita ver que la lista cambió.
-            val reducirMovimiento = rememberMspReducedMotion()
+            // dedo, y la anterior sale hacia el contrario: el movimiento dice QUÉ
+            // cambió. `reducedMotion` lo apaga a un fundido.
             AnimatedContent(
                 targetState = state.segmento,
                 transitionSpec = {
@@ -481,20 +502,12 @@ fun ListaDeClientesContent(
                         val haciaAdelante = SegmentoDeCobranza.entries.indexOf(targetState) >
                             SegmentoDeCobranza.entries.indexOf(initialState)
                         val signo = if (haciaAdelante) 1 else -1
-                        // **Deslizamiento puro, sin fundido.** Con `fadeOut` la
-                        // lista vieja se desvanecía antes de que la nueva
-                        // terminara de entrar, y en medio quedaba un hueco en
-                        // blanco: se veía como un tirón, no como un movimiento.
-                        // Las dos listas se mueven juntas y en sentidos
-                        // contrarios, como las páginas de un carrusel — una
-                        // empuja a la otra y nunca hay vacío entre ellas.
+                        // **Deslizamiento puro, sin fundido**: con `fadeOut` quedaba
+                        // un hueco en blanco a media transición. Sin `SizeTransform`:
+                        // las dos listas tienen alturas muy distintas y animar el alto
+                        // del contenedor es otro tirón.
                         slideInHorizontally { ancho -> signo * ancho } togetherWith
                             slideOutHorizontally { ancho -> -signo * ancho }
-                        // Sin `SizeTransform`: las dos listas tienen alturas muy
-                        // distintas (268 clientes contra 1) y animar el alto del
-                        // contenedor lo hace crecer o encogerse a media entrada,
-                        // que es el otro tirón. El contenedor se queda quieto y
-                        // sólo se mueve lo que está adentro.
                     }.using(sizeTransform = null)
                 },
                 contentAlignment = Alignment.TopStart,
@@ -515,7 +528,7 @@ fun ListaDeClientesContent(
                 }
             }
             PildoraDeBuscar(
-                visible = !cabeceraGrande && !buscadorCompactoAbierto,
+                visible = pildoraVisible && !buscadorCompactoAbierto,
                 reducedMotion = reducirMovimiento,
                 onTocar = { buscadorCompactoAbierto = true },
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -531,72 +544,11 @@ fun ListaDeClientesContent(
 }
 
 /**
- * Deriva si la cabecera grande debe mostrarse, a partir del scroll de
- * [listState] — ver el KDoc de [ListaDeClientesContent], sección "La cabecera
- * que se encoge al bajar", para por qué es esto y no
- * `TopAppBarScrollBehavior`.
- *
- * Tres reglas, en este orden:
- * 1. En el tope (`index == 0` y `offset` por debajo de [UMBRAL_INICIO]):
- *    siempre grande. Cubre el caso "la lista se repobló y el scroll volvió a
- *    cero".
- * 2. Cualquier movimiento HACIA el principio (`index` o `offset` bajando):
- *    siempre grande. Es el "regreso rápido" del mock — no hace falta llegar
- *    al tope, un solo gesto hacia arriba basta.
- * 3. Movimiento hacia ABAJO más allá de [UMBRAL_COLAPSO] (o que ya salió
- *    del primer elemento): encoge. El umbral evita que el primer pixel de un
- *    scroll a medias encoja la cabecera por un temblor del dedo.
- */
-@Composable
-private fun rememberCabeceraGrande(listState: LazyListState): State<Boolean> {
-    val umbralColapsoPx = with(LocalDensity.current) { UMBRAL_COLAPSO.toPx() }
-    val umbralInicioPx = with(LocalDensity.current) { UMBRAL_INICIO.toPx() }
-    // `derivedStateOf` y no `LaunchedEffect` + `snapshotFlow`: la primera versión
-    // media el (index, offset) dentro de una corrutina lanzada por el efecto, y
-    // bajo Robolectric esa corrutina no se alcanzaba a ejecutar dentro de la misma
-    // pasada de "idle" que `performScrollToIndex` espera — medido:
-    // `ListaDeClientesHeaderTest` quedaba con el título grande puesto después de
-    // scrollear al último índice, en las cuatro pruebas que dependían de bajar.
-    // `derivedStateOf` recalcula de forma síncrona, como parte del propio sistema
-    // de snapshots que ya invalida `firstVisibleItemIndex`/`Offset` — sin pasar
-    // por un dispatcher de corrutinas intermedio.
-    return remember(listState, umbralColapsoPx, umbralInicioPx) {
-        var indicePrevio = listState.firstVisibleItemIndex
-        var offsetPrevio = listState.firstVisibleItemScrollOffset
-        var grande = indicePrevio == 0
-        derivedStateOf {
-            val indice = listState.firstVisibleItemIndex
-            val offset = listState.firstVisibleItemScrollOffset
-            if (indice != indicePrevio || offset != offsetPrevio) {
-                val haciaElPrincipio = indice < indicePrevio ||
-                    (indice == indicePrevio && offset < offsetPrevio)
-                val haciaAbajo = indice > indicePrevio ||
-                    (indice == indicePrevio && offset > offsetPrevio)
-                grande = when {
-                    indice == 0 && offset <= umbralInicioPx -> true
-                    haciaElPrincipio -> true
-                    haciaAbajo && (indice > 0 || offset > umbralColapsoPx) -> false
-                    else -> grande
-                }
-                indicePrevio = indice
-                offsetPrevio = offset
-            }
-            grande
-        }
-    }
-}
-
-/**
  * El botón de menú (hamburguesa).
  *
  * `tint = MspTheme.colors.onSurface` explícito — medido: sin él, `Icon` cae al
  * `LocalContentColor` por defecto (negro) y en tema oscuro queda negro sobre
- * negro, invisible (`pagos_lista_dark_1_0.png`/`pagos_barra_compacta_dark_1_0.png`,
- * antes de este arreglo). `IconButton` no fuerza un color de contenido
- * propio, sólo hereda el ambiente — a diferencia de `OutlinedTextField`, que
- * sí resuelve el color de sus iconos contra `colorScheme` y por eso la lupa y
- * la ✕ del buscador nunca tuvieron este problema (verificado en el mismo
- * golden: se ven bien en oscuro).
+ * negro, invisible. `IconButton` no fuerza un color de contenido propio.
  */
 @Composable
 private fun BotonDeMenu(onAbrirMenu: () -> Unit, modifier: Modifier = Modifier) {
@@ -614,22 +566,87 @@ private fun BotonDeMenu(onAbrirMenu: () -> Unit, modifier: Modifier = Modifier) 
     }
 }
 
-/** El título grande y su línea de contexto — cabecera expandida. */
+/**
+ * "Clientes" chico, en la fila fija. Aparece en la segunda mitad del colapso —con un
+ * leve ascenso— mientras el grande ya se desvaneció: los dos nunca se ven a la vez.
+ * Se lee [TopAppBarState.collapsedFraction] en `graphicsLayer` (fase de dibujo): cada
+ * cuadro del colapso no recompone.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TituloGrande(contextoSemana: String) {
-    Column {
+private fun TituloCompacto(estado: TopAppBarState, modifier: Modifier = Modifier) {
+    val subida = with(LocalDensity.current) { MspTheme.spacing.sm.toPx() }
+    Text(
+        text = "Clientes",
+        style = MspTheme.type.screenTitleCompact,
+        color = MspTheme.colors.onSurface,
+        maxLines = 1,
+        modifier = modifier
+            .graphicsLayer {
+                val visible = (
+                    (estado.collapsedFraction - INICIO_DEL_TITULO_COMPACTO) /
+                        (1f - INICIO_DEL_TITULO_COMPACTO)
+                    ).coerceIn(0f, 1f)
+                alpha = visible
+                translationY = (1f - visible) * subida
+            }
+            .testTag(TITULO_COMPACTO_TAG)
+    )
+}
+
+/**
+ * "Clientes" en grande y, a su derecha, el orden de la lista ([RenglonDeOrden]) — en
+ * UNA fila: antes eran tres (título, la línea de la semana y el renglón de orden).
+ *
+ * El título se encoge hacia el tamaño compacto (26 → 19 sp, la razón de las dos
+ * tipografías del tema) y se desvanece en la primera mitad del colapso, con el origen
+ * en su orilla izquierda: se "va" hacia donde aparece el compacto. Escala de dibujo,
+ * no de texto: el renglón no se vuelve a medir en cada cuadro.
+ *
+ * `FlowRow`: a letra muy grande el orden baja a su propio renglón en vez de apretar
+ * al título. El alto mínimo es el del toque y no cambia cuando el orden se esconde
+ * (buscando): teclear la primera letra no debe mover la lista.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun FilaDelTitulo(
+    estado: TopAppBarState,
+    orden: OrdenDeLaLista,
+    mostrarOrden: Boolean,
+    onAbrirHoja: () -> Unit,
+    onQuitarOrden: () -> Unit
+) {
+    val escalaCompacta = MspTheme.type.screenTitleCompact.fontSize.value /
+        MspTheme.type.screenTitleLarge.fontSize.value
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = MspTheme.spacing.touchTarget),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.Center
+    ) {
         Text(
             text = "Clientes",
             style = MspTheme.type.screenTitleLarge,
             color = MspTheme.colors.onSurface,
-            modifier = Modifier.testTag(TITULO_GRANDE_TAG)
+            modifier = Modifier
+                .align(Alignment.CenterVertically)
+                .graphicsLayer {
+                    val f = estado.collapsedFraction
+                    val escala = 1f + (escalaCompacta - 1f) * f
+                    scaleX = escala
+                    scaleY = escala
+                    alpha = (1f - f * DESVANECER_TITULO).coerceIn(0f, 1f)
+                    transformOrigin = TransformOrigin(0f, 0.5f)
+                }
+                .testTag(TITULO_GRANDE_TAG)
         )
-        if (contextoSemana.isNotBlank()) {
-            Spacer(Modifier.height(MspTheme.spacing.xs))
-            Text(
-                text = contextoSemana,
-                style = MspTheme.type.contextNote,
-                color = MspTheme.colors.onSurfaceMuted
+        if (mostrarOrden) {
+            RenglonDeOrden(
+                orden = orden,
+                onAbrirHoja = onAbrirHoja,
+                onQuitar = onQuitarOrden,
+                modifier = Modifier.align(Alignment.CenterVertically)
             )
         }
     }
@@ -658,7 +675,10 @@ private fun Clientes(
             .fillMaxSize()
             .padding(horizontal = MspTheme.spacing.md)
             .testTag(LISTA_DE_CLIENTES_TAG),
-        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+        // Abajo, el alto de la píldora "Buscar cliente" y su margen: el último cliente
+        // se puede subir por encima de ella en vez de quedar tapado.
+        contentPadding = PaddingValues(bottom = MspTheme.spacing.touchTarget + MspTheme.spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         items(clientes, key = { it.clienteId }) { cliente ->
             FilaDeCliente(
@@ -673,12 +693,18 @@ private fun Clientes(
 }
 
 @Composable
-private fun CampoDeBusqueda(query: String, onBuscar: (String) -> Unit) {
+private fun CampoDeBusqueda(
+    query: String,
+    onBuscar: (String) -> Unit,
+    onFocoCambiado: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
     OutlinedTextField(
         value = query,
         onValueChange = onBuscar,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .onFocusChanged { onFocoCambiado(it.isFocused) }
             // El mínimo del plan es 50px; el default de Material ya está encima,
             // pero se fija para que no dependa de un default que puede cambiar.
             .heightIn(min = MspTheme.spacing.touchTarget)
@@ -808,8 +834,14 @@ private const val UMBRAL_DEL_GESTO_PX = 80f
  */
 private val BOTON_MENU_SIZE = 50.dp
 
-/** Debajo de este offset, en el primer elemento, la cabecera sigue grande sin importar nada más. */
-private val UMBRAL_INICIO = 8.dp
+/** Más allá de esta fracción de colapso aparece la píldora "Buscar cliente". */
+private const val FRACCION_DE_LA_PILDORA = 0.5f
 
-/** Más allá de este offset hacia abajo (todavía en el primer elemento) la cabecera encoge. */
-private val UMBRAL_COLAPSO = 24.dp
+/** El título compacto empieza a aparecer pasada esta fracción del colapso. */
+private const val INICIO_DEL_TITULO_COMPACTO = 0.5f
+
+/** El título grande termina de desvanecerse a 1/[DESVANECER_TITULO] del colapso. */
+private const val DESVANECER_TITULO = 2f
+
+/** El buscador grande termina de desvanecerse a 1/[DESVANECER_CAMPO] del colapso. */
+private const val DESVANECER_CAMPO = 1.25f

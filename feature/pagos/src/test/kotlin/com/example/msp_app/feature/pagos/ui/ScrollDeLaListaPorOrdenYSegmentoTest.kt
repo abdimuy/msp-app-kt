@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -20,7 +21,6 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
-import com.example.msp_app.feature.pagos.ui.components.QUITAR_ORDEN_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -73,12 +73,19 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         assertEquals(0, estado.firstVisibleItemIndex)
     }
 
+    /**
+     * La "✕" vive ahora en la fila del título, que se esconde al bajar (compactado
+     * 2026-10-07): el regreso a COBRANZA se dispara por el mismo camino que usa
+     * `onQuitarOrden` —el estado cambia de orden— en vez de tocar un nodo escondido.
+     */
     @Test
     fun `quitar el orden estando abajo regresa al primer elemento`() {
         lateinit var estado: LazyListState
+        lateinit var cambiarOrden: (OrdenDeLaLista) -> Unit
         montarConOrdenElegible(
             ordenInicial = OrdenDeLaLista.VENTAS_NUEVAS,
-            capturarListState = { estado = it }
+            capturarListState = { estado = it },
+            capturarCambiarOrden = { cambiarOrden = it }
         )
 
         bajarLaLista()
@@ -87,7 +94,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             estado.firstVisibleItemIndex > 0
         )
 
-        composeTestRule.onNodeWithTag(QUITAR_ORDEN_TAG).performClick()
+        cambiarOrden(OrdenDeLaLista.COBRANZA)
         composeTestRule.waitForIdle()
 
         assertEquals(0, estado.firstVisibleItemIndex)
@@ -259,19 +266,52 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
     }
 
     /**
-     * Minor de la re-revisión final: nada probaba que la cabecera grande se
-     * derive del scroll del segmento VISIBLE. Bajar en "Sin visitar" la encoge;
-     * cambiar a "Después", que está en su tope, debe devolverla.
+     * **La cabecera tiene UN solo estado para los cuatro segmentos** (decisión del
+     * dueño, 2026-10-07; sustituye a "la cabecera grande sigue el scroll del segmento
+     * visible", e9d93f40). Bajar en "Sin visitar" la encoge; cambiar a "Después", que
+     * está en su tope, la deja encogida — y al regresar, sigue igual.
      */
     @Test
-    fun `la cabecera grande sigue el scroll del segmento visible`() {
+    fun `cambiar de segmento conserva el estado de la cabecera`() {
         montarConDosSegmentos()
         bajarLaLista()
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
 
         elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertIsDisplayed()
+
+        elegirChip(SegmentoDeCobranza.SIN_VISITAR)
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+    }
+
+    /**
+     * Si la cabecera viene compacta de un segmento largo y el nuevo trae una lista que
+     * cabe entera (no se desplaza), jalar hacia abajo todavía la abre — sin esto se
+     * quedaba atorada compacta: Material no le pasa el gesto si la lista "no puede
+     * desplazarse". Control de rojo: con `canScroll` sólo de la lista, sale roja.
+     */
+    @Test
+    fun `con la cabecera compacta y un segmento corto jalar hacia abajo la abre`() {
+        montarConDosSegmentos(cantidadDespues = 1)
+        bajarLaLista()
+        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput { swipeDown() }
+        composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun `cambiar de segmento con la cabecera abierta la deja abierta`() {
+        montarConDosSegmentos()
+
+        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertDoesNotExist()
     }
 
     private fun elegirChip(segmento: SegmentoDeCobranza) {
@@ -315,12 +355,12 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         }
     }
 
-    private fun montarConDosSegmentos() {
+    private fun montarConDosSegmentos(cantidadDespues: Int = CUARENTA) {
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
                 var segmento by remember { mutableStateOf(SegmentoDeCobranza.SIN_VISITAR) }
                 ListaDeClientesContent(
-                    state = estadoDeDosSegmentos(segmento),
+                    state = estadoDeDosSegmentos(segmento, cantidadDespues = cantidadDespues),
                     onBuscar = {},
                     onElegirSegmento = { segmento = it },
                     onAbrirCliente = {},
@@ -351,17 +391,17 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             conteos = proyeccion.conteos,
             segmento = SegmentoDeCobranza.SIN_VISITAR,
             hoy = ListaFixtures.HOY,
-            orden = orden,
-            contextoSemana = "semana del 31 ago al 6 sep"
+            orden = orden
         )
     }
 
     private fun estadoDeDosSegmentos(
         segmento: SegmentoDeCobranza,
-        orden: OrdenDeLaLista = OrdenDeLaLista.COBRANZA
+        orden: OrdenDeLaLista = OrdenDeLaLista.COBRANZA,
+        cantidadDespues: Int = CUARENTA
     ): ListaDeClientesUiState {
         val clientes = clientesDePrueba(SegmentoDeCobranza.SIN_VISITAR, EstadoCuenta.SIN_TOCAR, CUARENTA, 0) +
-            clientesDePrueba(SegmentoDeCobranza.YA_NO_ESTA_SEMANA, EstadoCuenta.SE_NEGO, CUARENTA, 1000)
+            clientesDePrueba(SegmentoDeCobranza.YA_NO_ESTA_SEMANA, EstadoCuenta.SE_NEGO, cantidadDespues, 1000)
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
             segmento = segmento,
@@ -375,8 +415,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             conteos = proyeccion.conteos,
             segmento = segmento,
             hoy = ListaFixtures.HOY,
-            orden = orden,
-            contextoSemana = "semana del 31 ago al 6 sep"
+            orden = orden
         )
     }
 
