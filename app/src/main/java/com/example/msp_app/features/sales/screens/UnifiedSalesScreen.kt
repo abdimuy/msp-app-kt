@@ -65,7 +65,6 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Truck
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.utils.ResultState
@@ -75,6 +74,7 @@ import com.example.msp_app.features.productsInventory.viewmodels.ProductsInvento
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -209,7 +209,7 @@ fun UnifiedSalesScreen(navController: NavController) {
     }
     val todayTotal = todaySales.sumOf { it.PRECIO_TOTAL }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    MenuDeLaApp(navController = navController) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             topBar = {

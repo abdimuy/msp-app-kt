@@ -45,7 +45,13 @@ class AdopcionDelMenuLateralTest {
             "navigation/DestinosDeCobranzaGraph.kt",
             "features/common/NoModulesScreen.kt",
             "navigation/AppNavigation.kt",
-            "features/routemap/RouteMapScreen.kt"
+            "features/routemap/RouteMapScreen.kt",
+            "features/productsInventory/screens/BlankScreen.kt",
+            "features/sales/screens/SalesListScreen.kt",
+            "features/sales/screens/UnifiedSalesScreen.kt",
+            "features/sales/screens/NewSaleScreen.kt",
+            "features/cart/screens/CartScreen.kt",
+            "features/productsInventory/screens/ProductsCatalogScreen.kt"
         )
     }
 }

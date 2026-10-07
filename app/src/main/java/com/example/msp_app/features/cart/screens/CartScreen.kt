@@ -46,7 +46,6 @@ import androidx.navigation.NavController
 import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Truck
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.productInventory.ProductInventory
@@ -57,6 +56,7 @@ import com.example.msp_app.features.payments.components.pdfgenerationdialog.PdfG
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -232,7 +232,7 @@ fun CartScreen(navController: NavController) {
         }
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    MenuDeLaApp(navController = navController) { openDrawer ->
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {

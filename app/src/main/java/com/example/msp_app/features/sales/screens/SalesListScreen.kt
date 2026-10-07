@@ -52,10 +52,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 
 @SuppressLint("DefaultLocale")
@@ -73,7 +73,7 @@ fun SaleDetailsListScreen(navController: NavController) {
         viewModel.loadAllSales()
     }
 
-    DrawerContainer(
+    MenuDeLaApp(
         navController = navController
     ) { openDrawer ->
         ThemeController.isDarkMode
