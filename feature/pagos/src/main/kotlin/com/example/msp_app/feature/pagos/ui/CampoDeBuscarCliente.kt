@@ -46,9 +46,10 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
  * `BasicTextField` con decoración propia — nada de `OutlinedTextField` ni de
  * `OutlinedTextFieldDefaults.DecorationBox`, que imponen 56 dp de alto mínimo y su
  * relleno, así que achicar el relleno no se notaba. Aquí:
- * - texto escrito y placeholder en [ESTILO_DEL_BUSCADOR] (20 sp);
+ * - texto escrito y placeholder en [ESTILO_DEL_BUSCADOR] ([LETRA_DEL_BUSCADOR]);
  * - la caja VISIBLE (fondo `surface`, borde `outline`, `brand` con foco) mide lo que
- *   pide el texto más 4 dp arriba y abajo y 12 dp a los lados;
+ *   [ALTO_DE_LA_CAJA_DEL_BUSCADOR] (o lo que pida el texto, si es más), con
+ *   [RELLENO_VERTICAL_DEL_BUSCADOR] y [RELLENO_HORIZONTAL_DEL_BUSCADOR];
  * - el ÁREA TOCABLE sigue midiendo [BOTON_MENU_SIZE] (50 dp, la compuerta del repo),
  *   pero es invisible: la caja se centra dentro de ella. La ✕ también tiene su área de
  *   50 dp superpuesta, sin agrandar la caja.
@@ -104,9 +105,11 @@ internal fun CampoDeBuscarCliente(
                         )
                         // Antes del relleno: los límites del nodo son los de la caja visible.
                         .testTag(tag + SUFIJO_CAJA_VISIBLE)
+                        // Mínimo, no fijo: a letra grande la caja crece con el texto.
+                        .heightIn(min = ALTO_DE_LA_CAJA_DEL_BUSCADOR)
                         .padding(
-                            horizontal = MspTheme.spacing.sm + MspTheme.spacing.xs,
-                            vertical = MspTheme.spacing.xs
+                            horizontal = RELLENO_HORIZONTAL_DEL_BUSCADOR,
+                            vertical = RELLENO_VERTICAL_DEL_BUSCADOR
                         ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
@@ -164,12 +167,36 @@ internal fun CampoDeBuscarCliente(
 }
 
 /**
- * El texto de los dos buscadores (escrito y placeholder): 20 sp. `MspType` no tiene un
- * estilo de entrada de ese tamaño, así que se deriva de [MspTheme.type.input] en este
- * único lugar (decisión del dueño, 2026-10-07: 15 sp seguía viéndose chico).
+ * Tamaño de la letra de los dos buscadores (escrito y placeholder). Afinado con el dueño
+ * el 2026-10-07: 15 sp se veía chico, 20 sp demasiado grande; 17 sp es el punto medio.
+ */
+internal val LETRA_DEL_BUSCADOR = 17.sp
+
+/** Interlineado que acompaña a [LETRA_DEL_BUSCADOR]. */
+internal val INTERLINEADO_DEL_BUSCADOR = 22.sp
+
+/** Alto de la caja visible de los buscadores a escala normal (el dueño pidió ~44 dp). */
+internal val ALTO_DE_LA_CAJA_DEL_BUSCADOR = 44.dp
+
+/**
+ * Relleno vertical de la caja: con 17 sp / 22 sp de interlineado, 10 dp arriba y abajo
+ * dan los 44 dp justos (medido en `ElBuscadorSeLeeGrandeTest`); el mínimo de
+ * [ALTO_DE_LA_CAJA_DEL_BUSCADOR] lo garantiza aunque cambie la fuente.
+ */
+internal val RELLENO_VERTICAL_DEL_BUSCADOR = 10.dp
+
+/** Relleno horizontal de la caja. */
+internal val RELLENO_HORIZONTAL_DEL_BUSCADOR = 12.dp
+
+/**
+ * El estilo de los dos buscadores. `MspType` no tiene uno de entrada de
+ * [LETRA_DEL_BUSCADOR], así que se deriva de [MspTheme.type.input] en este único lugar.
  */
 private val ESTILO_DEL_BUSCADOR: TextStyle
-    @Composable get() = MspTheme.type.input.copy(fontSize = 20.sp, lineHeight = 26.sp)
+    @Composable get() = MspTheme.type.input.copy(
+        fontSize = LETRA_DEL_BUSCADOR,
+        lineHeight = INTERLINEADO_DEL_BUSCADOR
+    )
 
 /** Grosor del borde de la caja visible de los buscadores. */
 private val BORDE_DEL_BUSCADOR = 1.dp

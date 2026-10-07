@@ -36,8 +36,9 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Los dos buscadores de la lista (el grande de la cabecera y el compacto de la barra)
- * se leen grande: texto de 20 sp y una caja visible que mide lo que pide el texto, no
- * los 56 dp de Material (decisión del dueño, 2026-10-07, tras verlo en el teléfono).
+ * se leen bien: texto de 17 sp en una caja visible de 44 dp, no los 56 dp de Material
+ * (decisión del dueño, 2026-10-07, tras verlo en el teléfono: 20 sp / 35.5 dp fue
+ * demasiado grande y delgado).
  *
  * Se MIDE el nodo, no el parámetro: el tamaño de letra sale del `TextLayoutResult` que
  * el propio campo reporta, y el alto, de los límites de la caja visible.
@@ -56,7 +57,7 @@ class ElBuscadorSeLeeGrandeTest : RobolectricTestBase() {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun `el buscador grande escribe a 20 sp y su caja es mas baja que antes`() {
+    fun `el buscador grande escribe a 17 sp en una caja de 44 dp`() {
         montar(arrancaAbajo = false)
         val campo = composeTestRule.onNodeWithTag(BUSCADOR_TAG)
         campo.performTextInput("Rosa")
@@ -64,13 +65,13 @@ class ElBuscadorSeLeeGrandeTest : RobolectricTestBase() {
         val letra = tamanoDeLetra(campo)
         val caja = altoDe(BUSCADOR_TAG + CAJA_VISIBLE)
         println("MEDIDA grande letra=${letra}sp caja=$caja nodo=${altoDelNodo(BUSCADOR_TAG)}")
-        assertTrue("letra $letra sp", letra >= 20f)
-        assertTrue("caja $caja", caja < ALTO_GRANDE_ANTES)
+        assertEquals("letra", LETRA_DEL_BUSCADOR.value, letra, 0.01f)
+        assertCajaDe44(caja)
         assertTrue("toque ${altoDelNodo(BUSCADOR_TAG)}", altoDelNodo(BUSCADOR_TAG) >= 50.dp)
     }
 
     @Test
-    fun `el buscador compacto escribe a 20 sp y su caja es mas baja que antes`() {
+    fun `el buscador compacto escribe a 17 sp en una caja de 44 dp`() {
         montar(arrancaAbajo = true)
         composeTestRule.onNodeWithTag(PILDORA_DE_BUSCAR_TAG).performClick()
         val campo = composeTestRule.onNodeWithTag(BUSCADOR_COMPACTO_TAG)
@@ -81,8 +82,8 @@ class ElBuscadorSeLeeGrandeTest : RobolectricTestBase() {
         println(
             "MEDIDA compacto letra=${letra}sp caja=$caja nodo=${altoDelNodo(BUSCADOR_COMPACTO_TAG)}"
         )
-        assertTrue("letra $letra sp", letra >= 20f)
-        assertTrue("caja $caja", caja < ALTO_COMPACTO_ANTES)
+        assertEquals("letra", LETRA_DEL_BUSCADOR.value, letra, 0.01f)
+        assertCajaDe44(caja)
         assertTrue("toque", altoDelNodo(BUSCADOR_COMPACTO_TAG) >= 50.dp)
     }
 
@@ -105,6 +106,12 @@ class ElBuscadorSeLeeGrandeTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(BORRAR_BUSQUEDA_COMPACTA_TAG).performClick()
         assertEquals("", campo.fetchSemanticsNode().config[SemanticsProperties.EditableText].text)
         campo.assertIsFocused()
+    }
+
+    private fun assertCajaDe44(caja: Dp) {
+        val diferencia = (caja - ALTO_DE_LA_CAJA_DEL_BUSCADOR).value
+        assertTrue("caja $caja, se esperaba 44 dp ±1", diferencia in -1f..1f)
+        assertTrue("caja $caja no es más baja que antes", caja < ALTO_ANTES)
     }
 
     private fun tamanoDeLetra(campo: SemanticsNodeInteraction): Float {
@@ -184,7 +191,6 @@ class ElBuscadorSeLeeGrandeTest : RobolectricTestBase() {
         const val VEINTE = 20
         const val INDICE_ABAJO = 8
         const val CAJA_VISIBLE = SUFIJO_CAJA_VISIBLE
-        val ALTO_GRANDE_ANTES = 56.dp
-        val ALTO_COMPACTO_ANTES = 56.dp
+        val ALTO_ANTES = 56.dp
     }
 }
