@@ -10,6 +10,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.EyeOff
+import com.composables.icons.lucide.Lucide
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /** `testTag` de [MspPrivacyEyeToggle] — localiza el control en compose-tests. */
@@ -42,7 +45,7 @@ fun MspPrivacyEyeToggle(
 ) {
     val icono: @Composable () -> Unit = {
         Icon(
-            imageVector = if (masked) MspIcons.EyeOff else MspIcons.Eye,
+            imageVector = if (masked) Lucide.EyeOff else Lucide.Eye,
             contentDescription = null,
             tint = if (masked) MspTheme.colors.brand else MspTheme.colors.onSurfaceMuted,
             modifier = Modifier.size(MspTheme.spacing.lg)

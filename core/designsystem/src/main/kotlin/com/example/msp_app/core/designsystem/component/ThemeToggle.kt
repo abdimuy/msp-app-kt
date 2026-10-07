@@ -22,6 +22,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Moon
+import com.composables.icons.lucide.Sun
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /** `testTag` de [MspThemeToggle] — localiza el control en compose-tests. */
@@ -91,7 +94,7 @@ fun MspThemeToggle(
     }
     val icono: @Composable () -> Unit = {
         Icon(
-            imageVector = if (darkTheme) MspIcons.Moon else MspIcons.Sun,
+            imageVector = if (darkTheme) Lucide.Moon else Lucide.Sun,
             contentDescription = if (darkTheme) DESCRIPCION_A_CLARO else DESCRIPCION_A_OSCURO,
             tint = MspTheme.colors.onSurface,
             modifier = Modifier.size(MspTheme.spacing.lg)

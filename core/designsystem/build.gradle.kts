@@ -42,6 +42,9 @@ tasks.withType<Test> {
 dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
+    // Glifos de trazo de los toggles (sol/luna, ojo): los mismos de Lucide que usa el
+    // resto de la app nueva (decisión del dueño, 2026-10-07).
+    implementation(libs.icons.lucide)
     // material3 y compose-ui ya vienen del bundle en msp.android.compose.
 
     // RobolectricTestBase + roborazzi (api) + junit + turbine.
