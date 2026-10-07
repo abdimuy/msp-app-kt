@@ -105,11 +105,13 @@ class CatalogoDelMenuTest {
 
     @Test
     fun `con usuario la cabecera lleva iniciales, nombre y zona`() {
+        // "R/25" y no "Zona 21": ese es justo el respaldo que R3 prohíbe que este
+        // catálogo invente. El dato de prueba no debe parecerlo.
         val usuario = User(NOMBRE = "Efraín Domínguez Reyes", MODULOS = listOf("COBRO"))
-        val cabecera = CatalogoDelMenu.cabecera(usuario, envio = null, nombreDeZona = "Zona 21")
+        val cabecera = CatalogoDelMenu.cabecera(usuario, envio = null, nombreDeZona = "R/25")
         assertEquals("ED", cabecera.iniciales)
         assertEquals("Efraín Domínguez Reyes", cabecera.nombre)
-        assertEquals("Zona 21", cabecera.nombreDeZona)
+        assertEquals("R/25", cabecera.nombreDeZona)
     }
 
     @Test

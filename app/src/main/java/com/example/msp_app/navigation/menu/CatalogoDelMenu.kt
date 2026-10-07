@@ -9,7 +9,6 @@ import com.example.msp_app.core.navegacion.domain.model.IconoDelMenu
 import com.example.msp_app.core.navegacion.domain.model.SeccionDelMenu
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.pagos.ui.PagosRutas
-import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import com.example.msp_app.navigation.Screen
 
 internal data class EntradaDelCatalogo(
@@ -106,35 +105,50 @@ internal object CatalogoDelMenu {
      * Rutas que no son una opción pero pertenecen a una sección: la abren sin
      * resaltar nada.
      *
-     * Las 20 entradas, verificadas con `grep` contra `AppNavigation.kt` y los
-     * grafos de `destinosDeCobranza`/`PagosRutas`/`VisitasRutas` (Ruling R9):
-     * las 20 rutas candidatas del brief están registradas con `composable(...)`
-     * en el grafo real — ninguna se quitó. Evidencia: cada constante aparece en
-     * un `composable(<constante>)` (directo o por el mismo literal) en
-     * `AppNavigation.kt`, `DestinosDeCobranzaGraph.kt`, `PagosRutas.kt` o
-     * `VisitasRutas.kt`.
+     * ## Corrección R9-bis (revisión de la Task 10; corrige R9)
+     *
+     * El ruling R9 original (ver `git log` de este archivo) sólo verificó que
+     * las 20 rutas candidatas del brief estuvieran REGISTRADAS en el grafo —
+     * confundió "existe como destino" con "compone el menú". El pre-flight de
+     * esta tarea (`.superpowers/sdd/2026-10-06-menu-lateral/preflight.md`,
+     * hallazgo #10, §4.5) ya había señalado esto: sólo las pantallas que
+     * ADOPTARÁN `MenuDeLaApp` (Tasks 11–16) pertenecen aquí. Las otras 10
+     * (verificadas una por una: ninguna de las Tasks 11–16 las adopta, y tres
+     * —`REGISTRAR_ABONO`, `VisitasRutas.REGISTRAR` y, por la misma regla,
+     * cualquier pantalla sin hamburguesa— quedan fuera por decisión explícita
+     * del dueño de no ponerles menú) se QUITARON:
+     *
+     * - `PagosRutas.BITACORA` — bitácora de una venta, sin hamburguesa.
+     * - `Screen.SaleMap.route` — mapa de una venta, sin hamburguesa.
+     * - `Screen.Forgiveness.route` — condonación (diálogo legado), sin hamburguesa.
+     * - `Screen.Guarantee.route` — garantía de una venta, sin hamburguesa.
+     * - `PagosRutas.REGISTRAR_ABONO` — decisión explícita del dueño: sin menú.
+     * - `VisitasRutas.REGISTRAR` — decisión explícita del dueño: sin menú.
+     * - `Screen.EditSale.route` — edición de venta, sin hamburguesa.
+     * - `Screen.TransferDetail.route` — detalle de traspaso, sin hamburguesa.
+     * - `Screen.NewTransfer.route` — alta de traspaso, sin hamburguesa.
+     * - `Screen.GuaranteeDetail.route` — detalle de garantía, sin hamburguesa.
+     *
+     * Quedan las 10 que el pre-flight señala como las que SÍ adoptan el menú:
+     * `DETALLE_CLIENTE`/`DETALLE_VENTA` (Task 16) y `SaleDetails`,
+     * `PaymentTicket`, `VisitTicket`, `NewSale`, `SaleDetailsList`,
+     * `SaleDescripction`, `ProductDetails`, `CreateGuarantee` (Tasks 13–15).
+     *
+     * Costo si una pantalla futura adopta el menú en una ruta quitada: su
+     * sección no se abre sola hasta que se agregue la ruta aquí — defecto
+     * visible y barato (mismo análisis del pre-flight).
      */
     private val RUTAS_HIJAS: Map<String, String> = mapOf(
         PagosRutas.DETALLE_CLIENTE to COBRO,
         PagosRutas.DETALLE_VENTA to COBRO,
-        PagosRutas.BITACORA to COBRO,
         Screen.SaleDetails.route to COBRO,
-        Screen.SaleMap.route to COBRO,
         Screen.PaymentTicket.route to COBRO,
         Screen.VisitTicket.route to COBRO,
-        Screen.Forgiveness.route to COBRO,
-        Screen.Guarantee.route to COBRO,
-        PagosRutas.REGISTRAR_ABONO to COBRO,
-        VisitasRutas.REGISTRAR to COBRO,
         Screen.NewSale.route to VENTAS,
         Screen.SaleDetailsList.route to VENTAS,
         Screen.SaleDescripction.route to VENTAS,
-        Screen.EditSale.route to VENTAS,
         Screen.ProductDetails.route to VENTAS,
-        Screen.TransferDetail.route to ALMACEN,
-        Screen.NewTransfer.route to ALMACEN,
-        Screen.CreateGuarantee.route to GARANTIAS,
-        Screen.GuaranteeDetail.route to GARANTIAS
+        Screen.CreateGuarantee.route to GARANTIAS
     )
 
     private fun entrada(
