@@ -44,6 +44,15 @@ class CentroidesCercaniaAdapter(
      * centroides o si cualquier lectura de Room falla. El contrato del puerto
      * lo exige: [com.example.msp_app.feature.pagos.domain.OrdenDeLaLista.MAS_CERCA]
      * ya sabe degradar a orden de cobranza con un mapa vacío.
+     *
+     * **DBSCAN en [Dispatchers.Default], no en [Dispatchers.IO]** (hallazgo de
+     * la revisión final de `feat/lista-venta-nueva-orden`): [centroidesPorVenta]
+     * corre el clustering real (`org.apache.commons.math3...DBSCANClusterer`,
+     * ver el KDoc de [CentroidesCercaniaAdapterTest]) y es trabajo de CPU, no
+     * de E/S — correrlo en el dispatcher de IO compite por los hilos que ese
+     * pool reserva para operaciones que SÍ bloquean en disco o red. La lectura
+     * de Room ([PaymentsLocalDataSource.getLocationsGroupedBySaleId]) se queda
+     * en IO, que es lo que le corresponde.
      */
     @Suppress(
         "TooGenericExceptionCaught"
@@ -51,14 +60,17 @@ class CentroidesCercaniaAdapter(
     override suspend fun distanciasPorVenta(): Map<Int, Double> = withContext(Dispatchers.IO) {
         try {
             val posicion = posicionActual() ?: return@withContext emptyMap()
-            val centroides = centroidesPorVenta(paymentStore.getLocationsGroupedBySaleId())
-            if (centroides.isEmpty()) return@withContext emptyMap()
+            val ubicaciones = paymentStore.getLocationsGroupedBySaleId()
+            withContext(Dispatchers.Default) {
+                val centroides = centroidesPorVenta(ubicaciones)
+                if (centroides.isEmpty()) return@withContext emptyMap()
 
-            sortGroupsByClosestCentroid(centroides, posicion)
-                .mapNotNull { proximidad ->
-                    proximidad.distance.metersOrNull?.let { metros -> proximidad.saleId to metros }
-                }
-                .toMap()
+                sortGroupsByClosestCentroid(centroides, posicion)
+                    .mapNotNull { proximidad ->
+                        proximidad.distance.metersOrNull?.let { metros -> proximidad.saleId to metros }
+                    }
+                    .toMap()
+            }
         } catch (cancelada: CancellationException) {
             throw cancelada
         } catch (fallo: Throwable) {
