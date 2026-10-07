@@ -229,7 +229,7 @@ sealed class Screen(val route: String) {
 
     // Compuerta de versión mínima (Bloque C). Mismo molde que [DeviceBlocked]:
     // pantalla sin salida a la que se llega con `popUpTo(0) { inclusive = true }`,
-    // fuera de cualquier `DrawerContainer`.
+    // fuera de cualquier `MenuDeLaApp`.
     object VersionBlocked : Screen("version_blocked")
 
     // Guarantee routes
@@ -240,7 +240,7 @@ sealed class Screen(val route: String) {
     }
 
     // Pantalla de Configuración (spec 2026-08-10-configuracion-tamano-letra-design.md). Ítem
-    // global del drawer, fuera de los grupos por `MODULOS` — ver `DrawerContainer`.
+    // global del menú, fuera de los grupos por `MODULOS` — ver `MenuDeLaApp`.
     object Configuracion : Screen("configuracion")
 }
 
@@ -717,8 +717,8 @@ fun AppNavigation() {
             // 2026-08-10-configuracion-tamano-letra-design.md). Se apila sobre la pantalla
             // vigente (sin `popUpTo`) — su propio header lleva el affordance de regreso
             // (`navController.popBackStack()`), no un drawer/hamburguesa, así que no se envuelve
-            // en `DrawerContainer` (mismo criterio que `RouteMapScreen`/`GuaranteeListScreen`,
-            // pantallas simples que no re-abren el drawer).
+            // en `MenuDeLaApp` (mismo criterio que `RouteMapScreen`/`GuaranteeListScreen`,
+            // pantallas simples que no re-abren el menú).
             composable(Screen.Configuracion.route) {
                 ConfiguracionScreen(
                     navController = navController,

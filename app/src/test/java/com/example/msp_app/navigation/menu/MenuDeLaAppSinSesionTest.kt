@@ -42,8 +42,8 @@ import org.robolectric.annotation.GraphicsMode
  * de `AppNavigation`, la única que provee `LocalAuthViewModel` en
  * producción— puede montar este menú sin sesión. Esta prueba monta el menú
  * SIN proveer `LocalAuthViewModel` en absoluto: el camino real de ese caso
- * (el mismo que ya cubre `LaHamburguesaDeClientesAbreElCajonTest` para
- * `DrawerContainer`), no un mock.
+ * (el mismo que ya cubre `LaHamburguesaDeClientesAbreElMenuLateralTest` para
+ * `MenuDeLaApp`), no un mock.
  *
  * `@GraphicsMode(GraphicsMode.Mode.NATIVE)` (Ruling R12): esta prueba no hace
  * click en nada DENTRO de la hoja, pero sí abre el cajón y LEE nodos dentro

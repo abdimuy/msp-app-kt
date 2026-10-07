@@ -18,9 +18,9 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 
 /**
- * El menú lateral nuevo para cualquier pantalla de `:app`. Misma forma que
- * `DrawerContainer(navController) { abrir -> … }`: adoptarlo es cambiar el
- * nombre de la llamada.
+ * El menú lateral para cualquier pantalla de `:app`. Reemplazó al cajón
+ * legado (misma forma de llamada, `navController` + lambda de contenido),
+ * retirado en la Task 18.
  *
  * `runCatching` sobre `LocalAuthViewModel` por la misma razón que el cajón
  * viejo: una red de prueba compone destinos sin sesión, y sin sesión el menú se

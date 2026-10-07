@@ -87,7 +87,7 @@ class CadaDestinoDeCobranzaSeMontaTest {
     @Before
     fun setUp() {
         hiltRule.inject()
-        // `DrawerContainer` —ahora en el camino de `pagos/clientes`— pinta
+        // El pie del menú (`PieDelMenu`) —ahora en el camino de `pagos/clientes`— pinta
         // `UpdateBanner`, que toca `FirebaseFirestore.getInstance()` en el
         // `init` de `UpdateChecker`. Mismo fixture que `CorreccionSubeCorregidaTest`.
         val context: Context = ApplicationProvider.getApplicationContext()

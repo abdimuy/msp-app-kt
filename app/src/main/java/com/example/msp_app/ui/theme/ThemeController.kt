@@ -16,7 +16,7 @@ import androidx.core.content.edit
  * nueva; [isDarkMode] sigue existiendo como el booleano YA RESUELTO (para
  * `MODE.SYSTEM`, resuelto contra el `fontScale`/tema del sistema reportado por
  * la raíz de composición vía [ThemeController.updateSystemDarkMode]) — así
- * ningún llamador legacy (`DrawerContainer`, pantallas del paquete `features`) que
+ * ningún llamador legacy (pantallas del paquete `features`) que
  * lea `ThemeController.isDarkMode` directo necesita cambiar.
  */
 enum class ThemeMode { LIGHT, DARK, SYSTEM }

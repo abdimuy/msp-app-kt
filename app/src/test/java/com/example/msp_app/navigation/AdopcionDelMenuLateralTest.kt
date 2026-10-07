@@ -26,15 +26,10 @@ class AdopcionDelMenuLateralTest {
     }
 
     @Test
-    fun `control positivo, el escaner ve la definicion del menu y la del cajon`() {
+    fun `control positivo, el escaner ve la definicion del menu`() {
         assertTrue(
             escaner.archivosQueMencionan("MenuDeLaApp").any {
                 it.endsWith("navigation/menu/MenuDeLaApp.kt")
-            }
-        )
-        assertTrue(
-            escaner.archivosQueMencionan("DrawerContainer").any {
-                it.endsWith("components/DrawerContainer.kt")
             }
         )
     }

@@ -120,8 +120,7 @@ private const val ITEM_PERIOD_BLOCK = "period_block"
  * Recolecta el `StateFlow` de [CollectionReportViewModel] y delega el render puro a
  * [CollectionReportContent]. [navController] queda reservado (el reporte no navega a otras
  * pantallas por sí mismo). [onMenuClick] lo cablea el composition root de `:app` (Task 10)
- * al `openDrawer` del `DrawerContainer` — así el botón de menú del [ReportHeader] abre el
- * drawer real de la app.
+ * al menú lateral real de la app — así el botón de menú del [ReportHeader] lo abre.
  *
  * **Envuelto en [ThemeRevealRoot] (fix Task 11):** `:app` NUNCA provee [MspTheme] — su
  * `MainActivity`/`AppNavigation` solo montan `MspappTheme` (el tema legado de Material del

@@ -25,7 +25,7 @@ const val CERRAR_SESION_TAG: String = "configuracion_cerrar_sesion"
 
 /**
  * "Cerrar sesión" con confirmación, movido desde el cajón legado (spec §2.1.4).
- * El diálogo es el de `DrawerContainer` reubicado con sus mismos textos, no
+ * El diálogo es el que tenía ese cajón, reubicado con sus mismos textos, no
  * reescrito.
  */
 @Composable

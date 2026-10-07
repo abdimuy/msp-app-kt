@@ -422,17 +422,17 @@ fun NavGraphBuilder.destinoDeBitacora(
  * es difícil de leer en la llamada. Son dos registros cohesivos en vez de uno
  * largo; la Task 21, que cablea los puntos de entrada, llama a los dos.
  *
- * ## [envoltura] — el ÚNICO punto de cableado del cajón de navegación
+ * ## [envoltura] — el ÚNICO punto de cableado del menú lateral
  *
- * La hamburguesa de esta pantalla abre un cajón (decisión del dueño,
- * 2026-10-05), y el cajón de HOY (`DrawerContainer`) es legado y vive en
- * `:app`, fuera del alcance de este módulo — `:feature:pagos` no puede
- * depender de `:app`. [envoltura] es la bisagra: recibe el contenido de esta
- * pantalla ya armado —una función que solo necesita un `onAbrirMenu` resuelto—
- * y decide cómo (y si) lo envuelve. `:app` pasa la real
- * (`DrawerContainer(navController) { abrir -> contenido(abrir) }`); el default
- * no envuelve nada (`onAbrirMenu` es un no-op), que es lo que deja montar esta
- * ruta en un test de este módulo sin saber que existe un cajón.
+ * La hamburguesa de esta pantalla abre el menú lateral (decisión del dueño,
+ * 2026-10-05), que vive en `:app`, fuera del alcance de este módulo —
+ * `:feature:pagos` no puede depender de `:app`. [envoltura] es la bisagra:
+ * recibe el contenido de esta pantalla ya armado —una función que solo
+ * necesita un `onAbrirMenu` resuelto— y decide cómo (y si) lo envuelve.
+ * `:app` pasa el menú lateral real (ver `envoltura` en
+ * `DestinosDeCobranzaGraph.kt`); el default no envuelve nada (`onAbrirMenu`
+ * es un no-op), que es lo que deja montar esta ruta en un test de este
+ * módulo sin saber que existe un menú.
  *
  * **PROVISIONAL**, a propósito: el día que llegue el menú nuevo
  * (`docs/superpowers/specs/2026-10-05-menu-lateral-design.md`), lo que cambia

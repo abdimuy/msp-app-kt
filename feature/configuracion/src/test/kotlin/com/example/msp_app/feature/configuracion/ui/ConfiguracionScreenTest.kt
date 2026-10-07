@@ -277,7 +277,7 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
     }
 
     // -----------------------------------------------------------------------
-    // "Cerrar sesión" (Task 9) — reubicado desde `DrawerContainer`, mismos
+    // "Cerrar sesión" (Task 9) — reubicado desde el cajón legado, mismos
     // textos de confirmación.
     // -----------------------------------------------------------------------
 

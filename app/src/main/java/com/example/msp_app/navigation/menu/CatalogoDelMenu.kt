@@ -19,7 +19,8 @@ internal data class EntradaDelCatalogo(
 
 /**
  * Las opciones del menú por módulo, con las MISMAS etiquetas, rutas y orden que
- * `DrawerContainer.kt:136-334` (un cobrador no debe buscar nada de nuevo).
+ * tenía el cajón legado, retirado en la Task 18 (un cobrador no debe buscar nada
+ * de nuevo).
  *
  * ## Divergencia con el brief literal ([cabecera], Ruling R3/R4 del controlador)
  *

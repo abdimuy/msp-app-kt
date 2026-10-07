@@ -17,9 +17,18 @@ android {
     }
 }
 
-// `msp.kover` deja el piso placeholder (0%). El piso real se mide y se fija en
-// la Task 18 del plan docs/superpowers/plans/2026-10-06-menu-lateral.md, cuando
-// el módulo ya tiene todo su código.
+// Piso de cobertura REAL (reemplaza el placeholder 0% de `msp.kover`).
+// MEDIDO 2026-10-06 con `:core:navegacion:koverXmlReportDebug`: LINE 564/602 = 93.69%.
+// Piso = medido - 3: trinquete, no meta.
+kover {
+    reports {
+        verify {
+            rule("core-navegacion: piso trinquete (medido 93.69% LINE)") {
+                minBound(90)
+            }
+        }
+    }
+}
 
 dependencies {
     implementation(project(":core:designsystem"))
