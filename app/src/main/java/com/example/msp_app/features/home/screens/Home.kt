@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
 import com.example.msp_app.core.common.location.label
 import com.example.msp_app.core.common.time.AppTime
@@ -76,6 +75,7 @@ import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import com.example.msp_app.navigation.DestinosDeCobranza
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -314,7 +314,7 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
     val accountsPercentageAjustedRounded =
         String.format(Locale.getDefault(), "%.2f", accountsPercentageAjusted) + "%"
 
-    DrawerContainer(
+    MenuDeLaApp(
         navController = navController
     ) { openDrawer ->
         Scaffold(

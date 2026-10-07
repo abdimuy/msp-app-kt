@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.speech.ui.DescargaDelDictadoConectada
 import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.feature.pagos.ui.DineroDeLaCuenta
@@ -24,6 +23,7 @@ import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import com.example.msp_app.feature.visitas.ui.destinoDeRegistrarVisita
 import com.example.msp_app.feature.visitas.ui.destinoDeTicketDeVisita
 import com.example.msp_app.features.forgiveness.screens.ForgivenessScreen
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.pagos.SueloDelUltimoCobro
 import com.example.msp_app.ui.theme.ThemeController
 import dagger.hilt.android.EntryPointAccessors
@@ -58,20 +58,18 @@ import dagger.hilt.android.EntryPointAccessors
  */
 fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Context) {
     // Sin `onAtras`: la lista es pantalla de nivel superior y ya no pinta flecha
-    // de volver — se llega desde el cajón.
+    // de volver — se llega desde el menú lateral.
     // El encabezado de la tarjeta abre el cliente y cada venta abre ESA venta
     // (decisión del dueño del 2026-10-01; antes toda la tarjeta abría el cliente).
     destinoDeListaDeClientes(
         onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) },
         onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) },
-        // ÚNICO punto de cableado del cajón de HOY (`DrawerContainer`, legado):
-        // provisional hasta el menú nuevo
-        // (docs/superpowers/specs/2026-10-05-menu-lateral-design.md) — ver el
-        // KDoc de `destinoDeListaDeClientes.envoltura`. El día que el menú
-        // cambie, se cambia aquí y sólo aquí.
+        // ÚNICO punto de cableado del menú de la lista: el menú lateral nuevo
+        // (docs/superpowers/specs/2026-10-05-menu-lateral-design.md), ver el KDoc
+        // de `destinoDeListaDeClientes.envoltura`.
         envoltura = { contenido ->
-            DrawerContainer(navController = navController) { abrirCajon ->
-                contenido(abrirCajon)
+            MenuDeLaApp(navController = navController) { abrirMenu ->
+                contenido(abrirMenu)
             }
         }
     )

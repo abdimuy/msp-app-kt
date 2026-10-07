@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.navegacion.ui.MENU_LATERAL_TAG
 import com.example.msp_app.feature.pagos.ui.BOTON_MENU_TAG
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.google.firebase.FirebaseApp
@@ -30,14 +31,15 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * **La hamburguesa de la lista de clientes abre el cajón ACTUAL, no un no-op.**
+ * **La hamburguesa de la lista de clientes abre el menú lateral nuevo
+ * (`MenuDeLaApp`), no un no-op.**
  *
  * Monta el MISMO grafo que `AppNavigation` compone ([destinosDeCobranza]),
  * navega a `pagos/clientes` y toca el botón de menú real
- * ([BOTON_MENU_TAG]). Tiene que aparecer el contenido de `DrawerContainer`
- * —su encabezado fijo "Menú" y "Cerrar sesión", que no dependen de sesión ni
- * de `MODULOS` (ver el KDoc de `DrawerContainer.authViewModel` para por qué
- * esta red no necesita una sesión real)—.
+ * ([BOTON_MENU_TAG]). Tiene que aparecer el menú lateral —y "Configuración"
+ * en su pie, que no dependen de sesión ni de `MODULOS` (ver el KDoc de
+ * `MenuDeLaApp.authViewModel` para por qué esta red no necesita una sesión
+ * real)—.
  *
  * Mismo patrón de montaje que [CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest]:
  * `createEmptyComposeRule` y una Activity `@AndroidEntryPoint` construida a mano
@@ -45,16 +47,16 @@ import org.robolectric.annotation.Config
  * de [destinoDeListaDeClientes] exige esa Activity y `createAndroidComposeRule`
  * no puede resolverla por `Intent` bajo Robolectric.
  *
- * **Control de rojo, medido**: antes de cablear [DrawerContainer] en
+ * **Control de rojo, medido**: antes de cablear el menú en
  * `DestinosDeCobranzaGraph`, `destinoDeListaDeClientes` recibía
- * `onAbrirMenu = {}` — tocar la hamburguesa no hacía NADA, así que "Menú"
+ * `onAbrirMenu = {}` — tocar la hamburguesa no hacía NADA, así que el menú
  * nunca aparecía y la segunda aserción de este test quedaba roja.
  *
  * `FirebaseApp.initializeApp` con opciones de relleno —mismo fixture que
- * `CorreccionSubeCorregidaTest`—: `DrawerContainer` pinta `UpdateBanner` en el
- * pie del cajón (componiéndose SIEMPRE, cerrado o abierto, porque
- * `ModalNavigationDrawer` compone su `drawerContent` de entrada para
- * sostener el estado), y `UpdateChecker` —`object` que ese banner toca— pide
+ * `CorreccionSubeCorregidaTest`—: el pie del menú pinta `UpdateBanner`
+ * (componiéndose SIEMPRE, cerrado o abierto, porque `ModalNavigationDrawer`
+ * compone su `drawerContent` de entrada para sostener el estado), y
+ * `UpdateChecker` —`object` que ese banner toca— pide
  * `FirebaseFirestore.getInstance()` en su `init`. Medido: sin este fixture,
  * el `setContent` de abajo revienta con `IllegalStateException("Default
  * FirebaseApp is not initialized...")` antes de llegar a pintar nada.
@@ -62,7 +64,7 @@ import org.robolectric.annotation.Config
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class, sdk = [33])
-class LaHamburguesaDeClientesAbreElCajonTest {
+class LaHamburguesaDeClientesAbreElMenuLateralTest {
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
@@ -87,7 +89,7 @@ class LaHamburguesaDeClientesAbreElCajonTest {
     }
 
     @Test
-    fun `tocar abrir menu en la lista de clientes abre el cajon real`() {
+    fun `tocar abrir menu en la lista de clientes abre el menu lateral`() {
         val activity = Robolectric.buildActivity(DestinosDeCobranzaTestActivity::class.java)
             .setup()
             .get()
@@ -108,18 +110,15 @@ class LaHamburguesaDeClientesAbreElCajonTest {
         activity.setContent { NavHost(navController = nav, graph = grafo) }
         composeTestRule.waitForIdle()
 
-        // Control positivo: `ModalNavigationDrawer` compone su `drawerContent`
-        // SIEMPRE, cerrado o abierto (para sostener el estado) — "Menú" ya
-        // existe en el árbol de semántica, sólo que fuera de pantalla. Por eso
-        // la aserción es `assertIsNotDisplayed`, no `assertDoesNotExist`: medido,
-        // la segunda falla incluso con el cajón funcionando de verdad.
-        composeTestRule.onNodeWithText("Menú").assertIsNotDisplayed()
+        composeTestRule.onNodeWithTag(MENU_LATERAL_TAG).assertIsNotDisplayed()
 
         composeTestRule.onNodeWithTag(BOTON_MENU_TAG).performClick()
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("Menú").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Cerrar sesión").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(MENU_LATERAL_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Configuración").assertIsDisplayed()
+        // "Cerrar sesión" se mudó a Configuración (Task 9): el menú ya no lo trae.
+        composeTestRule.onNodeWithText("Cerrar sesión").assertDoesNotExist()
     }
 
     private companion object {

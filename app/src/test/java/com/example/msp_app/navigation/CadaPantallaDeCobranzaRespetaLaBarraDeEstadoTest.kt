@@ -28,6 +28,8 @@ import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
+import com.example.msp_app.core.navegacion.ui.FILA_DEL_MENU_TAG
+import com.example.msp_app.core.navegacion.ui.ID_CONFIGURACION
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
@@ -396,6 +398,38 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
         )
     }
 
+    /**
+     * **Las opciones del menú lateral miden 56 dp (`touchTarget`), no los 48 del
+     * mock** (spec §2.1.6). Se mide sobre el `NavHost` real de la lista, donde el
+     * menú se compone aunque esté cerrado. Sin sesión en esta red, la única
+     * opción presente es Configuración: es el control positivo.
+     */
+    @Test
+    fun `cada opcion del menu lateral mide 56dp`() {
+        val rutas = montarElGrafo()
+        assertTrue(PagosRutas.LISTA_CLIENTES in rutas)
+        val minimo = with(composeTestRule.density) { ALTO_DE_LA_OPCION_DEL_MENU.roundToPx() }
+
+        val opciones = controlesDe(PagosRutas.LISTA_CLIENTES).filter { nodo ->
+            nodo.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(FILA_DEL_MENU_TAG) == true
+        }
+
+        assertTrue(
+            "no se encontró la opción Configuración del menú: el barrido no vería ninguna",
+            opciones.any {
+                it.config.getOrNull(SemanticsProperties.TestTag) == FILA_DEL_MENU_TAG + ID_CONFIGURACION
+            }
+        )
+        val bajas = opciones
+            .filter { it.boundsInRoot.height.toInt() < minimo }
+            .map {
+                "${it.config.getOrNull(
+                    SemanticsProperties.TestTag
+                )} mide ${it.boundsInRoot.height.toInt()}px"
+            }
+        assertEquals(emptyList<String>(), bajas)
+    }
+
     // -----------------------------------------------------------------------
 
     /**
@@ -521,6 +555,12 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
          * rojo antes que el dedo del cobrador.
          */
         val ALTO_TOCABLE_MINIMO = 50.dp
+
+        /**
+         * El alto de una opción del menú lateral (`touchTarget`, spec §2.1.6):
+         * 56dp, no los 48 del mock ni los 50 del resto de cobranza.
+         */
+        val ALTO_DE_LA_OPCION_DEL_MENU = 56.dp
 
         /**
          * Los controles que YA incumplían los 50dp antes de este barrido, por
