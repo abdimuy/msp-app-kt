@@ -34,7 +34,6 @@ import com.example.msp_app.core.navegacion.ui.SECCION_DEL_MENU_TAG
 internal fun SeccionPlegable(
     seccion: SeccionDelMenu,
     abierta: Boolean,
-    habilitada: Boolean,
     itemActivoId: String?,
     onToggle: () -> Unit,
     onElegir: (ElementoDelMenu) -> Unit
@@ -43,9 +42,9 @@ internal fun SeccionPlegable(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = MspTheme.spacing.touchTarget)
+                .heightIn(min = ALTO_DE_LA_OPCION)
                 .clip(MspTheme.shapes.control)
-                .clickable(enabled = habilitada, onClick = onToggle)
+                .clickable(onClick = onToggle)
                 .semantics { stateDescription = if (abierta) "Abierta" else "Plegada" }
                 .testTag(SECCION_DEL_MENU_TAG + seccion.id)
                 .padding(horizontal = MspTheme.spacing.md),

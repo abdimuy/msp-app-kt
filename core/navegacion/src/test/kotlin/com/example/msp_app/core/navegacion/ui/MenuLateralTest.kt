@@ -8,18 +8,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_CLARO
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -31,6 +35,7 @@ import com.example.msp_app.core.navegacion.domain.model.SeccionDelMenu
 import com.example.msp_app.core.navegacion.ui.components.PieDelMenu
 import com.example.msp_app.core.testing.RobolectricTestBase
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.robolectric.annotation.Config
@@ -138,33 +143,6 @@ class MenuLateralTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `el buscador aparece con diez opciones`() {
-        montar(secciones = MenuFixtures.todas)
-        compose.onNodeWithTag(BUSCADOR_DEL_MENU_TAG).assertExists()
-    }
-
-    @Test
-    fun `sin diez opciones no hay buscador`() {
-        montar(secciones = MenuFixtures.nueve)
-        compose.onNodeWithTag(BUSCADOR_DEL_MENU_TAG).assertDoesNotExist()
-    }
-
-    @Test
-    fun `buscar filtra aunque la seccion este plegada`() {
-        montar(plegadasIniciales = setOf("GARANTIAS"))
-        compose.onNodeWithTag(BUSCADOR_DEL_MENU_TAG).performTextInput("garantias")
-        compose.onNodeWithTag(FILA_DEL_MENU_TAG + "garantias").assertExists()
-        compose.onNodeWithTag(FILA_DEL_MENU_TAG + "clientes").assertDoesNotExist()
-    }
-
-    @Test
-    fun `buscar algo que no existe dice sin resultados`() {
-        montar()
-        compose.onNodeWithTag(BUSCADOR_DEL_MENU_TAG).performTextInput("nómina")
-        compose.onNodeWithText("Sin resultados").assertExists()
-    }
-
-    @Test
     fun `el desvanecido aparece solo cuando hay mas por desplazar`() {
         montar(alto = 360.dp)
         compose.onNodeWithTag(DESVANECIDO_DEL_MENU_TAG).assertExists()
@@ -179,10 +157,9 @@ class MenuLateralTest : RobolectricTestBase() {
     @Test
     fun `cada fila y cada encabezado de seccion miden al menos el toque del repo`() {
         montar()
-        compose.onNodeWithTag(FILA_DEL_MENU_TAG + "clientes").assertHeightIsAtLeast(56.dp)
-        compose.onNodeWithTag(FILA_DEL_MENU_TAG + ID_CONFIGURACION).assertHeightIsAtLeast(56.dp)
-        compose.onNodeWithTag(SECCION_DEL_MENU_TAG + "COBRO").assertHeightIsAtLeast(56.dp)
-        compose.onNodeWithTag(BUSCADOR_DEL_MENU_TAG).assertHeightIsAtLeast(56.dp)
+        compose.onNodeWithTag(FILA_DEL_MENU_TAG + "clientes").assertHeightIsAtLeast(50.dp)
+        compose.onNodeWithTag(FILA_DEL_MENU_TAG + ID_CONFIGURACION).assertHeightIsAtLeast(50.dp)
+        compose.onNodeWithTag(SECCION_DEL_MENU_TAG + "COBRO").assertHeightIsAtLeast(50.dp)
     }
 
     @Test
@@ -253,15 +230,45 @@ class MenuLateralTest : RobolectricTestBase() {
         assertEquals(1, alternanciasDeMontos)
     }
 
-    // Hallazgo de revisión (Task 3): con los dos toggles + avatar en la misma
-    // fila que nombre+zona, a la columna del nombre le quedaban ~56 dp de 304 —
-    // un nombre real se parte en 3-4 renglones. El encabezado va en dos filas:
-    // toggles arriba, avatar+nombre+zona abajo con todo el ancho disponible.
+    // Decisión del dueño (2026-10-07): los dos botones van chicos, sin caja, en la
+    // fila del avatar — ya no en una fila propia (ruling R11 de la Task 3). Para que
+    // un nombre real no se parta en 3-4 renglones el avatar bajó a 40 dp y la orilla
+    // derecha a `xs`: a la columna del nombre le quedan ~132 dp de 304, y el nombre
+    // recorta con "…" a dos renglones.
     @Test
     fun `un nombre largo no aprieta la columna del nombre`() {
         montar(
             cabecera = MenuFixtures.cabecera().copy(nombre = "María Guadalupe Hernández de la Cruz")
         )
-        compose.onNodeWithTag(NOMBRE_DEL_MENU_TAG).assertWidthIsAtLeast(150.dp)
+        compose.onNodeWithTag(NOMBRE_DEL_MENU_TAG).assertWidthIsAtLeast(128.dp)
+    }
+
+    /**
+     * Los botones de tema y de montos comparten la fila del nombre: su centro vertical
+     * cae dentro de la columna del nombre, y cada uno conserva el toque del repo
+     * (≥50 dp) aunque se dibuje sin caja. Control de rojo: con la fila propia de
+     * antes, el centro de los botones quedaba ~60 dp por encima del nombre.
+     */
+    @Test
+    fun `los botones de la cabecera van en la fila del nombre`() {
+        montar()
+        val nombre = compose.onNodeWithTag(NOMBRE_DEL_MENU_TAG).getUnclippedBoundsInRoot()
+        listOf("msp_privacy_eye_toggle", "msp_theme_toggle").forEach { tag ->
+            val boton = compose.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+            val centro = (boton.top + boton.bottom) / 2
+            assertTrue(
+                "$tag: centro $centro fuera de la fila del nombre (${nombre.top}..${nombre.bottom})",
+                centro >= nombre.top && centro <= nombre.bottom
+            )
+            assertTrue("$tag mide ${boton.height}", boton.height >= 50.dp)
+            assertTrue("$tag mide ${boton.width}", boton.width >= 50.dp)
+        }
+    }
+
+    /** El buscador del menú se retiró (decisión del dueño, 2026-10-07): ningún campo de texto. */
+    @Test
+    fun `el menu no trae buscador`() {
+        montar()
+        compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
     }
 }

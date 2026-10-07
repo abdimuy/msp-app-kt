@@ -32,12 +32,15 @@ import com.example.msp_app.core.navegacion.ui.NOMBRE_DEL_MENU_TAG
  * R3). Los botones de tema y de ocultar/mostrar dinero (ruling R2, decisión del
  * dueño) llegan por parámetro para que la hoja siga siendo pura.
  *
- * Dos filas, no una (hallazgo de revisión de la Task 3): con avatar + los dos
- * toggles + nombre/zona en la MISMA fila, a la columna del nombre le quedaban
- * ~56 dp de 304 — un nombre real se parte en 3-4 renglones. Fila 1: los
- * toggles alineados a la derecha. Fila 2: avatar + nombre/zona con todo el
- * ancho disponible, cada texto con `maxLines`/`overflow` para que un nombre o
- * una zona larga recorten con "…" en vez de partirse en N renglones.
+ * ## Una fila, con los botones chicos (decisión del dueño, 2026-10-07)
+ *
+ * Antes los dos botones eran cajas de 56 dp en una fila propia, encima del avatar
+ * (ruling R11). El dueño lo vio en su Galaxy A25 y pidió que no ocuparan una fila:
+ * ahora van a la derecha del nombre, **sin caja** (`boxed = false`: sólo el glifo,
+ * regla "acción pequeña sin caja"), cada uno con [ALTO_DE_LA_OPCION] de área tocable
+ * invisible. Para que al nombre no le falte ancho, el avatar baja a 40 dp y la
+ * orilla derecha se reduce a `xs`: el área tocable de los botones ya deja su propio
+ * margen visual alrededor del glifo. El nombre y la zona recortan con "…".
  */
 @Composable
 internal fun EncabezadoDelMenu(
@@ -50,31 +53,28 @@ internal fun EncabezadoDelMenu(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(MspTheme.spacing.md),
-        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+            .padding(
+                start = MspTheme.spacing.md,
+                end = MspTheme.spacing.xs,
+                top = MspTheme.spacing.sm,
+                bottom = MspTheme.spacing.xs
+            ),
+        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm, Alignment.End)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            MspPrivacyEyeToggle(
-                masked = montosOcultos,
-                onToggle = onAlternarMontos,
-                modifier = Modifier.size(MspTheme.spacing.touchTarget)
+            MspInitialsAvatar(
+                initials = cabecera.iniciales,
+                size = MspTheme.spacing.touchTarget - MspTheme.spacing.md
             )
-            MspThemeToggle(
-                darkTheme = temaOscuro,
-                onToggle = onAlternarTema,
-                modifier = Modifier.size(MspTheme.spacing.touchTarget)
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
-        ) {
-            MspInitialsAvatar(initials = cabecera.iniciales, size = MspTheme.spacing.touchTarget)
-            Column(Modifier.weight(1f).testTag(NOMBRE_DEL_MENU_TAG)) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(start = MspTheme.spacing.sm + MspTheme.spacing.xs)
+                    .testTag(NOMBRE_DEL_MENU_TAG)
+            ) {
                 if (cabecera.nombre.isNotBlank()) {
                     Text(
                         text = cabecera.nombre,
@@ -94,26 +94,42 @@ internal fun EncabezadoDelMenu(
                     )
                 }
             }
+            MspPrivacyEyeToggle(
+                masked = montosOcultos,
+                onToggle = onAlternarMontos,
+                boxed = false,
+                modifier = Modifier.size(ALTO_DE_LA_OPCION)
+            )
+            MspThemeToggle(
+                darkTheme = temaOscuro,
+                onToggle = onAlternarTema,
+                boxed = false,
+                modifier = Modifier.size(ALTO_DE_LA_OPCION)
+            )
         }
-        cabecera.envio?.let { TarjetaDeEnvio(it) }
+        cabecera.envio?.let {
+            // La orilla derecha del encabezado es `xs` por los botones; la tarjeta
+            // recupera el margen `md` para quedar simétrica.
+            TarjetaDeEnvio(it, Modifier.padding(end = MspTheme.spacing.md - MspTheme.spacing.xs))
+        }
     }
 }
 
 /** El punto nunca va solo: siempre con su texto (spec §5, regla de `MspStatusChip`). */
 @Composable
-private fun TarjetaDeEnvio(envio: EstadoDeEnvio) {
+private fun TarjetaDeEnvio(envio: EstadoDeEnvio, modifier: Modifier = Modifier) {
     val punto = if (envio.estado == EstadoDeEnvio.Estado.TODO_ENVIADO) {
         MspTheme.colors.statusPaid
     } else {
         MspTheme.colors.statusPartial
     }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(MspTheme.shapes.tile)
             .background(MspTheme.colors.surface2)
             .testTag(ENVIO_DEL_MENU_TAG)
-            .padding(MspTheme.spacing.md),
+            .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {

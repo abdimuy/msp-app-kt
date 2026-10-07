@@ -30,9 +30,32 @@ private val PRIVACY_EYE_TOGGLE_SIZE = 40.dp
  * tocar, no hay nada que crossfadear ni gatear por
  * `rememberReducedMotionEnabled()` — coherente con que el chip de estado
  * ([MspStatusChip]) tampoco anima su ícono.
+ *
+ * @param boxed `false` pinta sólo el glifo, sin superficie: ver [MspToggleSinCaja].
  */
 @Composable
-fun MspPrivacyEyeToggle(masked: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+fun MspPrivacyEyeToggle(
+    masked: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    boxed: Boolean = true
+) {
+    val icono: @Composable () -> Unit = {
+        Icon(
+            imageVector = if (masked) MspIcons.EyeOff else MspIcons.Eye,
+            contentDescription = null,
+            tint = if (masked) MspTheme.colors.brand else MspTheme.colors.onSurfaceMuted,
+            modifier = Modifier.size(MspTheme.spacing.lg)
+        )
+    }
+    if (!boxed) {
+        MspToggleSinCaja(
+            onClick = onToggle,
+            modifier = modifier.testTag(PRIVACY_EYE_TOGGLE_TAG),
+            content = icono
+        )
+        return
+    }
     MspSurface(
         modifier = modifier
             .minimumInteractiveComponentSize()
@@ -41,12 +64,6 @@ fun MspPrivacyEyeToggle(masked: Boolean, onToggle: () -> Unit, modifier: Modifie
         shape = MspTheme.shapes.control,
         onClick = onToggle
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = if (masked) MspIcons.EyeOff else MspIcons.Eye,
-                contentDescription = null,
-                tint = if (masked) MspTheme.colors.brand else MspTheme.colors.onSurfaceMuted
-            )
-        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { icono() }
     }
 }

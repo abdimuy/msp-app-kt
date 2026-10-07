@@ -399,13 +399,15 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
     }
 
     /**
-     * **Las opciones del menú lateral miden 56 dp (`touchTarget`), no los 48 del
-     * mock** (spec §2.1.6). Se mide sobre el `NavHost` real de la lista, donde el
-     * menú se compone aunque esté cerrado. Sin sesión en esta red, la única
-     * opción presente es Configuración: es el control positivo.
+     * **Las opciones del menú lateral miden al menos 50 dp** — el mínimo del repo. Eran
+     * 56 dp (`touchTarget`, spec §2.1.6) hasta que el dueño pidió filas más bajas
+     * (2026-10-07, "≥48 dp de alto táctil"): 50 cumple las dos cosas. Se mide sobre el
+     * `NavHost` real de la lista, donde el menú se compone aunque esté cerrado. Sin
+     * sesión en esta red, la única opción presente es Configuración: es el control
+     * positivo.
      */
     @Test
-    fun `cada opcion del menu lateral mide 56dp`() {
+    fun `cada opcion del menu lateral mide 50dp`() {
         val rutas = montarElGrafo()
         assertTrue(PagosRutas.LISTA_CLIENTES in rutas)
         val minimo = with(composeTestRule.density) { ALTO_DE_LA_OPCION_DEL_MENU.roundToPx() }
@@ -557,10 +559,10 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
         val ALTO_TOCABLE_MINIMO = 50.dp
 
         /**
-         * El alto de una opción del menú lateral (`touchTarget`, spec §2.1.6):
-         * 56dp, no los 48 del mock ni los 50 del resto de cobranza.
+         * El alto mínimo de una opción del menú lateral: el mismo de todo control de
+         * cobranza (era 56 dp hasta la compactación del 2026-10-07, decisión del dueño).
          */
-        val ALTO_DE_LA_OPCION_DEL_MENU = 56.dp
+        val ALTO_DE_LA_OPCION_DEL_MENU = 50.dp
 
         /**
          * Los controles que YA incumplían los 50dp antes de este barrido, por

@@ -12,7 +12,7 @@ import org.junit.Test
 
 /**
  * Qué mirar en cada imagen:
- * 1. Ninguna fila por debajo de 56 dp y ninguna etiqueta truncada a 2.0 (envuelve).
+ * 1. Ninguna fila por debajo de 50 dp (era 56 hasta el 2026-10-07) y ninguna etiqueta truncada a 2.0 (envuelve).
  * 2. "Clientes" resaltado en `brandTint`/`brand`; ningún otro.
  * 3. VENTAS plegada (completo) / ALMACÉN plegada (esperando) con su chevron a la derecha.
  * 4. Punto verde con "Todo enviado · hace 3 min"; punto ámbar con "2 pagos esperando señal" — nunca rojo.

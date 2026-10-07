@@ -40,11 +40,12 @@ import org.robolectric.annotation.GraphicsMode
  * `:core:designsystem`, para necesitar render de píxeles reales) el recorte se resuelve bien y el
  * toque SÍ llega.
  *
- * **Sin esta anotación, `cerrar el menu limpia la busqueda y las secciones tocadas` era un falso
+ * **Sin esta anotación, `cerrar el menu limpia las secciones tocadas` era un falso
  * verde**: pasaba aun cambiando su `Button(onClick = cerrar, ...)` por `Button(onClick = {},
  * ...)` — es decir, pasaba SIN que `cerrar()` se ejecutara nunca, porque el cierre que la prueba
  * observaba (`apertura.reiniciar()`) lo disparaba el scrim, no el botón. En NATIVE esa misma
- * sustitución pone la prueba roja (`expected:<[]> but was:<[garantias]>`), como debe.
+ * sustitución ponía la prueba roja (`expected:<[]> but was:<[garantias]>`, medido cuando la
+ * prueba aún afirmaba la consulta del buscador, retirado el 2026-10-07).
  */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class MenuLateralContenedorTest : RobolectricTestBase() {
@@ -118,18 +119,16 @@ class MenuLateralContenedorTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `cerrar el menu limpia la busqueda y las secciones tocadas`() {
+    fun `cerrar el menu limpia las secciones tocadas`() {
         montar()
         abrir()
         compose.runOnUiThread {
-            aperturaVista!!.consulta = "garantias"
             aperturaVista!!.tocar("COBRO")
         }
 
         compose.onNodeWithTag("cerrar").performClick()
         compose.waitForIdle()
 
-        assertEquals("", aperturaVista!!.consulta)
         assertTrue(aperturaVista!!.tocadas.isEmpty())
     }
 

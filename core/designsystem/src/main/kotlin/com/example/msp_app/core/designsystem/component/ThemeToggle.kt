@@ -1,10 +1,13 @@
 package com.example.msp_app.core.designsystem.component
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +20,7 @@ import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
@@ -66,32 +70,77 @@ const val DESCRIPCION_A_OSCURO: String = "Cambiar a tema oscuro"
  * Que describa la ACCIÓN es también lo que lo vuelve medible: un compose-test
  * puede afirmar que el tap cambió el tema mirando cómo cambió esta cadena, sin
  * leer píxeles.
+ *
+ * @param boxed `false` pinta sólo el glifo, sin superficie: ver [MspToggleSinCaja].
  */
 @Composable
-fun MspThemeToggle(darkTheme: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+fun MspThemeToggle(
+    darkTheme: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    boxed: Boolean = true
+) {
     val reveal = LocalThemeReveal.current
     var center by remember { mutableStateOf(Offset.Unspecified) }
+    val alTocar = {
+        if (reveal != null && center.isSpecified) {
+            reveal.requestRevealFrom(center)
+        } else {
+            onToggle()
+        }
+    }
+    val icono: @Composable () -> Unit = {
+        Icon(
+            imageVector = if (darkTheme) MspIcons.Moon else MspIcons.Sun,
+            contentDescription = if (darkTheme) DESCRIPCION_A_CLARO else DESCRIPCION_A_OSCURO,
+            tint = MspTheme.colors.onSurface,
+            modifier = Modifier.size(MspTheme.spacing.lg)
+        )
+    }
+    val posicion = Modifier
+        .onGloballyPositioned { center = it.boundsInRoot().center }
+        .testTag(THEME_TOGGLE_TAG)
+    if (!boxed) {
+        MspToggleSinCaja(onClick = alTocar, modifier = modifier.then(posicion), content = icono)
+        return
+    }
     MspSurface(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .size(THEME_TOGGLE_SIZE)
-            .onGloballyPositioned { center = it.boundsInRoot().center }
-            .testTag(THEME_TOGGLE_TAG),
+            .then(posicion),
         shape = MspTheme.shapes.control,
-        onClick = {
-            if (reveal != null && center.isSpecified) {
-                reveal.requestRevealFrom(center)
-            } else {
-                onToggle()
-            }
-        }
+        onClick = alTocar
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = if (darkTheme) MspIcons.Moon else MspIcons.Sun,
-                contentDescription = if (darkTheme) DESCRIPCION_A_CLARO else DESCRIPCION_A_OSCURO,
-                tint = MspTheme.colors.onSurface
-            )
-        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { icono() }
+    }
+}
+
+/**
+ * La variante **sin caja** de los toggles del design system ([MspThemeToggle] y
+ * [MspPrivacyEyeToggle] con `boxed = false`): sólo el glifo, sin superficie ni borde;
+ * el área tocable es la del [modifier] (el llamador la fija, ≥50 dp) y es invisible
+ * hasta que se toca — entonces un ripple circular sin límite. Regla del dueño
+ * "acción pequeña sin caja". Pedida para la cabecera del menú lateral (2026-10-07).
+ */
+@Composable
+internal fun MspToggleSinCaja(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val interaccion = remember { MutableInteractionSource() }
+    Box(
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .clickable(
+                interactionSource = interaccion,
+                indication = ripple(bounded = false, radius = MspTheme.spacing.lg),
+                role = Role.Button,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
     }
 }

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,14 +24,12 @@ import com.example.msp_app.core.navegacion.domain.model.ActivoEnElMenu
 import com.example.msp_app.core.navegacion.domain.model.CabeceraDelMenu
 import com.example.msp_app.core.navegacion.domain.model.ElementoDelMenu
 import com.example.msp_app.core.navegacion.domain.model.SeccionDelMenu
-import com.example.msp_app.core.navegacion.ui.components.BuscadorDelMenu
 import com.example.msp_app.core.navegacion.ui.components.EncabezadoDelMenu
 import com.example.msp_app.core.navegacion.ui.components.SeccionPlegable
 
 const val MENU_LATERAL_TAG: String = "menu_lateral"
 const val FILA_DEL_MENU_TAG: String = "menu_lateral_fila_"
 const val SECCION_DEL_MENU_TAG: String = "menu_lateral_seccion_"
-const val BUSCADOR_DEL_MENU_TAG: String = "menu_lateral_buscador"
 const val DESVANECIDO_DEL_MENU_TAG: String = "menu_lateral_desvanecido"
 const val ENVIO_DEL_MENU_TAG: String = "menu_lateral_envio"
 const val ID_CONFIGURACION: String = "configuracion"
@@ -72,7 +69,6 @@ fun MenuLateral(
     modifier: Modifier = Modifier
 ) {
     val desplazamiento = rememberScrollState()
-    val visibles = ReglasDelMenu.filtrar(secciones, apertura.consulta)
     Column(modifier = modifier.fillMaxHeight().background(MspTheme.colors.surface)) {
         EncabezadoDelMenu(
             cabecera = cabecera,
@@ -81,9 +77,6 @@ fun MenuLateral(
             onAlternarTema = onAlternarTema,
             onAlternarMontos = onAlternarMontos
         )
-        if (ReglasDelMenu.muestraBuscador(secciones)) {
-            BuscadorDelMenu(consulta = apertura.consulta, onConsulta = { apertura.consulta = it })
-        }
         Box(
             Modifier
                 .weight(1f)
@@ -93,28 +86,18 @@ fun MenuLateral(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(desplazamiento)
-                    .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.sm)
+                    .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.xs)
             ) {
-                if (visibles.isEmpty() && apertura.consulta.isNotBlank()) {
-                    Text(
-                        text = "Sin resultados",
-                        style = MspTheme.type.body,
-                        color = MspTheme.colors.onSurfaceMuted,
-                        modifier = Modifier.padding(MspTheme.spacing.md)
-                    )
-                }
-                visibles.forEach { seccion ->
+                secciones.forEach { seccion ->
                     val abierta = ReglasDelMenu.estaAbierta(
                         seccionId = seccion.id,
                         plegadas = seccionesPlegadas,
                         activa = activo.seccionId,
-                        tocadas = apertura.tocadas,
-                        consulta = apertura.consulta
+                        tocadas = apertura.tocadas
                     )
                     SeccionPlegable(
                         seccion = seccion,
                         abierta = abierta,
-                        habilitada = apertura.consulta.isBlank(),
                         itemActivoId = activo.itemId,
                         onToggle = {
                             apertura.tocar(seccion.id)

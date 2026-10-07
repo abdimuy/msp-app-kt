@@ -52,8 +52,6 @@ object MenuFixtures {
 
     val todas: List<SeccionDelMenu> = listOf(cobro, ventas, almacen, garantias)
 
-    val nueve: List<SeccionDelMenu> = listOf(cobro, ventas, almacen)
-
     val TODO_ENVIADO_HACE_3 =
         EstadoDeEnvio(pagosPendientes = 0, ventasPendientes = 0, ultimoEnvioHaceMinutos = 3)
 

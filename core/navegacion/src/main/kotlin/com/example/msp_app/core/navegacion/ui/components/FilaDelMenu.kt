@@ -23,13 +23,27 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.navegacion.domain.model.IconoDelMenu
 
 /**
- * Una opción del menú. Alto MÍNIMO `touchTarget` (56 dp, spec §2.1.6): crece si
- * el texto envuelve a escala 2.0, nunca se trunca (spec §5). Activa: fondo
- * `brandTint`, texto `brand` (spec §2.1.5).
+ * El alto mínimo de toda opción del menú —filas, encabezados de sección y los dos
+ * botones de la cabecera—: **50 dp**, el mínimo de la compuerta del repo
+ * (`CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`, ≥50 dp por control).
+ *
+ * Antes era `touchTarget` (56 dp, spec §2.1.6). El dueño vio el menú en su Galaxy A25
+ * (2026-10-07) y pidió filas más bajas "pero ≥48 dp de alto táctil": 50 cumple las
+ * dos cosas. No es un token del tema a propósito: es un mínimo de accesibilidad
+ * medido por una compuerta, igual que el `BOTON_MENU_SIZE` de la lista de clientes.
+ */
+val ALTO_DE_LA_OPCION: Dp = 50.dp
+
+/**
+ * Una opción del menú. Alto MÍNIMO [ALTO_DE_LA_OPCION]: crece si el texto envuelve a
+ * escala 2.0, nunca se trunca (spec §5). Activa: fondo `brandTint`, texto `brand`
+ * (spec §2.1.5).
  */
 @Composable
 fun FilaDelMenu(
@@ -46,13 +60,13 @@ fun FilaDelMenu(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = MspTheme.spacing.touchTarget)
+            .heightIn(min = ALTO_DE_LA_OPCION)
             .clip(MspTheme.shapes.control)
             .background(if (activo) colores.brandTint else colores.surface)
             .clickable(onClick = onClick)
             .semantics { selected = activo }
             .testTag(tag)
-            .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm),
+            .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
     ) {

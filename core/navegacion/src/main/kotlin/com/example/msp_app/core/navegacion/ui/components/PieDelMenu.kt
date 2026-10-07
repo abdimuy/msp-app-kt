@@ -22,7 +22,7 @@ fun PieDelMenu(version: String, onConfiguracion: () -> Unit, aviso: @Composable 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.sm)
+            .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.xs)
     ) {
         aviso()
         FilaDelMenu(
@@ -38,7 +38,7 @@ fun PieDelMenu(version: String, onConfiguracion: () -> Unit, aviso: @Composable 
             color = MspTheme.colors.onSurfaceMuted,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(vertical = MspTheme.spacing.sm)
+                .padding(vertical = MspTheme.spacing.xs)
         )
     }
 }

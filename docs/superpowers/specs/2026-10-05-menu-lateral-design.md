@@ -42,8 +42,9 @@ con contadores en vivo, y Configuración/Cerrar sesión unificados en el pie.
    y un contador opcional en vivo (ej. Clientes "8 por volver", Reporte
    "$4,350" cobrado hoy, Ventas "1 sin subir", Traspasos "3"). Desvanecido
    (fade) abajo cuando hay más contenido por desplazar.
-3. **"Buscar en el menú"** sólo aparece con 10 opciones o más (contando todas
-   las secciones visibles para ese usuario, plegadas o no).
+3. ~~**"Buscar en el menú"** sólo aparece con 10 opciones o más (contando todas
+   las secciones visibles para ese usuario, plegadas o no).~~ **Retirado el
+   2026-10-07** por decisión del dueño (compactar el menú): no hay buscador.
 4. **Pie fijo:** Configuración y versión. "Cerrar sesión" se mueve dentro de
    Configuración, con confirmación (el diálogo que hoy vive en
    `DrawerContainer.kt:362-381` se reubica, no se reescribe).
