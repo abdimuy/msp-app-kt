@@ -43,7 +43,9 @@ class AdopcionDelMenuLateralTest {
         val ADOPTADAS: List<String> = listOf(
             "features/home/screens/Home.kt",
             "navigation/DestinosDeCobranzaGraph.kt",
-            "features/common/NoModulesScreen.kt"
+            "features/common/NoModulesScreen.kt",
+            "navigation/AppNavigation.kt",
+            "features/routemap/RouteMapScreen.kt"
         )
     }
 }

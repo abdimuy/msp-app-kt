@@ -23,7 +23,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.msp_app.MspApplication
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.appgate.VersionVerdict
 import com.example.msp_app.core.appgate.ui.VersionBlockedScreen
@@ -73,6 +72,7 @@ import com.example.msp_app.features.transfers.presentation.detail.TransferDetail
 import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
 import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
 import com.example.msp_app.features.visit.screens.VisitTicketScreen
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 
@@ -519,8 +519,8 @@ fun AppNavigation() {
             }
 
             composable(Screen.DailyReport.route) {
-                // Reporte de cobranza unificado (Día/Semana en un solo tablero). El drawer
-                // real se cablea aquí: `DrawerContainer` provee `openDrawer`, que se pasa como
+                // Reporte de cobranza unificado (Día/Semana en un solo tablero). El menú
+                // lateral se cablea aquí: `MenuDeLaApp` provee `openDrawer`, que se pasa como
                 // `onMenuClick` al botón de menú del propio encabezado del reporte. La
                 // selección Tier 1 / Tier 2 sigue el `fontScale` del SO (accesibilidad "Muy
                 // grande") vía [rememberReportTier].
@@ -539,7 +539,7 @@ fun AppNavigation() {
                         ThemeController.reportStatusBarAppearanceDark(ThemeController.isDarkMode)
                     }
                 }
-                DrawerContainer(navController = navController) { openDrawer ->
+                MenuDeLaApp(navController = navController) { openDrawer ->
                     when (rememberReportTier()) {
                         ReportTier.TIER_2 -> CollectionReportScreenTier2(
                             navController = navController,
