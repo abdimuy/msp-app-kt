@@ -53,6 +53,13 @@ dependencies {
     implementation(libs.androidx.activity.compose)
 
     testImplementation(project(":core:testing")) // fakes + Turbine + Robolectric + roborazzi (api)
+    // SOLO de prueba — la producción de este módulo sigue sin conocer el menú
+    // (la bisagra es `envoltura`, que `:app` cablea). Hace falta para
+    // verificar que `MenuLateralContenedor`/`ZonaQueAbreElMenu` REALES, con
+    // `gesto = DESDE_LA_BARRA`, no le roban el toque al ojo ni al tema de
+    // `ControlesFlotantes` — hallazgo de revisión de la Task 16 del menú
+    // lateral (ver `LaFranjaDelMenuNoRobaElOjoNiElTemaTest`).
+    testImplementation(project(":core:navegacion"))
     testImplementation(libs.androidx.ui.test.junit4)
 
     // Regla custom `NoDoubleForMoney` — registrada vía ServiceLoader, por eso
