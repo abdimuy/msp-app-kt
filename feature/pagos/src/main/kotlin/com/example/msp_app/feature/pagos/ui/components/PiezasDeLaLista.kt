@@ -1,7 +1,6 @@
 package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -341,6 +340,9 @@ private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
  * Con movimiento reducido no se anima: ahí sí se corta, porque para quien pidió
  * que nada se moviera un texto en movimiento es peor que un texto incompleto.
  *
+ * Además el dedo lo puede arrastrar de lado para ver rápido lo que no cabe
+ * (2026-10-07): ver [NombreArrastrable].
+ *
  * [modifier] por default es `Modifier`, pero [EncabezadoDeCliente] pasa
  * `Modifier.weight(1f)`: el nombre SIEMPRE manda el ancho de su fila, con o sin
  * [MspInsigniaNueva] al lado — es lo que hace que ceda espacio sólo cuando la
@@ -348,22 +350,19 @@ private fun EncabezadoDeCliente(cliente: ClienteEnLista, distancia: String?) {
  */
 @Composable
 private fun NombreDelCliente(nombre: String, modifier: Modifier = Modifier) {
-    val quieto = LocalReduceMotion.current
-    Text(
-        text = nombre,
+    NombreArrastrable(
+        nombre = nombre,
         // Jerarquía (decisión del dueño del 2026-10-02, opción A): el nombre manda
         // —19 extra negrita— y el mueble baja a seminegrita. Con los dos en
         // negrita y casi del mismo tamaño había que leerlo dos veces.
-        style = MspTheme.type.listTitle.copy(
+        estilo = MspTheme.type.listTitle.copy(
             fontSize = LETRA_DEL_NOMBRE,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = TRACKING_DEL_NOMBRE
         ),
         color = MspTheme.colors.onSurface,
-        maxLines = 1,
-        softWrap = false,
-        overflow = if (quieto) TextOverflow.Ellipsis else TextOverflow.Clip,
-        modifier = modifier.then(if (quieto) Modifier else Modifier.basicMarquee())
+        reducirMovimiento = LocalReduceMotion.current,
+        modifier = modifier
     )
 }
 
