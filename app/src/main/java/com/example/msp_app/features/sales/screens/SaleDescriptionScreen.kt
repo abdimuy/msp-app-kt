@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.feature.ventacorreccion.ui.EstadoCorreccionViewModel
 import com.example.msp_app.feature.ventacorreccion.ui.components.EntradaCorreccion
@@ -46,6 +45,7 @@ import com.example.msp_app.features.sales.components.map.MapView
 import com.example.msp_app.features.sales.components.productinfocard.ProductsInfoCard
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.navigation.Screen
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
@@ -73,7 +73,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
         estadoCorreccionViewModel.consultar(localSaleId)
     }
 
-    DrawerContainer(
+    MenuDeLaApp(
         navController = navController
     ) { openDrawer ->
         Scaffold(

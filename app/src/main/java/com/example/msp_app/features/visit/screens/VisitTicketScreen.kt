@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
@@ -57,6 +56,7 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
@@ -137,7 +137,7 @@ fun VisitTicketScreen(saleId: Int, navController: NavController) {
         }
     }
 
-    DrawerContainer(
+    MenuDeLaApp(
         navController = navController
     ) { openDrawer ->
         Scaffold { innerPadding ->

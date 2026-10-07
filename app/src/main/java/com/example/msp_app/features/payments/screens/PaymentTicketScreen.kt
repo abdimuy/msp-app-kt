@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
@@ -67,6 +66,7 @@ import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.SaleIdSpaces
 import com.example.msp_app.features.sales.components.infofield.InfoField
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 import java.io.File
 import kotlinx.coroutines.launch
@@ -164,7 +164,7 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
         pattern = "dd/MM/yy HH:mm"
     )
 
-    DrawerContainer(
+    MenuDeLaApp(
         navController = navController
     ) { openDrawer ->
         Scaffold { innerPadding ->

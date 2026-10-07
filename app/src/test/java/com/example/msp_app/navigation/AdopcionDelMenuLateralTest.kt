@@ -55,7 +55,20 @@ class AdopcionDelMenuLateralTest {
             "features/transfers/presentation/list/TransfersListScreen.kt",
             "features/camionetaAssignment/presentation/screens/CamionetaAssignmentScreen.kt",
             "features/guarantees/screens/GuaranteeListScreen.kt",
-            "features/guarantees/screens/CreateGuaranteeScreen.kt"
+            "features/guarantees/screens/CreateGuaranteeScreen.kt",
+            "features/sales/screens/SaleDetailsScreen.kt",
+            "features/sales/screens/SaleDescriptionScreen.kt",
+            "features/payments/screens/PaymentTicketScreen.kt",
+            "features/visit/screens/VisitTicketScreen.kt",
+            "features/productsInventory/screens/ProductDetailsScreen.kt"
         )
+    }
+
+    /** Ninguna llamada a `DrawerContainer(` queda fuera de su propia definición. */
+    @Test
+    fun `no queda ninguna pantalla con el cajon viejo`() {
+        val conCajon = escaner.archivosQueMencionan("DrawerContainer")
+            .filterNot { it.endsWith("components/DrawerContainer.kt") }
+        assertEquals(emptyList<String>(), conCajon)
     }
 }

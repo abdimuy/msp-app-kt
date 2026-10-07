@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
@@ -57,6 +56,7 @@ import com.example.msp_app.features.sales.components.salesummarybar.PaymentProgr
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.navigation.Screen
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 import java.time.Duration
 import kotlinx.coroutines.flow.filterIsInstance
@@ -86,7 +86,7 @@ fun SaleDetailsScreen(saleId: Int, navController: NavHostController) {
         salesViewModel.getOverduePaymentBySaleId(SaleIdSpaces.forOverdueView(saleSuccess.data))
     }
 
-    DrawerContainer(
+    MenuDeLaApp(
         navController = navController
     ) { openDrawer ->
         Scaffold { paddingValues ->

@@ -77,7 +77,6 @@ import com.composables.icons.lucide.Store
 import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.Truck
 import com.example.msp_app.R
-import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.stock.ProductStock
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
@@ -88,6 +87,7 @@ import com.example.msp_app.features.productsInventory.viewmodels.ProductsInvento
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
 import com.example.msp_app.navigation.Screen
+import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 import java.io.File
 import kotlinx.coroutines.launch
@@ -215,7 +215,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
         }
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    MenuDeLaApp(navController = navController) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
