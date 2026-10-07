@@ -466,6 +466,33 @@ class ListaDeClientesViewModelTest {
     }
 
     /**
+     * Minor de la re-revisión final ("Final minors" en `progress.md`): si
+     * guardar el orden falló (`DataStoreOrdenGuardadoAdapter` atrapa la
+     * `IOException` y no relanza) no queda NADA persistido, y al cambiar el
+     * día `ControladorDeOrden.restaurar` salía sin tocar el orden en memoria
+     * — el de AYER seguía vigente. Sin nada guardado para hoy, la regla
+     * "durante el día" dice cobranza, igual que con un orden guardado ayer.
+     */
+    @Test
+    fun `si guardar el orden fallo y cambia el dia recargar cae a Cobranza`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.elegirOrden(OrdenDeLaLista.MAYOR_SALDO)
+        advanceUntilIdle()
+        assertEquals(OrdenDeLaLista.MAYOR_SALDO, vm.state.value.orden)
+        // La escritura no llegó al disco: el adaptador real se traga la IOException.
+        ordenGuardadoPort.guardado = null
+
+        clock.advanceDays(1)
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(OrdenDeLaLista.COBRANZA, vm.state.value.orden)
+    }
+
+    /**
      * Control positivo del hallazgo 4: el mismo día, `recargar()` NO debe
      * pisar una elección reciente con la persistencia — ver el KDoc de
      * [ListaDeClientesViewModel.recargar]. Sin este caso, el test de arriba no

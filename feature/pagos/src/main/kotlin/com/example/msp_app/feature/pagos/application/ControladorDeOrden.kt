@@ -91,7 +91,10 @@ class ControladorDeOrden @Inject constructor(
      * Restaura el orden guardado si sigue vigente — "vigente" quiere decir que
      * se guardó el mismo [hoy] de negocio que esta carga acaba de resolver. Un
      * orden de ayer (o de nunca: [OrdenGuardadoPort.leer] en `null`) cae a
-     * [OrdenDeLaLista.COBRANZA], el default con el que ya nace [orden].
+     * [OrdenDeLaLista.COBRANZA] — **también el que esté en memoria**: si
+     * guardar falló (el adaptador real se traga la `IOException`) no hay nada
+     * persistido, y antes un `null` salía sin tocar [orden], así que el orden
+     * de AYER sobrevivía al cambio de día.
      *
      * Quien quiera restaurar debería llamar a [restaurarSiCambioElDia] en vez
      * de este método directo — es esa guarda la que impide pisar una
@@ -108,8 +111,8 @@ class ControladorDeOrden @Inject constructor(
      * cuándo pedir las distancias — típicamente después de proyectar una vez.
      */
     suspend fun restaurar(hoy: LocalDate) {
-        val guardado = withContext(io) { ordenGuardado.leer() } ?: return
-        orden = if (guardado.dia == hoy) guardado.orden else OrdenDeLaLista.COBRANZA
+        val guardado = withContext(io) { ordenGuardado.leer() }
+        orden = if (guardado?.dia == hoy) guardado.orden else OrdenDeLaLista.COBRANZA
     }
 
     /**
