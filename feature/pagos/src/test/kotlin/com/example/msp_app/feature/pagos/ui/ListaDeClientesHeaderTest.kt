@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.swipeWithVelocity
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
@@ -97,24 +99,72 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
     }
 
     /**
-     * **`exitUntilCollapsed`** (decisión del dueño, 2026-10-07, sustituye al "regreso
-     * rápido" del mock): a media lista, un jalón corto hacia abajo NO abre la
-     * cabecera — sólo regresa un poco la lista. Control: la misma prueba con la regla
-     * vieja (cualquier movimiento hacia el principio reexpande) sale roja aquí.
+     * **Umbral de recorrido** (decisión del dueño, 2026-10-07): a media lista, subir la
+     * lista menos de [RECORRIDO_PARA_DESPLEGAR] (aquí 150 px = 75 dp, despacio) no abre
+     * la cabecera.
      */
     @Test
-    fun `a media lista un scroll corto hacia arriba deja la cabecera colapsada`() {
+    fun `a media lista un recorrido menor al umbral deja la cabecera colapsada`() {
         montar()
         bajarLaLista()
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
 
         composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput {
-            swipeDown(startY = centerY, endY = centerY + JALON_CORTO_PX)
+            swipeDown(startY = centerY, endY = centerY + JALON_CORTO_PX, durationMillis = LENTO_MS)
         }
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
         composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertIsDisplayed()
+    }
+
+    /**
+     * Pasado el umbral (500 px = 250 dp, despacio para que no cuente como fling) la
+     * cabecera se despliega completa aunque la lista siga a media altura. Control de
+     * rojo: con el comportamiento anterior (`exitUntilCollapsed`, sólo en el tope) sale
+     * roja.
+     */
+    @Test
+    fun `a media lista un recorrido mayor al umbral despliega la cabecera`() {
+        montar()
+        bajarLaLista()
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput {
+            swipeDown(
+                startY = top + 10f,
+                endY = top + 10f + JALON_LARGO_PX,
+                durationMillis = LENTO_MS
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(BUSCADOR_TAG).assertIsDisplayed()
+    }
+
+    /**
+     * **Umbral de velocidad**: un fling corto hacia arriba (75 dp, terminando a 3000 dp/s) la
+     * despliega aunque el dedo no recorra el umbral. El desplazamiento del fling no
+     * cuenta para el acumulador (sólo el del dedo), así que esto lo decide la velocidad.
+     */
+    @Test
+    fun `a media lista un fling rapido hacia arriba despliega la cabecera`() {
+        montar()
+        bajarLaLista()
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput {
+            swipeWithVelocity(
+                start = center,
+                end = Offset(centerX, centerY + JALON_CORTO_PX),
+                endVelocity = VELOCIDAD_DE_FLING_PX,
+                durationMillis = RAPIDO_MS
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -242,5 +292,9 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
         const val REPETICIONES_DEL_SWIPE = 6
         const val REPETICIONES_PARA_EL_TOPE = 30
         const val JALON_CORTO_PX = 150f
+        const val JALON_LARGO_PX = 500f
+        const val LENTO_MS = 2_000L
+        const val VELOCIDAD_DE_FLING_PX = 6_000f
+        const val RAPIDO_MS = 40L
     }
 }

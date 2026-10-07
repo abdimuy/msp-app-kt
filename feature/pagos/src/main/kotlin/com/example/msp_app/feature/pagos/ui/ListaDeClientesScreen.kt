@@ -222,8 +222,8 @@ fun ListaDeClientesScreen(
  * altura de la parte que se esconde, la escala y la opacidad del título grande, y la
  * aparición del título compacto se interpolan con
  * [androidx.compose.material3.TopAppBarState.collapsedFraction] — nada cambia de
- * rama a medio camino. Comportamiento `exitUntilCollapsed`: la cabecera sólo se
- * vuelve a abrir cuando la lista llega a su tope. Ver [rememberCabeceraQueSeEncoge],
+ * rama a medio camino. Subiendo a media lista, se despliega sólo pasado un umbral de
+ * recorrido o de velocidad; en el tope, siempre. Ver [rememberCabeceraQueSeEncoge],
  * que además documenta la causa raíz del teclado que se bajaba solo.
  *
  * El estado del colapso es UNO para los cuatro segmentos: cambiar de chip no abre ni
