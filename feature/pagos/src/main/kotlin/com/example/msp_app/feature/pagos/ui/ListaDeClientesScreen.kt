@@ -40,6 +40,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -256,13 +257,16 @@ fun ListaDeClientesContent(
     // soporta. [listState] (el parámetro, con su default o el que trae un
     // golden) sólo siembra el estado del PRIMER segmento que esta pantalla
     // muestra — los demás nacen con uno propio la primera vez que se visitan
-    // y, a partir de ahí, lo conservan: cada segmento recuerda su propia
-    // posición, igual que antes de que todos compartieran uno solo.
-    val estadosPorSegmento = remember {
-        mutableMapOf(state.segmento to listState)
+    // y, a partir de ahí, lo conservan.
+    //
+    // `rememberSaveable` y no `remember`: ver [ScrollPorSegmento]. Al volver
+    // de otra pantalla (o al recrearse la actividad) se restaura el mapa
+    // entero y [listState] ya no siembra nada — su valor restaurado es el del
+    // primer segmento, no el del visible.
+    val scrollPorSegmento = rememberSaveable(saver = ScrollPorSegmento.Saver) {
+        ScrollPorSegmento(state.segmento, listState)
     }
-    fun estadoDe(segmento: SegmentoDeCobranza): LazyListState =
-        estadosPorSegmento.getOrPut(segmento) { LazyListState() }
+    fun estadoDe(segmento: SegmentoDeCobranza): LazyListState = scrollPorSegmento.de(segmento)
 
     val cabeceraGrande by rememberCabeceraGrande(estadoDe(state.segmento))
     var hojaDeOrdenAbierta by remember { mutableStateOf(false) }
@@ -288,16 +292,27 @@ fun ListaDeClientesContent(
     // `key = clienteId` el cliente que estaba primero sólo se MUEVE a su
     // posición nueva, y sin este efecto el `LazyListState` seguía mirando
     // ese mismo índice — medido: elegir "Ventas nuevas" estando en el tope
-    // dejaba la lista en el índice 38, el final del orden nuevo. Se salta la
-    // primera composición (el flag) para no pelear con el orden restaurado
-    // de [com.example.msp_app.feature.pagos.application.ControladorDeOrden.restaurar]
-    // al entrar a la pantalla.
-    var yaComposoUnaVezElOrden by remember { mutableStateOf(false) }
-    LaunchedEffect(state.orden) {
-        if (yaComposoUnaVezElOrden) {
+    // dejaba la lista en el índice 38, el final del orden nuevo.
+    //
+    // **Qué cuenta como "cambio de orden".** Sólo el paso de un orden YA
+    // MOSTRADO (con la carga terminada) a otro distinto. [ordenMostrado] es
+    // `rememberSaveable`, y los estados `cargando` no cuentan, por el disparo
+    // al restaurar: si Android mata el proceso con un orden elegido hoy, el
+    // ViewModel NUEVO arranca `cargando` y en COBRANZA, y al terminar la carga
+    // el orden restaurado por
+    // [com.example.msp_app.feature.pagos.application.ControladorDeOrden.restaurar]
+    // llega como si fuera un cambio. La versión anterior (un `remember` que
+    // sólo se saltaba la primera composición) disparaba ahí y mandaba al tope
+    // la posición que acababa de restaurarse — medido con
+    // `StateRestorationTester`. Al entrar en frío [ordenMostrado] es `null`:
+    // el primer orden mostrado nunca mueve la lista.
+    var ordenMostrado by rememberSaveable { mutableStateOf<OrdenDeLaLista?>(null) }
+    LaunchedEffect(state.orden, state.cargando) {
+        if (state.cargando) return@LaunchedEffect
+        val anterior = ordenMostrado
+        ordenMostrado = state.orden
+        if (anterior != null && anterior != state.orden) {
             estadoDe(state.segmento).scrollToItem(0)
-        } else {
-            yaComposoUnaVezElOrden = true
         }
     }
 

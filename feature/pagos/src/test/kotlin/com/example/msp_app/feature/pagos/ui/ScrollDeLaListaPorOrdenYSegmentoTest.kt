@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -117,6 +118,113 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
 
         // "sin visitar" debe seguir en la posición donde se dejó, no reiniciar.
         composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+    }
+
+    /**
+     * **Residual de la re-revisión final** (R20 en `progress.md`): el mapa
+     * `segmento → LazyListState` vivía en un `remember`, que no sobrevive a
+     * salir de la lista y volver (navegar a registrar un abono y regresar, o
+     * que Android recree la actividad). Al volver, el único estado que sí se
+     * restauraba era el `listState` hospedado —el del PRIMER segmento que se
+     * mostró—, y el mapa nuevo se lo asignaba al segmento VISIBLE: "Después"
+     * aparecía con el scroll de "Sin visitar", y "Sin visitar" volvía al tope.
+     *
+     * El segmento vive FUERA de la composición (como en el ViewModel, que sí
+     * sobrevive), así que tras la restauración la pantalla vuelve al mismo
+     * chip con el que se fue.
+     */
+    @Test
+    fun `al volver a la lista cada segmento recupera su propio scroll`() {
+        val restaurador = StateRestorationTester(composeTestRule)
+        var segmento by mutableStateOf(SegmentoDeCobranza.SIN_VISITAR)
+        restaurador.setContent {
+            MspTheme(darkTheme = false, animateColors = false) {
+                ListaDeClientesContent(
+                    state = estadoDeDosSegmentos(segmento),
+                    onBuscar = {},
+                    onElegirSegmento = { segmento = it },
+                    onAbrirCliente = {},
+                    onReintentar = {},
+                    onAlternarTema = {},
+                    onAlternarPrivacidad = {},
+                    onElegirOrden = {},
+                    onQuitarOrden = {},
+                    onAbrirMenu = {}
+                )
+            }
+        }
+
+        bajarLaLista()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_DESPUES).assertIsDisplayed()
+
+        restaurador.emulateSavedInstanceStateRestore()
+        composeTestRule.waitForIdle()
+
+        // El segmento visible al volver sigue en SU tope, no hereda el de "sin visitar".
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_DESPUES).assertIsDisplayed()
+        elegirChip(SegmentoDeCobranza.SIN_VISITAR)
+        // Y "sin visitar" sigue donde se dejó, no reinicia en el tope.
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+    }
+
+    /**
+     * Mismo residual, el caso de proceso nuevo: Android mató la app con la
+     * lista abajo y un orden elegido hoy. El ViewModel NUEVO arranca
+     * `cargando` y con el orden por defecto (COBRANZA); cuando la carga
+     * termina, el orden restaurado de `ControladorDeOrden` llega como un
+     * "cambio" de orden. Ese cambio NO lo hizo el cobrador y no debe mandar
+     * la lista al tope — sólo uno elegido de verdad (ver la prueba de arriba
+     * "elegir un orden nuevo...").
+     */
+    @Test
+    fun `al recrear la pantalla con un orden ya elegido la lista no vuelve al tope`() {
+        val restaurador = StateRestorationTester(composeTestRule)
+        // Lo que emite el ViewModel NUEVO tras recrear: arranca cargando y en COBRANZA.
+        var estadoDelViewModelNuevo by mutableStateOf(ListaDeClientesUiState())
+        var creaciones = 0
+        restaurador.setContent {
+            // `remember` vuelve a correr sólo cuando la restauración recrea el
+            // contenido: así el estado "de proceso nuevo" entra EXACTAMENTE en la
+            // primera composición restaurada, sin depender de cuándo corra un cuadro.
+            val creacion = remember { creaciones++ }
+            MspTheme(darkTheme = false, animateColors = false) {
+                ListaDeClientesContent(
+                    state = if (creacion == 0) {
+                        estadoDeUnSegmento(OrdenDeLaLista.VENTAS_NUEVAS)
+                    } else {
+                        estadoDelViewModelNuevo
+                    },
+                    onBuscar = {},
+                    onElegirSegmento = {},
+                    onAbrirCliente = {},
+                    onReintentar = {},
+                    onAlternarTema = {},
+                    onAlternarPrivacidad = {},
+                    onElegirOrden = {},
+                    onQuitarOrden = {},
+                    onAbrirMenu = {}
+                )
+            }
+        }
+        bajarLaLista()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+
+        restaurador.emulateSavedInstanceStateRestore()
+        composeTestRule.waitForIdle()
+        // La carga termina con el orden restaurado del día.
+        estadoDelViewModelNuevo = estadoDeUnSegmento(OrdenDeLaLista.VENTAS_NUEVAS)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+    }
+
+    private fun elegirChip(segmento: SegmentoDeCobranza) {
+        composeTestRule.onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
+            .performClick()
+        composeTestRule.mainClock.advanceTimeBy(2_000)
+        composeTestRule.waitForIdle()
     }
 
     private fun bajarLaLista() {
