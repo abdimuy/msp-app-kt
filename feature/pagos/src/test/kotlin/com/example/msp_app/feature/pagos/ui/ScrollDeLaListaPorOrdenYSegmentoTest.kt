@@ -258,6 +258,22 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertIsDisplayed()
     }
 
+    /**
+     * Minor de la re-revisión final: nada probaba que la cabecera grande se
+     * derive del scroll del segmento VISIBLE. Bajar en "Sin visitar" la encoge;
+     * cambiar a "Después", que está en su tope, debe devolverla.
+     */
+    @Test
+    fun `la cabecera grande sigue el scroll del segmento visible`() {
+        montarConDosSegmentos()
+        bajarLaLista()
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
+
+        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+
+        composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertIsDisplayed()
+    }
+
     private fun elegirChip(segmento: SegmentoDeCobranza) {
         composeTestRule.onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
             .performClick()
