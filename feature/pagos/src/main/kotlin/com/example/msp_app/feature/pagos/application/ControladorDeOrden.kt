@@ -42,10 +42,44 @@ class ControladorDeOrden @Inject constructor(
         private set
 
     /**
+     * El [hoy] con el que se restauró la última vez — `null` hasta la
+     * primera restauración. Lo usa [restaurarSiCambioElDia] para decidir si
+     * hay algo que hacer.
+     */
+    private var hoyDeLaUltimaRestauracion: LocalDate? = null
+
+    /**
+     * [restaurar] sólo si [hoy] es distinto del día con el que se restauró la
+     * última vez.
+     *
+     * Hallazgo de la revisión final de `feat/lista-venta-nueva-orden`: antes
+     * sólo `ListaDeClientesViewModel.cargar` restauraba — nunca `recargar` —
+     * así que una app que se quedaba abierta de un día para el otro (la
+     * pantalla nunca vuelve a `cargar`; al reanudarse sólo llama `recargar`)
+     * seguía mostrando el orden de AYER después de medianoche, justo lo que
+     * la regla "durante el día" existe para impedir. Con esto, tanto `cargar`
+     * como `recargar` pueden llamar a este método: el mismo día no hace
+     * nada (no pisa una elección reciente de esta sesión con lo último
+     * persistido) y, en cuanto el día cambia, vuelve a aplicar la regla de
+     * vigencia de [restaurar].
+     */
+    suspend fun restaurarSiCambioElDia(hoy: LocalDate) {
+        if (hoyDeLaUltimaRestauracion == hoy) return
+        restaurar(hoy)
+        hoyDeLaUltimaRestauracion = hoy
+    }
+
+    /**
      * Restaura el orden guardado si sigue vigente — "vigente" quiere decir que
      * se guardó el mismo [hoy] de negocio que esta carga acaba de resolver. Un
      * orden de ayer (o de nunca: [OrdenGuardadoPort.leer] en `null`) cae a
      * [OrdenDeLaLista.COBRANZA], el default con el que ya nace [orden].
+     *
+     * Quien quiera restaurar debería llamar a [restaurarSiCambioElDia] en vez
+     * de este método directo — es esa guarda la que impide pisar una
+     * elección reciente del cobrador cuando el día no cambió. Se deja
+     * pública para que una prueba pueda verificar la regla de vigencia por sí
+     * sola, sin involucrar [hoyDeLaUltimaRestauracion].
      *
      * **A propósito NO pide distancias** (antes lo hacía, llamando
      * [actualizarDistanciasSiHaceFalta] al final). Leer [OrdenGuardadoPort] es

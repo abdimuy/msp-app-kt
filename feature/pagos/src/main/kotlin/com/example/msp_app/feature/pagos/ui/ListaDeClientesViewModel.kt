@@ -203,10 +203,12 @@ class ListaDeClientesViewModel @Inject constructor(
     /**
      * Vuelve a leer la ruta completa. Cada llamada es UNA carga.
      *
-     * Es también el único lugar que restaura el orden persistido
-     * ([ControladorDeOrden.restaurar]): "Reintentar" sólo aparece cuando la
-     * carga anterior falló, y una carga que falló nunca llegó a enseñar el
-     * renglón de orden, así que no hay elección de esta sesión que proteger.
+     * Siempre pide restaurar el orden persistido
+     * ([ControladorDeOrden.restaurarSiCambioElDia]) — "Reintentar" sólo
+     * aparece cuando la carga anterior falló, y una carga que falló nunca
+     * llegó a enseñar el renglón de orden, así que no hay elección de esta
+     * sesión que proteger. [recargar] también puede restaurar, pero sólo si
+     * el día de negocio cambió desde la última vez; ver su KDoc.
      *
      * **[proyectar] corre ANTES de pedir distancias** (hallazgo de la revisión
      * final de `feat/lista-venta-nueva-orden`, riesgo de dinero): con "Más
@@ -223,7 +225,7 @@ class ListaDeClientesViewModel @Inject constructor(
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(cargando = true, fallo = false)
             cartera = leer()
-            cartera?.let { controladorDeOrden.restaurar(it.hoy) }
+            cartera?.let { controladorDeOrden.restaurarSiCambioElDia(it.hoy) }
             proyectar()
             controladorDeOrden.actualizarDistanciasSiHaceFalta()
             proyectar()
@@ -240,14 +242,21 @@ class ListaDeClientesViewModel @Inject constructor(
      * No hace falta conservar nada a mano como en el detalle: [query] y
      * [segmento] ya viven en el `SavedStateHandle` y no en [mutableState], así
      * que [proyectar] los vuelve a aplicar sobre la cartera fresca sin que
-     * nadie los pise. El orden tampoco se toca — a diferencia de [cargar], una
-     * recarga NO vuelve a leer la persistencia: el cobrador pudo haber elegido
-     * "Más cerca" hace un segundo y un regreso de la cámara no debe pisarlo con
-     * lo último persistido.
+     * nadie los pise. El orden normalmente tampoco se toca —a diferencia de
+     * [cargar], una recarga el MISMO día no vuelve a leer la persistencia: el
+     * cobrador pudo haber elegido "Más cerca" hace un segundo y un regreso de
+     * la cámara no debe pisarlo con lo último persistido—, salvo que el día de
+     * negocio haya cambiado desde la última restauración: ver
+     * [ControladorDeOrden.restaurarSiCambioElDia], que es lo que impide que el
+     * orden de ayer sobreviva si la app se quedó abierta de un día para el
+     * otro (sólo [cargar] restauraba antes de este arreglo, y una pantalla
+     * que nunca vuelve a [cargar] — sólo a [recargar], al reanudarse — nunca
+     * se enteraba de que ya era otro día).
      *
-     * Lo que sí se repite si el orden es [OrdenDeLaLista.MAS_CERCA] es la
-     * lectura de [CercaniaPort] (decisión del dueño): la posición del cobrador
-     * cambia con cada recarga y una distancia vieja dejaría de ser cierta.
+     * Lo que sí se repite siempre si el orden es [OrdenDeLaLista.MAS_CERCA] es
+     * la lectura de [CercaniaPort] (decisión del dueño): la posición del
+     * cobrador cambia con cada recarga y una distancia vieja dejaría de ser
+     * cierta.
      *
      * [proyectar] corre antes Y después de pedir las distancias, mismo motivo
      * que [cargar]: la cartera fresca no espera al GPS para mostrarse.
@@ -256,6 +265,7 @@ class ListaDeClientesViewModel @Inject constructor(
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(fallo = false)
             cartera = leer()
+            cartera?.let { controladorDeOrden.restaurarSiCambioElDia(it.hoy) }
             proyectar()
             controladorDeOrden.actualizarDistanciasSiHaceFalta()
             proyectar()

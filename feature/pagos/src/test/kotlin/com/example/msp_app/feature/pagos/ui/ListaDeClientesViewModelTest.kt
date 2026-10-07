@@ -436,6 +436,56 @@ class ListaDeClientesViewModelTest {
         assertEquals(OrdenDeLaLista.COBRANZA, ordenGuardadoPort.guardado?.orden)
     }
 
+    /**
+     * **Hallazgo 4 de la revisión final** (`.superpowers/sdd/2026-10-06-menu-lateral/final-fix-report.md`):
+     * sólo [ListaDeClientesViewModel.cargar] restauraba el orden persistido —
+     * `recargar()` nunca lo volvía a hacer, así que si la app se quedaba
+     * abierta de un día para el otro, el orden de AYER seguía vigente después
+     * de medianoche en vez de caer a cobranza como marca la regla "durante el
+     * día".
+     */
+    @Test
+    fun `recargar con dia distinto al restaurado vuelve a aplicar la regla del dia`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.elegirOrden(OrdenDeLaLista.MAYOR_SALDO)
+        advanceUntilIdle()
+        assertEquals(OrdenDeLaLista.MAYOR_SALDO, vm.state.value.orden)
+
+        // "La app quedó abierta de noche": el reloj avanza un día sin que
+        // nadie vuelva a entrar a la pantalla ni a invocar cargar().
+        clock.advanceDays(1)
+        vm.recargar()
+        advanceUntilIdle()
+
+        // Nada se guardó para el día nuevo, así que debe caer a Cobranza —
+        // igual que ya hace `cargar()` con un orden de ayer.
+        assertEquals(OrdenDeLaLista.COBRANZA, vm.state.value.orden)
+    }
+
+    /**
+     * Control positivo del hallazgo 4: el mismo día, `recargar()` NO debe
+     * pisar una elección reciente con la persistencia — ver el KDoc de
+     * [ListaDeClientesViewModel.recargar]. Sin este caso, el test de arriba no
+     * distingue "restaura porque cambió el día" de "restaura siempre".
+     */
+    @Test
+    fun `recargar el mismo dia no repite la restauracion ni pisa el orden elegido`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.elegirOrden(OrdenDeLaLista.MAYOR_SALDO)
+        advanceUntilIdle()
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(OrdenDeLaLista.MAYOR_SALDO, vm.state.value.orden)
+    }
+
     @Test
     fun `elegir Mas cerca pide distancias`() = runTest(testDispatcher) {
         cercaniaPort.mapa = mapOf(78400 to 120.0)
