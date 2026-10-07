@@ -4,11 +4,11 @@ package com.example.msp_app.feature.pagos.domain.port
  * Puerto hacia la distancia del cobrador a cada venta, para el orden
  * "Más cerca" de la lista de clientes (decisión del dueño, 2026-10-05).
  *
- * El adaptador real (en `:app`, todavía no escrito) resuelve la posición
- * actual del cobrador y la compara contra el centroide de pagos más cercano
- * que ya se calculó para cada venta — identificado por `DOCTO_CC_ACR_ID`, no
- * por el cliente, porque dos ventas del mismo cliente pueden cobrarse en
- * lugares distintos.
+ * El adaptador real (`CentroidesCercaniaAdapter`, en `:app`) resuelve la
+ * posición actual del cobrador y la compara contra el centroide de pagos más
+ * cercano que ya se calculó para cada venta — identificado por
+ * `DOCTO_CC_ACR_ID`, no por el cliente, porque dos ventas del mismo cliente
+ * pueden cobrarse en lugares distintos.
  */
 interface CercaniaPort {
 

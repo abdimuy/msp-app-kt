@@ -29,8 +29,9 @@ data class OrdenGuardado(val orden: OrdenDeLaLista, val dia: LocalDate)
  * [OrdenGuardado] viaje siempre con su fecha, y quien lee decide si todavía
  * aplica).
  *
- * El adaptador real (en `:app`, siguiente tarea) resuelve dónde vive el dato
- * —`SharedPreferences`/DataStore, a su criterio—; este puerto no lo prescribe.
+ * El adaptador real (`DataStoreOrdenGuardadoAdapter`, en `:app`) resuelve
+ * dónde vive el dato — DataStore Preferences, su propio archivo
+ * (`"orden_lista_clientes"`); este puerto no lo prescribe.
  *
  * SIN un tercer método "borrar": [guardar] con [com.example.msp_app.feature.pagos.domain.OrdenDeLaLista.COBRANZA]
  * ya expresa "quitar el orden" sin necesitar un segundo camino para la misma

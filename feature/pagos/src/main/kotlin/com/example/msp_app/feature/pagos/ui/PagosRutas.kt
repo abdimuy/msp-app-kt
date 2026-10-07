@@ -434,9 +434,10 @@ fun NavGraphBuilder.destinoDeBitacora(
  * es un no-op), que es lo que deja montar esta ruta en un test de este
  * módulo sin saber que existe un menú.
  *
- * **PROVISIONAL**, a propósito: el día que llegue el menú nuevo
- * (`docs/superpowers/specs/2026-10-05-menu-lateral-design.md`), lo que cambia
- * es la [envoltura] que `:app` pasa — este destino no se vuelve a tocar.
+ * El menú lateral nuevo (`docs/superpowers/specs/2026-10-05-menu-lateral-design.md`)
+ * ya llegó y ya está cableado — `DestinosDeCobranzaGraph.kt` pasa `MenuDeLaApp`
+ * como [envoltura] real. Si el menú cambia otra vez, lo que cambia sigue
+ * siendo sólo esa [envoltura]: este destino no se vuelve a tocar.
  */
 fun NavGraphBuilder.destinoDeListaDeClientes(
     onAbrirCliente: (Int) -> Unit,
