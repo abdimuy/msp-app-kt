@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -59,6 +58,12 @@ private const val PUNTO_HALO_MAX_SCALE = 3.4f
  * sin contexto). `Modifier.clearAndSetSemantics {}` lo saca del árbol de
  * accesibilidad.
  *
+ * **El pulso no recompone**, mismo arreglo que [MspInsigniaNueva]: `halo1`/
+ * `halo2` se capturan como `State<Float>` (sin `by`) y su `.value` se lee sólo
+ * dentro de la lambda de [Modifier.drawBehind], nunca en el cuerpo de la
+ * función — leerlo con `by` suscribiría a `MspPuntoNuevo` entero al cambio de
+ * cuadro del `InfiniteTransition`.
+ *
  * **Reduce-motion:** mismo contrato que [MspInsigniaNueva] — con
  * [rememberMspReducedMotion] en `true` el `InfiniteTransition` nunca se crea, el
  * punto se pinta sólido y estático.
@@ -72,13 +77,15 @@ fun MspPuntoNuevo(modifier: Modifier = Modifier) {
         Modifier
     } else {
         val transition = rememberInfiniteTransition(label = "msp_punto_nuevo_pulse")
-        val halo1 by transition.animateFloat(
+        // Sin `by`: `State<Float>`, leído dentro de `drawBehind` — ver "El
+        // pulso no recompone" en el KDoc de la función.
+        val halo1 = transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = mspPulseRingSpec(),
             label = "msp_punto_nuevo_halo_1"
         )
-        val halo2 by transition.animateFloat(
+        val halo2 = transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = mspPulseRingSpec(MSP_PULSE_RING_DELAY_MS),
@@ -86,8 +93,8 @@ fun MspPuntoNuevo(modifier: Modifier = Modifier) {
         )
         Modifier
             .drawBehind {
-                drawPuntoPulseHalo(halo1, brand)
-                drawPuntoPulseHalo(halo2, brand)
+                drawPuntoPulseHalo(halo1.value, brand)
+                drawPuntoPulseHalo(halo2.value, brand)
             }
             .testTag(MSP_PUNTO_NUEVO_HALO_TAG)
     }

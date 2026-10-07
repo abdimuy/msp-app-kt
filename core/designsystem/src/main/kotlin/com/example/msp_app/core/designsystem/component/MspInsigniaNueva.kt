@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +76,19 @@ private const val INSIGNIA_RING_START_ALPHA = 0.75f
  * se mide, no se infiere: [com.example.msp_app.core.designsystem.component.MspInsigniaNuevaTest]
  * compara `getBoundsInRoot()` con el pulso corriendo contra movimiento reducido.
  *
+ * **El pulso no recompone.** `ring1`/`ring2`/`breathe` se capturan como
+ * `State<Float>` —`transition.animateFloat(...)` sin `by`— y su `.value` se lee
+ * sólo dentro de [Modifier.drawBehind]/[Modifier.graphicsLayer] en forma
+ * lambda, nunca en el cuerpo del `@Composable`. Leer `.value` con `by` (la
+ * primera versión) suscribe al ÁMBITO DE RECOMPOSICIÓN que hace esa lectura —
+ * en este caso, la función entera `MspInsigniaNueva` — así que recomponía en
+ * cada cuadro del `InfiniteTransition` aunque nada visible cambiara de
+ * estructura, sólo de pintura. Leer `.value` dentro de la lambda de
+ * `drawBehind`/`graphicsLayer` defiere la lectura a la fase de DIBUJO (o
+ * layout, para `graphicsLayer`), que no participa en composición: la tarjeta
+ * entera deja de recomponerse 2-3 veces por segundo sólo porque tiene una
+ * venta nueva.
+ *
  * **Reduce-motion (obligatorio, mismo contrato que [MspPaymentSyncPill]):** con
  * [rememberMspReducedMotion] en `true` el `InfiniteTransition` NUNCA se crea — ni
  * los anillos ni la respiración del punto se componen — y se pinta el estado de
@@ -93,36 +105,44 @@ fun MspInsigniaNueva(texto: String = "Nueva", modifier: Modifier = Modifier) {
     val onBrand = MspTheme.colors.onBrand
     val reduced = rememberMspReducedMotion()
 
-    val dotScale: Float
+    val dotModifier: Modifier
     val ringModifier: Modifier
     if (reduced) {
-        dotScale = 1f
+        dotModifier = Modifier
         ringModifier = Modifier
     } else {
         val transition = rememberInfiniteTransition(label = "msp_insignia_nueva_pulse")
-        val ring1 by transition.animateFloat(
+        // Sin `by`: son `State<Float>`, no `Float`. Leer `.value` aquí (como
+        // hacía la primera versión) suscribiría a ESTA función entera al
+        // cambio de cuadro — ver "El pulso no recompone" arriba.
+        val ring1 = transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = mspPulseRingSpec(),
             label = "msp_insignia_nueva_ring_1"
         )
-        val ring2 by transition.animateFloat(
+        val ring2 = transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = mspPulseRingSpec(MSP_PULSE_RING_DELAY_MS),
             label = "msp_insignia_nueva_ring_2"
         )
-        val breathe by transition.animateFloat(
+        val breathe = transition.animateFloat(
             initialValue = 1f,
             targetValue = 1f,
             animationSpec = mspPulseBreatheSpec(),
             label = "msp_insignia_nueva_breathe"
         )
-        dotScale = breathe
+        // Forma lambda: la lectura de `breathe.value` ocurre en la fase de
+        // layout de ESTE nodo, no en la composición de la función.
+        dotModifier = Modifier.graphicsLayer {
+            scaleX = breathe.value
+            scaleY = breathe.value
+        }
         ringModifier = Modifier
             .drawBehind {
-                drawInsigniaPulseRing(ring1, brand)
-                drawInsigniaPulseRing(ring2, brand)
+                drawInsigniaPulseRing(ring1.value, brand)
+                drawInsigniaPulseRing(ring2.value, brand)
             }
             .testTag(MSP_INSIGNIA_NUEVA_RING_TAG)
     }
@@ -147,7 +167,7 @@ fun MspInsigniaNueva(texto: String = "Nueva", modifier: Modifier = Modifier) {
             Box(
                 modifier = Modifier
                     .size(INSIGNIA_DOT_SIZE)
-                    .graphicsLayer(scaleX = dotScale, scaleY = dotScale)
+                    .then(dotModifier)
                     .clip(CircleShape)
                     .background(onBrand)
                     .testTag(MSP_INSIGNIA_NUEVA_DOT_TAG)
