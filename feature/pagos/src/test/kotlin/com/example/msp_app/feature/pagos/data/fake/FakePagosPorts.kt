@@ -470,9 +470,18 @@ class FakeCercaniaPort : CercaniaPort {
     var lecturas: Int = 0
         private set
 
+    /**
+     * Si no es `null`, [distanciasPorVenta] se queda suspendida esperando a
+     * que el test la complete — el "GPS que nunca contesta" de
+     * `ListaDeClientesViewModelTest.\`con Mas Cerca la cartera se proyecta
+     * antes de esperar las distancias\``. `null` (el default) devuelve
+     * [mapa] de inmediato, como siempre.
+     */
+    var espera: kotlinx.coroutines.CompletableDeferred<Map<Int, Double>>? = null
+
     override suspend fun distanciasPorVenta(): Map<Int, Double> {
         lecturas++
-        return mapa
+        return espera?.await() ?: mapa
     }
 }
 

@@ -485,4 +485,55 @@ class ListaDeClientesViewModelTest {
 
         assertEquals(2, cercaniaPort.lecturas)
     }
+
+    /**
+     * **Hallazgo 3 de la revisión final** (`.superpowers/sdd/2026-10-06-menu-lateral/final-fix-report.md`):
+     * con "Más cerca" restaurado, `cargar()` esperaba a [CercaniaPort] ANTES de
+     * proyectar la cartera recién leída — un GPS lento (o que nunca contesta)
+     * dejaba la tarjeta vieja en pantalla indefinidamente, aunque la cartera
+     * fresca ya estuviera en memoria. Riesgo de dinero: al volver de registrar
+     * un abono, la tarjeta sigue vieja hasta que llega la posición.
+     *
+     * [FakeCercaniaPort.espera] fuerza exactamente eso: una lectura de
+     * ubicación que se queda suspendida hasta que el test la suelta.
+     */
+    @Test
+    fun `con Mas Cerca la cartera se proyecta antes de esperar las distancias`() = runTest(
+        testDispatcher
+    ) {
+        ordenGuardadoPort.guardado = OrdenGuardado(OrdenDeLaLista.MAS_CERCA, ListaFixtures.HOY)
+        val espera = kotlinx.coroutines.CompletableDeferred<Map<Int, Double>>()
+        cercaniaPort.espera = espera
+
+        val vm = viewModel()
+        // `runCurrent()`, no `advanceUntilIdle()`: este último avanza el reloj
+        // virtual hasta agotar TODO lo programado, incluido el
+        // `withTimeoutOrNull` de 8s de `ControladorDeOrden` — y eso resolvería
+        // el timeout antes de que el test alcance a soltar `espera`, dejando
+        // esta prueba en verde por la razón equivocada. `runCurrent()` corre
+        // el trabajo YA listo sin tocar el reloj, así que la corrutina queda
+        // de verdad suspendida en `espera.await()`.
+        testDispatcher.scheduler.runCurrent()
+
+        // La cartera YA se proyectó: no está cargando y ya hay clientes,
+        // aunque el GPS (el `espera` sin soltar) no haya contestado.
+        assertFalse("no debe quedarse 'cargando' esperando al GPS", vm.state.value.cargando)
+        assertEquals(
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            vm.state.value.clientes.map { it.clienteId }
+        )
+
+        // Distancia sólo para la venta de Victoria (77021): si el reorden de
+        // verdad ocurre, Victoria pasa al frente — distinto del orden de
+        // cobranza [Ricardo, Victoria] de arriba, así que el cambio no es casualidad.
+        espera.complete(mapOf(77021 to 10.0))
+        testDispatcher.scheduler.runCurrent()
+
+        assertFalse(vm.state.value.avisoSinUbicacion)
+        assertEquals(1, cercaniaPort.lecturas)
+        assertEquals(
+            listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO),
+            vm.state.value.clientes.map { it.clienteId }
+        )
+    }
 }

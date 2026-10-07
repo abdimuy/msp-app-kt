@@ -207,12 +207,25 @@ class ListaDeClientesViewModel @Inject constructor(
      * ([ControladorDeOrden.restaurar]): "Reintentar" sólo aparece cuando la
      * carga anterior falló, y una carga que falló nunca llegó a enseñar el
      * renglón de orden, así que no hay elección de esta sesión que proteger.
+     *
+     * **[proyectar] corre ANTES de pedir distancias** (hallazgo de la revisión
+     * final de `feat/lista-venta-nueva-orden`, riesgo de dinero): con "Más
+     * cerca" restaurado, [ControladorDeOrden.actualizarDistanciasSiHaceFalta]
+     * puede quedarse esperando al GPS, y la cartera recién leída NO tiene por
+     * qué esperarla — al volver de registrar un abono, la tarjeta se queda
+     * vieja hasta que llega la posición si se proyecta después. Se proyecta
+     * dos veces: la primera con la cartera fresca y el orden restaurado (sin
+     * distancias todavía, cae a cobranza si hacía falta "Más cerca"); la
+     * segunda, cuando las distancias lleguen (o se agote el plazo interno de
+     * [ControladorDeOrden]), para reordenar.
      */
     fun cargar() {
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(cargando = true, fallo = false)
             cartera = leer()
             cartera?.let { controladorDeOrden.restaurar(it.hoy) }
+            proyectar()
+            controladorDeOrden.actualizarDistanciasSiHaceFalta()
             proyectar()
         }
     }
@@ -235,11 +248,15 @@ class ListaDeClientesViewModel @Inject constructor(
      * Lo que sí se repite si el orden es [OrdenDeLaLista.MAS_CERCA] es la
      * lectura de [CercaniaPort] (decisión del dueño): la posición del cobrador
      * cambia con cada recarga y una distancia vieja dejaría de ser cierta.
+     *
+     * [proyectar] corre antes Y después de pedir las distancias, mismo motivo
+     * que [cargar]: la cartera fresca no espera al GPS para mostrarse.
      */
     fun recargar() {
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(fallo = false)
             cartera = leer()
+            proyectar()
             controladorDeOrden.actualizarDistanciasSiHaceFalta()
             proyectar()
         }

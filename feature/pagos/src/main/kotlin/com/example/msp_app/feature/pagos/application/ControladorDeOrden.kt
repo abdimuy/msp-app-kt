@@ -8,6 +8,7 @@ import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * El orden elegido en la hoja "Ordenar por" (decisión del dueño, 2026-10-05):
@@ -45,17 +46,33 @@ class ControladorDeOrden @Inject constructor(
      * se guardó el mismo [hoy] de negocio que esta carga acaba de resolver. Un
      * orden de ayer (o de nunca: [OrdenGuardadoPort.leer] en `null`) cae a
      * [OrdenDeLaLista.COBRANZA], el default con el que ya nace [orden].
+     *
+     * **A propósito NO pide distancias** (antes lo hacía, llamando
+     * [actualizarDistanciasSiHaceFalta] al final). Leer [OrdenGuardadoPort] es
+     * rápido —una preferencia en disco—, pero [actualizarDistanciasSiHaceFalta]
+     * puede quedarse esperando al GPS; encadenarla aquí significa que quien
+     * llama a [restaurar] no puede proyectar la cartera recién leída hasta que
+     * el GPS conteste, aunque el orden YA se conozca. Quien llama decide
+     * cuándo pedir las distancias — típicamente después de proyectar una vez.
      */
     suspend fun restaurar(hoy: LocalDate) {
         val guardado = withContext(io) { ordenGuardado.leer() } ?: return
         orden = if (guardado.dia == hoy) guardado.orden else OrdenDeLaLista.COBRANZA
-        actualizarDistanciasSiHaceFalta()
     }
 
-    /** Pide distancias SÓLO si [orden] las necesita — las otras seis órdenes no tocan [CercaniaPort]. */
+    /**
+     * Pide distancias SÓLO si [orden] las necesita — las otras seis órdenes no
+     * tocan [CercaniaPort]. Con [TIMEOUT_UBICACION_MS] de tope: un GPS que
+     * nunca contesta no debe dejar [distancias] (y a quien lea este
+     * `ControladorDeOrden`) esperando para siempre — pasado el plazo se
+     * degrada a mapa vacío, exactamente como "sin permiso" o "sin fix", que
+     * [OrdenDeLaLista.MAS_CERCA] ya sabe resolver cayendo a cobranza.
+     */
     suspend fun actualizarDistanciasSiHaceFalta() {
         if (orden != OrdenDeLaLista.MAS_CERCA) return
-        distancias = withContext(io) { cercania.distanciasPorVenta() }
+        distancias = withContext(io) {
+            withTimeoutOrNull(TIMEOUT_UBICACION_MS) { cercania.distanciasPorVenta() }.orEmpty()
+        }
     }
 
     /** Elige [nuevo], pide distancias si hace falta y persiste con el día [hoy] (si se conoce). */
@@ -75,5 +92,10 @@ class ControladorDeOrden @Inject constructor(
     private suspend fun guardar(hoy: LocalDate?) {
         hoy ?: return
         withContext(io) { ordenGuardado.guardar(orden, hoy) }
+    }
+
+    private companion object {
+        /** Tope para que un GPS sin respuesta no cuelgue la lista para siempre. */
+        const val TIMEOUT_UBICACION_MS = 8_000L
     }
 }
