@@ -672,6 +672,42 @@ class EstadoCuentaDeriverTest {
         assertEquals(0, BigDecimal("300").compareTo(resultado.parcialidad))
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // PAGO RECHAZADO (DOCTO_CC_ID = -1): no es dinero — E-APP-057
+    // ─────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `E-APP-057 pago rechazado solo no es dinero y deja sin tocar`() {
+        assertEquals(
+            EstadoCuenta.SIN_TOCAR,
+            estadoDe(pagos = listOf(pago(importe = "300").copy(rechazado = true)))
+        )
+    }
+
+    @Test
+    fun `E-APP-057 pago rechazado no se suma al aceptado`() {
+        assertEquals(
+            EstadoCuenta.ABONO_PARCIAL,
+            estadoDe(
+                pagos = listOf(
+                    pago(importe = "300").copy(rechazado = true),
+                    pago(importe = "100")
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `E-APP-057 pago rechazado no tapa la visita`() {
+        assertEquals(
+            EstadoCuenta.SE_NEGO,
+            estadoDe(
+                pagos = listOf(pago(importe = "300").copy(rechazado = true)),
+                visitas = listOf(visita(TipoVisitaCatalogo.NO_VA_A_DAR_PAGO))
+            )
+        )
+    }
+
     private companion object {
         const val FORMA_EFECTIVO = 157
         const val FORMA_CHEQUE = 158

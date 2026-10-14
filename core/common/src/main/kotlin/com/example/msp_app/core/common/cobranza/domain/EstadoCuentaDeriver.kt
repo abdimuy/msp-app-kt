@@ -130,12 +130,16 @@ object EstadoCuentaDeriver {
      *
      * Un pago cancelado no debe llegar hasta acá: el adaptador no lo trae, igual
      * que la consulta del servidor lo descarta con `CANCELADO = 'N'`.
+     * Un pago rechazado (DOCTO_CC_ID = -1) sí puede llegar —con
+     * [PagoEnVentana.rechazado]— y se descarta aquí.
      */
     private fun abonosPorVenta(
         pagos: List<PagoEnVentana>,
         ventana: VentanaCobro
     ): Map<Int, BigDecimal> = pagos
         .filter { it.formaCobroId in VentanaCobro.FORMAS_COBRO_COBRANZA }
+        // Rechazado (DOCTO_CC_ID = -1) no es dinero que entró: E-APP-057.
+        .filterNot { it.rechazado }
         .filter { ventana.contiene(it.fechaHora) }
         .groupingBy { it.ventaId }
         .fold(BigDecimal.ZERO) { acumulado, pago -> acumulado + pago.importe }
