@@ -24,6 +24,37 @@ class ProblemaDelServidorTest {
         assertEquals("$mensaje\nCombo: Recámara", ProblemaDelServidor.leer(body).detail)
     }
 
+    /**
+     * El cuerpo exacto que arma `mapAppError` (msp-api-precios venthttp/auth.go):
+     * `huma.NewError(status, ae.Message, ErrorDetail{Message: "code=" + ae.Code},
+     * ErrorDetail{Message: "articulo=" + v, Location: "linea.articulo", Value: v})`,
+     * serializado como `huma.ErrorModel` (title, status, detail, errors[]).
+     */
+    private val cuerpoDeHuma = """{"title":"Unprocessable Entity","status":422,"detail":"$mensaje",""" +
+        """"errors":[{"message":"code=precio_contado_requerido"},""" +
+        """{"message":"articulo=Cómoda","location":"linea.articulo","value":"Cómoda"}]}"""
+
+    @Test
+    fun `E-APP-069 el codigo sale de errors code= del cuerpo de Huma`() {
+        val p = ProblemaDelServidor.leer(cuerpoDeHuma)
+        assertEquals("precio_contado_requerido", p.code)
+        assertEquals("$mensaje\nArtículo: Cómoda", p.detail)
+    }
+
+    @Test
+    fun `E-APP-069 sin code= en errors se usa obj code de las formas viejas`() {
+        assertEquals(
+            "plazo_invalido",
+            ProblemaDelServidor.leer("""{"code":"plazo_invalido","detail":"x"}""").code
+        )
+        assertEquals(
+            "plazo_invalido",
+            ProblemaDelServidor.leer(
+                """{"code":"plazo_invalido","errors":[{"message":"code="}]}"""
+            ).code
+        )
+    }
+
     @Test
     fun `sin linea o con cuerpo roto se comporta como antes`() {
         assertEquals(
@@ -31,7 +62,7 @@ class ProblemaDelServidorTest {
             ProblemaDelServidor.leer("""{"code":"c","detail":"d"}""")
         )
         assertEquals(
-            ProblemaDelServidor(null, "m"),
+            ProblemaDelServidor("x", "m"),
             ProblemaDelServidor.leer("""{"message":"m","errors":[{"message":"code=x"}]}""")
         )
         assertEquals(ProblemaDelServidor(null, null), ProblemaDelServidor.leer("no es json"))

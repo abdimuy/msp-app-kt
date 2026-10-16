@@ -6,6 +6,7 @@ import com.google.gson.JsonParser
 data class ProblemaDelServidor(val code: String?, val detail: String?) {
 
     companion object {
+        private const val PREFIJO_CODIGO = "code="
         private val ETIQUETAS = mapOf("linea.articulo" to "Artículo", "linea.combo" to "Combo")
 
         /**
@@ -20,15 +21,26 @@ data class ProblemaDelServidor(val code: String?, val detail: String?) {
                 val obj = JsonParser.parseString(body).asJsonObject
                 val mensaje = obj["detail"]?.takeUnless { it.isJsonNull }?.asString
                     ?: obj["message"]?.takeUnless { it.isJsonNull }?.asString
-                val linea = obj["errors"]?.takeIf { it.isJsonArray }?.asJsonArray
+                val errores = obj["errors"]?.takeIf { it.isJsonArray }?.asJsonArray
                     ?.mapNotNull { it.takeIf { e -> e.isJsonObject }?.asJsonObject }
-                    ?.firstNotNullOfOrNull { e ->
+                    .orEmpty()
+                // E-APP-069: Huma manda el código en `errors[].message` como `code=<código>`
+                // (msp-api venthttp/auth.go:mapAppError); `obj.code` queda para formas viejas.
+                // Sólo se guarda y se muestra: ninguna decisión de envío lo lee.
+                val codigo = errores.firstNotNullOfOrNull { e ->
+                    e["message"]?.takeIf { it.isJsonPrimitive }?.asString
+                        ?.takeIf { it.startsWith(PREFIJO_CODIGO) }
+                        ?.removePrefix(PREFIJO_CODIGO)
+                        ?.takeIf { it.isNotBlank() }
+                } ?: obj["code"]?.takeUnless { it.isJsonNull }?.asString
+                val linea = errores
+                    .firstNotNullOfOrNull { e ->
                         val etiqueta = ETIQUETAS[e["location"]?.takeUnless { it.isJsonNull }?.asString]
                         val valor = e["value"]?.takeIf { it.isJsonPrimitive }?.asString
                         if (etiqueta != null && !valor.isNullOrBlank()) "$etiqueta: $valor" else null
                     }
                 ProblemaDelServidor(
-                    code = obj["code"]?.takeUnless { it.isJsonNull }?.asString,
+                    code = codigo,
                     detail = when {
                         linea == null -> mensaje
                         mensaje == null -> linea
