@@ -68,6 +68,10 @@ dependencies {
     // (coroutines-test, turbine, junit) vía `api`.
     testImplementation(project(":core:testing"))
 
+    // El juego de casos compartido con msp-api (orden de precios) es JSON.
+    // Solo pruebas: el dominio de :core:common no parsea JSON.
+    testImplementation(libs.gson)
+
     // Regla custom `NoDoubleForMoney` (Task 9) — registrada vía ServiceLoader,
     // por eso viaja como `detektPlugins` y no como dependencia normal.
     detektPlugins(project(":build-tools:detekt-rules"))
