@@ -8,7 +8,9 @@ import com.example.msp_app.core.testing.time.FakeClock
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,7 +19,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** E-APP-063: el registrador escribe, deduplica la telemetría, no bloquea y no lanza. */
@@ -63,7 +64,7 @@ class RegistradorDeEnvioDiagnosticoTest : RoomTestBase() {
         }
 
     @Test
-    fun `E-APP-063 telemetria a lo mas una vez por fila y por error distinto`() = runBlocking {
+    fun `E-APP-063 telemetria a lo mas una vez por fila y codigo`() = runBlocking {
         val r = registrador()
         repeat(5) { r.escribir(EnvioObservado("pago", "p1", red)) }
         r.escribir(EnvioObservado("pago", "p1", http502))
@@ -104,18 +105,63 @@ class RegistradorDeEnvioDiagnosticoTest : RoomTestBase() {
         )
     }
 
-    @Test
+    /**
+     * Si `registrar` llegara a escribir en el hilo que llama (regresión), la
+     * primera llamada se quedaría 1 s en la base trabada y el `get` de 2 s
+     * vencería: la prueba se pone ROJA, no se cuelga.
+     */
+    @Test(timeout = 10_000)
     fun `E-APP-064 registrar no bloquea aunque la base este trabada`() {
         val trabada = CountDownLatch(1)
         val r = registrador(dao = {
-            trabada.await(5, TimeUnit.SECONDS)
+            trabada.await(1, TimeUnit.SECONDS)
             db.envioDiagnosticoDao()
         })
-        val inicio = System.nanoTime()
-        repeat(1_000) { r.registrar(EnvioObservado("pago", "p$it", red)) }
-        val ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - inicio)
-        trabada.countDown()
-        assertTrue("1000 registros con la base trabada tardaron $ms ms", ms < 500)
+        val hilo = Executors.newSingleThreadExecutor()
+        try {
+            val tarea = hilo.submit {
+                repeat(
+                    1_000
+                ) { r.registrar(EnvioObservado("pago", "p$it", red)) }
+            }
+            try {
+                tarea.get(2, TimeUnit.SECONDS)
+            } catch (_: TimeoutException) {
+                throw AssertionError("registrar bloqueó al hilo que llama con la base trabada")
+            }
+        } finally {
+            trabada.countDown()
+            hilo.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `E-APP-063 poda a lo mas una vez al dia las filas sin intentos en 30 dias`() = runBlocking {
+        val dao = db.envioDiagnosticoDao()
+        val r = registrador()
+        clock.setNow(Instant.parse("2026-08-01T10:00:00Z"))
+        r.escribir(
+            EnvioObservado("pago", "soltada", red)
+        ) // primera escritura: poda (nada que borrar)
+        assertEquals("soltada", dao.obtener("pago", "soltada")!!.FILA_ID)
+
+        clock.setNow(Instant.parse("2026-09-01T10:00:00Z")) // +31 días
+        r.escribir(EnvioObservado("pago", "otra", red))
+        assertNull("sin intentos en 30 días: podada", dao.obtener("pago", "soltada"))
+
+        // Una fila vieja que aparece después de la poda de hoy no se borra hasta mañana.
+        dao.registrarFallo("pago", "vieja", "timeout", "Tiempo agotado", 0, "2026-07-01T00:00:00Z")
+        clock.setNow(Instant.parse("2026-09-01T20:00:00Z"))
+        r.escribir(EnvioObservado("pago", "otra", red))
+        assertEquals(
+            "misma fecha: no vuelve a podar",
+            "vieja",
+            dao.obtener("pago", "vieja")!!.FILA_ID
+        )
+        clock.setNow(Instant.parse("2026-09-02T10:00:01Z"))
+        r.escribir(EnvioObservado("pago", "otra", null))
+        assertNull("al día siguiente sí", dao.obtener("pago", "vieja"))
+        assertEquals("la que sigue activa se queda", "otra", dao.obtener("pago", "otra")!!.FILA_ID)
     }
 
     @Test

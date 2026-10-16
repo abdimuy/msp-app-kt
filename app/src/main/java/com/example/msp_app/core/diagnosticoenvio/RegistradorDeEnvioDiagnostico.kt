@@ -7,6 +7,7 @@ import com.example.msp_app.core.database.dao.enviodiagnostico.EnvioDiagnosticoDa
 import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
 import com.example.msp_app.core.network.diagnostico.EnvioObservado
 import java.time.Duration
+import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,9 +26,14 @@ import kotlinx.coroutines.launch
  * falla —Room, telemetría, lo que sea— se traga aquí: ni el interceptor ni el
  * worker pueden enterarse.
  *
- * Telemetría: a lo más un evento por fila y por código distinto (lo decide
+ * Telemetría: a lo más un evento por (fila, código), con tope de
+ * [EnvioDiagnosticoDao.MAX_CODIGOS_REPORTADOS] por fila (lo decide
  * [EnvioDiagnosticoDao.registrarFallo]); el evento lleva solo tipo, id de la
  * fila, código y estado HTTP — ningún dato personal.
+ *
+ * Poda: a lo más una vez al día (por proceso), el mismo consumidor borra las
+ * filas sin intentos en [RETENCION] — así la tabla queda acotada también para
+ * lo que se soltó sin un 2xx.
  */
 class RegistradorDeEnvioDiagnostico(
     private val dao: () -> EnvioDiagnosticoDao,
@@ -35,6 +41,9 @@ class RegistradorDeEnvioDiagnostico(
     private val reportar: (Map<String, Any>) -> Unit = {},
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : EnvioDiagnosticoSink {
+
+    @Volatile
+    private var ultimaPoda: Instant? = null
 
     private val pendientes = Channel<EnvioObservado>(
         capacity = CAPACIDAD,
@@ -67,7 +76,7 @@ class RegistradorDeEnvioDiagnostico(
             val fallo = observado.fallo
             if (fallo == null) {
                 dao().registrarExito(observado.tipo, observado.filaId, ahoraCable)
-                dao().podarExitosAnterioresA(AppTime.toWireFormat(ahora.minus(RETENCION_EXITOS)))
+                podarSiToca(ahora)
                 return
             }
             val esNuevo = dao().registrarFallo(
@@ -78,6 +87,7 @@ class RegistradorDeEnvioDiagnostico(
                 http = fallo.http,
                 ahora = ahoraCable
             )
+            podarSiToca(ahora)
             if (esNuevo) {
                 reportar(
                     mapOf(
@@ -93,9 +103,22 @@ class RegistradorDeEnvioDiagnostico(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun podarSiToca(ahora: Instant) {
+        val previa = ultimaPoda
+        if (previa != null && Duration.between(previa, ahora) < CADA_PODA) return
+        ultimaPoda = ahora
+        try {
+            dao().podarIntentosAnterioresA(AppTime.toWireFormat(ahora.minus(RETENCION)))
+        } catch (e: Throwable) {
+            Log.w(TAG, "No se pudo podar el diagnóstico de envío", e)
+        }
+    }
+
     private companion object {
         const val TAG = "EnvioDiagnostico"
         const val CAPACIDAD = 256
-        val RETENCION_EXITOS: Duration = Duration.ofDays(30)
+        val RETENCION: Duration = Duration.ofDays(30)
+        val CADA_PODA: Duration = Duration.ofDays(1)
     }
 }

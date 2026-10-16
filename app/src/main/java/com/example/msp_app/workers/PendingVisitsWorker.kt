@@ -93,11 +93,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
     override suspend fun doWork(): Result {
         val id = inputData.getString("visit_id")
             ?: return Result.failure().also {
+                anotar(SIN_VISIT_ID, FALLO_SIN_VISIT_ID)
                 Log.e(TAG, "No se proporcionó visit_id")
             }
 
         val visit = visitsStore.getVisitById(id)
             ?: return Result.failure().also {
+                anotar(id, FALLO_NO_ENCONTRADA)
                 Log.e(TAG, "Visita no encontrada: $id")
             }
 
@@ -361,6 +363,19 @@ class PendingVisitsWorker @JvmOverloads constructor(
 
         private const val TIPO_VISITA = "visita"
         private const val MAX_CUERPO_BYTES = 8L * 1024L
+
+        /** Fila de diagnóstico para el trabajo que llegó sin `visit_id` (no hay fila que nombrar). */
+        private const val SIN_VISIT_ID = "sin_visit_id"
+        private val FALLO_SIN_VISIT_ID = FalloDeEnvio(
+            codigo = "sin_visit_id",
+            mensaje = "Trabajo sin visita",
+            http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
+        )
+        private val FALLO_NO_ENCONTRADA = FalloDeEnvio(
+            codigo = "visita_no_encontrada",
+            mensaje = "Visita no encontrada",
+            http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
+        )
         private val FALLO_COMPROBANTES = FalloDeEnvio(
             codigo = "comprobantes_ilegibles",
             mensaje = "No se pudieron leer las fotos",

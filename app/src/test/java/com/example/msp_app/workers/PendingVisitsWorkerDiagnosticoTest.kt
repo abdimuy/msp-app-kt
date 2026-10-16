@@ -25,6 +25,7 @@ import com.example.msp_app.data.models.visit.Visit
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -103,15 +104,15 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
         .setHeader("Content-Type", "application/problem+json")
         .setBody("""{"status":$code,"code":"$codigo","detail":"rechazada"}""")
 
-    private val apiQueRevienta = object : V2VisitsApi {
+    private fun apiQueRevienta(error: Exception) = object : V2VisitsApi {
         override suspend fun crearVisita(idempotencyKey: String, body: CrearVisitaBody): VisitaDTO =
-            throw IllegalStateException("inesperado")
+            throw error
 
         override suspend fun crearVisitaConImagenes(
             idempotencyKey: String,
             datos: RequestBody,
             imagenes: List<MultipartBody.Part>
-        ): VisitaDTO = throw IllegalStateException("inesperado")
+        ): VisitaDTO = throw error
 
         override suspend fun visitasExistentesPorIds(ids: String): List<String> =
             throw AssertionError(
@@ -179,8 +180,14 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
         ),
         Escenario(
             "excepcion inesperada",
-            apiFija = apiQueRevienta,
+            apiFija = apiQueRevienta(IllegalStateException("inesperado")),
             codigo = "error_inesperado",
+            http = 0
+        ),
+        Escenario(
+            "cancelacion",
+            apiFija = apiQueRevienta(CancellationException("WorkManager detuvo")),
+            codigo = "cancelado",
             http = 0
         ),
         Escenario(
@@ -290,8 +297,58 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
         assertEquals(ListenableWorker.Result.retry(), r.getValue("IOException").result)
         assertEquals(ListenableWorker.Result.retry(), r.getValue("timeout").result)
         assertEquals(ListenableWorker.Result.retry(), r.getValue("excepcion inesperada").result)
+        assertEquals(ListenableWorker.Result.retry(), r.getValue("cancelacion").result)
         assertEquals(ListenableWorker.Result.retry(), r.getValue("comprobantes ilegibles").result)
         assertEquals("ilegibles no manda nada", 0, r.getValue("comprobantes ilegibles").peticiones)
+    }
+
+    @Test
+    fun `E-APP-065 las dos salidas por failure tambien anotan y siguen siendo failure`() {
+        fun correrSin(inputData: Data, sink: EnvioDiagnosticoSink): ListenableWorker.Result {
+            val worker = TestListenableWorkerBuilder<PendingVisitsWorker>(context, inputData)
+                .setWorkerFactory(object : WorkerFactory() {
+                    override fun createWorker(
+                        appContext: Context,
+                        workerClassName: String,
+                        workerParameters: WorkerParameters
+                    ): ListenableWorker = PendingVisitsWorker(
+                        appContext = appContext,
+                        workerParams = workerParameters,
+                        visitsStore = VisitsLocalDataSource(appContext),
+                        v2Api = apiQueRevienta(IllegalStateException("no se debe llamar")),
+                        legacyApi = object : VisitsApi {
+                            override suspend fun saveVisit(visit: Visit) =
+                                throw AssertionError("legacy no")
+                        },
+                        useV2 = true,
+                        imagenes = db.visitImageDao(),
+                        clock = clock,
+                        diagnostico = sink
+                    )
+                }).build()
+            return runBlocking { (worker as PendingVisitsWorker).doWork() }
+        }
+        val sinId = Data.EMPTY
+        val noExiste = Data.Builder().putString("visit_id", "visita-inexistente").build()
+        listOf(sinId, noExiste).forEach { datos ->
+            Modo.entries.forEach { modo ->
+                assertEquals(
+                    "$datos / $modo",
+                    ListenableWorker.Result.failure(),
+                    correrSin(datos, sink(modo))
+                )
+            }
+        }
+        grabados.clear()
+        correrSin(sinId, sink(Modo.GRABA))
+        correrSin(noExiste, sink(Modo.GRABA))
+        assertEquals(
+            listOf(
+                "sin_visit_id" to "sin_visit_id",
+                "visita-inexistente" to "visita_no_encontrada"
+            ),
+            grabados.map { it.filaId to it.fallo!!.codigo }
+        )
     }
 
     private class ImagenesQueRevientan(private val db: AppDatabase) : VisitImageDao {
