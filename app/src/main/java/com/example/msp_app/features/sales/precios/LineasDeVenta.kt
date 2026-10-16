@@ -1,7 +1,7 @@
 package com.example.msp_app.features.sales.precios
 
 import com.example.msp_app.core.common.ventas.precios.LineaDePrecios
-import com.example.msp_app.core.common.ventas.precios.ReglaOrdenDePrecios
+import com.example.msp_app.core.common.ventas.precios.ReglasDePreciosDeVenta
 import com.example.msp_app.core.common.ventas.precios.TipoDeLinea
 import com.example.msp_app.core.common.ventas.precios.VeredictoOrdenDePrecios
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
@@ -81,30 +81,60 @@ object LineasDeVenta {
      * se envían (redondeados a centavos igual que el cuerpo de la petición).
      */
     fun validar(
+        tipoVenta: String?,
         productos: List<LocalSaleProductEntity>,
         combos: List<LocalSaleComboEntity>
-    ): VeredictoOrdenDePrecios {
-        val lineas = combos.map { c ->
-            LineaDePrecios(
-                tipo = TipoDeLinea.COMBO,
-                nombre = c.NOMBRE_COMBO,
-                cantidad = CANTIDAD_COMBO,
-                contado = c.PRECIO_CONTADO.dinero(),
-                corto = c.PRECIO_CORTO_PLAZO.dinero(),
-                anual = c.PRECIO_LISTA.dinero()
-            )
-        } + productos.map { p ->
-            LineaDePrecios(
-                tipo = TipoDeLinea.PRODUCTO,
-                nombre = p.ARTICULO,
-                cantidad = BigDecimal(p.CANTIDAD),
-                contado = p.PRECIO_CONTADO.dinero(),
-                corto = p.PRECIO_CORTO_PLAZO.dinero(),
-                anual = p.PRECIO_LISTA.dinero(),
-                dentroDeCombo = p.COMBO_ID != null
-            )
+    ): VeredictoOrdenDePrecios =
+        // E-APP-067: en crédito, además, cada línea suelta necesita anual > 0.
+        ReglasDePreciosDeVenta.validar(
+            esCredito = !esContado(tipoVenta),
+            lineas = lineas(productos, combos)
+        )
+
+    /** Las líneas tal como viajan en el cuerpo (centavos con `toMoneyString`). */
+    fun lineas(
+        productos: List<LocalSaleProductEntity>,
+        combos: List<LocalSaleComboEntity>
+    ): List<LineaDePrecios> = combos.map { c ->
+        LineaDePrecios(
+            tipo = TipoDeLinea.COMBO,
+            nombre = c.NOMBRE_COMBO,
+            cantidad = CANTIDAD_COMBO,
+            contado = c.PRECIO_CONTADO.dinero(),
+            corto = c.PRECIO_CORTO_PLAZO.dinero(),
+            anual = c.PRECIO_LISTA.dinero()
+        )
+    } + productos.map { p ->
+        LineaDePrecios(
+            tipo = TipoDeLinea.PRODUCTO,
+            nombre = p.ARTICULO,
+            cantidad = BigDecimal(p.CANTIDAD),
+            contado = p.PRECIO_CONTADO.dinero(),
+            corto = p.PRECIO_CORTO_PLAZO.dinero(),
+            anual = p.PRECIO_LISTA.dinero(),
+            dentroDeCombo = p.COMBO_ID != null
+        )
+    }
+
+    /**
+     * E-APP-067: el aviso al cambiar a CRÉDITO, o `null` si no hay nada que avisar.
+     * [restaurados]: productos que volvieron a los precios del catálogo.
+     * [combosSinAnual]: combos que necesitan su precio anual antes de guardar.
+     */
+    fun avisoAlPasarACredito(restaurados: List<String>, combosSinAnual: List<String>): String? {
+        val partes = buildList {
+            if (restaurados.isNotEmpty()) {
+                add(
+                    "Precios del catálogo restaurados: ${restaurados.joinToString(", ")}"
+                )
+            }
+            if (combosSinAnual.isNotEmpty()) {
+                add(
+                    "Captura el precio anual de: ${combosSinAnual.joinToString(", ")}"
+                )
+            }
         }
-        return ReglaOrdenDePrecios.validar(lineas)
+        return partes.takeIf { it.isNotEmpty() }?.joinToString("\n")
     }
 
     /** El mensaje del servidor, con mayúscula inicial y la línea que hay que corregir. */

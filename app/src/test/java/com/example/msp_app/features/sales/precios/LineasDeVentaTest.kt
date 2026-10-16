@@ -90,14 +90,25 @@ class LineasDeVentaTest : RobolectricTestBase() {
         val productos = LineasDeVenta.productos("v1", vm("CONTADO").saleItems, "CONTADO")
         // Lo que sale en el cuerpo ya no tiene orden que romper: el servidor no distingue
         // contado y antes esto era `monto_tier_order_invalid` (caso 016 del juego compartido).
-        assertEquals(VeredictoOrdenDePrecios.Valido, LineasDeVenta.validar(productos, combos))
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            LineasDeVenta.validar("CONTADO", productos, combos)
+        )
+        // Y la regla de orden sola (la del servidor, que no distingue contado) tampoco la rechaza.
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            ReglaOrdenDePrecios.validar(
+                LineasDeVenta.lineas(productos, combos)
+            )
+        )
     }
 
     @Test
-    fun `E-APP-062 en CREDITO el mismo caso se detiene antes de enviar con el codigo del servidor`() {
-        val combos = LineasDeVenta.combos(listOf(combo(0.0, 0.0, 5000.0)), "CREDITO")
+    fun `E-APP-062 en CREDITO el combo con anual capturado y totales imposibles se detiene`() {
+        // Combo 5000/0/6000 (pasa E-APP-067 y su línea), totales 6000/1200/7600: imposibles.
+        val combos = LineasDeVenta.combos(listOf(combo(6000.0, 0.0, 5000.0)), "CREDITO")
         val productos = LineasDeVenta.productos("v1", vm("CREDITO").saleItems, "CREDITO")
-        val v = LineasDeVenta.validar(productos, combos)
+        val v = LineasDeVenta.validar("CREDITO", productos, combos)
         assertEquals(
             ReglaOrdenDePrecios.CODIGO_TOTALES,
             (v as VeredictoOrdenDePrecios.Invalido).codigo
@@ -113,10 +124,66 @@ class LineasDeVentaTest : RobolectricTestBase() {
     fun `E-APP-062 los productos dentro de un combo no suman a los totales como en el servidor`() {
         val v = SaleProductsViewModel().apply { addProductToSaleWithCombo(producto, 1, "c1") }
         val productos = LineasDeVenta.productos("v1", v.saleItems, "CREDITO")
-        // Sumando el hijo: contado 1500 > corto 1200. Sin sumarlo: sólo el combo, 500/0/0.
+        // Sumando el hijo: contado 1500 > corto 1200. Sin sumarlo: sólo el combo, 500/0/2000.
         assertEquals(
             VeredictoOrdenDePrecios.Valido,
-            LineasDeVenta.validar(productos, listOf(combo(0.0, 0.0, 500.0)))
+            LineasDeVenta.validar("CREDITO", productos, listOf(combo(2000.0, 0.0, 500.0)))
+        )
+    }
+
+    @Test
+    fun `E-APP-067 en CREDITO un combo sin anual se detiene nombrando el combo`() {
+        val productos = LineasDeVenta.productos("v1", vm("CREDITO").saleItems, "CREDITO")
+        val v = LineasDeVenta.validar("CREDITO", productos, listOf(combo(0.0, 0.0, 5000.0)))
+        v as VeredictoOrdenDePrecios.Invalido
+        assertEquals("precio_anual_credito_requerido", v.codigo)
+        assertTrue(LineasDeVenta.mensajeParaVendedor(v).contains("Recámara"))
+    }
+
+    @Test
+    fun `E-APP-067 en CREDITO un producto suelto sin anual se detiene, dentro de combo no`() {
+        val sinLista = TestDataFactory.createProductInventory(
+            id = 9,
+            name = "Buró",
+            prices = "Precio 1 Meses:500.0"
+        )
+        val suelto = SaleProductsViewModel().apply { addProductToSale(sinLista, 1) }
+        val v = LineasDeVenta.validar(
+            "CREDITO",
+            LineasDeVenta.productos("v1", suelto.saleItems, "CREDITO"),
+            emptyList()
+        )
+        assertEquals(
+            "precio_anual_credito_requerido",
+            (v as VeredictoOrdenDePrecios.Invalido).codigo
+        )
+
+        val enCombo = SaleProductsViewModel().apply { addProductToSaleWithCombo(sinLista, 1, "c1") }
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            LineasDeVenta.validar(
+                "CREDITO",
+                LineasDeVenta.productos("v1", enCombo.saleItems, "CREDITO"),
+                listOf(combo(1600.0, 1200.0, 1000.0))
+            )
+        )
+        // En CONTADO no aplica.
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            LineasDeVenta.validar(
+                "CONTADO",
+                LineasDeVenta.productos("v1", suelto.saleItems, "CONTADO"),
+                emptyList()
+            )
+        )
+    }
+
+    @Test
+    fun `E-APP-067 aviso al pasar a credito`() {
+        assertEquals(null, LineasDeVenta.avisoAlPasarACredito(emptyList(), emptyList()))
+        assertEquals(
+            "Precios del catálogo restaurados: Base King\nCaptura el precio anual de: Recámara",
+            LineasDeVenta.avisoAlPasarACredito(listOf("Base King"), listOf("Recámara"))
         )
     }
 
@@ -125,7 +192,7 @@ class LineasDeVentaTest : RobolectricTestBase() {
         val v = SaleProductsViewModel().apply { addProductToSale(producto, 1) }
         v.updateProductPrices(producto, 1600.0, 900.0, 1000.0)
         val productos = LineasDeVenta.productos("v1", v.saleItems, "CREDITO")
-        val veredicto = LineasDeVenta.validar(productos, emptyList())
+        val veredicto = LineasDeVenta.validar("CREDITO", productos, emptyList())
         veredicto as VeredictoOrdenDePrecios.Invalido
         assertEquals(ReglaOrdenDePrecios.CODIGO_LINEA, veredicto.codigo)
         assertEquals(
@@ -164,7 +231,7 @@ class LineasDeVentaTest : RobolectricTestBase() {
             assertEquals(
                 "semilla $semilla",
                 VeredictoOrdenDePrecios.Valido,
-                LineasDeVenta.validar(productos, combos)
+                LineasDeVenta.validar("CONTADO", productos, combos)
             )
         }
     }

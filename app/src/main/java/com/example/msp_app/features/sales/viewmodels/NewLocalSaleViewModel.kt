@@ -294,7 +294,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     val comboEntities = LineasDeVenta.combos(combos, tipoVenta)
 
                     // E-APP-062: la regla de orden del servidor, ANTES de guardar nada.
-                    val veredicto = LineasDeVenta.validar(productEntities, comboEntities)
+                    val veredicto = LineasDeVenta.validar(tipoVenta, productEntities, comboEntities)
                     if (veredicto is VeredictoOrdenDePrecios.Invalido) {
                         val errorMsg = LineasDeVenta.mensajeParaVendedor(veredicto)
                         logger.logSaleError(

@@ -45,8 +45,32 @@ class SaleProductsViewModel : ViewModel() {
     var tipoVenta: String = "CREDITO"
         private set
 
-    fun setTipoVenta(value: String) {
+    /** Los PRECIOS del catálogo de cada artículo, tal como llegaron al agregarlo. */
+    private val preciosDeCatalogo = mutableMapOf<Int, String?>()
+
+    /** Artículos cuyo precio se editó estando en CONTADO (lista y corto quedaron en 0). */
+    private val editadosEnContado = mutableSetOf<Int>()
+
+    /**
+     * Cambia el tipo de venta. E-APP-067: al pasar de CONTADO a CRÉDITO, los
+     * productos editados en contado (guardados 0/0/contado) vuelven a los tres
+     * precios del catálogo; sin esto el servidor aplicaba la línea a $0. Devuelve
+     * los nombres restaurados para avisarle al vendedor (vacío si no hubo).
+     */
+    fun setTipoVenta(value: String): List<String> {
+        val veniaDeContado = isContado
         tipoVenta = value
+        if (!veniaDeContado || isContado) return emptyList()
+        val restaurados = mutableListOf<String>()
+        _saleItems.forEachIndexed { index, item ->
+            val id = item.product.ARTICULO_ID
+            if (id in editadosEnContado && preciosDeCatalogo.containsKey(id)) {
+                _saleItems[index] = item.copy(product = item.product.copy(PRECIOS = preciosDeCatalogo[id]))
+                restaurados += item.product.ARTICULO
+            }
+        }
+        editadosEnContado.clear()
+        return restaurados
     }
 
     private val isContado: Boolean get() = tipoVenta == "CONTADO"
@@ -66,6 +90,8 @@ class SaleProductsViewModel : ViewModel() {
                 quantity = newQuantity
             )
         } else {
+            preciosDeCatalogo[product.ARTICULO_ID] = product.PRECIOS
+            editadosEnContado -= product.ARTICULO_ID
             _saleItems.add(SaleItem(product, quantity.coerceAtMost(maxStock)))
         }
     }
@@ -85,6 +111,8 @@ class SaleProductsViewModel : ViewModel() {
                 comboId = comboId
             )
         } else {
+            preciosDeCatalogo[product.ARTICULO_ID] = product.PRECIOS
+            editadosEnContado -= product.ARTICULO_ID
             _saleItems.add(SaleItem(product, quantity.coerceAtMost(maxStock), comboId = comboId))
         }
     }
@@ -126,6 +154,8 @@ class SaleProductsViewModel : ViewModel() {
         _saleItems.clear()
         _combos.clear()
         _selectedForCombo.clear()
+        preciosDeCatalogo.clear()
+        editadosEnContado.clear()
     }
 
     fun hasItems(): Boolean = _saleItems.isNotEmpty()
@@ -175,6 +205,11 @@ class SaleProductsViewModel : ViewModel() {
                 )
             )
             _saleItems[index] = oldItem.copy(product = updatedProduct)
+            if (isContado) {
+                editadosEnContado += product.ARTICULO_ID
+            } else {
+                editadosEnContado -= product.ARTICULO_ID
+            }
         }
     }
 
@@ -312,6 +347,10 @@ class SaleProductsViewModel : ViewModel() {
 
     fun getCombosList(): List<ComboItem> = _combos.values.toList()
 
+    /** E-APP-067: combos sin precio anual; en CRÉDITO no se pueden guardar así. */
+    fun combosSinAnual(): List<String> =
+        _combos.values.filter { it.precioLista <= 0.0 }.map { it.nombreCombo }
+
     fun hasAnyCombos(): Boolean = _combos.isNotEmpty()
 
     // Totales considerando combos (combo tiene su precio, no suma de productos)
@@ -348,5 +387,7 @@ class SaleProductsViewModel : ViewModel() {
         _saleItems.clear()
         _combos.clear()
         _selectedForCombo.clear()
+        preciosDeCatalogo.clear()
+        editadosEnContado.clear()
     }
 }

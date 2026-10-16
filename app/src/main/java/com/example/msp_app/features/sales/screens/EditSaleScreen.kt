@@ -171,6 +171,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
     // Dialogs
     var showSuccessDialog by remember { mutableStateOf(false) }
+    var avisoCambioACredito by remember { mutableStateOf<String?>(null) }
 
     // E-APP-062: la venta no se guarda si sus precios rompen el orden del servidor.
     var errorDePrecios by remember { mutableStateOf<String?>(null) }
@@ -456,7 +457,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         )
 
         // E-APP-062: la regla de orden del servidor antes de guardar la corrección.
-        val veredicto = LineasDeVenta.validar(productEntities, comboEntities)
+        val veredicto = LineasDeVenta.validar(tipoVenta, productEntities, comboEntities)
         if (veredicto is VeredictoOrdenDePrecios.Invalido) {
             errorDePrecios = LineasDeVenta.mensajeParaVendedor(veredicto)
             guardando = false
@@ -507,6 +508,20 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             text = { Text(mensaje) },
             confirmButton = {
                 TextButton(onClick = { errorDePrecios = null }) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    // E-APP-067: aviso al pasar de CONTADO a CRÉDITO.
+    avisoCambioACredito?.let { aviso ->
+        AlertDialog(
+            onDismissRequest = { avisoCambioACredito = null },
+            title = { Text("Revisa los precios") },
+            text = { Text(aviso) },
+            confirmButton = {
+                TextButton(onClick = { avisoCambioACredito = null }) {
                     Text("Aceptar")
                 }
             }
@@ -696,7 +711,10 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                                     text = { Text(option) },
                                     onClick = {
                                         tipoVenta = option
-                                        saleProductsViewModel.setTipoVenta(option)
+                                        avisoCambioACredito = LineasDeVenta.avisoAlPasarACredito(
+                                            restaurados = saleProductsViewModel.setTipoVenta(option),
+                                            combosSinAnual = if (option == "CREDITO") saleProductsViewModel.combosSinAnual() else emptyList()
+                                        )
                                         expandedTipoVenta = false
                                         if (option == "CONTADO") {
                                             selectedZoneId = null

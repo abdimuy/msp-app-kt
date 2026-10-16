@@ -79,6 +79,7 @@ import com.example.msp_app.features.sales.components.productselector.ProductSale
 import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
+import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.NewSaleFormViewModel
@@ -118,6 +119,7 @@ fun NewSaleScreen(navController: NavController) {
     var showCreateComboDialog by remember { mutableStateOf(false) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
+    var avisoCambioACredito by remember { mutableStateOf<String?>(null) }
     var showErrorDialog by remember { mutableStateOf(false) }
     var expandedfrequency by remember { mutableStateOf(false) }
     var expandedDia by remember { mutableStateOf(false) }
@@ -275,6 +277,20 @@ fun NewSaleScreen(navController: NavController) {
             zonaClienteNombre = data.zonaClienteNombre,
             combos = comboEntities,
             clienteId = data.clienteId
+        )
+    }
+
+    // E-APP-067: aviso al pasar de CONTADO a CRÉDITO.
+    avisoCambioACredito?.let { aviso ->
+        AlertDialog(
+            onDismissRequest = { avisoCambioACredito = null },
+            title = { Text("Revisa los precios") },
+            text = { Text(aviso) },
+            confirmButton = {
+                TextButton(onClick = { avisoCambioACredito = null }) {
+                    Text("Aceptar")
+                }
+            }
         )
     }
 
@@ -729,7 +745,10 @@ fun NewSaleScreen(navController: NavController) {
                                     text = { Text(option) },
                                     onClick = {
                                         formViewModel.updateTipoVenta(option)
-                                        saleProductsViewModel.setTipoVenta(option)
+                                        avisoCambioACredito = LineasDeVenta.avisoAlPasarACredito(
+                                            restaurados = saleProductsViewModel.setTipoVenta(option),
+                                            combosSinAnual = if (option == "CREDITO") saleProductsViewModel.combosSinAnual() else emptyList()
+                                        )
                                         expandedTipoVenta = false
                                     }
                                 )
