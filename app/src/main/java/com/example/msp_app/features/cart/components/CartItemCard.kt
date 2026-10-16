@@ -54,7 +54,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.msp_app.R
 import com.example.msp_app.components.stock.ProductStock
-import com.example.msp_app.core.utils.parsePriceJsonToMap
+import com.example.msp_app.core.utils.preciosParaMostrar
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.viewmodels.CartItem
@@ -293,11 +293,9 @@ fun CartItemCard(
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    val priceMap = try {
-                        parsePriceJsonToMap(cartItem.product.PRECIOS)
-                    } catch (e: Exception) {
-                        emptyMap()
-                    }
+                    // E-APP-059: el orden lo da el tipo de cada precio; antes se invertía
+                    // la lista de llegada con `asReversed()`, que dependía de la posición.
+                    val precios = preciosParaMostrar(cartItem.product.PRECIOS)
 
                     if (useLargeLayout) {
                         Column(
@@ -306,7 +304,7 @@ fun CartItemCard(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            priceMap.toList().asReversed().forEach { (label, value) ->
+                            precios.forEach { (label, value) ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -334,7 +332,7 @@ fun CartItemCard(
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            priceMap.toList().asReversed().forEach { (label, value) ->
+                            precios.forEach { (label, value) ->
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {

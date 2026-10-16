@@ -1,5 +1,7 @@
 package com.example.msp_app.core.utils
 
+import com.example.msp_app.core.common.ventas.precios.ClasificadorDePrecios
+import com.example.msp_app.core.common.ventas.precios.TipoDePrecio
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -45,3 +47,30 @@ fun parsePriceJsonToMap(json: String?): Map<String, Double> {
         }
     }
 }
+
+/**
+ * Los precios del catálogo listos para pintar: contado → corto plazo → lista,
+ * desconocidos al final. E-APP-059: el orden lo da el NOMBRE de cada precio,
+ * nunca el orden en que llegó del servidor (`LIST()` de Firebird no lo garantiza).
+ * Sirve igual con la cadena vieja del servidor que con el JSON guardado en Room.
+ */
+fun preciosParaMostrar(prices: String?): List<Pair<String, Double>> = ClasificadorDePrecios.ordenar(
+    try {
+        parsePriceJsonToMap(prices)
+    } catch (e: Exception) {
+        emptyMap()
+    }
+)
+
+/**
+ * El precio de contado de la tarjeta del selector. E-APP-060: antes era
+ * `priceMap.values.lastOrNull()`, que dependía de la posición de llegada.
+ */
+fun precioDeContadoDeTarjeta(prices: String?): Double? = ClasificadorDePrecios.precioDe(
+    try {
+        parsePriceJsonToMap(prices)
+    } catch (e: Exception) {
+        emptyMap()
+    },
+    TipoDePrecio.CONTADO
+)

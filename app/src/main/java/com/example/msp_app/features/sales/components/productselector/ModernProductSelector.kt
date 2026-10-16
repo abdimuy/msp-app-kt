@@ -54,7 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.core.utils.parsePriceJsonToMap
+import com.example.msp_app.core.utils.precioDeContadoDeTarjeta
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
 
@@ -274,12 +274,8 @@ private fun ProductCard(
     val disponible = product.EXISTENCIAS - cantidadEnVenta
     var quantity by remember { mutableStateOf(1) }
 
-    val priceMap = try {
-        parsePriceJsonToMap(product.PRECIOS ?: "")
-    } catch (e: Exception) {
-        emptyMap()
-    }
-    val price = priceMap.values.lastOrNull() ?: "N/A"
+    // E-APP-060: el contado por su nombre, no "el último" del mapa.
+    val price = precioDeContadoDeTarjeta(product.PRECIOS) ?: "N/A"
 
     Card(
         modifier = Modifier.fillMaxWidth(),

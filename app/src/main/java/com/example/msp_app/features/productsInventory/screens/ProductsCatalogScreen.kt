@@ -66,7 +66,7 @@ import com.composables.icons.lucide.Truck
 import com.example.msp_app.R
 import com.example.msp_app.components.stock.ProductStock
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.core.utils.parsePriceJsonToMap
+import com.example.msp_app.core.utils.preciosParaMostrar
 import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
@@ -373,14 +373,11 @@ fun ProductCard(
                         ProductStock(stock = product.EXISTENCIAS)
                     }
 
-                    val priceMap = try {
-                        parsePriceJsonToMap(product.PRECIOS)
-                    } catch (e: Exception) {
-                        emptyMap()
-                    }
+                    // E-APP-059: contado → corto plazo → lista, sin importar el orden de llegada.
+                    val precios = preciosParaMostrar(product.PRECIOS)
 
-                    if (priceMap.isNotEmpty()) {
-                        priceMap.forEach { (label, value) ->
+                    if (precios.isNotEmpty()) {
+                        precios.forEach { (label, value) ->
                             Text(
                                 text = buildAnnotatedString {
                                     append("$label: ")

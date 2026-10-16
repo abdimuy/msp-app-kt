@@ -58,7 +58,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.core.utils.parsePriceJsonToMap
+import com.example.msp_app.core.utils.precioDeContadoDeTarjeta
 import com.example.msp_app.features.sales.viewmodels.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
@@ -215,12 +215,8 @@ fun SimpleProductSelector(
                                 saleProductsViewModel.getQuantityForProduct(product)
                             val disponible = product.EXISTENCIAS - cantidadEnVenta
 
-                            val priceMap = try {
-                                parsePriceJsonToMap(product.PRECIOS ?: "")
-                            } catch (e: Exception) {
-                                emptyMap()
-                            }
-                            val price = priceMap.values.lastOrNull() ?: "N/A"
+                            // E-APP-060: el contado por su nombre, no "el último" del mapa.
+                            val price = precioDeContadoDeTarjeta(product.PRECIOS) ?: "N/A"
 
                             DropdownMenuItem(
                                 text = {
