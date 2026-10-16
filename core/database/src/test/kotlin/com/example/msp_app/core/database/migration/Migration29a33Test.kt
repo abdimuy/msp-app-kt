@@ -300,10 +300,10 @@ class Migration29a33Test : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(
-                "abrir por el camino real de produccion debe terminar en v33",
-                V33,
-                abierta.openHelper.readableDatabase.version
+            assertTrue(
+                "abrir por el camino real de produccion debe pasar por v33 sin bloquearse " +
+                    "(y puede seguir de largo hasta la ultima version registrada)",
+                abierta.openHelper.readableDatabase.version >= V33
             )
 
             val venta = runBlocking { abierta.localSaleDao().getSaleById(SEEDED_SALE_ID) }
