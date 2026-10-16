@@ -85,7 +85,7 @@ object LineasDeVenta {
         productos: List<LocalSaleProductEntity>,
         combos: List<LocalSaleComboEntity>
     ): VeredictoOrdenDePrecios =
-        // E-APP-067: en crédito, además, cada línea suelta necesita anual > 0.
+        // E-APP-067/068: cada línea suelta necesita anual > 0 en crédito y contado > 0 en contado.
         ReglasDePreciosDeVenta.validar(
             esCredito = !esContado(tipoVenta),
             lineas = lineas(productos, combos)
@@ -95,26 +95,28 @@ object LineasDeVenta {
     fun lineas(
         productos: List<LocalSaleProductEntity>,
         combos: List<LocalSaleComboEntity>
-    ): List<LineaDePrecios> = combos.map { c ->
-        LineaDePrecios(
-            tipo = TipoDeLinea.COMBO,
-            nombre = c.NOMBRE_COMBO,
-            cantidad = CANTIDAD_COMBO,
-            contado = c.PRECIO_CONTADO.dinero(),
-            corto = c.PRECIO_CORTO_PLAZO.dinero(),
-            anual = c.PRECIO_LISTA.dinero()
-        )
-    } + productos.map { p ->
-        LineaDePrecios(
-            tipo = TipoDeLinea.PRODUCTO,
-            nombre = p.ARTICULO,
-            cantidad = BigDecimal(p.CANTIDAD),
-            contado = p.PRECIO_CONTADO.dinero(),
-            corto = p.PRECIO_CORTO_PLAZO.dinero(),
-            anual = p.PRECIO_LISTA.dinero(),
-            dentroDeCombo = p.COMBO_ID != null
-        )
-    }
+    ): List<LineaDePrecios> =
+        // E-APP-068: productos primero, como el servidor (caso 047): así los dos nombran la misma línea.
+        productos.map { p ->
+            LineaDePrecios(
+                tipo = TipoDeLinea.PRODUCTO,
+                nombre = p.ARTICULO,
+                cantidad = BigDecimal(p.CANTIDAD),
+                contado = p.PRECIO_CONTADO.dinero(),
+                corto = p.PRECIO_CORTO_PLAZO.dinero(),
+                anual = p.PRECIO_LISTA.dinero(),
+                dentroDeCombo = p.COMBO_ID != null
+            )
+        } + combos.map { c ->
+            LineaDePrecios(
+                tipo = TipoDeLinea.COMBO,
+                nombre = c.NOMBRE_COMBO,
+                cantidad = CANTIDAD_COMBO,
+                contado = c.PRECIO_CONTADO.dinero(),
+                corto = c.PRECIO_CORTO_PLAZO.dinero(),
+                anual = c.PRECIO_LISTA.dinero()
+            )
+        }
 
     /**
      * E-APP-067: el aviso al cambiar a CRÉDITO, o `null` si no hay nada que avisar.

@@ -179,6 +179,56 @@ class LineasDeVentaTest : RobolectricTestBase() {
     }
 
     @Test
+    fun `E-APP-068 en CONTADO un producto suelto o combo sin contado se detiene`() {
+        val sinContado = TestDataFactory.createProductInventory(
+            id = 8,
+            name = "Cómoda",
+            prices = "Precio de lista:1600.0"
+        )
+        val v = SaleProductsViewModel().apply {
+            setTipoVenta("CONTADO")
+            addProductToSale(sinContado, 1)
+        }
+        val veredicto = LineasDeVenta.validar(
+            "CONTADO",
+            LineasDeVenta.productos("v1", v.saleItems, "CONTADO"),
+            emptyList()
+        )
+        veredicto as VeredictoOrdenDePrecios.Invalido
+        assertEquals("precio_contado_requerido", veredicto.codigo)
+        assertTrue(LineasDeVenta.mensajeParaVendedor(veredicto).contains("Cómoda"))
+        // En crédito esa misma línea (sin contado, con anual) sí pasa.
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            LineasDeVenta.validar(
+                "CREDITO",
+                LineasDeVenta.productos("v1", v.saleItems, "CREDITO"),
+                emptyList()
+            )
+        )
+    }
+
+    @Test
+    fun `E-APP-068 caso 047 - con producto y combo malos se nombra el producto como el servidor`() {
+        val suelto = TestDataFactory.createProductInventory(
+            id = 8,
+            name = "Cómoda",
+            prices = "Precio de lista:1600.0"
+        )
+        val v = SaleProductsViewModel().apply {
+            setTipoVenta("CONTADO")
+            addProductToSale(suelto, 1)
+        }
+        val veredicto = LineasDeVenta.validar(
+            "CONTADO",
+            LineasDeVenta.productos("v1", v.saleItems, "CONTADO"),
+            listOf(combo(3000.0, 2500.0, 0.0))
+        ) as VeredictoOrdenDePrecios.Invalido
+        assertEquals("precio_contado_requerido", veredicto.codigo)
+        assertEquals("Cómoda", veredicto.linea?.nombre)
+    }
+
+    @Test
     fun `E-APP-067 aviso al pasar a credito`() {
         assertEquals(null, LineasDeVenta.avisoAlPasarACredito(emptyList(), emptyList()))
         assertEquals(
@@ -211,7 +261,7 @@ class LineasDeVentaTest : RobolectricTestBase() {
                 val p = TestDataFactory.createProductInventory(
                     id = i + 1,
                     prices = "Precio de lista:${rnd.nextInt(0, 9000)}.0, " +
-                        "Precio 4 Meses:${rnd.nextInt(0, 9000)}.0, Precio 1 Meses:${rnd.nextInt(0, 9000)}.0"
+                        "Precio 4 Meses:${rnd.nextInt(0, 9000)}.0, Precio 1 Meses:${rnd.nextInt(1, 9000)}.0"
                 )
                 v.addProductToSale(p, rnd.nextInt(1, 4))
             }
@@ -220,7 +270,7 @@ class LineasDeVentaTest : RobolectricTestBase() {
                     combo(
                         rnd.nextInt(0, 9000).toDouble(),
                         rnd.nextInt(0, 9000).toDouble(),
-                        rnd.nextInt(0, 9000).toDouble()
+                        rnd.nextInt(1, 9000).toDouble()
                     )
                 ),
                 "CONTADO"
