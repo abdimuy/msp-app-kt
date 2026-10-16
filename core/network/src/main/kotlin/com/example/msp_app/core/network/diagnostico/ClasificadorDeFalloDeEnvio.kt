@@ -9,6 +9,7 @@ import java.net.ConnectException
 import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.util.concurrent.CancellationException
 import javax.net.ssl.SSLException
 
 /**
@@ -28,7 +29,8 @@ data class FalloDeEnvio(val codigo: String, val mensaje: String, val http: Int)
  *
  * Reglas:
  * - Hay excepción ⇒ no hubo respuesta: `timeout`, `dns_error`, `tls_error`,
- *   `network_error`, `cancelado` o `error_inesperado`, con `http = 0`.
+ *   `network_error`, `cancelado` (cancelación de corrutina o `Canceled` de
+ *   OkHttp) o `error_inesperado`, con `http = 0`.
  * - `http` 2xx sin excepción ⇒ `null` (no es un fallo).
  * - `http` no 2xx ⇒ el `code` del problem+json del servidor (`response.go`
  *   `Problem.Code`) si viene; si no, `http_<estado>`. El mensaje es el `detail`
@@ -69,6 +71,9 @@ object ClasificadorDeFalloDeEnvio {
     }
 
     private fun porExcepcion(error: Throwable): FalloDeEnvio = when {
+        // `kotlinx.coroutines.CancellationException` es este mismo tipo en la JVM:
+        // el worker fue cancelado (WorkManager lo detuvo), no un error del envío.
+        error is CancellationException -> red("cancelado", "Envío interrumpido")
         error is SocketTimeoutException -> red("timeout", "Tiempo agotado")
         error is UnknownHostException -> red("dns_error", "Servidor no encontrado")
         error is SSLException -> red("tls_error", "Conexión no segura")

@@ -41,7 +41,8 @@ class ClasificadorDeFalloDeEnvioTest {
             IOException("Canceled") to "cancelado",
             IOException("unexpected end of stream on http://x") to "network_error",
             IllegalStateException("boom") to "error_inesperado",
-            CancellationException("job cancelled") to "error_inesperado",
+            CancellationException("job cancelled") to "cancelado",
+            kotlinx.coroutines.CancellationException("worker detenido") to "cancelado",
             OutOfMemoryError("no") to "error_inesperado"
         )
         casos.forEach { (error, esperado) ->
