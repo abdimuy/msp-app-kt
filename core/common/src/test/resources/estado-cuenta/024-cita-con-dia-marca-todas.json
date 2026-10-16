@@ -4,6 +4,7 @@
     "inicio": "2026-10-09T13:46:00Z",
     "fin": "2026-10-14T22:40:00Z"
   },
+  "hoy": "2026-10-14",
   "cuentas": [
     {
       "venta_id": 1,
@@ -32,12 +33,14 @@
     {
       "venta_id": 1,
       "estado": "cita_a_una_hora",
-      "con_algo": true
+      "con_algo": true,
+      "columna": "por_visitar"
     },
     {
       "venta_id": 2,
       "estado": "cita_a_una_hora",
-      "con_algo": true
+      "con_algo": true,
+      "columna": "por_visitar"
     }
   ]
 }

@@ -1,5 +1,6 @@
 package com.example.msp_app.core.common.cobranza.domain.casos
 
+import com.example.msp_app.core.common.cobranza.domain.ColumnaDeCobranza
 import com.example.msp_app.core.common.cobranza.domain.CuentaDelPeriodo
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.PagoEnVentana
@@ -25,7 +26,12 @@ internal object CodigoEstado {
     fun aCodigo(estado: EstadoCuenta): String = estado.name.lowercase(Locale.ROOT)
 }
 
-internal data class Esperado(val ventaId: Int, val estado: EstadoCuenta, val conAlgo: Boolean)
+internal data class Esperado(
+    val ventaId: Int,
+    val estado: EstadoCuenta,
+    val conAlgo: Boolean,
+    val columna: ColumnaDeCobranza
+)
 
 /**
  * Un caso del juego compartido con msp-api (contratos de desempeño §7). El
@@ -37,6 +43,7 @@ internal data class CasoDeEstadoCuenta(
     val archivo: String,
     val nombre: String,
     val ventana: VentanaCobro,
+    val hoy: LocalDate,
     val cuentas: List<CuentaDelPeriodo>,
     val pagos: List<PagoEnVentana>,
     val visitas: List<VisitaEnVentana>,
@@ -47,11 +54,21 @@ internal data class CasoDeEstadoCuenta(
     companion object {
         fun desdeJson(archivo: String, texto: String): CasoDeEstadoCuenta {
             val raiz = JsonParser.parseString(texto).asJsonObject
-            raiz.soloClaves(archivo, "nombre", "ventana", "cuentas", "pagos", "visitas", "esperado")
+            raiz.soloClaves(
+                archivo,
+                "nombre",
+                "ventana",
+                "hoy",
+                "cuentas",
+                "pagos",
+                "visitas",
+                "esperado"
+            )
             val caso = CasoDeEstadoCuenta(
                 archivo = archivo,
                 nombre = raiz.str(archivo, "nombre"),
                 ventana = ventanaDe(archivo, raiz.obj(archivo, "ventana")),
+                hoy = LocalDate.parse(raiz.str(archivo, "hoy")),
                 cuentas = raiz.arr(archivo, "cuentas").map { cuentaDe(archivo, it) },
                 pagos = raiz.arr(archivo, "pagos").map { pagoDe(archivo, it) },
                 visitas = raiz.arr(archivo, "visitas").map { visitaDe(archivo, it) },
@@ -127,11 +144,16 @@ internal data class CasoDeEstadoCuenta(
         }
 
         private fun esperadoDe(archivo: String, o: JsonObject): Esperado {
-            o.soloClaves(archivo, "venta_id", "estado", "con_algo")
+            o.soloClaves(archivo, "venta_id", "estado", "con_algo", "columna")
             return Esperado(
                 ventaId = o.int(archivo, "venta_id"),
                 estado = CodigoEstado.aEnum(o.str(archivo, "estado")),
-                conAlgo = o.bool(archivo, "con_algo")
+                conAlgo = o.bool(archivo, "con_algo"),
+                columna = o.str(archivo, "columna").let { c ->
+                    requireNotNull(ColumnaDeCobranza.entries.firstOrNull { it.codigo == c }) {
+                        "$archivo: columna desconocida \"$c\""
+                    }
+                }
             )
         }
 

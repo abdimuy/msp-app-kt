@@ -1,8 +1,10 @@
 package com.example.msp_app.core.common.cobranza.domain.casos
 
 import com.example.msp_app.core.common.cobranza.domain.CoberturaDelPeriodo
+import com.example.msp_app.core.common.cobranza.domain.ColumnaDeCobranza
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuentaDeriver
+import com.example.msp_app.core.common.cobranza.domain.columnaDe
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -37,10 +39,12 @@ internal class EstadoCuentaCasosCompartidosTest(private val caso: CasoDeEstadoCu
             caso.ventana
         )
         val obtenido = caso.cuentas.map {
+            val r = derivacion.porVenta.getValue(it.ventaId)
             Esperado(
                 it.ventaId,
-                derivacion.porVenta.getValue(it.ventaId).estado,
-                it.ventaId in conAlgo
+                r.estado,
+                it.ventaId in conAlgo,
+                columnaDe(r.estado, r.fechaPromesa, r.horaCita, caso.hoy)
             )
         }.sortedBy { it.ventaId }
         assertEquals(caso.toString(), caso.esperado.sortedBy { it.ventaId }, obtenido)
@@ -64,6 +68,18 @@ class JuegoDeCasosCoberturaTest {
     fun `los ocho estados aparecen en algun esperado`() {
         val vistos = casos.flatMap { c -> c.esperado.map { it.estado } }.toSet()
         assertEquals(EstadoCuenta.entries.toSet(), vistos)
+    }
+
+    @Test
+    fun `aparecen las tres columnas`() {
+        val vistas = casos.flatMap { c -> c.esperado.map { it.columna } }.toSet()
+        assertEquals(ColumnaDeCobranza.entries.toSet(), vistas)
+    }
+
+    @Test
+    fun `estan los nueve casos de columna 041 a 049`() {
+        val prefijos = casos.map { it.archivo.substring(0, 3) }.toSet()
+        assertTrue("faltan casos 041-049", (41..49).all { "%03d".format(it) in prefijos })
     }
 
     @Test

@@ -12,6 +12,7 @@ class CasoDeEstadoCuentaParseoTest {
     private val valido = """
         { "nombre": "cliente con dos ventas, no estaba marca ambas",
           "ventana": { "inicio": "2026-10-09T13:46:00Z", "fin": "2026-10-14T22:40:00Z" },
+          "hoy": "2026-10-14",
           "cuentas": [ { "venta_id": 1, "cliente_id": 10, "parcialidad": "150.00" },
                        { "venta_id": 2, "cliente_id": 10, "parcialidad": "200.00" } ],
           "pagos":   [ { "venta_id": 1, "importe": "150.00", "forma_cobro_id": 157,
@@ -19,8 +20,8 @@ class CasoDeEstadoCuentaParseoTest {
           "visitas": [ { "cliente_id": 10, "venta_id": null, "tipo_visita": "No se encontraba",
                          "fecha_hora": "2026-10-11T16:00:00Z", "fecha_cita": null, "hora_cita": null,
                          "fecha_promesa": null } ],
-          "esperado": [ { "venta_id": 1, "estado": "pago", "con_algo": true },
-                        { "venta_id": 2, "estado": "no_estaba", "con_algo": true } ] }
+          "esperado": [ { "venta_id": 1, "estado": "pago", "con_algo": true, "columna": "pagados" },
+                        { "venta_id": 2, "estado": "no_estaba", "con_algo": true, "columna": "por_visitar" } ] }
     """.trimIndent()
 
     private fun rechaza(json: String, debeMencionar: String) {
@@ -58,6 +59,16 @@ class CasoDeEstadoCuentaParseoTest {
     }
 
     @Test
+    fun `hoy ausente se rechaza`() {
+        rechaza(valido.replace("\"hoy\": \"2026-10-14\",", ""), "falta la clave [hoy]")
+    }
+
+    @Test
+    fun `columna desconocida se rechaza`() {
+        rechaza(valido.replace("\"por_visitar\"", "\"volver\""), "columna desconocida \"volver\"")
+    }
+
+    @Test
     fun `codigo de estado desconocido se rechaza`() {
         rechaza(valido.replace("\"no_estaba\"", "\"NO_ESTABA\""), "NO_ESTABA")
     }
@@ -80,7 +91,9 @@ class CasoDeEstadoCuentaParseoTest {
     @Test
     fun `esperado incompleto se rechaza`() {
         val sinVentaDos = valido.replace(
-            Regex(""",\s*\{ "venta_id": 2, "estado": "no_estaba", "con_algo": true \}"""),
+            Regex(
+                """,\s*\{ "venta_id": 2, "estado": "no_estaba", "con_algo": true, "columna": "por_visitar" \}"""
+            ),
             ""
         )
         // Control: el reemplazo sí ocurrió (si no, la prueba pasaría por otra razón).

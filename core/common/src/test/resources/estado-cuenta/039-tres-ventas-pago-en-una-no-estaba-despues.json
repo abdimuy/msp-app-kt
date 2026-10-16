@@ -4,6 +4,7 @@
     "inicio": "2026-10-09T13:46:00Z",
     "fin": "2026-10-14T22:40:00Z"
   },
+  "hoy": "2026-10-14",
   "cuentas": [
     {
       "venta_id": 1,
@@ -45,17 +46,20 @@
     {
       "venta_id": 1,
       "estado": "pago",
-      "con_algo": true
+      "con_algo": true,
+      "columna": "pagados"
     },
     {
       "venta_id": 2,
       "estado": "no_estaba",
-      "con_algo": true
+      "con_algo": true,
+      "columna": "por_visitar"
     },
     {
       "venta_id": 3,
       "estado": "no_estaba",
-      "con_algo": true
+      "con_algo": true,
+      "columna": "por_visitar"
     }
   ]
 }
