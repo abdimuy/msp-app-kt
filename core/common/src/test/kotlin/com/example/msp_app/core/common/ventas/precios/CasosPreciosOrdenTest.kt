@@ -32,7 +32,9 @@ class CasosPreciosOrdenTest {
         val cantidad: String?,
         @SerializedName("precio_contado") val precioContado: String?,
         @SerializedName("precio_corto") val precioCorto: String?,
-        @SerializedName("precio_anual") val precioAnual: String?
+        @SerializedName("precio_anual") val precioAnual: String?,
+        // v3: hijo del combo inmediato anterior; ausente = false.
+        @SerializedName("dentro_de_combo") val dentroDeCombo: Boolean?
     )
 
     private class Esperado(val ok: Boolean?, val codigo: String?)
@@ -74,10 +76,9 @@ class CasosPreciosOrdenTest {
     @Test
     fun `E-APP-062 cada caso compartido da el veredicto esperado`() {
         val juego = juego()
-        // E-APP-067: la versión 1 del juego codifica la regla de orden sola; la regla de
-        // anual en crédito (`precio_anual_credito_requerido`) entra cuando el servidor sube
-        // la versión. Mientras tanto, v1 se corre contra la regla de orden únicamente.
-        val conAnualEnCredito = requireNotNull(juego.version) >= VERSION_CON_ANUAL
+        // La versión 1 del juego codifica sólo la regla de orden; desde la 2 entran las de
+        // anual en crédito (E-APP-067) y, desde la 3, contado en contado (E-APP-068).
+        val conReglasDeLineaSuelta = requireNotNull(juego.version) >= VERSION_CON_ANUAL
         val fallas = requireNotNull(juego.casos).mapNotNull { caso ->
             val nombre = requireNotNull(caso.nombre)
             // El tipo de venta no cambia la regla (igual que el servidor); sólo se exige que venga.
@@ -95,11 +96,21 @@ class CasosPreciosOrdenTest {
                     cantidad = BigDecimal(requireNotNull(l.cantidad) { nombre }),
                     contado = BigDecimal(requireNotNull(l.precioContado) { nombre }),
                     corto = BigDecimal(requireNotNull(l.precioCorto) { nombre }),
-                    anual = BigDecimal(requireNotNull(l.precioAnual) { nombre })
+                    anual = BigDecimal(requireNotNull(l.precioAnual) { nombre }),
+                    dentroDeCombo = l.dentroDeCombo == true
                 )
             }
+            // Un hijo (`dentro_de_combo`) cuelga del combo inmediato anterior.
+            caso.lineas.forEachIndexed { i, l ->
+                if (l.dentroDeCombo == true) {
+                    val padre = caso.lineas.take(i).lastOrNull { it.dentroDeCombo != true }
+                    require(
+                        padre?.tipo == "combo"
+                    ) { "$nombre: hijo sin combo anterior en la línea $i" }
+                }
+            }
             val esperado = requireNotNull(caso.esperado) { nombre }
-            val obtenido = if (conAnualEnCredito) {
+            val obtenido = if (conReglasDeLineaSuelta) {
                 ReglasDePreciosDeVenta.validar(
                     esCredito = caso.tipoVenta == "CREDITO",
                     lineas = lineas

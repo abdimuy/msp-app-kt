@@ -146,6 +146,39 @@ class ReglaOrdenDePreciosTest {
         )
     }
 
+    @Test
+    fun `E-APP-068 en contado cada linea suelta necesita contado, mensaje del servidor`() {
+        assertEquals("precio_contado_requerido", ReglaContadoEnContado.CODIGO)
+        assertEquals(
+            "en una venta de contado cada producto y cada combo debe llevar precio de contado mayor a cero",
+            ReglaContadoEnContado.MENSAJE
+        )
+        val sinContado = linea("0", "2500", "3000", TipoDeLinea.COMBO)
+        assertEquals(
+            VeredictoOrdenDePrecios.Invalido(
+                ReglaContadoEnContado.CODIGO,
+                ReglaContadoEnContado.MENSAJE,
+                sinContado
+            ),
+            ReglasDePreciosDeVenta.validar(esCredito = false, lineas = listOf(sinContado))
+        )
+        // Hijo de combo en 0 no cuenta; en crédito no aplica.
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            ReglasDePreciosDeVenta.validar(
+                esCredito = false,
+                lineas = listOf(
+                    linea("2000", "0", "0", TipoDeLinea.COMBO),
+                    linea("0", "0", "0", dentroDeCombo = true)
+                )
+            )
+        )
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            ReglasDePreciosDeVenta.validar(esCredito = true, lineas = listOf(sinContado))
+        )
+    }
+
     private companion object {
         const val SEMILLA = 20261016
         const val ITERACIONES = 2000

@@ -112,16 +112,35 @@ object ReglaAnualEnCredito {
 }
 
 /**
+ * E-APP-068: en una venta de CONTADO cada línea suelta (producto fuera de combo,
+ * o combo) necesita precio de contado > 0; Microsip aplica la venta de contado al
+ * precio de contado y la línea saldría gratis. Mismo código y mensaje que el
+ * servidor (`errors.go:643-646`, E-VEN-008).
+ */
+object ReglaContadoEnContado {
+
+    const val CODIGO = "precio_contado_requerido"
+    const val MENSAJE =
+        "en una venta de contado cada producto y cada combo debe llevar precio de contado mayor a cero"
+
+    fun validar(lineas: List<LineaDePrecios>): VeredictoOrdenDePrecios =
+        lineas.firstOrNull { !it.dentroDeCombo && it.contado.signum() <= 0 }
+            ?.let { VeredictoOrdenDePrecios.Invalido(CODIGO, MENSAJE, it) }
+            ?: VeredictoOrdenDePrecios.Valido
+}
+
+/**
  * Todas las reglas de precios de una venta, en el orden del servidor (fijado por
- * el juego compartido v2): orden por línea (caso 010), luego anual en crédito,
- * luego totales (caso 019).
+ * el juego compartido): orden por línea (caso 010), luego anual en crédito o
+ * contado en contado, luego totales (caso 019). Las líneas van como las recorre
+ * el servidor: productos primero, combos después (caso 047).
  */
 object ReglasDePreciosDeVenta {
 
     fun validar(esCredito: Boolean, lineas: List<LineaDePrecios>): VeredictoOrdenDePrecios {
-        val reglas = listOfNotNull<(List<LineaDePrecios>) -> VeredictoOrdenDePrecios>(
+        val reglas = listOf<(List<LineaDePrecios>) -> VeredictoOrdenDePrecios>(
             ReglaOrdenDePrecios::validarLineas,
-            if (esCredito) ReglaAnualEnCredito::validar else null,
+            if (esCredito) ReglaAnualEnCredito::validar else ReglaContadoEnContado::validar,
             ReglaOrdenDePrecios::validarTotales
         )
         for (regla in reglas) {
