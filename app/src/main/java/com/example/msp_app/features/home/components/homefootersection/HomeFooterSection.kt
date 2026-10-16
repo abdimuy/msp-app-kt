@@ -49,7 +49,10 @@ fun HomeFooterSection(
     onResendAllPayments: () -> Unit,
     onLogout: () -> Unit,
     onInitWeek: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Solo diagnóstico (E-APP-063): el motivo del último fallo de envío.
+    motivoVisitas: String? = null,
+    motivoPagos: String? = null
 ) {
     val showDialogInitWeek = remember { mutableStateOf(false) }
     val baseURL = ApiProvider.baseURL.collectAsState()
@@ -94,6 +97,9 @@ fun HomeFooterSection(
                                 "Visitas Pendientes: ${pending.size}"
                             }
                         )
+                        if (pending.isNotEmpty() && motivoVisitas != null) {
+                            MotivoDeEnvio(motivoVisitas)
+                        }
                     }
 
                     else -> {}
@@ -134,6 +140,9 @@ fun HomeFooterSection(
                                 "Pagos Pendientes: ${pending.size}"
                             }
                         )
+                        if (pending.isNotEmpty() && motivoPagos != null) {
+                            MotivoDeEnvio(motivoPagos)
+                        }
                     }
 
                     else -> {}
@@ -212,4 +221,14 @@ fun HomeFooterSection(
             fontSize = 14.sp
         )
     }
+}
+
+/** Una línea con el motivo del último fallo de envío (E-APP-063). Solo informa. */
+@Composable
+private fun MotivoDeEnvio(texto: String) {
+    Text(
+        text = texto,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error
+    )
 }

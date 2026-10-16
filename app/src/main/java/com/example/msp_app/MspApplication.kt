@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.example.msp_app.core.debug.RemoteDbDebugger
+import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
@@ -52,6 +53,9 @@ class MspApplication : Application(), Configuration.Provider {
 
         // Inicializar el sistema de debug remoto de base de datos
         initializeRemoteDbDebugger()
+
+        // Motivo del último fallo de envío (solo diagnóstico, E-APP-063)
+        EnvioDiagnostico.instalar(this)
 
         // Inicializar sincronización periódica de clientes
         enqueueClienteSyncWorker(this)

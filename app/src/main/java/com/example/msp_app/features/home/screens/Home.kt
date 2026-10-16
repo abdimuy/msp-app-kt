@@ -49,6 +49,8 @@ import com.example.msp_app.components.UpdateBanner
 import com.example.msp_app.core.common.location.label
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.diagnosticoenvio.LectorDeEnvioDiagnostico
 import com.example.msp_app.core.utils.CurrentLocationReader
 import com.example.msp_app.core.utils.FuenteDePosicion
 import com.example.msp_app.core.utils.ResultState
@@ -84,6 +86,7 @@ import java.time.ZoneOffset
 import java.util.Locale
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -110,6 +113,28 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
 
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
+
+    // Solo diagnóstico (E-APP-063): el motivo del último fallo de los pendientes.
+    val lectorDeDiagnostico = remember {
+        runCatching {
+            LectorDeEnvioDiagnostico(
+                AppDatabase.getInstance(context).envioDiagnosticoDao()
+            )
+        }
+            .getOrNull()
+    }
+    val idsPagosPendientes = (pendingPaymentsState as? ResultState.Success)?.data
+        ?.map { it.ID }?.toSet().orEmpty()
+    val idsVisitasPendientes = (visitsPendingState as? ResultState.Success)?.data
+        ?.map { it.ID }?.toSet().orEmpty()
+    val motivoPagos by remember(lectorDeDiagnostico, idsPagosPendientes) {
+        lectorDeDiagnostico?.motivoMasReciente(LectorDeEnvioDiagnostico.TIPO_PAGO, idsPagosPendientes)
+            ?: flowOf(null)
+    }.collectAsState(initial = null)
+    val motivoVisitas by remember(lectorDeDiagnostico, idsVisitasPendientes) {
+        lectorDeDiagnostico?.motivoMasReciente(LectorDeEnvioDiagnostico.TIPO_VISITA, idsVisitasPendientes)
+            ?: flowOf(null)
+    }.collectAsState(initial = null)
 
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
 
@@ -434,7 +459,9 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                             },
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
-                            onInitWeek = { authViewModel.updateStartOfWeekDate() }
+                            onInitWeek = { authViewModel.updateStartOfWeekDate() },
+                            motivoVisitas = motivoVisitas,
+                            motivoPagos = motivoPagos
                         )
                     }
                 }

@@ -11,6 +11,11 @@ import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
+import com.example.msp_app.core.network.diagnostico.ClasificadorDeFalloDeEnvio
+import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
+import com.example.msp_app.core.network.diagnostico.EnvioObservado
+import com.example.msp_app.core.network.diagnostico.FalloDeEnvio
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
@@ -76,7 +81,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
     internal val imagenes: VisitImageDao =
         AppDatabase.getInstance(appContext).visitImageDao(),
     @VisibleForTesting
-    internal val clock: AppClock = AppClock.System
+    internal val clock: AppClock = AppClock.System,
+    /**
+     * Solo diagnóstico (E-APP-065): anota el motivo de cada salida. No bloquea
+     * y nunca lanza hacia aquí; ver [anotar].
+     */
+    @VisibleForTesting
+    internal val diagnostico: EnvioDiagnosticoSink = EnvioDiagnostico.sink
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -102,6 +113,7 @@ class PendingVisitsWorker @JvmOverloads constructor(
             // Un fallo de LECTURA no se traga: ver `comprobantesDe`.
             val comprobantes = comprobantesDe(visit)
                 ?: return Result.retry().also {
+                    anotar(visit.ID, FALLO_COMPROBANTES)
                     Log.w(
                         TAG,
                         "Visita ${visit.ID}: no se pudieron leer los comprobantes; " +
@@ -111,9 +123,11 @@ class PendingVisitsWorker @JvmOverloads constructor(
             val response = enviar(visit, comprobantes)
             markUploaded(comprobantes)
             markDone(visit.ID)
+            anotar(visit.ID, null)
             Log.i(TAG, "Visita aplicada en v2: ${visit.ID} (server=${response.id})")
             Result.success()
         } catch (e: HttpException) {
+            anotarHttp(visit.ID, e)
             when (VisitUploadClassifier.classifyHttpCode(e.code())) {
                 VisitUploadDecision.DONE -> {
                     // 4xx captured server-side → el desk la corrige; el teléfono terminó.
@@ -168,11 +182,58 @@ class PendingVisitsWorker @JvmOverloads constructor(
             }
         } catch (e: IOException) {
             // El server no la vio: jamás marcar lista. El teléfono la conserva.
+            anotarExcepcion(visit.ID, e)
             Log.w(TAG, "Visita ${visit.ID}: error de red, reintentando", e)
             Result.retry()
         } catch (e: Exception) {
+            anotarExcepcion(visit.ID, e)
             Log.e(TAG, "Visita ${visit.ID}: error inesperado, reintentando", e)
             Result.retry()
+        }
+    }
+
+    // ─── diagnóstico (E-APP-065) ───────────────────────────────────────────
+    //
+    // Las tres funciones de abajo SOLO anotan. Cada una envuelve todo en
+    // `try/catch (Throwable)` y no devuelve nada, así que no hay manera de que
+    // cambien el `Result` ni el orden de `markUploaded`/`markDone`: el camino de
+    // decisión de arriba es idéntico con o sin ellas
+    // (`PendingVisitsWorkerDiagnosticoTest`, E-APP-065).
+
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private fun anotar(visitId: String, fallo: FalloDeEnvio?) {
+        try {
+            diagnostico.registrar(EnvioObservado(TIPO_VISITA, visitId, fallo))
+        } catch (_: Throwable) {
+            // Diagnóstico: jamás cambia la decisión.
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private fun anotarHttp(visitId: String, e: HttpException) {
+        try {
+            // `peek()`: el cuerpo de error ya viene en memoria (Retrofit lo
+            // bufferea) y así queda intacto para cualquier lector posterior.
+            val cuerpo = try {
+                e.response()?.errorBody()?.source()?.peek()?.let { vistazo ->
+                    vistazo.request(MAX_CUERPO_BYTES)
+                    vistazo.buffer.readUtf8(minOf(vistazo.buffer.size, MAX_CUERPO_BYTES))
+                }
+            } catch (_: Throwable) {
+                null
+            }
+            anotar(visitId, ClasificadorDeFalloDeEnvio.clasificar(e.code(), cuerpo, null))
+        } catch (_: Throwable) {
+            // Diagnóstico: jamás cambia la decisión.
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private fun anotarExcepcion(visitId: String, e: Throwable) {
+        try {
+            anotar(visitId, ClasificadorDeFalloDeEnvio.clasificar(null, null, e))
+        } catch (_: Throwable) {
+            // Diagnóstico: jamás cambia la decisión.
         }
     }
 
@@ -278,9 +339,11 @@ class PendingVisitsWorker @JvmOverloads constructor(
             Log.d(TAG, "Enviando visita (legacy): ${visit.ID}")
             legacyApi.saveVisit(visit.toDomain())
             markDone(visit.ID)
+            anotar(visit.ID, null)
             Log.d(TAG, "Visita marcada como enviada (legacy): ${visit.ID}")
             Result.success()
         } catch (e: Exception) {
+            if (e is HttpException) anotarHttp(visit.ID, e) else anotarExcepcion(visit.ID, e)
             Log.e(TAG, "Error al enviar visita ${visit.ID} (legacy)", e)
             Result.retry()
         }
@@ -295,5 +358,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
 
         /** Max attempts before a server-side 5xx is treated as captured/done. */
         const val DEFAULT_MAX_ATTEMPTS = 10
+
+        private const val TIPO_VISITA = "visita"
+        private const val MAX_CUERPO_BYTES = 8L * 1024L
+        private val FALLO_COMPROBANTES = FalloDeEnvio(
+            codigo = "comprobantes_ilegibles",
+            mensaje = "No se pudieron leer las fotos",
+            http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
+        )
     }
 }
