@@ -54,9 +54,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.ModernSpinner
+import com.example.msp_app.core.common.ventas.precios.VeredictoOrdenDePrecios
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
-import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
 import com.example.msp_app.feature.ventacorreccion.domain.TextosCorreccion
@@ -70,12 +70,12 @@ import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
 import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
+import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.NewSaleFormState
 import com.example.msp_app.features.sales.viewmodels.NewSaleFormValidator
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
-import com.example.msp_app.utils.PriceParser
 
 /**
  * Cáscara sobre el formulario de edición (plan "Corregir una venta antes de que suba", Task 5):
@@ -171,6 +171,9 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
     // Dialogs
     var showSuccessDialog by remember { mutableStateOf(false) }
+
+    // E-APP-062: la venta no se guarda si sus precios rompen el orden del servidor.
+    var errorDePrecios by remember { mutableStateOf<String?>(null) }
 
     // Flag to track if form was initialized
     var formInitialized by remember { mutableStateOf(false) }
@@ -431,29 +434,33 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             else -> ""
         }
 
-        val comboEntities = saleProductsViewModel.getCombosList().map { combo ->
-            LocalSaleComboEntity(
-                COMBO_ID = combo.comboId,
-                LOCAL_SALE_ID = localSaleId,
-                NOMBRE_COMBO = combo.nombreCombo,
-                PRECIO_LISTA = combo.precioLista,
-                PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
-                PRECIO_CONTADO = combo.precioContado
-            )
-        }
+        // E-APP-061: mismas líneas que el alta; en CONTADO sólo el contado.
+        val comboEntities = LineasDeVenta.combos(
+            saleProductsViewModel.getCombosList().map { combo ->
+                LocalSaleComboEntity(
+                    COMBO_ID = combo.comboId,
+                    LOCAL_SALE_ID = localSaleId,
+                    NOMBRE_COMBO = combo.nombreCombo,
+                    PRECIO_LISTA = combo.precioLista,
+                    PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
+                    PRECIO_CONTADO = combo.precioContado
+                )
+            },
+            tipoVenta
+        )
 
-        val productEntities = saleProductsViewModel.saleItems.map { saleItem ->
-            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-            LocalSaleProductEntity(
-                LOCAL_SALE_ID = localSaleId,
-                ARTICULO_ID = saleItem.product.ARTICULO_ID,
-                ARTICULO = saleItem.product.ARTICULO,
-                CANTIDAD = saleItem.quantity,
-                PRECIO_LISTA = parsedPrices.precioLista,
-                PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
-                PRECIO_CONTADO = parsedPrices.precioContado,
-                COMBO_ID = saleItem.comboId
-            )
+        val productEntities = LineasDeVenta.productos(
+            localSaleId,
+            saleProductsViewModel.saleItems,
+            tipoVenta
+        )
+
+        // E-APP-062: la regla de orden del servidor antes de guardar la corrección.
+        val veredicto = LineasDeVenta.validar(productEntities, comboEntities)
+        if (veredicto is VeredictoOrdenDePrecios.Invalido) {
+            errorDePrecios = LineasDeVenta.mensajeParaVendedor(veredicto)
+            guardando = false
+            return
         }
 
         val campos = CamposVentaCorregidos(
@@ -472,9 +479,13 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             avalOResponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
             nota = note.text,
             diaCobranza = if (tipoVenta == "CONTADO") "" else collectionday,
-            precioTotal = saleProductsViewModel.getTotalPrecioListaWithCombos(),
+            precioTotal = if (tipoVenta == "CONTADO") 0.0 else saleProductsViewModel.getTotalPrecioListaWithCombos(),
             tiempoACortoPlazoMeses = 0,
-            montoACortoPlazo = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
+            montoACortoPlazo = if (tipoVenta == "CONTADO") {
+                0.0
+            } else {
+                saleProductsViewModel.getTotalMontoCortoPlazoWithCombos()
+            },
             montoDeContado = saleProductsViewModel.getTotalMontoContadoWithCombos(),
             numero = numero.text.trim().ifBlank { null },
             colonia = colonia.text.trim().ifBlank { null },
@@ -487,6 +498,19 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         )
 
         correccionViewModel.guardar(campos, productEntities, comboEntities, userEmail)
+    }
+
+    errorDePrecios?.let { mensaje ->
+        AlertDialog(
+            onDismissRequest = { errorDePrecios = null },
+            title = { Text("Revisa los precios") },
+            text = { Text(mensaje) },
+            confirmButton = {
+                TextButton(onClick = { errorDePrecios = null }) {
+                    Text("Aceptar")
+                }
+            }
+        )
     }
 
     // Success dialog

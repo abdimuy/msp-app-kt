@@ -362,6 +362,9 @@ fun NewSaleScreen(navController: NavController) {
                         loadedDraft?.let { d ->
                             saleProductsViewModel.clearSale()
                             formViewModel.applyDraft(d)
+                            // E-APP-061: sin esto el borrador de CONTADO se restauraba con
+                            // el ViewModel de líneas en CREDITO (su valor por omisión).
+                            saleProductsViewModel.setTipoVenta(d.tipoVenta)
 
                             // Restore products and combos
                             val draftProducts = formViewModel.draftManager.jsonToDraftProducts(

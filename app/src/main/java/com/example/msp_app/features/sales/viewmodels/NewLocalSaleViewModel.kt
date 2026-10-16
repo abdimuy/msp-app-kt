@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.ventas.precios.VeredictoOrdenDePrecios
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
@@ -16,7 +17,7 @@ import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
-import com.example.msp_app.utils.PriceParser
+import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -288,6 +289,25 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         return@withLock
                     }
 
+                    // E-APP-061: en CONTADO las líneas llevan sólo el contado.
+                    val productEntities = LineasDeVenta.productos(saleId, saleProducts, tipoVenta)
+                    val comboEntities = LineasDeVenta.combos(combos, tipoVenta)
+
+                    // E-APP-062: la regla de orden del servidor, ANTES de guardar nada.
+                    val veredicto = LineasDeVenta.validar(productEntities, comboEntities)
+                    if (veredicto is VeredictoOrdenDePrecios.Invalido) {
+                        val errorMsg = LineasDeVenta.mensajeParaVendedor(veredicto)
+                        logger.logSaleError(
+                            saleId = saleId,
+                            clientName = clientName,
+                            errorMessage = errorMsg,
+                            validationErrors = listOf(veredicto.codigo)
+                        )
+                        _saveResult.value = SaveResult.Error(errorMsg)
+                        return@withLock
+                    }
+                    val esContado = LineasDeVenta.esContado(tipoVenta)
+
                     val saleEntity = LocalSaleEntity(
                         LOCAL_SALE_ID = saleId,
                         NOMBRE_CLIENTE = clientName,
@@ -302,9 +322,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         AVAL_O_RESPONSABLE = avaloresponsable,
                         NOTA = note,
                         DIA_COBRANZA = collectionday,
-                        PRECIO_TOTAL = totalprice,
+                        PRECIO_TOTAL = if (esContado) 0.0 else totalprice,
                         TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
-                        MONTO_A_CORTO_PLAZO = shorttermamount,
+                        MONTO_A_CORTO_PLAZO = if (esContado) 0.0 else shorttermamount,
                         MONTO_DE_CONTADO = cashamount,
                         ENVIADO = enviado,
                         NUMERO = numero,
@@ -325,28 +345,12 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     )
                     localSaleStore.insertSale(saleEntity)
 
-                    val productEntities = saleProducts.map { saleItem ->
-                        val parsedPrices = PriceParser.parsePricesFromString(
-                            saleItem.product.PRECIOS
-                        )
-                        LocalSaleProductEntity(
-                            LOCAL_SALE_ID = saleId,
-                            ARTICULO_ID = saleItem.product.ARTICULO_ID,
-                            ARTICULO = saleItem.product.ARTICULO,
-                            CANTIDAD = saleItem.quantity,
-                            PRECIO_LISTA = parsedPrices.precioLista,
-                            PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
-                            PRECIO_CONTADO = parsedPrices.precioContado,
-                            COMBO_ID = saleItem.comboId
-                        )
-                    }
-
                     if (productEntities.isNotEmpty()) {
                         saleProduct.insertSaleProducts(productEntities)
                     }
 
-                    if (combos.isNotEmpty()) {
-                        comboDataSource.insertCombos(combos)
+                    if (comboEntities.isNotEmpty()) {
+                        comboDataSource.insertCombos(comboEntities)
                     }
 
                     if (imageUris.isNotEmpty()) {

@@ -51,6 +51,7 @@ import com.composables.icons.lucide.ShoppingCart
 import com.composables.icons.lucide.StickyNote
 import com.composables.icons.lucide.User
 import com.composables.icons.lucide.X
+import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.features.sales.viewmodels.ComboItem
 import com.example.msp_app.features.sales.viewmodels.SaleItem
 import java.text.NumberFormat
@@ -322,7 +323,8 @@ fun SaleConfirmationDialog(
                                 ComboSummaryCard(
                                     combo = combo,
                                     products = data.getProductsInCombo(combo.comboId),
-                                    currencyFormat = currencyFormat
+                                    currencyFormat = currencyFormat,
+                                    tipoVenta = data.tipoVenta
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
@@ -550,7 +552,8 @@ private fun InfoRow(label: String, value: String) {
 private fun ComboSummaryCard(
     combo: ComboItem,
     products: List<SaleItem>,
-    currencyFormat: NumberFormat
+    currencyFormat: NumberFormat,
+    tipoVenta: String
 ) {
     Column(
         modifier = Modifier
@@ -579,7 +582,17 @@ private fun ComboSummaryCard(
                 )
             }
             Text(
-                text = currencyFormat.format(combo.precioLista),
+                // E-APP-061: en CONTADO el combo sólo trae contado (lista va en 0).
+                text = currencyFormat.format(
+                    if (LineasDeVenta.esContado(
+                            tipoVenta
+                        )
+                    ) {
+                        combo.precioContado
+                    } else {
+                        combo.precioLista
+                    }
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
