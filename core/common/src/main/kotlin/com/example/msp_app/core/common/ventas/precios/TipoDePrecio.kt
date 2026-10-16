@@ -33,6 +33,14 @@ object ClasificadorDePrecios {
         else -> TipoDePrecio.DESCONOCIDO
     }
 
+    /** El `tipo` de `precios_ordenados` del servidor; desconocido o ausente → [TipoDePrecio.DESCONOCIDO]. */
+    fun tipoDeServidor(tipo: String?): TipoDePrecio = when (tipo) {
+        "contado" -> TipoDePrecio.CONTADO
+        "corto_plazo" -> TipoDePrecio.CORTO_PLAZO
+        "largo_plazo" -> TipoDePrecio.LARGO_PLAZO
+        else -> TipoDePrecio.DESCONOCIDO
+    }
+
     /** El nombre canónico gana sobre el alias cuando los dos traen el mismo tipo. */
     private fun rangoDeAlias(nombre: String): Int =
         if (nombre.contains(ALIAS_CONTADO, ignoreCase = true)) 1 else 0

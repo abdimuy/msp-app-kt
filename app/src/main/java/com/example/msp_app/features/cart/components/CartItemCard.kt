@@ -295,7 +295,7 @@ fun CartItemCard(
                 ) {
                     // E-APP-059: el orden lo da el tipo de cada precio; antes se invertía
                     // la lista de llegada con `asReversed()`, que dependía de la posición.
-                    val precios = preciosParaMostrar(cartItem.product.PRECIOS)
+                    val precios = preciosParaMostrar(cartItem.product)
 
                     if (useLargeLayout) {
                         Column(

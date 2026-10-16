@@ -275,7 +275,7 @@ private fun ProductCard(
     var quantity by remember { mutableStateOf(1) }
 
     // E-APP-060: el contado por su nombre, no "el último" del mapa.
-    val price = precioDeContadoDeTarjeta(product.PRECIOS) ?: "N/A"
+    val price = precioDeContadoDeTarjeta(product) ?: "N/A"
 
     Card(
         modifier = Modifier.fillMaxWidth(),

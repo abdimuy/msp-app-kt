@@ -216,7 +216,7 @@ fun SimpleProductSelector(
                             val disponible = product.EXISTENCIAS - cantidadEnVenta
 
                             // E-APP-060: el contado por su nombre, no "el último" del mapa.
-                            val price = precioDeContadoDeTarjeta(product.PRECIOS) ?: "N/A"
+                            val price = precioDeContadoDeTarjeta(product) ?: "N/A"
 
                             DropdownMenuItem(
                                 text = {

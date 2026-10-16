@@ -3,6 +3,7 @@ package com.example.msp_app.core.utils
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.productInventory.toEntity
 import com.example.msp_app.utils.PriceParser
+import com.google.gson.Gson
 import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -91,6 +92,54 @@ class PreciosParaMostrarTest {
                 contadoRef
             )
         }
+    }
+
+    private val cadenaVieja = "Precio de lista:1600.0, Precio 4 Meses:1200.0, Precio 1 Meses:1000.0"
+
+    private fun deServidor(ordenadosJson: String?): ProductInventory {
+        val campo = ordenadosJson?.let { ""","precios_ordenados":$it""" } ?: ""
+        val json = """{"ARTICULO_ID":1,"ARTICULO":"X","EXISTENCIAS":1,"LINEA_ARTICULO_ID":1,""" +
+            """"LINEA_ARTICULO":"L","PRECIOS":"$cadenaVieja"$campo}"""
+        return Gson().fromJson(json, ProductInventory::class.java)
+    }
+
+    private fun ordenado(tipo: String, id: Int, nombre: String, precio: Double) =
+        """{"tipo":"$tipo","precio_empresa_id":$id,"nombre":"$nombre","precio":$precio}"""
+
+    @Test
+    fun `E-APP-059 sin precios_ordenados Gson deja null y se cae a la cadena por nombre`() {
+        val p = deServidor(null)
+        assertEquals(null, p.preciosOrdenados)
+        assertEquals(canonico, preciosParaMostrar(p).map { it.first })
+        assertEquals(1000.0, precioDeContadoDeTarjeta(p))
+    }
+
+    @Test
+    fun `E-APP-059 E-APP-060 con precios_ordenados se pinta por tipo del servidor en cualquier orden`() {
+        val entradas = listOf(
+            ordenado("largo_plazo", 42, "Precio de lista", 1600.0),
+            ordenado("corto_plazo", 6925, "Precio 4 Meses", 1200.0),
+            ordenado("contado", 8437, "Precio 1 Meses", 990.0)
+        )
+        val rnd = Random(SEMILLAS)
+        repeat(PERMUTACIONES * 4) {
+            val p = deServidor(entradas.shuffled(rnd).joinToString(",", "[", "]"))
+            assertEquals(
+                listOf(
+                    "Precio 1 Meses" to 990.0,
+                    "Precio 4 Meses" to 1200.0,
+                    "Precio de lista" to 1600.0
+                ),
+                preciosParaMostrar(p)
+            )
+            // El contado de la tarjeta sale de precios_ordenados (990), no de la cadena (1000).
+            assertEquals(990.0, precioDeContadoDeTarjeta(p))
+        }
+    }
+
+    @Test
+    fun `E-APP-059 precios_ordenados vacio se cae a la cadena`() {
+        assertEquals(canonico, preciosParaMostrar(deServidor("[]")).map { it.first })
     }
 
     private companion object {

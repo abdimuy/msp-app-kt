@@ -374,7 +374,7 @@ fun ProductCard(
                     }
 
                     // E-APP-059: contado → corto plazo → lista, sin importar el orden de llegada.
-                    val precios = preciosParaMostrar(product.PRECIOS)
+                    val precios = preciosParaMostrar(product)
 
                     if (precios.isNotEmpty()) {
                         precios.forEach { (label, value) ->

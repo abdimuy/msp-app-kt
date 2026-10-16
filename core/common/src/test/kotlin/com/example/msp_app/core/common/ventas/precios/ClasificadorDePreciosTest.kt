@@ -24,6 +24,15 @@ class ClasificadorDePreciosTest {
     }
 
     @Test
+    fun `E-APP-059 tipo del servidor en precios_ordenados`() {
+        assertEquals(TipoDePrecio.CONTADO, ClasificadorDePrecios.tipoDeServidor("contado"))
+        assertEquals(TipoDePrecio.CORTO_PLAZO, ClasificadorDePrecios.tipoDeServidor("corto_plazo"))
+        assertEquals(TipoDePrecio.LARGO_PLAZO, ClasificadorDePrecios.tipoDeServidor("largo_plazo"))
+        assertEquals(TipoDePrecio.DESCONOCIDO, ClasificadorDePrecios.tipoDeServidor(null))
+        assertEquals(TipoDePrecio.DESCONOCIDO, ClasificadorDePrecios.tipoDeServidor("anual"))
+    }
+
+    @Test
     fun `E-APP-059 el orden medido en dev (lista, 4 meses, 1 mes) sale contado, corto, lista`() {
         // Así llegan 5,685 artículos en dev: al revés de lo pedido.
         val llegada = linkedMapOf(lista to 1600.0, corto to 1200.0, contado to 1000.0)

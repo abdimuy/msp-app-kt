@@ -468,7 +468,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                     }
 
                     // E-APP-059: contado → corto plazo → lista, sin importar el orden de llegada.
-                    val precios = preciosParaMostrar(currentProduct.PRECIOS)
+                    val precios = preciosParaMostrar(currentProduct)
                     Card(
                         elevation = CardDefaults.cardElevation(
                             defaultElevation = if (!isDark) 8.dp else 0.dp
