@@ -69,7 +69,7 @@ class ColumnaDeCobranzaTest {
             val c = columnaDe(e, f, h, hoy)
             val trato = TratoDeEstado.de(e, f, h)
             val enPagados = trato == TratoDelEstado.PAGADO || trato == TratoDelEstado.PARCIAL
-            val enNoPaga = trato == TratoDelEstado.DIFERIDO && f!!.isAfter(hoy)
+            val enNoPaga = trato == TratoDelEstado.DIFERIDO && f != null && f.isAfter(hoy)
             // Exactamente una columna: el conteo de predicados verdaderos por columna es 1.
             val aciertos = ColumnaDeCobranza.entries.count { col ->
                 when (col) {
