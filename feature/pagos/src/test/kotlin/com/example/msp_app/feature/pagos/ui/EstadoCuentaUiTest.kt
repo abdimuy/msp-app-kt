@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.ui.graphics.Color
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.money.Money
@@ -299,5 +300,21 @@ class EstadoCuentaUiTest {
             "Faltan 2 de 2",
             EstadoCuentaUi.avisoDeCuentas(listOf(promesa(null), promesa(null)))
         )
+    }
+
+    /**
+     * Decisión del dueño del 2026-10-16: sobre un badge sólido el texto y el
+     * ícono van **en blanco en los dos temas**. Antes era `surface`, casi negro
+     * en oscuro. "Falta pasar" no es sólido y conserva `onSurfaceMuted`.
+     */
+    @Test
+    fun `sobre el badge solido el texto va en blanco en los dos temas`() {
+        for (colores in listOf(mspLightColors(), mspDarkColors())) {
+            for (trato in TratoDelEstado.entries) {
+                val esperado =
+                    if (trato == TratoDelEstado.SIN_TRABAJAR) colores.onSurfaceMuted else Color.White
+                assertEquals("$trato", esperado, BadgeSolido.sobreSolidoDe(trato, colores))
+            }
+        }
     }
 }

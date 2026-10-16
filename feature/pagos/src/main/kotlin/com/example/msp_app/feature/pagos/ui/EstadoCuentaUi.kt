@@ -354,11 +354,13 @@ object BadgeSolido {
     }
 
     /**
-     * El color del ícono y del texto sobre [solidoDe]: `surface` —blanco en claro,
-     * casi negro en oscuro—, que contrasta con los colores plenos de los dos temas.
+     * El color del ícono y del texto sobre [solidoDe]: **blanco siempre, en los
+     * dos temas** (decisión del dueño del 2026-10-16). Antes era `surface`, que en
+     * oscuro es casi negro y apagaba el badge. "Falta pasar" no es sólido —es
+     * `surface` con borde— y conserva `onSurfaceMuted`.
      */
     fun sobreSolidoDe(trato: TratoDelEstado, colors: MspColors): Color =
-        if (trato == TratoDelEstado.SIN_TRABAJAR) colors.onSurfaceMuted else colors.surface
+        if (trato == TratoDelEstado.SIN_TRABAJAR) colors.onSurfaceMuted else Color.White
 
     /** Sólo el estado neutro lleva borde: sin él, se perdería en la tarjeta. */
     fun bordeDelSolido(trato: TratoDelEstado, colors: MspColors): Color? =
