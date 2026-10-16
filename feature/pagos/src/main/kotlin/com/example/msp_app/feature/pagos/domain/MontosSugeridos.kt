@@ -8,8 +8,12 @@ import java.time.temporal.ChronoUnit
 
 /**
  * Los montos sugeridos de la pantalla de abono (`registrar-abono.html`, chips
- * `.sug`): **esperado hoy**, **al corriente**, **liquidar**, **lo de siempre**
- * y **los redondos**.
+ * `.sug`): **esperado hoy**, **liquidar**, **lo de siempre** y **los
+ * redondos**.
+ *
+ * **"Al corriente" ya no se sugiere** (decisión del dueño del 2026-10-16): el
+ * chip salió de la fila. La fórmula [alCorriente] se queda porque la usa
+ * [MontosSugeridosDelCliente.pideleHoy].
  *
  * Dominio PURO. El "hoy" entra por parámetro, como en [RitmoDePagos]: un borde
  * de periodo es justo donde alguien alcanza el reloj del sistema.
@@ -35,8 +39,9 @@ import java.time.temporal.ChronoUnit
  *   midiera contra otra cosa, la pantalla propondría una cifra y después la
  *   cuestionaría, que es justo lo que la regla "la app no interroga lo que
  *   propuso" prohíbe.
- * - **al corriente** = `periodos transcurridos x parcialidad - lo abonado sin
- *   contar el enganche`. Es la MISMA fórmula del atraso que la app ya usa en
+ * - **al corriente** (ya NO es un chip; sólo alimenta
+ *   [MontosSugeridosDelCliente.pideleHoy]) = `periodos transcurridos x
+ *   parcialidad - lo abonado sin contar el enganche`. Es la MISMA fórmula del atraso que la app ya usa en
  *   producción (`overdue_payments_view`, `NUM_PAGOS_ATRASADOS`), en dinero en
  *   vez de en número de cuotas. Se recalcula aquí y no se lee de esa vista por
  *   una razón concreta: la vista une `sales.DOCTO_CC_ID` con
@@ -50,7 +55,7 @@ import java.time.temporal.ChronoUnit
  *   reimplementa), o el saldo completo cuando no hay oferta de liquidación.
  * - **lo de siempre** = la moda del historial de abonos de ESTE cliente, ver
  *   [AbonoHabitual]. Es la única fuente que **no** sale de la deuda: las otras
- *   cuatro dicen lo que la venta pide, ésta dice lo que el cliente da.
+ *   tres dicen lo que la venta pide, ésta dice lo que el cliente da.
  * - **los redondos** = $100, $200 y $150, en ese orden. Medido sobre 6,165
  *   abonos reales de la ruta: **$100 el 37.5 %, $200 el 24.9 %, $150 el
  *   18.4 %** — los tres juntos son el **81 %** de todo lo cobrado. El orden es
@@ -63,7 +68,7 @@ import java.time.temporal.ChronoUnit
  *
  * ## El tope de chips, y por qué es 5
  *
- * Con cinco fuentes puede haber siete candidatos, y siete chips no caben en una
+ * Con cuatro fuentes puede haber seis candidatos, y siete chips no caben en una
  * pantalla de dinero. [MAXIMO_DE_CHIPS] los corta en **cinco**, por el tamaño
  * de letra grande y no por el normal: cuando se decidió, en `GRANDE` y
  * `MUY_GRANDE` los chips se **apilaban** y siete eran ~400dp de columna, o sea
@@ -74,8 +79,8 @@ import java.time.temporal.ChronoUnit
  * chips que nadie desliza para ver.
  *
  * El corte es por la cola, así que lo que se pierde primero son los redondos, y
- * eso está asumido: los tres primeros son los que dicen algo de ESTA cuenta y
- * son los únicos que cierran un periodo. En la práctica el corte muerde poco,
+ * eso está asumido: los primeros son los que dicen algo de ESTA cuenta y son
+ * los únicos que cierran un periodo. En la práctica el corte muerde poco,
  * porque el de-duplicado suele liberar lugares — lo esperado hoy coincide con
  * $100, $150 o $200 en buena parte de la ruta, y ahí el redondo desaparece por
  * repetido antes de que el tope tenga que actuar.
@@ -98,9 +103,6 @@ object MontosSugeridos {
          * decir cuál, es peor que uno equivocado pero predecible.
          */
         ESPERADO_POR_COSTUMBRE("Lo que paga"),
-
-        /** Lo que falta para no traer atraso. Turquesa `statusTeal`. */
-        AL_CORRIENTE("Al corriente"),
 
         /** Cerrar la venta hoy. Violeta `promise`. */
         LIQUIDAR("Liquidar"),
@@ -135,31 +137,30 @@ object MontosSugeridos {
     }
 
     /**
-     * Los sugeridos de [venta] al día [hoy], en orden, sin repetidos y como
-     * mucho [MAXIMO_DE_CHIPS].
+     * Los sugeridos de [venta], en orden, sin repetidos y como mucho
+     * [MAXIMO_DE_CHIPS].
+     *
+     * Ya no recibe el "hoy": sólo lo usaba "al corriente", que salió de la fila
+     * el 2026-10-16 (los periodos transcurridos son lo único que depende del
+     * día). Las demás fuentes no dependen de la fecha.
      *
      * [historial] son los abonos que este CLIENTE ya dio — de ahí sale "lo de
      * siempre". Vacío es lo normal en las pantallas que no lo cargan: el chip
      * simplemente no se pinta.
      */
-    fun de(
-        venta: CuentaCobrable,
-        hoy: LocalDate,
-        historial: List<AbonoPrevio> = emptyList()
-    ): List<Sugerido> {
+    fun de(venta: CuentaCobrable, historial: List<AbonoPrevio> = emptyList()): List<Sugerido> {
         val saldo = venta.saldo
         if (saldo <= Money.ZERO) return emptyList()
         val candidatos = listOf(
             Sugerido(cualEsperado(venta), esperadoHoy(venta)),
-            Sugerido(Sugerencia.AL_CORRIENTE, alCorriente(venta, hoy)),
             Sugerido(Sugerencia.LIQUIDAR, liquidar(venta))
         ) +
             listOfNotNull(AbonoHabitual.de(historial)?.let { Sugerido(Sugerencia.LO_DE_SIEMPRE, it) }) +
             REDONDOS.map { Sugerido(Sugerencia.REDONDO, it) }
         val vistos = mutableListOf<Money>()
         return candidatos.filter { sugerido ->
-            // El tope en el saldo se aplica AQUÍ para las cinco fuentes, y no
-            // sólo dentro de cada fórmula: las tres primeras ya venían topadas,
+            // El tope en el saldo se aplica AQUÍ para las cuatro fuentes, y no
+            // sólo dentro de cada fórmula: las dos primeras ya venían topadas,
             // pero "lo de siempre" y los redondos vienen de fuera de la deuda y
             // podrían exceder el saldo de una cuenta chica. Un solo lugar
             // guarda la invariante para todos.
@@ -205,11 +206,11 @@ object MontosSugeridos {
      * que la app llama "atraso" —no sólo en esta pantalla— y eso no se hace sin
      * decirlo antes.
      *
-     * **Lo que sí hay que saber:** con una parcialidad inflada este número se
-     * dispara y se topa en el saldo, así que el chip "al corriente" termina
-     * ofreciendo el saldo completo. Y como el de-duplicado colapsa al más
-     * significativo, el chip que sobrevive se rotula AL CORRIENTE cuando en
-     * realidad es liquidar. Está medido y reportado; no se arregla aquí.
+     * **Ya no es un chip** (decisión del dueño del 2026-10-16): antes, con una
+     * parcialidad inflada, este número se topaba en el saldo y el de-duplicado
+     * rotulaba AL CORRIENTE un chip que en realidad era liquidar. Sin la
+     * entrada, ese importe sobrevive como LIQUIDAR. La fórmula se queda porque
+     * la usa [MontosSugeridosDelCliente.pideleHoy].
      */
     fun alCorriente(venta: CuentaCobrable, hoy: LocalDate): Money {
         val esperadoAcumulado = venta.parcialidad.amount
