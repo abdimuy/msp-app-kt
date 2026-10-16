@@ -28,8 +28,9 @@ import androidx.room.Entity
  * @property INTENTOS envíos observados (éxitos y fallos).
  * @property ULTIMO_INTENTO_AT instante del último envío observado (formato de cable UTC).
  * @property ULTIMO_EXITO_AT instante del último 2xx observado, o `null`.
- * @property REPORTADO_CODIGO último código ya mandado a `RemoteLogger`, para
- *   reportar a lo más una vez por fila y por error distinto.
+ * @property REPORTADO_CODIGO códigos ya mandados a `RemoteLogger`, separados por
+ *   coma: a lo más un evento por (fila, código), tope de 8 por fila (ver
+ *   `EnvioDiagnosticoDao.registrarFallo`).
  */
 @Entity(tableName = "envio_diagnostico", primaryKeys = ["TIPO", "FILA_ID"])
 data class EnvioDiagnosticoEntity(

@@ -37,21 +37,25 @@ abstract class EnvioDiagnosticoDao {
     )
     abstract fun observarFallosVigentes(tipo: String): Flow<List<EnvioDiagnosticoEntity>>
 
-    /** Poda: filas cuyo último éxito es anterior a [limite] (formato de cable). */
+    /**
+     * Poda: borra toda fila cuyo último envío observado es anterior a [limite]
+     * (formato de cable). Cubre también las filas de lo que se soltó sin un 2xx
+     * (p. ej. un 4xx resguardado): dejan de recibir intentos y se van solas.
+     * Una fila que sigue fallando sigue recibiendo intentos y no se poda.
+     */
     @Query(
-        """
-        DELETE FROM envio_diagnostico
-        WHERE ULTIMO_EXITO_AT IS NOT NULL
-          AND ULTIMO_ERROR_CODIGO IS NULL
-          AND ULTIMO_EXITO_AT < :limite
-        """
+        "DELETE FROM envio_diagnostico WHERE ULTIMO_INTENTO_AT IS NULL OR ULTIMO_INTENTO_AT < :limite"
     )
-    abstract suspend fun podarExitosAnterioresA(limite: String)
+    abstract suspend fun podarIntentosAnterioresA(limite: String): Int
 
     /**
-     * Anota un fallo. Devuelve `true` cuando [codigo] es distinto del último ya
-     * reportado a la telemetría (y lo deja anotado como reportado), para que el
-     * llamador mande a lo más un evento por fila y por error distinto.
+     * Anota un fallo. Devuelve `true` cuando hay que mandar el evento de
+     * telemetría: **a lo más una vez por (fila, código)**, con un tope de
+     * [MAX_CODIGOS_REPORTADOS] códigos por fila. `REPORTADO_CODIGO` guarda la
+     * lista de códigos ya reportados separados por coma (los códigos son
+     * `[a-z0-9_]`), y un éxito NO la reinicia: el mismo código en la misma fila
+     * no se vuelve a reportar nunca, así que la secuencia `A, B, A, B…` reporta
+     * dos eventos, no uno por intento.
      */
     @Transaction
     open suspend fun registrarFallo(
@@ -63,7 +67,9 @@ abstract class EnvioDiagnosticoDao {
         ahora: String
     ): Boolean {
         val previa = obtener(tipo, filaId)
-        val reportar = previa?.REPORTADO_CODIGO != codigo
+        val reportados = previa?.REPORTADO_CODIGO.orEmpty().split(',').filter { it.isNotEmpty() }
+        val reportar = codigo !in reportados && reportados.size < MAX_CODIGOS_REPORTADOS
+        val nuevosReportados = if (reportar) reportados + codigo else reportados
         guardar(
             EnvioDiagnosticoEntity(
                 TIPO = tipo,
@@ -74,14 +80,15 @@ abstract class EnvioDiagnosticoDao {
                 INTENTOS = (previa?.INTENTOS ?: 0) + 1,
                 ULTIMO_INTENTO_AT = ahora,
                 ULTIMO_EXITO_AT = previa?.ULTIMO_EXITO_AT,
-                REPORTADO_CODIGO = codigo
+                REPORTADO_CODIGO = nuevosReportados.joinToString(",").ifEmpty { null }
             )
         )
         return reportar
     }
 
     /**
-     * Anota un éxito: limpia el error vigente. Si la fila nunca falló no crea
+     * Anota un éxito: limpia el error vigente (conserva los códigos ya
+     * reportados, ver [registrarFallo]). Si la fila nunca falló no crea
      * nada (sin historia de fallo no hay qué diagnosticar y la tabla no crece
      * con cada pago entregado).
      */
@@ -95,9 +102,13 @@ abstract class EnvioDiagnosticoDao {
                 ULTIMO_ERROR_HTTP = null,
                 INTENTOS = previa.INTENTOS + 1,
                 ULTIMO_INTENTO_AT = ahora,
-                ULTIMO_EXITO_AT = ahora,
-                REPORTADO_CODIGO = null
+                ULTIMO_EXITO_AT = ahora
             )
         )
+    }
+
+    companion object {
+        /** Tope de eventos de telemetría por fila. */
+        const val MAX_CODIGOS_REPORTADOS = 8
     }
 }

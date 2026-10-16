@@ -16,53 +16,48 @@ class EnvioDiagnosticoDaoTest : RoomTestBase() {
     private val dao get() = db.envioDiagnosticoDao()
 
     @Test
-    fun `registrarFallo crea la fila y reporta una sola vez por codigo distinto`() = runTest {
-        assertTrue(
+    fun `E-APP-063 registrarFallo reporta a lo mas una vez por fila y codigo, aunque alternen`() =
+        runTest {
+            val r = listOf(
+                "network_error",
+                "network_error",
+                "timeout",
+                "network_error",
+                "timeout",
+                "http_502"
+            )
+                .mapIndexed { i, codigo ->
+                    dao.registrarFallo(
+                        "pago",
+                        "p1",
+                        codigo,
+                        "m",
+                        0,
+                        "2026-10-16T10:0$i:00Z"
+                    )
+                }
+            assertEquals(listOf(true, false, true, false, false, true), r)
+
+            val fila = dao.obtener("pago", "p1")!!
+            assertEquals(6, fila.INTENTOS)
+            assertEquals("http_502", fila.ULTIMO_ERROR_CODIGO)
+            assertEquals("2026-10-16T10:05:00Z", fila.ULTIMO_INTENTO_AT)
+            assertEquals("network_error,timeout,http_502", fila.REPORTADO_CODIGO)
+        }
+
+    @Test
+    fun `el reporte tiene tope de codigos por fila`() = runTest {
+        val r = (1..12).map {
             dao.registrarFallo(
                 "pago",
                 "p1",
-                "network_error",
-                "Sin conexión",
+                "c$it",
+                "m",
                 0,
                 "2026-10-16T10:00:00Z"
             )
-        )
-        assertFalse(
-            dao.registrarFallo(
-                "pago",
-                "p1",
-                "network_error",
-                "Sin conexión",
-                0,
-                "2026-10-16T10:01:00Z"
-            )
-        )
-        assertTrue(
-            dao.registrarFallo(
-                "pago",
-                "p1",
-                "http_502",
-                "Falla del servidor",
-                502,
-                "2026-10-16T10:02:00Z"
-            )
-        )
-        assertTrue(
-            dao.registrarFallo(
-                "pago",
-                "p1",
-                "network_error",
-                "Sin conexión",
-                0,
-                "2026-10-16T10:03:00Z"
-            )
-        )
-
-        val fila = dao.obtener("pago", "p1")!!
-        assertEquals(4, fila.INTENTOS)
-        assertEquals("network_error", fila.ULTIMO_ERROR_CODIGO)
-        assertEquals(0, fila.ULTIMO_ERROR_HTTP)
-        assertEquals("2026-10-16T10:03:00Z", fila.ULTIMO_INTENTO_AT)
+        }
+        assertEquals(EnvioDiagnosticoDao.MAX_CODIGOS_REPORTADOS, r.count { it })
     }
 
     @Test
@@ -81,7 +76,7 @@ class EnvioDiagnosticoDaoTest : RoomTestBase() {
     }
 
     @Test
-    fun `registrarExito limpia el error y vuelve a permitir reportar`() = runTest {
+    fun `registrarExito limpia el error y conserva lo ya reportado`() = runTest {
         dao.registrarFallo("visita", "v1", "timeout", "Tiempo agotado", 0, "2026-10-16T10:00:00Z")
         dao.registrarExito("visita", "v1", "2026-10-16T10:05:00Z")
         val fila = dao.obtener("visita", "v1")!!
@@ -90,7 +85,7 @@ class EnvioDiagnosticoDaoTest : RoomTestBase() {
         assertNull(fila.ULTIMO_ERROR_HTTP)
         assertEquals("2026-10-16T10:05:00Z", fila.ULTIMO_EXITO_AT)
         assertEquals(2, fila.INTENTOS)
-        assertTrue(
+        assertFalse(
             dao.registrarFallo(
                 "visita",
                 "v1",
@@ -98,6 +93,16 @@ class EnvioDiagnosticoDaoTest : RoomTestBase() {
                 "Tiempo agotado",
                 0,
                 "2026-10-16T11:00:00Z"
+            )
+        )
+        assertTrue(
+            dao.registrarFallo(
+                "visita",
+                "v1",
+                "http_500",
+                "Falla del servidor",
+                500,
+                "2026-10-16T12:00:00Z"
             )
         )
     }
@@ -128,31 +133,48 @@ class EnvioDiagnosticoDaoTest : RoomTestBase() {
     }
 
     @Test
-    fun `la poda borra solo exitos viejos sin error vigente`() = runTest {
-        dao.registrarFallo("pago", "viejo", "timeout", "Tiempo agotado", 0, "2026-08-01T10:00:00Z")
-        dao.registrarExito("pago", "viejo", "2026-08-01T10:05:00Z")
-        dao.registrarFallo(
-            "pago",
-            "reciente",
-            "timeout",
-            "Tiempo agotado",
-            0,
-            "2026-10-15T10:00:00Z"
-        )
-        dao.registrarExito("pago", "reciente", "2026-10-15T10:05:00Z")
-        dao.registrarFallo(
-            "pago",
-            "fallando",
-            "timeout",
-            "Tiempo agotado",
-            0,
-            "2026-08-01T10:00:00Z"
-        )
+    fun `E-APP-063 la poda borra toda fila sin intentos en 30 dias, tambien las soltadas sin 2xx`() =
+        runTest {
+            // Soltada por un 4xx resguardado: nunca tuvo 2xx y ya no recibe intentos.
+            dao.registrarFallo(
+                "pago",
+                "soltada-sin-2xx",
+                "validation_error",
+                "Datos rechazados",
+                422,
+                "2026-08-01T10:00:00Z"
+            )
+            dao.registrarFallo(
+                "pago",
+                "exito-viejo",
+                "timeout",
+                "Tiempo agotado",
+                0,
+                "2026-08-01T10:00:00Z"
+            )
+            dao.registrarExito("pago", "exito-viejo", "2026-08-01T10:05:00Z")
+            // Sigue fallando: su último intento es reciente.
+            dao.registrarFallo(
+                "pago",
+                "sigue-fallando",
+                "timeout",
+                "Tiempo agotado",
+                0,
+                "2026-08-01T10:00:00Z"
+            )
+            dao.registrarFallo(
+                "pago",
+                "sigue-fallando",
+                "timeout",
+                "Tiempo agotado",
+                0,
+                "2026-10-15T10:00:00Z"
+            )
 
-        dao.podarExitosAnterioresA("2026-09-16T00:00:00Z")
+            assertEquals(2, dao.podarIntentosAnterioresA("2026-09-16T00:00:00Z"))
 
-        assertNull(dao.obtener("pago", "viejo"))
-        assertEquals("reciente", dao.obtener("pago", "reciente")!!.FILA_ID)
-        assertEquals("fallando", dao.obtener("pago", "fallando")!!.FILA_ID)
-    }
+            assertNull(dao.obtener("pago", "soltada-sin-2xx"))
+            assertNull(dao.obtener("pago", "exito-viejo"))
+            assertEquals("sigue-fallando", dao.obtener("pago", "sigue-fallando")!!.FILA_ID)
+        }
 }
