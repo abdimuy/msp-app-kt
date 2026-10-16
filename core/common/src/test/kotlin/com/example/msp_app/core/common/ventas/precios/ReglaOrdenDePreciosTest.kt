@@ -97,6 +97,55 @@ class ReglaOrdenDePreciosTest {
         }
     }
 
+    @Test
+    fun `E-APP-067 en credito cada linea suelta necesita anual, despues del orden por linea y antes de totales`() {
+        // Orden por línea gana sobre anual (caso 010 del juego v2).
+        val desordenadaSinAnual = linea("600", "500", "0")
+        assertEquals(
+            ReglaOrdenDePrecios.CODIGO_LINEA,
+            (
+                ReglasDePreciosDeVenta.validar(
+                    esCredito = true,
+                    lineas = listOf(desordenadaSinAnual)
+                ) as VeredictoOrdenDePrecios.Invalido
+                ).codigo
+        )
+        val sinAnual = linea("5000", "0", "0", TipoDeLinea.COMBO)
+        val v = ReglasDePreciosDeVenta.validar(
+            esCredito = true,
+            lineas = listOf(linea("1", "2", "3"), sinAnual)
+        )
+        assertEquals(
+            VeredictoOrdenDePrecios.Invalido(
+                ReglaAnualEnCredito.CODIGO,
+                ReglaAnualEnCredito.MENSAJE,
+                sinAnual
+            ),
+            v
+        )
+        // Hijo de combo sin anual: no cuenta (su valor va en el combo).
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            ReglasDePreciosDeVenta.validar(
+                esCredito = true,
+                lineas = listOf(
+                    linea("1000", "1200", "1600", TipoDeLinea.COMBO),
+                    linea("500", "0", "0", dentroDeCombo = true)
+                )
+            )
+        )
+        // En contado no aplica; sigue la regla de orden.
+        assertEquals(
+            VeredictoOrdenDePrecios.Valido,
+            ReglasDePreciosDeVenta.validar(esCredito = false, lineas = listOf(sinAnual))
+        )
+        assertEquals("precio_anual_credito_requerido", ReglaAnualEnCredito.CODIGO)
+        assertEquals(
+            "en una venta a crédito cada producto y cada combo debe llevar precio anual mayor a cero",
+            ReglaAnualEnCredito.MENSAJE
+        )
+    }
+
     private companion object {
         const val SEMILLA = 20261016
         const val ITERACIONES = 2000

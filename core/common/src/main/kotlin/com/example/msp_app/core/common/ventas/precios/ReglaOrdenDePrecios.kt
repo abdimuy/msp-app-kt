@@ -62,10 +62,24 @@ object ReglaOrdenDePrecios {
     }
 
     fun validar(lineas: List<LineaDePrecios>): VeredictoOrdenDePrecios {
-        lineas.firstOrNull { !ordenValido(it.contado, it.corto, it.anual) }?.let {
-            return VeredictoOrdenDePrecios.Invalido(CODIGO_LINEA, MENSAJE_LINEA, it)
+        val porLinea = validarLineas(lineas)
+        return if (porLinea is VeredictoOrdenDePrecios.Invalido) {
+            porLinea
+        } else {
+            validarTotales(
+                lineas
+            )
         }
+    }
 
+    /** Cada línea por separado (el servidor lo hace al construir cada producto/combo). */
+    fun validarLineas(lineas: List<LineaDePrecios>): VeredictoOrdenDePrecios =
+        lineas.firstOrNull { !ordenValido(it.contado, it.corto, it.anual) }
+            ?.let { VeredictoOrdenDePrecios.Invalido(CODIGO_LINEA, MENSAJE_LINEA, it) }
+            ?: VeredictoOrdenDePrecios.Valido
+
+    /** Los totales del encabezado, Σ precio × cantidad sin hijos de combo. */
+    fun validarTotales(lineas: List<LineaDePrecios>): VeredictoOrdenDePrecios {
         val queSuman = lineas.filterNot { it.dentroDeCombo }
         fun total(escalon: (LineaDePrecios) -> BigDecimal): BigDecimal =
             queSuman.fold(BigDecimal.ZERO) { suma, l -> suma + escalon(l) * l.cantidad }
@@ -76,5 +90,44 @@ object ReglaOrdenDePrecios {
         } else {
             VeredictoOrdenDePrecios.Invalido(CODIGO_TOTALES, MENSAJE_TOTALES, null)
         }
+    }
+}
+
+/**
+ * E-APP-067: en una venta a CRÉDITO cada línea suelta (producto fuera de combo,
+ * o combo) necesita precio anual > 0. Sin él el servidor aplica la línea a $0 y
+ * el artículo sale del inventario gratis (MEDIDO en dev por el revisor). Es el
+ * mismo código y mensaje que el servidor (`errors.go:637-638`, E-VEN-007).
+ */
+object ReglaAnualEnCredito {
+
+    const val CODIGO = "precio_anual_credito_requerido"
+    const val MENSAJE =
+        "en una venta a crédito cada producto y cada combo debe llevar precio anual mayor a cero"
+
+    fun validar(lineas: List<LineaDePrecios>): VeredictoOrdenDePrecios =
+        lineas.firstOrNull { !it.dentroDeCombo && it.anual.signum() <= 0 }
+            ?.let { VeredictoOrdenDePrecios.Invalido(CODIGO, MENSAJE, it) }
+            ?: VeredictoOrdenDePrecios.Valido
+}
+
+/**
+ * Todas las reglas de precios de una venta, en el orden del servidor (fijado por
+ * el juego compartido v2): orden por línea (caso 010), luego anual en crédito,
+ * luego totales (caso 019).
+ */
+object ReglasDePreciosDeVenta {
+
+    fun validar(esCredito: Boolean, lineas: List<LineaDePrecios>): VeredictoOrdenDePrecios {
+        val reglas = listOfNotNull<(List<LineaDePrecios>) -> VeredictoOrdenDePrecios>(
+            ReglaOrdenDePrecios::validarLineas,
+            if (esCredito) ReglaAnualEnCredito::validar else null,
+            ReglaOrdenDePrecios::validarTotales
+        )
+        for (regla in reglas) {
+            val veredicto = regla(lineas)
+            if (veredicto is VeredictoOrdenDePrecios.Invalido) return veredicto
+        }
+        return VeredictoOrdenDePrecios.Valido
     }
 }

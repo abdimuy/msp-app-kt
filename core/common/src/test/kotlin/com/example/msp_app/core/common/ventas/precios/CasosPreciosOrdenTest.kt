@@ -73,7 +73,12 @@ class CasosPreciosOrdenTest {
 
     @Test
     fun `E-APP-062 cada caso compartido da el veredicto esperado`() {
-        val fallas = requireNotNull(juego().casos).mapNotNull { caso ->
+        val juego = juego()
+        // E-APP-067: la versión 1 del juego codifica la regla de orden sola; la regla de
+        // anual en crédito (`precio_anual_credito_requerido`) entra cuando el servidor sube
+        // la versión. Mientras tanto, v1 se corre contra la regla de orden únicamente.
+        val conAnualEnCredito = requireNotNull(juego.version) >= VERSION_CON_ANUAL
+        val fallas = requireNotNull(juego.casos).mapNotNull { caso ->
             val nombre = requireNotNull(caso.nombre)
             // El tipo de venta no cambia la regla (igual que el servidor); sólo se exige que venga.
             require(
@@ -94,7 +99,14 @@ class CasosPreciosOrdenTest {
                 )
             }
             val esperado = requireNotNull(caso.esperado) { nombre }
-            val obtenido = ReglaOrdenDePrecios.validar(lineas)
+            val obtenido = if (conAnualEnCredito) {
+                ReglasDePreciosDeVenta.validar(
+                    esCredito = caso.tipoVenta == "CREDITO",
+                    lineas = lineas
+                )
+            } else {
+                ReglaOrdenDePrecios.validar(lineas)
+            }
             val codigo = (obtenido as? VeredictoOrdenDePrecios.Invalido)?.codigo
             val okObtenido = obtenido is VeredictoOrdenDePrecios.Valido
             if (okObtenido == esperado.ok && codigo == esperado.codigo) {
@@ -109,5 +121,6 @@ class CasosPreciosOrdenTest {
     private companion object {
         const val DIRECTORIO = "precios-orden"
         const val ARCHIVO = "casos.json"
+        const val VERSION_CON_ANUAL = 2
     }
 }
