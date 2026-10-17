@@ -1,7 +1,12 @@
 package com.example.msp_app.core.sync.pendingwork.data.visits
 
+import androidx.annotation.VisibleForTesting
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingVisitsStore
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import java.time.Instant
 import javax.inject.Inject
 
 /**
@@ -12,12 +17,32 @@ import javax.inject.Inject
  * a working phone, and one query with one meaning is worth more than the bytes
  * a projection would save.
  *
- * Writes go through [VisitDao.markSyncedByIds], which flips
- * `GUARDADO_EN_MICROSIP` to 1 for exactly the ids given and nothing else.
+ * Writes flip `GUARDADO_EN_MICROSIP` to 1 for exactly the ids given and
+ * nothing else. Which DAO call does it depends on the kill-switch
+ * (`config/visitas_envio`, plan visitas P1 Tarea 10):
+ *
+ *  - **V3** (por omisión): [VisitDao.confirmar], que además estampa
+ *    `CONFIRMADA_EN`. `by-ids` nombró el id: es prueba del servidor, y sin la
+ *    marca la poda de la Tarea 12 nunca soltaría la fila y la reconciliación
+ *    inversa (Tarea 13) la volvería a preguntar cada día como legada.
+ *  - **V2_ACTUAL**: [VisitDao.markSyncedByIds], la conducta de antes de P1,
+ *    intacta. El kill-switch revierte TODO el envío nuevo, también esto.
+ *
+ * Las dos conservan la retención por foto (Ruling AR) y devuelven cuántas
+ * filas cambiaron de verdad.
  */
-class RoomPendingVisitsStore @Inject constructor(
-    private val visitDao: VisitDao
+class RoomPendingVisitsStore @VisibleForTesting internal constructor(
+    private val visitDao: VisitDao,
+    private val modo: () -> ModoEnvioVisitas,
+    private val ahora: () -> Instant
 ) : PendingVisitsStore {
+
+    @Inject
+    constructor(visitDao: VisitDao) : this(
+        visitDao = visitDao,
+        modo = { FirestoreModoEnvioVisitas.actual },
+        ahora = { Instant.now() }
+    )
 
     override suspend fun pendingVisitIds(): List<String> = visitDao.getPendingVisits().map { it.ID }
 
@@ -34,12 +59,22 @@ class RoomPendingVisitsStore @Inject constructor(
      * The per-chunk counts are **summed and returned**, not dropped: since Task
      * 23 [VisitDao.markSyncedByIds] refuses to mark a visita whose comprobante
      * is still undelivered, so the count is what tells "confirmed" from "held
-     * back by a photo".
+     * back by a photo". [VisitDao.confirmar] keeps that same retention.
+     *
+     * El modo se lee UNA vez por llamada: una tanda no queda mitad con marca y
+     * mitad sin ella si el kill-switch cambia a media escritura.
      */
-    override suspend fun markSynced(visitIds: List<String>): Int =
-        visitIds.chunked(SQLITE_MAX_IN_PARAMS).sumOf { chunk ->
-            visitDao.markSyncedByIds(chunk)
+    override suspend fun markSynced(visitIds: List<String>): Int {
+        if (modo() == ModoEnvioVisitas.V2_ACTUAL) {
+            return visitIds.chunked(SQLITE_MAX_IN_PARAMS).sumOf { chunk ->
+                visitDao.markSyncedByIds(chunk)
+            }
         }
+        val estampa = AppTime.toWireFormat(ahora())
+        return visitIds.chunked(SQLITE_MAX_IN_PARAMS).sumOf { chunk ->
+            visitDao.confirmar(chunk, estampa)
+        }
+    }
 
     companion object {
         /** Below SQLITE_MAX_VARIABLE_NUMBER (999) with margin; `minSdk` here is 24. */

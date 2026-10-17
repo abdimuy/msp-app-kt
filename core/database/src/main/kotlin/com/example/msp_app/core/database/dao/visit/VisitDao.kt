@@ -257,11 +257,26 @@ interface VisitDao {
      * foto de [markSyncedByIds]: una visita con un comprobante sin `SUBIDA_EN`
      * no se toca.
      *
-     * @return filas que cambiaron.
+     * ## La marca es la PRIMERA prueba y no se rejuvenece (E-VIS-028)
+     *
+     * `COALESCE(CONFIRMADA_EN, :ahora)`: una visita que ya estaba confirmada
+     * conserva su instante. La reconciliación inversa (Tarea 13) vuelve a
+     * confirmar cada día las confirmadas de los últimos 30; con `SET
+     * CONFIRMADA_EN = :ahora` a secas la marca se movía a "hoy" en cada
+     * corrida, la visita nunca envejecía y la poda de [deleteUploadedVisits]
+     * no la borraba jamás. Se resolvió en la escritura y no filtrando con
+     * `CONFIRMADA_EN IS NULL` en el `WHERE` a propósito: así la fila sigue
+     * contando, y un conteo menor al pedido sigue significando solo
+     * "retenida por foto". El otro llamador, `RoomPendingVisitsStore
+     * .markSynced`, solo pasa pendientes (`CONFIRMADA_EN` nulo, lo limpia
+     * [devolverAPendiente]): para él no cambia nada.
+     *
+     * @return filas que tocó (las ya confirmadas cuentan).
      */
     @Query(
         """
-        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = :ahora, RESGUARDADA_EN = NULL
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = COALESCE(CONFIRMADA_EN, :ahora),
+            RESGUARDADA_EN = NULL
         WHERE ID IN (:ids)
           AND ID NOT IN (SELECT VISITA_ID FROM visita_imagenes WHERE SUBIDA_EN IS NULL)
         """

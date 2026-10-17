@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.example.msp_app.core.visitas.envio.UltimaConciliacionDeVisitas
 import com.example.msp_app.workers.ClienteSyncWorker
 import com.example.msp_app.workers.CobranzaReconcileWorker
 import com.example.msp_app.workers.PendingGuaranteeEventsWorker
@@ -20,7 +21,9 @@ import com.example.msp_app.workers.PendingVisitsWorker
 import com.example.msp_app.workers.RefrescarSaldoDeVentaWorker
 import com.example.msp_app.workers.ReparacionDeCondonacionesWorker
 import com.example.msp_app.workers.ResolucionDeCapturasSueltasWorker
+import com.example.msp_app.workers.VisitsDailyReconcileWorker
 import com.example.msp_app.workers.VisitsReconcileWorker
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 /**
@@ -354,6 +357,66 @@ fun enqueueVisitsReconcilePeriodicWorker(context: Context) {
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
+}
+
+/** Trabajo periódico de la reconciliación inversa de visitas (plan visitas P1, Tarea 13). */
+const val VISITS_DAILY_RECONCILE_WORK = "visits_daily_reconcile"
+
+/** Corrida única al abrir la app si la última completa tiene más de 24 h. */
+const val VISITS_DAILY_RECONCILE_NOW_WORK = "visits_daily_reconcile_now"
+
+/** Cadencia del spec §4.6: una vez al día. */
+const val VISITS_DAILY_RECONCILE_PERIOD_HOURS = 24L
+
+/**
+ * Reconciliación inversa cada 24 h, con red. `KEEP`: re-registrar en cada
+ * sesión no reinicia el periodo. Ver `VisitsDailyReconcileWorker`.
+ */
+fun enqueueVisitsDailyReconcilePeriodicWorker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = PeriodicWorkRequestBuilder<VisitsDailyReconcileWorker>(
+        VISITS_DAILY_RECONCILE_PERIOD_HOURS,
+        TimeUnit.HOURS
+    )
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniquePeriodicWork(
+            VISITS_DAILY_RECONCILE_WORK,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+}
+
+/**
+ * Al abrir la app (spec §4.6): si la última reconciliación inversa completa
+ * tiene más de 24 h —o nunca corrió—, encola una corrida única con red y
+ * `KEEP`. El periódico solo no basta: WorkManager puede diferirlo días en un
+ * teléfono con ahorro de batería.
+ */
+fun enqueueVisitsDailyReconcileIfDue(context: Context, ahora: Instant = Instant.now()) {
+    if (!UltimaConciliacionDeVisitas.vencida(
+            UltimaConciliacionDeVisitas.leer(context),
+            ahora
+        )
+    ) {
+        return
+    }
+
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = OneTimeWorkRequestBuilder<VisitsDailyReconcileWorker>()
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(VISITS_DAILY_RECONCILE_NOW_WORK, ExistingWorkPolicy.KEEP, request)
 }
 
 fun enqueueClienteSyncWorker(context: Context) {

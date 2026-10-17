@@ -30,6 +30,22 @@ class VisitDaoEntregaTest : RoomTestBase() {
         assertNull(v.RESGUARDADA_EN)
     }
 
+    /**
+     * E-VIS-028: `CONFIRMADA_EN` es la PRIMERA prueba del servidor. Volver a
+     * confirmar (la reconciliación inversa lo hace cada día) no la reescribe:
+     * si lo hiciera, la visita nunca envejecería y la poda no la borraría.
+     * Sigue contando la fila, para que la retención por foto se distinga.
+     */
+    @Test
+    fun `E-VIS-028 confirmar no reescribe CONFIRMADA_EN de una ya confirmada`() = runTest {
+        dao.insertVisit(visita("a"))
+        dao.confirmar(listOf("a"), T1)
+
+        assertEquals(1, dao.confirmar(listOf("a"), T2))
+
+        assertEquals(T1, dao.findVisitById("a")!!.CONFIRMADA_EN)
+    }
+
     @Test
     fun `confirmar retiene la visita con foto sin subir y suelta la de foto subida`() = runTest {
         dao.insertVisit(visita("a"))
