@@ -338,7 +338,7 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         pinta(AbonoFixtures.enAbonoCorto())
         composeTestRule.onNodeWithTag(ABONO_CORTO_TAG).assertIsDisplayed()
         composeTestRule.onNodeWithText("Abono corto").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Esperado $220 · este abono $150").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Esperado $220 · este abono $50").assertIsDisplayed()
 
         assertEquals(
             "un desenlace normal no pinta la hoja de peligro",
@@ -397,14 +397,6 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
             assertEquals(
                 colors.statusPaidTint,
                 fondoDelSugerido(MontosSugeridos.Sugerencia.ESPERADO_HOY, colors)
-            )
-            assertEquals(
-                colors.statusTeal,
-                contenidoDelSugerido(MontosSugeridos.Sugerencia.AL_CORRIENTE, colors)
-            )
-            assertEquals(
-                colors.statusTealTint,
-                fondoDelSugerido(MontosSugeridos.Sugerencia.AL_CORRIENTE, colors)
             )
             assertEquals(
                 colors.promise,

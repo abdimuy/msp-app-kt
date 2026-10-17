@@ -4,8 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.common.money.Money
-import com.example.msp_app.core.common.time.AppClock
-import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
@@ -104,7 +102,6 @@ class RegistrarAbonoViewModel @Inject constructor(
     private val camara: ComprobantesPort,
     private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
-    private val clock: AppClock,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -929,7 +926,6 @@ class RegistrarAbonoViewModel @Inject constructor(
                     venta = venta,
                     sugeridos = MontosSugeridos.de(
                         venta = venta,
-                        hoy = AppTime.todayInBusinessZone(clock),
                         historial = historialDelCliente(venta)
                     ),
                     monto = montoInicialDe(venta),

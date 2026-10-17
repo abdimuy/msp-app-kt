@@ -139,8 +139,8 @@ internal val ALTO_DEL_TECLADO: Dp = TOQUE * 4 + 8.dp * 3
 
 /**
  * Los montos sugeridos (`.sugs`), **cada uno con su color propio** de la
- * tabla del Task 2 §5: verde `statusPaid` lo esperado hoy, turquesa
- * `statusTeal` ponerse al corriente, violeta `promise` liquidar.
+ * tabla del Task 2 §5: verde `statusPaid` lo esperado hoy, violeta `promise`
+ * liquidar. ("Al corriente", turquesa, salió de la fila el 2026-10-16.)
  *
  * Ninguno puede exceder el saldo — lo garantiza
  * [com.example.msp_app.feature.pagos.domain.MontosSugeridos], no esta fila.
@@ -281,7 +281,6 @@ fun contenidoDelSugerido(cual: MontosSugeridos.Sugerencia, colors: MspColors): C
     MontosSugeridos.Sugerencia.ESPERADO_HOY,
     MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE -> colors.statusPaid
 
-    MontosSugeridos.Sugerencia.AL_CORRIENTE -> colors.statusTeal
     MontosSugeridos.Sugerencia.LIQUIDAR -> colors.promise
     MontosSugeridos.Sugerencia.LO_DE_SIEMPRE -> colors.brand
     MontosSugeridos.Sugerencia.REDONDO -> colors.onSurfaceMuted
@@ -292,7 +291,6 @@ fun fondoDelSugerido(cual: MontosSugeridos.Sugerencia, colors: MspColors): Color
     MontosSugeridos.Sugerencia.ESPERADO_HOY,
     MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE -> colors.statusPaidTint
 
-    MontosSugeridos.Sugerencia.AL_CORRIENTE -> colors.statusTealTint
     MontosSugeridos.Sugerencia.LIQUIDAR -> colors.promiseTint
     MontosSugeridos.Sugerencia.LO_DE_SIEMPRE -> colors.brandTint
     MontosSugeridos.Sugerencia.REDONDO -> colors.surface2
