@@ -72,6 +72,79 @@ class VisitDaoEntregaTest : RoomTestBase() {
         assertNull(v.RESGUARDADA_EN)
     }
 
+    /**
+     * La condición va en el mismo UPDATE: con WAL una relectura previa no
+     * espera el candado de escritura, y un `insertAll` encolado puede entrar
+     * entre la relectura y la marca. Una foto pendiente que no está en
+     * `conocidas` (la lectura inicial del worker, omitidas incluidas) impide
+     * confirmar.
+     */
+    @Test
+    fun `confirmarTrasSubidaSiNoHayFotosNuevas no confirma con una foto pendiente desconocida`() =
+        runTest {
+            dao.insertVisit(visita("a"))
+            db.visitImageDao().insertAll(
+                listOf(
+                    imagen(id = "omitida", visitaId = "a", subidaEn = null),
+                    imagen(id = "subida", visitaId = "a", subidaEn = T1),
+                    imagen(id = "tardia", visitaId = "a", subidaEn = null)
+                )
+            )
+
+            assertEquals(0, dao.confirmarTrasSubidaSiNoHayFotosNuevas("a", T2, listOf("omitida")))
+
+            val v = dao.findVisitById("a")!!
+            assertEquals(0, v.GUARDADO_EN_MICROSIP)
+            assertNull(v.CONFIRMADA_EN)
+        }
+
+    /** Control positivo: las pendientes conocidas (omitidas) y las ya subidas no retienen. */
+    @Test
+    fun `confirmarTrasSubidaSiNoHayFotosNuevas confirma si toda pendiente es conocida`() = runTest {
+        dao.insertVisit(visita("a"))
+        dao.insertVisit(visita("b"))
+        dao.resguardar("a", T1)
+        db.visitImageDao().insertAll(
+            listOf(
+                imagen(id = "omitida", visitaId = "a", subidaEn = null),
+                imagen(id = "subida", visitaId = "a", subidaEn = T1),
+                // Pendiente de OTRA visita: no cuenta.
+                imagen(id = "de-b", visitaId = "b", subidaEn = null)
+            )
+        )
+
+        assertEquals(1, dao.confirmarTrasSubidaSiNoHayFotosNuevas("a", T2, listOf("omitida")))
+
+        val v = dao.findVisitById("a")!!
+        assertEquals(1, v.GUARDADO_EN_MICROSIP)
+        assertEquals(T2, v.CONFIRMADA_EN)
+        assertNull(v.RESGUARDADA_EN)
+        assertNull(dao.findVisitById("b")!!.CONFIRMADA_EN)
+    }
+
+    @Test
+    fun `confirmarTrasSubidaSiNoHayFotosNuevas con conocidas vacia`() = runTest {
+        dao.insertVisit(visita("a"))
+        dao.insertVisit(visita("b"))
+        db.visitImageDao().insertAll(listOf(imagen(id = "tardia", visitaId = "b", subidaEn = null)))
+
+        assertEquals(
+            "sin fotos confirma",
+            1,
+            dao.confirmarTrasSubidaSiNoHayFotosNuevas("a", T2, emptyList())
+        )
+        assertEquals(
+            "una tardia retiene",
+            0,
+            dao.confirmarTrasSubidaSiNoHayFotosNuevas("b", T2, emptyList())
+        )
+        assertEquals(
+            "id ajeno no toca nada",
+            0,
+            dao.confirmarTrasSubidaSiNoHayFotosNuevas("no-existe", T2, emptyList())
+        )
+    }
+
     @Test
     fun `resguardar marca la pendiente y no pisa una confirmada`() = runTest {
         dao.insertVisit(visita("a"))

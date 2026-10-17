@@ -641,6 +641,113 @@ class PendingVisitsWorkerV3Test : RoomTestBase() {
         )
         assertEquals(2, lecturas)
         assertNull(fila().CONFIRMADA_EN)
+
+        // Mismo hueco en el camino de existencia COMPLETA tras un error.
+        lecturas = 0
+        assertEquals(
+            Result.retry(),
+            buildAndRunWorker(
+                api = fakeV2Api { _, _ -> throw httpError(500) },
+                modo = V3,
+                getVisita = { visitaDetalle(id = it, imagenIds = emptyList()) },
+                imagenes = rota
+            )
+        )
+        assertEquals(2, lecturas)
+        assertNull(fila().CONFIRMADA_EN)
+    }
+
+    /**
+     * El hueco que la relectura no cierra: con WAL la relectura no espera el
+     * candado de escritura y un `insertAll` encolado entra entre ella y el
+     * UPDATE. La condición va en el UPDATE mismo
+     * (`confirmarTrasSubidaSiNoHayFotosNuevas`, SQL real de Room): aquí la
+     * foto se inserta justo antes de ejecutarlo, en los dos caminos.
+     */
+    @Test
+    fun `una foto que entra entre la relectura y el UPDATE impide confirmar`() = runTest {
+        val getCompleto: suspend (
+            String
+        ) -> VisitaDetalleDTO = { visitaDetalle(id = it, imagenIds = emptyList()) }
+        val casos: List<Pair<V2VisitsApi, (suspend (String) -> VisitaDetalleDTO)?>> = listOf(
+            Pair(fakeV2Api { _, b -> visitaDto(id = b.id) }, null),
+            Pair(fakeV2Api { _, _ -> throw httpError(500) }, getCompleto)
+        )
+        casos.forEachIndexed { i, (api, get) ->
+            db.clearAllTables()
+            seed(pendingVisit())
+            var tardia: File? = null
+            val conCarrera = object : com.example.msp_app.core.database.dao.visit.VisitDao by db.visitDao() {
+                override suspend fun confirmarTrasSubidaSiNoHayFotosNuevas(
+                    id: String,
+                    ahora: String,
+                    conocidas: List<String>
+                ): Int {
+                    tardia = sembrarImagen(imagenId = "tardia")
+                    return db.visitDao().confirmarTrasSubidaSiNoHayFotosNuevas(id, ahora, conocidas)
+                }
+            }
+            val r = runPendingVisitsWorker(
+                context = context,
+                imagenes = db.visitImageDao(),
+                clock = FakeClock(ahora),
+                modo = V3,
+                api = conGet(api, get),
+                visitDao = conCarrera
+            )
+            assertEquals("caso $i", Result.retry(), r)
+            assertNull("caso $i", fila().CONFIRMADA_EN)
+            assertEquals("caso $i", 0, fila().GUARDADO_EN_MICROSIP)
+            assertNull("caso $i", subidaEn("tardia"))
+            assertTrue("caso $i", tardia!!.exists())
+        }
+    }
+
+    /**
+     * Orden (simulación Go T16b, semilla
+     * `foto-tardia-tras-relectura-servidor-pierde-archivo`): si la marca
+     * condicional da 0 filas, la foto que SÍ viajó no se estampa ni se borra.
+     * Si se borrara antes y el servidor perdiera ese archivo, el teléfono ya
+     * no podría reenviarla. Se estampa y se borra solo después de la marca.
+     */
+    @Test
+    fun `una marca que da 0 filas no estampa ni borra la foto que viajo`() = runTest {
+        val casos: List<Pair<V2VisitsApi, String>> = listOf(
+            Pair(multipartConEco(), "2xx"),
+            Pair(
+                fakeV2Api(
+                    multipart = { _, _, _ -> throw httpError(500) }
+                ) { _, _ -> throw AssertionError("multipart") },
+                "GET COMPLETO tras 500"
+            )
+        )
+        casos.forEach { (api, nombre) ->
+            db.clearAllTables()
+            seed(pendingVisit())
+            val f1 = sembrarImagen(imagenId = "f1")
+            val conCarrera = object : com.example.msp_app.core.database.dao.visit.VisitDao by db.visitDao() {
+                override suspend fun confirmarTrasSubidaSiNoHayFotosNuevas(
+                    id: String,
+                    ahora: String,
+                    conocidas: List<String>
+                ): Int {
+                    sembrarImagen(imagenId = "tardia", orden = 1)
+                    return db.visitDao().confirmarTrasSubidaSiNoHayFotosNuevas(id, ahora, conocidas)
+                }
+            }
+            val r = runPendingVisitsWorker(
+                context = context,
+                imagenes = db.visitImageDao(),
+                clock = FakeClock(ahora),
+                modo = V3,
+                api = conGet(api) { visitaDetalle(id = it, imagenIds = listOf("f1")) },
+                visitDao = conCarrera
+            )
+            assertEquals(nombre, Result.retry(), r)
+            assertNull(nombre, fila().CONFIRMADA_EN)
+            assertNull("$nombre: la foto que viajo sigue pendiente", subidaEn("f1"))
+            assertTrue("$nombre: su archivo local se conserva", f1.exists())
+        }
     }
 
     /** Si la marca no queda escrita (0 filas) no hay éxito: se reintenta. */
@@ -649,6 +756,11 @@ class PendingVisitsWorkerV3Test : RoomTestBase() {
         seed(pendingVisit())
         val sinMarca = object : com.example.msp_app.core.database.dao.visit.VisitDao by db.visitDao() {
             override suspend fun confirmarTrasSubida(id: String, ahora: String): Int = 0
+            override suspend fun confirmarTrasSubidaSiNoHayFotosNuevas(
+                id: String,
+                ahora: String,
+                conocidas: List<String>
+            ): Int = 0
             override suspend fun confirmar(ids: List<String>, ahora: String): Int = 0
             override suspend fun resguardar(id: String, ahora: String): Int = 0
         }

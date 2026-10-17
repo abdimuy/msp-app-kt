@@ -224,8 +224,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
                 if (apareceFotoNueva(visit, pendientes)) {
                     Result.retry()
                 } else {
-                    markUploaded(comprobantes)
-                    confirmarConFotos(visit, "CONFIRMADA", "fotos=${viajaron.size}") {
+                    confirmarConFotos(
+                        visit,
+                        "CONFIRMADA",
+                        "fotos=${viajaron.size}",
+                        conocidas = pendientes,
+                        fotosAEstampar = comprobantes.enviadas
+                    ) {
                         anotar(visit.ID, FALLO_SIN_MARCA)
                     }
                 }
@@ -273,12 +278,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
                 if (apareceFotoNueva(visit, pendientes)) {
                     Result.retry()
                 } else {
-                    marcarSubidas(pendientes)
                     confirmarConFotos(
                         visit,
                         "RECONCILED_VIA_GET",
                         "HTTP original $codigo",
-                        anotarFallo
+                        conocidas = pendientes,
+                        fotosAEstampar = pendientes,
+                        anotarFallo = anotarFallo
                     )
                 }
             }
@@ -305,16 +311,30 @@ class PendingVisitsWorker @JvmOverloads constructor(
     }
 
     /**
-     * `confirmarTrasSubida` y su prueba: éxito solo si la marca quedó escrita
-     * (o ya estaba). Con 0 filas no se suelta: se anota y se reintenta.
+     * Marca CONFIRMADA con `confirmarTrasSubidaSiNoHayFotosNuevas`: el mismo
+     * UPDATE se niega si hay una foto pendiente fuera de [conocidas] (la
+     * lectura inicial), cerrando el hueco que la relectura no cierra con WAL.
+     * [fotosAEstampar] se estampan y se borran DESPUÉS de la marca y solo si
+     * cambió la fila. Éxito solo si la marca quedó escrita (o ya estaba); con
+     * 0 filas no se suelta: se anota y se reintenta.
      */
     private suspend fun confirmarConFotos(
         visit: VisitEntity,
         log: String,
         detalle: String,
+        conocidas: List<VisitImageEntity>,
+        fotosAEstampar: List<VisitImageEntity>,
         anotarFallo: () -> Unit
     ): Result {
-        val marcadas = visitDao.confirmarTrasSubida(visit.ID, AppTime.toWireFormat(clock.now()))
+        val marcadas = visitDao.confirmarTrasSubidaSiNoHayFotosNuevas(
+            visit.ID,
+            AppTime.toWireFormat(clock.now()),
+            conocidas.map { it.ID }
+        )
+        // Orden (simulación Go T16b): las fotos se estampan y se borran SOLO si
+        // la marca condicional cambió la fila. Con 0 filas la visita sigue
+        // pendiente y sus fotos conservan su archivo para reenviarse.
+        if (marcadas > 0) marcarSubidas(fotosAEstampar)
         return if (marcadas > 0 || yaConfirmada(visit.ID)) {
             anotar(visit.ID, null)
             Log.i(TAG, "$log: visita ${visit.ID} ($detalle)")
