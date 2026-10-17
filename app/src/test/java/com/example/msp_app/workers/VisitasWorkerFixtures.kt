@@ -11,6 +11,8 @@ import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
+import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
@@ -181,7 +183,8 @@ internal fun construirPendingVisitsWorker(
     useV2: Boolean = true,
     maxAttempts: Int = 10,
     runAttemptCount: Int = 0,
-    visitDao: VisitDao? = null
+    visitDao: VisitDao? = null,
+    diagnostico: EnvioDiagnosticoSink? = null
 ): PendingVisitsWorker {
     val inputBuilder = Data.Builder()
     if (visitId != null) inputBuilder.putString("visit_id", visitId)
@@ -207,7 +210,8 @@ internal fun construirPendingVisitsWorker(
                 imagenes = imagenes,
                 clock = clock,
                 modo = { modo },
-                visitDao = visitDao ?: AppDatabase.getInstance(appContext).visitDao()
+                visitDao = visitDao ?: AppDatabase.getInstance(appContext).visitDao(),
+                diagnostico = diagnostico ?: EnvioDiagnostico.sink
             )
         })
         .build() as PendingVisitsWorker
@@ -226,10 +230,22 @@ internal fun runPendingVisitsWorker(
     useV2: Boolean = true,
     maxAttempts: Int = 10,
     runAttemptCount: Int = 0,
-    visitDao: VisitDao? = null
+    visitDao: VisitDao? = null,
+    diagnostico: EnvioDiagnosticoSink? = null
 ): ListenableWorker.Result {
     val worker = construirPendingVisitsWorker(
-        context, imagenes, clock, modo, visitId, api, legacyApi, useV2, maxAttempts, runAttemptCount, visitDao
+        context,
+        imagenes,
+        clock,
+        modo,
+        visitId,
+        api,
+        legacyApi,
+        useV2,
+        maxAttempts,
+        runAttemptCount,
+        visitDao,
+        diagnostico
     )
     return runBlocking { worker.doWork() }
 }

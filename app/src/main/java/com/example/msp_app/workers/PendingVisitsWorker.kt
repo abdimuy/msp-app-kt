@@ -335,9 +335,20 @@ class PendingVisitsWorker @JvmOverloads constructor(
         // la marca condicional cambió la fila. Con 0 filas la visita sigue
         // pendiente y sus fotos conservan su archivo para reenviarse.
         if (marcadas > 0) marcarSubidas(fotosAEstampar)
-        return if (marcadas > 0 || yaConfirmada(visit.ID)) {
+        return if (marcadas > 0) {
             anotar(visit.ID, null)
             Log.i(TAG, "$log: visita ${visit.ID} ($detalle)")
+            Result.success()
+        } else if (yaConfirmada(visit.ID)) {
+            // Otro camino (p. ej. la reconciliación) la confirmó y la marca
+            // condicional dio 0 filas por una foto nueva. Éxito, pero no se
+            // estampa nada: la foto nueva queda pendiente con su archivo. Solo
+            // diagnóstico, para que se vea antes del barrido.
+            anotar(visit.ID, FALLO_CONFIRMADA_CON_FOTO_NUEVA)
+            Log.w(
+                TAG,
+                "$log: visita ${visit.ID} ya confirmada por otro camino; hay una foto nueva sin enviar"
+            )
             Result.success()
         } else {
             anotarFallo()
@@ -682,6 +693,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
         private val FALLO_FOTO_NUEVA = FalloDeEnvio(
             codigo = "visita_foto_nueva",
             mensaje = "La visita tiene fotos sin enviar",
+            http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
+        )
+
+        /** v3: otro camino confirmó la visita y la marca dio 0 filas por una foto nueva. */
+        private val FALLO_CONFIRMADA_CON_FOTO_NUEVA = FalloDeEnvio(
+            codigo = "visita_confirmada_por_otro_camino_con_foto_nueva",
+            mensaje = "Visita confirmada con una foto sin enviar",
             http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
         )
 

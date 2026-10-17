@@ -750,6 +750,52 @@ class PendingVisitsWorkerV3Test : RoomTestBase() {
         }
     }
 
+    /**
+     * La visita la confirmó OTRO camino (p. ej. la reconciliación) entre la
+     * lectura inicial y la marca, y además entró una foto nueva: la marca
+     * condicional da 0 filas. La visita ya está confirmada, así que es éxito,
+     * pero NO se estampa ni se borra nada (decisión estricta, aceptada por el
+     * revisor) y se anota `visita_confirmada_por_otro_camino_con_foto_nueva`
+     * para que la foto atascada se vea antes del barrido.
+     */
+    @Test
+    fun `confirmada por otro camino con foto nueva es exito sin estampar y se anota`() = runTest {
+        seed(pendingVisit())
+        val f1 = sembrarImagen(imagenId = "f1")
+        var tardia: File? = null
+        val otroCamino = object : com.example.msp_app.core.database.dao.visit.VisitDao by db.visitDao() {
+            override suspend fun confirmarTrasSubidaSiNoHayFotosNuevas(
+                id: String,
+                ahora: String,
+                conocidas: List<String>
+            ): Int {
+                db.visitDao().confirmarTrasSubida(id, "2026-10-17T17:59:00Z") // el otro camino
+                tardia = sembrarImagen(imagenId = "tardia", orden = 1)
+                return db.visitDao().confirmarTrasSubidaSiNoHayFotosNuevas(id, ahora, conocidas)
+            }
+        }
+        val anotados = mutableListOf<com.example.msp_app.core.network.diagnostico.EnvioObservado>()
+        val r = runPendingVisitsWorker(
+            context = context,
+            imagenes = db.visitImageDao(),
+            clock = FakeClock(ahora),
+            modo = V3,
+            api = conGet(multipartConEco()) { visitaDetalle(id = it, imagenIds = listOf("f1")) },
+            visitDao = otroCamino,
+            diagnostico = { anotados += it }
+        )
+        assertEquals(Result.success(), r)
+        assertEquals("la marca es la del otro camino", "2026-10-17T17:59:00Z", fila().CONFIRMADA_EN)
+        assertNull("no se estampa la foto que viajo", subidaEn("f1"))
+        assertTrue("ni se borra su archivo", f1.exists())
+        assertNull(subidaEn("tardia"))
+        assertTrue(tardia!!.exists())
+        assertEquals(
+            listOf("visita_confirmada_por_otro_camino_con_foto_nueva"),
+            anotados.map { it.fallo?.codigo }
+        )
+    }
+
     /** Si la marca no queda escrita (0 filas) no hay éxito: se reintenta. */
     @Test
     fun `una confirmacion que no marca ninguna fila nunca es exito`() = runTest {
