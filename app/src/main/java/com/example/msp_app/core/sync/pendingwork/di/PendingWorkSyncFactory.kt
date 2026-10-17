@@ -97,7 +97,7 @@ object PendingWorkSyncFactory {
             enqueuer = PaymentsWorkManagerEnqueuer(appContext)
         )
         val visitsSynchronizer = VisitsPendingSynchronizer(
-            fetchPending = { visitsDataSource.getPendingVisits() },
+            fetchPendingIds = { visitsDataSource.getPendingVisitIdsOrdered() },
             enqueuer = VisitsWorkManagerEnqueuer(appContext)
         )
         val guaranteesSynchronizer = GuaranteesPendingSynchronizer(

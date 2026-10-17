@@ -5,7 +5,10 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
+import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
+import kotlinx.coroutines.CancellationException
 
 /**
  * Runs the visitas reconciler's app-open and periodic triggers outside the UI
@@ -35,12 +38,19 @@ class VisitsReconcileWorker @JvmOverloads constructor(
     appContext: Context,
     workerParams: WorkerParameters,
     @VisibleForTesting
+    internal val pendientes: suspend () -> List<String> = {
+        AppDatabase.getInstance(appContext).visitDao().pendientesOrdenadas()
+    },
+    @VisibleForTesting
+    internal val encolar: (String) -> Unit = { enqueuePendingVisitsWorker(appContext, it) },
+    @VisibleForTesting
     internal val trigger: suspend () -> Unit = {
         VisitsReconcileTriggerProvider.get(appContext).execute()
     }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        reencolarPendientes()
         return try {
             trigger()
             Result.success()
@@ -52,6 +62,32 @@ class VisitsReconcileWorker @JvmOverloads constructor(
             // usa `CobranzaReconcileWorker` al lado.
             Log.w(TAG, "trigger de reconciliacion de visitas fallo de forma inesperada", e)
             Result.success()
+        }
+    }
+
+    /**
+     * E-APP-072 (plan visitas P1, Tarea 12; cierra H3, spec §4.2-6): en cada
+     * corrida —al abrir la app (`enqueueVisitsReconcileNowWorker`, desde
+     * `VisitsReconcileObserver`) y cada 15 min (`enqueueVisitsReconcilePeriodicWorker`)—
+     * reencola **todas** las pendientes, sin tope, en orden `FECHA ASC, ID ASC`.
+     * `enqueuePendingVisitsWorker` usa `KEEP` y nombre único por id: una visita
+     * que ya tiene su trabajo en cola no se duplica. La red recuperada la cubre
+     * la restricción `CONNECTED` de cada trabajo encolado.
+     *
+     * Va ANTES del [trigger] y aislado: una lectura o un encolado que falle no
+     * impide reconciliar; lo reintenta el siguiente periodo.
+     */
+    private suspend fun reencolarPendientes() {
+        try {
+            pendientes().forEach(encolar)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(
+                TAG,
+                "reencolado de visitas pendientes falló; lo reintenta el siguiente periodo",
+                e
+            )
         }
     }
 

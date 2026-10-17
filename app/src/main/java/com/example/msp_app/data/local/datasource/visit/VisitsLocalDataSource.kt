@@ -1,10 +1,12 @@
 package com.example.msp_app.data.local.datasource.visit
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Transaction
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.visitas.envio.ReglaDePoda
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
@@ -20,7 +22,8 @@ class VisitsLocalDataSource @Inject constructor(
     private val visitDao: VisitDao,
     private val saleDao: SaleDao,
     private val enqueuer: VisitsWorkEnqueuer,
-    private val clock: AppClock = AppClock.System
+    private val clock: AppClock = AppClock.System,
+    private val memoriaDePoda: MemoriaDePodaDeResguardadas = MemoriaDePodaDeResguardadas.Ninguna
 ) {
     /**
      * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
@@ -32,7 +35,9 @@ class VisitsLocalDataSource @Inject constructor(
     constructor(context: Context) : this(
         AppDatabase.getInstance(context).visitDao(),
         AppDatabase.getInstance(context).saleDao(),
-        VisitsWorkManagerEnqueuer(context)
+        VisitsWorkManagerEnqueuer(context),
+        AppClock.System,
+        PreferenciasDePodaDeResguardadas(context)
     )
 
     suspend fun getVisitById(id: String): VisitEntity {
@@ -46,6 +51,9 @@ class VisitsLocalDataSource @Inject constructor(
     suspend fun getPendingVisits(): List<VisitEntity> {
         return visitDao.getPendingVisits()
     }
+
+    /** Ids de todas las pendientes, `FECHA ASC, ID ASC`, sin tope (E-APP-072). */
+    suspend fun getPendingVisitIdsOrdered(): List<String> = visitDao.pendientesOrdenadas()
 
     suspend fun getVisitsByDate(start: String, end: String): List<VisitEntity> {
         return visitDao.getVisitsByDate(start, end)
@@ -190,17 +198,54 @@ class VisitsLocalDataSource @Inject constructor(
      * A visita with neither promesa nor cita prunes exactly as before — the
      * `COALESCE(..., '')` in the query makes its commitment date the empty
      * string, which is below every real date.
+     *
+     * **Plan visitas P1, Tarea 12 (cierra H2).** Además, la fila tiene que estar
+     * PROBADA: confirmada por el servidor hace más de `ReglaDePoda.CONFIRMADAS_DIAS`
+     * o resguardada en la bandeja hace más de `ReglaDePoda.RESGUARDADAS_DIAS` y ya
+     * reportada en una corrida anterior ([MemoriaDePodaDeResguardadas]). Una
+     * legada con `GUARDADO_EN_MICROSIP = 1` y sin marca no se poda: espera a la
+     * reconciliación inversa.
      */
     suspend fun deleteUploadedVisits() {
+        val ahora = clock.now()
         val corte = AppTime.todayInBusinessZone(clock).minusDays(RETENCION_DE_COMPROMISOS_DIAS)
-        val corteDeComprobantes = clock.now().minus(RETENCION_DE_COMPROBANTES)
+        val corteDeComprobantes = ahora.minus(RETENCION_DE_COMPROBANTES)
+        val limiteResguardadas = ReglaDePoda.limiteResguardadas(ahora)
+
+        // Resguardadas: se reportan ANTES de podar (spec visitas §4.2-8). Esta
+        // corrida solo poda hasta lo que una corrida anterior ya reportó; lo
+        // que rebasa hoy se reporta y se poda en la siguiente. `minOf` evita
+        // podar más allá del límite de hoy si el reloj retrocedió.
+        val porPodar = visitDao.resguardadasPorPodar(limiteResguardadas)
+        if (porPodar > 0) {
+            // Solo un conteo: ningún dato personal. La Tarea 14 lo pasa a TelemetriaDeVisitas.
+            Log.w(TAG, "visitas.resguardadas_por_podar=$porPodar")
+        }
+        val reportadas = memoriaDePoda.reportadasHasta()
+        val resguardadasAntesDe = if (reportadas == null) {
+            NADA
+        } else {
+            minOf(
+                reportadas,
+                limiteResguardadas
+            )
+        }
+
         visitDao.deleteUploadedVisits(
-            conservarDesde = AppTime.toWireDate(corte),
-            comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes)
+            confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(ahora),
+            resguardadasAntesDe = resguardadasAntesDe,
+            comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes),
+            conservarCompromisosDesde = AppTime.toWireDate(corte)
         )
+        memoriaDePoda.anotarReportadasHasta(limiteResguardadas)
     }
 
     private companion object {
+        const val TAG = "VisitsLocalDataSource"
+
+        /** Ninguna marca de cable es menor que la cadena vacía: con esto no se poda ninguna resguardada. */
+        const val NADA = ""
+
         /**
          * Cuánto sobrevive una visita subida DESPUÉS de la fecha de su
          * compromiso. Noventa días cubren de sobra la ventana en que la promesa
