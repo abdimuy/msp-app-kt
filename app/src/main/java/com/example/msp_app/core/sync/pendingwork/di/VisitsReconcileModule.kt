@@ -1,9 +1,13 @@
 package com.example.msp_app.core.sync.pendingwork.di
 
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomPendingVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.TelemetrySyncErrorReporter
 import com.example.msp_app.core.sync.pendingwork.data.visits.V2VisitCustodyRegistry
@@ -41,6 +45,9 @@ abstract class VisitsReconcileModule {
     abstract fun bindPendingVisitsStore(impl: RoomPendingVisitsStore): PendingVisitsStore
 
     @Binds
+    abstract fun bindDeliveredVisitsStore(impl: RoomDeliveredVisitsStore): DeliveredVisitsStore
+
+    @Binds
     abstract fun bindVisitCustodyRegistry(impl: V2VisitCustodyRegistry): VisitCustodyRegistry
 
     @Binds
@@ -57,6 +64,19 @@ abstract class VisitsReconcileModule {
             store = store,
             registry = registry,
             errorReporter = errorReporter
+        )
+
+        /** Reconciliación inversa diaria (plan visitas P1, Tarea 13). Sin `@Singleton`, igual que la de arriba. */
+        @Provides
+        fun provideReconcileDeliveredVisitsUseCase(
+            store: DeliveredVisitsStore,
+            registry: VisitCustodyRegistry,
+            errorReporter: SyncErrorReporter
+        ): ReconcileDeliveredVisitsUseCase = ReconcileDeliveredVisitsUseCase(
+            store = store,
+            registry = registry,
+            errorReporter = errorReporter,
+            clock = { AppClock.System.now() }
         )
     }
 }

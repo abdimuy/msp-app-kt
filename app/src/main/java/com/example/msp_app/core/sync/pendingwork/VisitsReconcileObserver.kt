@@ -14,6 +14,8 @@ import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileConnectivityTrigger
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
 import com.example.msp_app.core.sync.visitas.VisitasSseProvider
+import com.example.msp_app.workmanager.enqueueVisitsDailyReconcileIfDue
+import com.example.msp_app.workmanager.enqueueVisitsDailyReconcilePeriodicWorker
 import com.example.msp_app.workmanager.enqueueVisitsReconcileNowWorker
 import com.example.msp_app.workmanager.enqueueVisitsReconcilePeriodicWorker
 import kotlinx.coroutines.Job
@@ -57,7 +59,11 @@ fun VisitsReconcileObserver() {
     LaunchedEffect(Unit) {
         registerVisitsReconcileWorkManagerTriggers(
             registerNow = { enqueueVisitsReconcileNowWorker(context) },
-            registerPeriodic = { enqueueVisitsReconcilePeriodicWorker(context) }
+            registerPeriodic = { enqueueVisitsReconcilePeriodicWorker(context) },
+            registerDaily = {
+                enqueueVisitsDailyReconcilePeriodicWorker(context)
+                enqueueVisitsDailyReconcileIfDue(context)
+            }
         )
     }
 
@@ -134,14 +140,21 @@ fun VisitsReconcileObserver() {
  * so this independence is unit-testable without Robolectric/Compose: a test
  * passes a throwing [registerNow] and a recording [registerPeriodic] and
  * asserts the second still ran. See `VisitsReconcileObserverTriggersTest`.
+ *
+ * [registerDaily] (plan visitas P1, Tarea 13) registra la reconciliación
+ * inversa: el periódico de 24 h y, si venció, la corrida de apertura. Va con
+ * su propio `runCatching` por la misma razón.
  */
 @VisibleForTesting
 internal fun registerVisitsReconcileWorkManagerTriggers(
     registerNow: () -> Unit,
-    registerPeriodic: () -> Unit
+    registerPeriodic: () -> Unit,
+    registerDaily: () -> Unit
 ) {
     runCatching(registerNow)
         .onFailure { e -> Log.w(TAG, "no se pudo encolar el disparador de apertura", e) }
     runCatching(registerPeriodic)
         .onFailure { e -> Log.w(TAG, "no se pudo encolar el disparador periodico", e) }
+    runCatching(registerDaily)
+        .onFailure { e -> Log.w(TAG, "no se pudo encolar la reconciliacion inversa diaria", e) }
 }

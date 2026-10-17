@@ -1,9 +1,12 @@
 package com.example.msp_app.di
 
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
+import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomPendingVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.TelemetrySyncErrorReporter
 import com.example.msp_app.core.sync.pendingwork.data.visits.V2VisitCustodyRegistry
@@ -49,6 +52,12 @@ class VisitsReconcileHiltGraphTest {
     @Inject
     lateinit var errorReporter: SyncErrorReporter
 
+    @Inject
+    lateinit var reconcileDelivered: ReconcileDeliveredVisitsUseCase
+
+    @Inject
+    lateinit var deliveredStore: DeliveredVisitsStore
+
     @Before
     fun setUp() {
         hiltRule.inject()
@@ -60,5 +69,12 @@ class VisitsReconcileHiltGraphTest {
         assertTrue(store is RoomPendingVisitsStore)
         assertTrue(registry is V2VisitCustodyRegistry)
         assertTrue(errorReporter is TelemetrySyncErrorReporter)
+    }
+
+    /** Plan visitas P1, Tarea 13: el grafo real arma la reconciliación inversa. */
+    @Test
+    fun `el grafo Hilt de app resuelve la reconciliacion inversa y su puerto local`() {
+        assertNotNull(reconcileDelivered)
+        assertTrue(deliveredStore is RoomDeliveredVisitsStore)
     }
 }
