@@ -134,8 +134,8 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
      * salir de la lista y volver (navegar a registrar un abono y regresar, o
      * que Android recree la actividad). Al volver, el único estado que sí se
      * restauraba era el `listState` hospedado —el del PRIMER segmento que se
-     * mostró—, y el mapa nuevo se lo asignaba al segmento VISIBLE: "Después"
-     * aparecía con el scroll de "Sin visitar", y "Sin visitar" volvía al tope.
+     * mostró—, y el mapa nuevo se lo asignaba al segmento VISIBLE: "No paga"
+     * aparecía con el scroll de "Por visitar", y "Por visitar" volvía al tope.
      *
      * El segmento vive FUERA de la composición (como en el ViewModel, que sí
      * sobrevive), así que tras la restauración la pantalla vuelve al mismo
@@ -267,9 +267,9 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
     }
 
     /**
-     * **La cabecera tiene UN solo estado para los cuatro segmentos** (decisión del
+     * **La cabecera tiene UN solo estado para los tres segmentos** (decisión del
      * dueño, 2026-10-07; sustituye a "la cabecera grande sigue el scroll del segmento
-     * visible", e9d93f40). Bajar en "Sin visitar" la encoge; cambiar a "Después", que
+     * visible", e9d93f40). Bajar en "Por visitar" la encoge; cambiar a "No paga", que
      * está en su tope, la deja encogida — y al regresar, sigue igual.
      */
     @Test

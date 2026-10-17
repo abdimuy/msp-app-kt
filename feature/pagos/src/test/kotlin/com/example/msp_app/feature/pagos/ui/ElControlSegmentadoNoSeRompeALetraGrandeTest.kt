@@ -42,7 +42,7 @@ import org.robolectric.annotation.GraphicsMode
  * ## La prueba que estaba aquí afirmaba esto y no lo medía
  *
  * Hasta el **2026-09-22** este archivo tenía un solo test, verde, que decía
- * *«a MUY_GRANDE las cuatro etiquetas y conteos quedan completos y dentro de la
+ * *«a MUY_GRANDE las tres etiquetas y conteos quedan completos y dentro de la
  * pantalla»* mientras su propio golden (`pagos_bitacora_light_2_0.png`) mostraba
  * "Visitas" rebanado y "Promesas" ausente. Medía con `boundsInRoot`, y
  * `boundsInRoot` **viene recortado por los padres**. El mecanismo se midió, no
@@ -76,7 +76,7 @@ import org.robolectric.annotation.GraphicsMode
  *
  * Se cobra en las DOS pantallas que comparten el control —la bitácora
  * (`FiltrosDeContacto`) y la lista de clientes (`SegmentadoDeCobranza`)—: son
- * las etiquetas de la lista ("Sin visitar") las que primero dejan de caber.
+ * las etiquetas de la lista ("Por visitar") las que primero dejan de caber.
  *
  * **Pinta la pantalla real, no el control suelto.** Un primer intento montó sólo
  * `FiltrosDeContacto` dentro de un `Box` con el margen de `BitacoraScreen`
@@ -148,7 +148,7 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
         val tags = tagsDeLaLista()
         val escondidasAlInicio = tags.filterNot { seLeeCompleta(it) }
         assertFalse(
-            "el fixture ya no reproduce el caso: a MUY_GRANDE caben las cuatro",
+            "el fixture ya no reproduce el caso: a MUY_GRANDE caben las tres",
             escondidasAlInicio.isEmpty()
         )
 
@@ -244,7 +244,7 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
      *    `ORILLA_*` **pintados**, no de la constante de producción: si algún día
      *    la orilla cambia de ancho, esta prueba mide la que se pintó.
      *
-     * La segunda mitad no es teórica. A `GRANDE`, "Después" quedaba entero
+     * La segunda mitad no es teórica. A `GRANDE`, "No paga" quedaba entero
      * dentro de la ventana y su conteo se desvanecía a blanco bajo la orilla; el
      * aviso decía "+1" y había dos datos ilegibles en pantalla.
      */
