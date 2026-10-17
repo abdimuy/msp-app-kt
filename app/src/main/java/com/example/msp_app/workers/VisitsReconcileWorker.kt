@@ -38,9 +38,7 @@ class VisitsReconcileWorker @JvmOverloads constructor(
     appContext: Context,
     workerParams: WorkerParameters,
     @VisibleForTesting
-    internal val pendientes: suspend () -> List<String> = {
-        AppDatabase.getInstance(appContext).visitDao().pendientesOrdenadas()
-    },
+    internal val pendientes: suspend () -> List<String> = { pendientesPorOmision(appContext) },
     @VisibleForTesting
     internal val encolar: (String) -> Unit = { enqueuePendingVisitsWorker(appContext, it) },
     @VisibleForTesting
@@ -93,5 +91,14 @@ class VisitsReconcileWorker @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "VisitsReconcileWorker"
+
+        /**
+         * La lectura por omisión de [pendientes]: todas, `FECHA ASC, ID ASC`, sin
+         * tope (E-APP-072). Con nombre para que `VisitasParaElBarridoTest` ejerza
+         * esta misma lectura y no una copia.
+         */
+        @VisibleForTesting
+        internal suspend fun pendientesPorOmision(context: Context): List<String> =
+            AppDatabase.getInstance(context).visitDao().pendientesOrdenadas()
     }
 }
