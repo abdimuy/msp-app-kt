@@ -69,4 +69,29 @@ class RoomDeliveredVisitsStoreTest : RoomTestBase() {
         assertNotNull(db.visitDao().findVisitById("v-1499"))
         assertEquals(1500, db.visitDao().pendientesOrdenadas().size)
     }
+
+    /** R1 de la revisión: el tope se prueba contando lotes, no con SQLite de escritorio. */
+    @Test
+    fun `cada lote de escritura lleva a lo mas 900 ids`() = runTest {
+        val lotesConfirmar = mutableListOf<Int>()
+        val lotesDevolver = mutableListOf<Int>()
+        val contado = RoomDeliveredVisitsStore(
+            visitDao = db.visitDao(),
+            confirmarLote = { ids, _ ->
+                lotesConfirmar += ids.size
+                ids.size
+            },
+            devolverLote = { ids ->
+                lotesDevolver += ids.size
+                ids.size
+            }
+        )
+        val muchas = List(1901) { "v-$it" }
+
+        assertEquals(1901, contado.confirmar(muchas, "2026-10-17T15:00:00Z"))
+        assertEquals(1901, contado.devolverAPendiente(muchas))
+
+        assertEquals(listOf(900, 900, 101), lotesConfirmar)
+        assertEquals(listOf(900, 900, 101), lotesDevolver)
+    }
 }

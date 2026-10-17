@@ -21,7 +21,9 @@ interface DeliveredVisitsStore {
     suspend fun entregadasDesde(desde: String): List<String>
 
     /**
-     * El servidor nombró [ids] en `by-ids`: estampa `CONFIRMADA_EN` con `ahora`.
+     * El servidor nombró [ids] en `by-ids`: estampa `CONFIRMADA_EN` con `ahora`
+     * solo si no la tenía; la que ya estaba confirmada conserva su instante
+     * (E-VIS-028), o la poda nunca la soltaría.
      * Una visita con un comprobante sin subir no se toca (retención por foto).
      *
      * @return cuántas cambiaron de verdad.

@@ -15,8 +15,8 @@ import kotlinx.coroutines.CancellationException
  * @param revisadas ids distintos que se leyeron como soltados.
  * @param faltantes las que el servidor no tenía y volvieron de verdad a
  *   pendiente (alerta del spec §12-1 si > 0).
- * @param confirmadas las que el servidor nombró y quedaron de verdad con
- *   `CONFIRMADA_EN`.
+ * @param confirmadas las que el servidor nombró y quedaron con
+ *   `CONFIRMADA_EN` (las que ya la tenían cuentan y la conservan, E-VIS-028).
  * @param tandasFallidas consultas `by-ids` que no contestaron: sus ids no
  *   cambiaron.
  * @param entregadasIlegibles la lectura local falló: no se preguntó nada.
@@ -52,7 +52,15 @@ data class ConciliacionInversa(
  * - **Una tanda que falla no decide nada**: un `throw` de `by-ids` es
  *   "desconocido", nunca "el servidor no la tiene" (mismo criterio que
  *   [ReconcileVisitsUseCase]). Las demás tandas siguen.
- * - **Un id que no se preguntó no se confirma**: se descarta y se reporta.
+ * - **Un id que no se preguntó no se confirma.** La guarda real es
+ *   `si = tanda.filter { it in existentes }`: lo que se confirma sale de la
+ *   tanda preguntada, nunca de la respuesta. El filtro de `existentes` y el
+ *   reporte de ajenos son diagnóstico encima de eso.
+ * - **Reconfirmar no rejuvenece** (E-VIS-028): las confirmadas de la ventana
+ *   se preguntan cada día y, si el servidor las nombra, se vuelven a pasar a
+ *   [DeliveredVisitsStore.confirmar], que conserva la `CONFIRMADA_EN` que ya
+ *   tenían. Por eso `confirmadas` cuenta las nombradas que quedan con marca,
+ *   no solo las nuevas.
  * - **La comparación de ids es exacta**, igual que `existenciaCompleta`
  *   (Tarea 9). El servidor contesta `uuid.String()` (minúsculas canónicas) y
  *   el teléfono acuña `UUID.toString()` (también minúsculas): coinciden. Si
