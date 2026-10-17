@@ -582,6 +582,67 @@ class PendingVisitsWorkerV3Test : RoomTestBase() {
         assertFalse(f1.exists() || f2.exists())
     }
 
+    /**
+     * Carrera con `RegistroDeVisitaAdapter.guardar`, que confirma la Visit en
+     * su transacción y DESPUÉS inserta las fotos: un worker que corra en ese
+     * hueco lee 0 fotos, manda JSON y recibe 2xx con eco. Antes de confirmar
+     * se vuelve a leer: una foto pendiente que no estaba en la primera lectura
+     * impide confirmar (no viajó y nadie la reenviaría).
+     */
+    @Test
+    fun `una foto que aparece entre el envio y la marca impide confirmar`() = runTest {
+        val getCompleto: suspend (
+            String
+        ) -> VisitaDetalleDTO = { visitaDetalle(id = it, imagenIds = emptyList()) }
+        val casos: List<Pair<V2VisitsApi, (suspend (String) -> VisitaDetalleDTO)?>> = listOf(
+            Pair(fakeV2Api { _, b -> visitaDto(id = b.id) }, null),
+            Pair(fakeV2Api { _, _ -> throw httpError(500) }, getCompleto)
+        )
+        casos.forEachIndexed { i, (api, get) ->
+            db.clearAllTables()
+            seed(pendingVisit())
+            var lecturas = 0
+            var tardia: File? = null
+            val conCarrera = object : VisitImageDao by db.visitImageDao() {
+                override suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity> {
+                    lecturas++
+                    if (lecturas == 2) tardia = sembrarImagen(imagenId = "tardia")
+                    return db.visitImageDao().getPendientesDe(visitaId)
+                }
+            }
+            val r = buildAndRunWorker(api = api, modo = V3, getVisita = get, imagenes = conCarrera)
+            assertEquals("caso $i", Result.retry(), r)
+            assertNull("caso $i", fila().CONFIRMADA_EN)
+            assertEquals("caso $i", 0, fila().GUARDADO_EN_MICROSIP)
+            assertNull("caso $i", subidaEn("tardia"))
+            assertTrue("caso $i", tardia!!.exists())
+        }
+    }
+
+    /** Si la relectura previa a confirmar falla, no se confirma: se reintenta. */
+    @Test
+    fun `una relectura de fotos que falla antes de confirmar reintenta`() = runTest {
+        seed(pendingVisit())
+        var lecturas = 0
+        val rota = object : VisitImageDao by db.visitImageDao() {
+            override suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity> {
+                lecturas++
+                if (lecturas >= 2) throw IllegalStateException("no se pudo leer visita_imagenes")
+                return db.visitImageDao().getPendientesDe(visitaId)
+            }
+        }
+        assertEquals(
+            Result.retry(),
+            buildAndRunWorker(
+                api = fakeV2Api { _, b -> visitaDto(id = b.id) },
+                modo = V3,
+                imagenes = rota
+            )
+        )
+        assertEquals(2, lecturas)
+        assertNull(fila().CONFIRMADA_EN)
+    }
+
     /** Si la marca no queda escrita (0 filas) no hay éxito: se reintenta. */
     @Test
     fun `una confirmacion que no marca ninguna fila nunca es exito`() = runTest {

@@ -218,10 +218,16 @@ class PendingVisitsWorker @JvmOverloads constructor(
             null
         }
         return when (salidaTras2xx(visit.ID, eco, viajaron, get)) {
+            // Relectura y marca en el mismo bloque NonCancellable (H1b): decidida
+            // la salida, una cancelación no la corta entre la prueba y la marca.
             SalidaDeEnvio.CONFIRMADA -> withContext(NonCancellable) {
-                markUploaded(comprobantes)
-                confirmarConFotos(visit, "CONFIRMADA", "fotos=${viajaron.size}") {
-                    anotar(visit.ID, FALLO_SIN_MARCA)
+                if (apareceFotoNueva(visit, pendientes)) {
+                    Result.retry()
+                } else {
+                    markUploaded(comprobantes)
+                    confirmarConFotos(visit, "CONFIRMADA", "fotos=${viajaron.size}") {
+                        anotar(visit.ID, FALLO_SIN_MARCA)
+                    }
                 }
             }
             // Sin eco del mismo id: «HTTP 200 no es éxito». Decide la existencia.
@@ -264,8 +270,17 @@ class PendingVisitsWorker @JvmOverloads constructor(
             // `VisitDao.confirmar`, que aquí marcaría 0 filas y atascaría la
             // visita mientras el POST siga fallando (hallazgo de la Tarea 16).
             SalidaDeEnvio.CONFIRMADA -> withContext(NonCancellable) {
-                marcarSubidas(pendientes)
-                confirmarConFotos(visit, "RECONCILED_VIA_GET", "HTTP original $codigo", anotarFallo)
+                if (apareceFotoNueva(visit, pendientes)) {
+                    Result.retry()
+                } else {
+                    marcarSubidas(pendientes)
+                    confirmarConFotos(
+                        visit,
+                        "RECONCILED_VIA_GET",
+                        "HTTP original $codigo",
+                        anotarFallo
+                    )
+                }
             }
             SalidaDeEnvio.RESGUARDADA -> withContext(NonCancellable) {
                 val marcadas = visitDao.resguardar(visit.ID, AppTime.toWireFormat(clock.now()))
@@ -309,6 +324,35 @@ class PendingVisitsWorker @JvmOverloads constructor(
             Log.w(TAG, "REINTENTA sin_marca: visita ${visit.ID} ($log, $detalle)")
             Result.retry()
         }
+    }
+
+    /**
+     * Relectura justo antes de confirmar. `RegistroDeVisitaAdapter.guardar`
+     * confirma la Visit en su transacción y DESPUÉS inserta las fotos: un
+     * worker que corra en ese hueco leyó menos fotos de las que la visita
+     * tiene. Si aparece una pendiente que no estaba en [conocidas], no viajó
+     * ni la listó el servidor: no se confirma (se reintenta y la próxima
+     * corrida la manda). Una lectura que falla también reintenta. Anota.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun apareceFotoNueva(
+        visit: VisitEntity,
+        conocidas: List<VisitImageEntity>
+    ): Boolean {
+        val ids = conocidas.map { it.ID }.toSet()
+        val nueva = try {
+            imagenes.getPendientesDe(visit.ID).any { it.ID !in ids }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Visita ${visit.ID}: relectura de fotos fallida", e)
+            true
+        }
+        if (nueva) {
+            anotar(visit.ID, FALLO_FOTO_NUEVA)
+            Log.w(TAG, "REINTENTA foto_nueva: visita ${visit.ID} tiene fotos que no viajaron")
+        }
+        return nueva
     }
 
     private suspend fun yaConfirmada(id: String): Boolean =
@@ -612,6 +656,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
             codigo = "visita_sin_eco",
             mensaje = "El servidor no confirmó la visita",
             http = HTTP_OK
+        )
+
+        /** v3: al releer antes de confirmar apareció una foto que no viajó. */
+        private val FALLO_FOTO_NUEVA = FalloDeEnvio(
+            codigo = "visita_foto_nueva",
+            mensaje = "La visita tiene fotos sin enviar",
+            http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
         )
 
         /** v3: se decidió confirmar pero la marca no quedó escrita (0 filas). */
