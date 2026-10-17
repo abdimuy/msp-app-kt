@@ -77,9 +77,9 @@ class JuegoDeCasosCoberturaTest {
     }
 
     @Test
-    fun `estan los nueve casos de columna 041 a 049`() {
+    fun `estan los diez casos de columna 041 a 050`() {
         val prefijos = casos.map { it.archivo.substring(0, 3) }.toSet()
-        assertTrue("faltan casos 041-049", (41..49).all { "%03d".format(it) in prefijos })
+        assertTrue("faltan casos 041-050", (41..50).all { "%03d".format(it) in prefijos })
     }
 
     @Test
