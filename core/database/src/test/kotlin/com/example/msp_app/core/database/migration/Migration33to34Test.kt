@@ -16,6 +16,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-33-34-test.db"
 private const val OLD_VERSION = 33
 private const val NEW_VERSION = 34
+private const val ULTIMA_VERSION = 35
 
 /**
  * E-APP-063: la 33→34 solo crea `envio_diagnostico`. Lo que se prueba aquí, y
@@ -102,21 +103,33 @@ class Migration33to34Test : RobolectricTestBase() {
         migrada.close()
     }
 
-    /** Camino real de producción: `buildDatabase` debe tener registrada la 33→34. */
+    /**
+     * Camino real de producción: `buildDatabase` debe tener registrada la 33→34.
+     * La cadena sigue hasta la última versión (v35 agrega dos columnas a
+     * `Visit`), así que se comparan las columnas que la fila ya tenía en v33.
+     */
     @Test
     fun `MIGRATION_33_34 esta registrada en la configuracion real que usa produccion`() {
-        val antes = migrationTestHelper.createDatabase(MIGRATION_DB, OLD_VERSION).use { db ->
-            sembrar(db)
-            volcado(db, listOf("Payment", "Visit"))
-        }
+        val (antes, columnasDeOrigen) = migrationTestHelper.createDatabase(
+            MIGRATION_DB,
+            OLD_VERSION
+        )
+            .use { db ->
+                sembrar(db)
+                val tablas = listOf("Payment", "Visit")
+                volcado(db, tablas) to tablas.associateWith { columnas(db, it) }
+            }
         val context = ApplicationProvider.getApplicationContext<Context>()
         val abierta = AppDatabase.buildDatabase(context, context.getDatabasePath(MIGRATION_DB).path)
             .allowMainThreadQueries()
             .build()
         try {
             val db = abierta.openHelper.readableDatabase
-            assertEquals(NEW_VERSION, db.version)
-            assertEquals(antes, volcado(db, listOf("Payment", "Visit")))
+            assertEquals(ULTIMA_VERSION, db.version)
+            assertEquals(
+                antes,
+                volcado(db, listOf("Payment", "Visit")) { columnasDeOrigen.getValue(it) }
+            )
         } finally {
             abierta.close()
         }
@@ -229,9 +242,10 @@ class Migration33to34Test : RobolectricTestBase() {
     /** Por tabla, cada fila como `rowid|typeof:quote|...`, en orden de `rowid`. */
     private fun volcado(
         db: SupportSQLiteDatabase,
-        tablas: List<String>
+        tablas: List<String>,
+        columnasDe: (String) -> List<String> = { columnas(db, it) }
     ): Map<String, List<String>> = tablas.associateWith { tabla ->
-        val cols = columnas(db, tabla)
+        val cols = columnasDe(tabla)
         assertTrue("la tabla $tabla debe tener columnas", cols.isNotEmpty())
         val select = cols.joinToString(" || '|' || ") { "typeof(`$it`) || ':' || quote(`$it`)" }
         db.query("SELECT rowid || '|' || $select FROM `$tabla` ORDER BY rowid").use { c ->
