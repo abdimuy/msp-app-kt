@@ -162,6 +162,14 @@ class Migration34to35Test : RobolectricTestBase() {
 
     /** Una fila con forma real en cada tabla de v34 que no es Visit/Payment/visita_imagenes. */
     private fun sembrarNegocio(db: SupportSQLiteDatabase) {
+        sembrarVentaMicrosip(db)
+        sembrarGarantia(db)
+        sembrarInventario(db)
+        sembrarVentaLocal(db)
+        sembrarClienteYCobranza(db)
+    }
+
+    private fun sembrarVentaMicrosip(db: SupportSQLiteDatabase) {
         fila(
             db, "sales",
             "DOCTO_CC_ACR_ID" to 512345, "DOCTO_CC_ID" to 8800120, "FOLIO" to "B-041237",
@@ -185,6 +193,9 @@ class Migration34to35Test : RobolectricTestBase() {
             "ARTICULO_ID" to 30211, "ARTICULO" to "Recámara Matrimonial Lisboa", "CANTIDAD" to 1,
             "PRECIO_UNITARIO_IMPTO" to 12400.0, "PRECIO_TOTAL_NETO" to 12400.0, "POSICION" to 1
         )
+    }
+
+    private fun sembrarGarantia(db: SupportSQLiteDatabase) {
         fila(
             db, "garantias",
             "ID" to 1, "EXTERNAL_ID" to "6d1f0c2e-8a4b-4f7e-9c3d-2b1a0f9e8d7c", "DOCTO_CC_ID" to 8800120,
@@ -212,6 +223,9 @@ class Migration34to35Test : RobolectricTestBase() {
             "COMENTARIO" to "Cliente pide revisión",
             "ENVIADO" to 0
         )
+    }
+
+    private fun sembrarInventario(db: SupportSQLiteDatabase) {
         fila(
             db,
             "product_inventory",
@@ -229,6 +243,9 @@ class Migration34to35Test : RobolectricTestBase() {
             "ARTICULO_ID" to 30211,
             "RUTA_LOCAL" to "/data/inventario/30211-1.jpg"
         )
+    }
+
+    private fun sembrarVentaLocal(db: SupportSQLiteDatabase) {
         fila(
             db, "local_sale",
             "LOCAL_SALE_ID" to LOCAL_SALE, "NOMBRE_CLIENTE" to "Ramírez Ortiz, Fernando",
@@ -263,6 +280,9 @@ class Migration34to35Test : RobolectricTestBase() {
             "CANTIDAD" to 1, "PRECIO_LISTA" to 9800.0, "PRECIO_CORTO_PLAZO" to 7800.0,
             "PRECIO_CONTADO" to 6900.0, "COMBO_ID" to "combo-1", "SERVER_UUID" to null
         )
+    }
+
+    private fun sembrarClienteYCobranza(db: SupportSQLiteDatabase) {
         fila(
             db,
             "cliente",
