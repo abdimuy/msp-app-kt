@@ -1,5 +1,6 @@
 package com.example.msp_app.core.visitas.envio
 
+import com.google.firebase.firestore.FirebaseFirestore
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -75,10 +76,53 @@ class ModoEnvioVisitasTest {
         assertEquals(ModoEnvioVisitas.V3, FirestoreModoEnvioVisitas.actual)
     }
 
-    @Test fun `instalar sin Firebase inicializado no truena y queda en V3`() {
-        // En la JVM de prueba no hay FirebaseApp: getInstance() lanza. instalar() no debe propagar.
-        FirestoreModoEnvioVisitas.instalar()
-        FirestoreModoEnvioVisitas.instalar()
-        assertEquals(ModoEnvioVisitas.V3, FirestoreModoEnvioVisitas.actual)
+    // Instancias nuevas de ModoEnvioVisitasVigente: no dependen del estado del
+    // objeto global ni de que otra clase del sandbox haya inicializado FirebaseApp.
+
+    @Test fun `un modo recien creado es V3 sin pasar por aplicar`() {
+        assertEquals(ModoEnvioVisitas.V3, ModoEnvioVisitasVigente(firestoreQueFalla()).actual)
     }
+
+    @Test fun `un modo recien creado coincide con un documento ausente`() {
+        assertEquals(modoDesde(null), ModoEnvioVisitasVigente(firestoreQueFalla()).actual)
+    }
+
+    @Test fun `listener con error y V2_ACTUAL vigente conserva V2_ACTUAL`() {
+        val modo = ModoEnvioVisitasVigente(firestoreQueFalla())
+        modo.alRecibir(mapOf("modo" to "v2_actual"), null)
+        assertEquals(ModoEnvioVisitas.V2_ACTUAL, modo.actual)
+        modo.alRecibir(null, RuntimeException("sin red"))
+        assertEquals(ModoEnvioVisitas.V2_ACTUAL, modo.actual)
+    }
+
+    @Test fun `listener con error y datos conserva el modo vigente`() {
+        val modo = ModoEnvioVisitasVigente(firestoreQueFalla())
+        modo.alRecibir(mapOf("modo" to "v2_actual"), null)
+        modo.alRecibir(mapOf("modo" to "v3"), RuntimeException("sin red"))
+        assertEquals(ModoEnvioVisitas.V2_ACTUAL, modo.actual)
+    }
+
+    @Test fun `listener sin error y sin documento vuelve a V3`() {
+        val modo = ModoEnvioVisitasVigente(firestoreQueFalla())
+        modo.alRecibir(mapOf("modo" to "v2_actual"), null)
+        modo.alRecibir(null, null)
+        assertEquals(ModoEnvioVisitas.V3, modo.actual)
+    }
+
+    @Test fun `instalar con Firestore que lanza no truena, conserva el modo y reintenta`() {
+        var llamadas = 0
+        val modo = ModoEnvioVisitasVigente {
+            llamadas++
+            throw IllegalStateException("Default FirebaseApp is not initialized")
+        }
+        modo.instalar()
+        assertEquals(ModoEnvioVisitas.V3, modo.actual)
+        modo.alRecibir(mapOf("modo" to "v2_actual"), null)
+        modo.instalar()
+        assertEquals(ModoEnvioVisitas.V2_ACTUAL, modo.actual)
+        assertEquals("un instalar fallido no debe bloquear el siguiente intento", 2, llamadas)
+    }
+
+    private fun firestoreQueFalla(): () -> FirebaseFirestore =
+        { throw IllegalStateException("sin Firestore en la prueba") }
 }
