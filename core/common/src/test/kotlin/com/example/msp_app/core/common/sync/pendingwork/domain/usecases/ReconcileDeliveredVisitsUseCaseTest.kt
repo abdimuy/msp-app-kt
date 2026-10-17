@@ -1,10 +1,12 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_CONFIRMAR_FALLIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_CONSULTA_FALLIDA
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DEVOLVER_FALLIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DEVUELTA_A_PENDIENTE
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_ENTREGADAS_ILEGIBLES
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_ID_INVALIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_RESPUESTA_AJENA
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_RETENIDAS_POR_COMPROBANTE
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakeDeliveredVisitsStore
@@ -33,7 +35,7 @@ class ReconcileDeliveredVisitsUseCaseTest {
 
     private fun uc(
         store: FakeDeliveredVisitsStore,
-        registry: FakeVisitCustodyRegistry,
+        registry: VisitCustodyRegistry,
         reporter: RecordingSyncErrorReporter = RecordingSyncErrorReporter()
     ) = ReconcileDeliveredVisitsUseCase(
         store = store,
@@ -42,19 +44,26 @@ class ReconcileDeliveredVisitsUseCaseTest {
         clock = { ahora }
     )
 
-    private fun ids(n: Int, from: Int = 1) = (from until from + n).map { "v$it" }
+    /** Ids con forma de UUID canónico: los únicos que se le preguntan al servidor. */
+    private fun u(n: Int) = "00000000-0000-4000-8000-%012d".format(n)
+
+    private val a = u(9001)
+    private val b = u(9002)
+    private val intruso = u(9999)
+
+    private fun ids(n: Int, from: Int = 1) = (from until from + n).map { u(it) }
 
     // Review Focus 2.
     @Test
     fun inversaDevuelveAPendienteLaLegadaQueElServidorNoTiene() = runTest {
-        val store = FakeDeliveredVisitsStore(entregadas = listOf("a", "b"))
-        val reg = FakeVisitCustodyRegistry(known = setOf("a"))
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a, b))
+        val reg = FakeVisitCustodyRegistry(known = setOf(a))
         val reporter = RecordingSyncErrorReporter()
 
         val r = uc(store, reg, reporter).execute()
 
-        assertEquals(listOf("b"), store.devueltas)
-        assertEquals(listOf("a"), store.confirmadas)
+        assertEquals(listOf(b), store.devueltas)
+        assertEquals(listOf(a), store.confirmadas)
         assertEquals(
             ConciliacionInversa(revisadas = 2, faltantes = 1, confirmadas = 1, tandasFallidas = 0),
             r
@@ -69,7 +78,7 @@ class ReconcileDeliveredVisitsUseCaseTest {
     fun tandaFallidaNoDevuelveNiConfirma() = runTest {
         val todas = ids(150)
         val store = FakeDeliveredVisitsStore(entregadas = todas)
-        val reg = FakeVisitCustodyRegistry(known = setOf("v120"), failOnCallIndex = 1)
+        val reg = FakeVisitCustodyRegistry(known = setOf(u(120)), failOnCallIndex = 1)
         val reporter = RecordingSyncErrorReporter()
 
         val r = uc(store, reg, reporter).execute()
@@ -87,13 +96,13 @@ class ReconcileDeliveredVisitsUseCaseTest {
     // Review Focus 3.
     @Test
     fun idAjenoNoSeConfirma() = runTest {
-        val store = FakeDeliveredVisitsStore(entregadas = listOf("a"))
-        val reg = FakeVisitCustodyRegistry(known = setOf("a"), volunteeredIds = listOf("intruso"))
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a))
+        val reg = FakeVisitCustodyRegistry(known = setOf(a), volunteeredIds = listOf(intruso))
         val reporter = RecordingSyncErrorReporter()
 
         val r = uc(store, reg, reporter).execute()
 
-        assertEquals(listOf("a"), store.confirmadas)
+        assertEquals(listOf(a), store.confirmadas)
         assertEquals(emptyList<String>(), store.devueltas)
         assertEquals(1, r.confirmadas)
         assertEquals(listOf(ERROR_CODE_RESPUESTA_AJENA), reporter.codes)
@@ -129,12 +138,12 @@ class ReconcileDeliveredVisitsUseCaseTest {
 
     @Test
     fun `ids repetidos se preguntan una vez`() = runTest {
-        val reg = FakeVisitCustodyRegistry(known = setOf("a"))
-        val store = FakeDeliveredVisitsStore(entregadas = listOf("a", "a", "b"))
+        val reg = FakeVisitCustodyRegistry(known = setOf(a))
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a, a, b))
 
         val r = uc(store, reg).execute()
 
-        assertEquals(listOf(listOf("a", "b")), reg.requests)
+        assertEquals(listOf(listOf(a, b)), reg.requests)
         assertEquals(2, r.revisadas)
     }
 
@@ -161,9 +170,9 @@ class ReconcileDeliveredVisitsUseCaseTest {
 
     @Test
     fun `confirmar estampa el instante del reloj`() = runTest {
-        val store = FakeDeliveredVisitsStore(entregadas = listOf("a"))
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a))
 
-        uc(store, FakeVisitCustodyRegistry(known = setOf("a"))).execute()
+        uc(store, FakeVisitCustodyRegistry(known = setOf(a))).execute()
 
         assertEquals(listOf("2026-10-17T15:00:00Z"), store.confirmadasEn)
     }
@@ -183,10 +192,10 @@ class ReconcileDeliveredVisitsUseCaseTest {
 
     @Test
     fun `la retenida por comprobante no cuenta como confirmada y se reporta`() = runTest {
-        val store = FakeDeliveredVisitsStore(entregadas = listOf("a", "b"), retenidas = setOf("b"))
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a, b), retenidas = setOf(b))
         val reporter = RecordingSyncErrorReporter()
 
-        val r = uc(store, FakeVisitCustodyRegistry(known = setOf("a", "b")), reporter).execute()
+        val r = uc(store, FakeVisitCustodyRegistry(known = setOf(a, b)), reporter).execute()
 
         assertEquals(1, r.confirmadas)
         assertEquals(0, r.faltantes)
@@ -201,7 +210,7 @@ class ReconcileDeliveredVisitsUseCaseTest {
             failOnDevolver = IllegalStateException("y")
         )
         val reporter = RecordingSyncErrorReporter()
-        val reg = FakeVisitCustodyRegistry(known = setOf("v1", "v101"))
+        val reg = FakeVisitCustodyRegistry(known = setOf(u(1), u(101)))
 
         val r = uc(store, reg, reporter).execute()
 
@@ -214,7 +223,7 @@ class ReconcileDeliveredVisitsUseCaseTest {
 
     @Test
     fun `cancelacion se propaga`() = runTest {
-        val store = FakeDeliveredVisitsStore(entregadas = listOf("a"))
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a))
         val reg = FakeVisitCustodyRegistry(
             failOnCallIndex = 0,
             failure = CancellationException("cancelado")
@@ -243,7 +252,7 @@ class ReconcileDeliveredVisitsUseCaseTest {
         val rnd = Random(20261017L)
         repeat(300) { caso ->
             val n = rnd.nextInt(320)
-            val entregadas = List(n) { "v${rnd.nextInt(400)}" }
+            val entregadas = List(n) { u(rnd.nextInt(400)) }
             val distintas = entregadas.distinct()
             val servidor = distintas.filter { rnd.nextBoolean() }.toSet() +
                 List(rnd.nextInt(3)) { "srv$it" }
@@ -288,12 +297,80 @@ class ReconcileDeliveredVisitsUseCaseTest {
 
     @Test
     fun `una IOException en la consulta es desconocido no ausente`() = runTest {
-        val store = FakeDeliveredVisitsStore(entregadas = listOf("a"))
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a))
         val reg = FakeVisitCustodyRegistry(failOnCallIndex = 0, failure = IOException("sin red"))
 
         val r = uc(store, reg).execute()
 
         assertEquals(emptyList<String>(), store.devueltas)
         assertEquals(1, r.tandasFallidas)
+    }
+
+    /**
+     * Imita a `GET /v2/visitas/by-ids`: un solo id que `uuid.Parse` rechaza
+     * tumba TODA la petición con `422 ids_invalid`
+     * (msp-api `handlers_visitas_existentes_por_ids.go:143-145`, guardado por
+     * `TestHTTP_VisitasExistentesPorIDs_MalformedUUIDAmongValid_Returns422_AndNothingLeaks`).
+     */
+    private class ServidorQueRechazaLaTanda(private val tiene: Set<String>) : VisitCustodyRegistry {
+        val peticiones = mutableListOf<List<String>>()
+        private val canonico =
+            Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+        override suspend fun findExisting(visitIds: List<String>): List<String> {
+            peticiones += visitIds
+            if (visitIds.any {
+                    !canonico.matches(it.trim())
+                }
+            ) {
+                error("HTTP 422 ids_invalid")
+            }
+            return visitIds.filter { it in tiene }
+        }
+    }
+
+    /**
+     * Vivacidad: un id del teléfono que no es UUID no puede dejar sin decidir,
+     * todos los días, a las otras 99 de su tanda. No se manda ni se decide: se
+     * queda como está y se reporta con su propio código.
+     */
+    @Test
+    fun idNoUuidNoTumbaLaTandaYLosValidosSeDeciden() = runTest {
+        val raros = listOf("visita-legada-1", "", "a,b", "6f1c2a3b00004000800000000000000a")
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a) + raros + listOf(b))
+        val servidor = ServidorQueRechazaLaTanda(tiene = setOf(a))
+        val reporter = RecordingSyncErrorReporter()
+
+        val r = uc(store, servidor, reporter).execute()
+
+        assertEquals(listOf(listOf(a, b)), servidor.peticiones)
+        assertEquals(listOf(a), store.confirmadas)
+        assertEquals(listOf(b), store.devueltas)
+        assertTrue(raros.none { it in store.confirmadas || it in store.devueltas })
+        assertEquals(0, r.tandasFallidas)
+        assertEquals(raros.size, r.idsInvalidos)
+        val invalido = reporter.reported.single { it.code == ERROR_CODE_ID_INVALIDO }
+        assertEquals(raros.size.toString(), invalido.props["descartados"])
+    }
+
+    @Test
+    fun `si todas son invalidas no hay ninguna peticion`() = runTest {
+        val servidor = ServidorQueRechazaLaTanda(tiene = emptySet())
+        val store = FakeDeliveredVisitsStore(entregadas = listOf("x", "y"))
+
+        val r = uc(store, servidor).execute()
+
+        assertEquals(emptyList<List<String>>(), servidor.peticiones)
+        assertEquals(2, r.idsInvalidos)
+        assertEquals(emptyList<String>(), store.devueltas)
+    }
+
+    @Test
+    fun `un UUID canonico en mayusculas si se pregunta`() = runTest {
+        val mayus = a.uppercase().replace("0", "A")
+        val servidor = ServidorQueRechazaLaTanda(tiene = emptySet())
+
+        uc(FakeDeliveredVisitsStore(entregadas = listOf(mayus)), servidor).execute()
+
+        assertEquals(listOf(listOf(mayus)), servidor.peticiones)
     }
 }

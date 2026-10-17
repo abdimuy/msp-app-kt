@@ -20,13 +20,16 @@ import kotlinx.coroutines.CancellationException
  * @param tandasFallidas consultas `by-ids` que no contestaron: sus ids no
  *   cambiaron.
  * @param entregadasIlegibles la lectura local falló: no se preguntó nada.
+ * @param idsInvalidos ids leídos que no son UUID canónicos: no se preguntaron
+ *   ni cambiaron (ver [ReconcileDeliveredVisitsUseCase]).
  */
 data class ConciliacionInversa(
     val revisadas: Int,
     val faltantes: Int,
     val confirmadas: Int,
     val tandasFallidas: Int,
-    val entregadasIlegibles: Boolean = false
+    val entregadasIlegibles: Boolean = false,
+    val idsInvalidos: Int = 0
 )
 
 /**
@@ -56,6 +59,17 @@ data class ConciliacionInversa(
  *   algún día no, el error cae del lado seguro: la visita vuelve a pendiente y
  *   el servidor la deduplica al reenviarla; nunca se confirma sin prueba.
  * - Devolver a pendiente nunca pierde datos: lo peor que cuesta es un reenvío.
+ * - **Un id que no es UUID canónico no se pregunta ni se decide.** `by-ids`
+ *   contesta `422 ids_invalid` a TODA la petición si un solo id no pasa
+ *   `uuid.Parse` (msp-api `handlers_visitas_existentes_por_ids.go:143-145`;
+ *   `TestHTTP_VisitasExistentesPorIDs_MalformedUUIDAmongValid_Returns422_AndNothingLeaks`).
+ *   Mandarlo dejaría sin decidir, todos los días, a las otras 99 de su
+ *   tanda. Se separa antes de armar las tandas, se queda como está (la poda
+ *   tampoco la suelta sin `CONFIRMADA_EN`) y se reporta con
+ *   [ERROR_CODE_ID_INVALIDO]. El filtro es la forma canónica
+ *   `8-4-4-4-12` hexadecimal, sin distinguir mayúsculas: un subconjunto de
+ *   lo que `uuid.Parse` acepta, así que nada de lo que se manda puede
+ *   provocar ese 422. El teléfono solo acuña esa forma (`UUID.toString()`).
  *
  * No encola nada: el worker diario reencola las pendientes con `KEEP` tras
  * correrla. No hay tope de reintentos: lo que no se decidió hoy se pregunta en
@@ -77,11 +91,13 @@ class ReconcileDeliveredVisitsUseCase(
             store.entregadasDesde(desde)
         }?.distinct() ?: return ConciliacionInversa(0, 0, 0, 0, entregadasIlegibles = true)
 
+        val (validos, invalidos) = separarInvalidos(ids)
+
         var faltantes = 0
         var confirmadas = 0
         var fallidas = 0
 
-        ids.chunked(VisitCustodyRegistry.MAX_IDS_PER_REQUEST).forEach { tanda ->
+        validos.chunked(VisitCustodyRegistry.MAX_IDS_PER_REQUEST).forEach { tanda ->
             val contestadas = attempt(
                 ERROR_CODE_CONSULTA_FALLIDA,
                 CONTEXT_CONSULTA,
@@ -120,7 +136,26 @@ class ReconcileDeliveredVisitsUseCase(
                 )
             )
         }
-        return ConciliacionInversa(ids.size, faltantes, confirmadas, fallidas)
+        return ConciliacionInversa(
+            revisadas = ids.size,
+            faltantes = faltantes,
+            confirmadas = confirmadas,
+            tandasFallidas = fallidas,
+            idsInvalidos = invalidos.size
+        )
+    }
+
+    /** Ver el KDoc de clase: un id sin forma de UUID tumbaría su tanda entera con un 422. */
+    private fun separarInvalidos(ids: List<String>): Pair<List<String>, List<String>> {
+        val (validos, invalidos) = ids.partition { UUID_CANONICO.matches(it) }
+        if (invalidos.isNotEmpty()) {
+            errorReporter.report(
+                code = ERROR_CODE_ID_INVALIDO,
+                message = "$CONTEXT_LEER: ids sin forma de uuid; no se preguntan ni se deciden",
+                props = mapOf(PROP_DESCARTADOS to invalidos.size.toString())
+            )
+        }
+        return validos to invalidos
     }
 
     private suspend fun confirmar(ids: List<String>, ahora: String): Int {
@@ -179,6 +214,12 @@ class ReconcileDeliveredVisitsUseCase(
          * `CONFIRMADA_EN` se preguntan siempre.
          */
         const val VENTANA_DIAS: Int = ReglaDePoda.CONFIRMADAS_DIAS
+
+        /** Ids leídos que no son UUID canónicos: se quedan como están (vivacidad de las demás). */
+        const val ERROR_CODE_ID_INVALIDO: String = "visitas_reconcilia_id_invalido"
+
+        private val UUID_CANONICO =
+            Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
         const val ERROR_CODE_ENTREGADAS_ILEGIBLES: String = "visitas_reconcilia_entregadas_ilegibles"
         const val ERROR_CODE_CONSULTA_FALLIDA: String = "visitas_reconcilia_consulta_fallida"

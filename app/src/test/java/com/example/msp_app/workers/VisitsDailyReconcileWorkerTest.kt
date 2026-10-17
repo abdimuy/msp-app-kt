@@ -28,6 +28,15 @@ import org.junit.Test
  */
 class VisitsDailyReconcileWorkerTest : RoomTestBase() {
 
+    private companion object {
+        // UUID canónicos: el use case no le pregunta al servidor por otra forma.
+        const val LEGADA_SI = "6f1c2a3b-0000-4000-8000-000000000001"
+        const val LEGADA_NO = "6f1c2a3b-0000-4000-8000-000000000002"
+        const val LEGADA = "6f1c2a3b-0000-4000-8000-000000000003"
+        const val MIA = "6f1c2a3b-0000-4000-8000-000000000004"
+        const val INTRUSA = "6f1c2a3b-0000-4000-8000-000000000005"
+    }
+
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val ahora = Instant.parse("2026-10-17T15:00:00Z")
 
@@ -86,36 +95,36 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
     @Test
     fun inversaDevuelveAPendienteLaLegadaQueElServidorNoTiene() = runBlocking {
         val dao = db.visitDao()
-        dao.insertVisit(pendingVisit(id = "legada-si", guardado = 1))
-        dao.insertVisit(pendingVisit(id = "legada-no", guardado = 1))
+        dao.insertVisit(pendingVisit(id = LEGADA_SI, guardado = 1))
+        dao.insertVisit(pendingVisit(id = LEGADA_NO, guardado = 1))
         val registro = Registro()
 
         val r = construir(
             registro
-        ) { casoDeUso(Servidor(tiene = setOf("legada-si"))).execute() }.doWork()
+        ) { casoDeUso(Servidor(tiene = setOf(LEGADA_SI))).execute() }.doWork()
 
         assertEquals(ListenableWorker.Result.success(), r)
-        val si = dao.findVisitById("legada-si")!!
+        val si = dao.findVisitById(LEGADA_SI)!!
         assertEquals(1, si.GUARDADO_EN_MICROSIP)
         assertEquals("2026-10-17T15:00:00Z", si.CONFIRMADA_EN)
-        val no = dao.findVisitById("legada-no")!!
+        val no = dao.findVisitById(LEGADA_NO)!!
         assertEquals(0, no.GUARDADO_EN_MICROSIP)
         assertNull(no.CONFIRMADA_EN)
-        assertEquals(listOf("legada-no"), registro.encoladas)
+        assertEquals(listOf(LEGADA_NO), registro.encoladas)
         assertEquals(listOf(ahora), registro.corridas)
     }
 
     @Test
     fun tandaFallidaNoDevuelveNiConfirma() = runBlocking {
         val dao = db.visitDao()
-        dao.insertVisit(pendingVisit(id = "legada", guardado = 1))
+        dao.insertVisit(pendingVisit(id = LEGADA, guardado = 1))
         val registro = Registro()
         val servidor = Servidor(falla = true)
 
         construir(registro) { casoDeUso(servidor).execute() }.doWork()
 
         assertEquals(1, servidor.preguntas.size) // control: sí se preguntó
-        val v = dao.findVisitById("legada")!!
+        val v = dao.findVisitById(LEGADA)!!
         assertEquals(1, v.GUARDADO_EN_MICROSIP)
         assertNull(v.CONFIRMADA_EN)
         assertEquals(emptyList<String>(), registro.encoladas)
@@ -126,18 +135,18 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
     @Test
     fun idAjenoNoSeConfirma() = runBlocking {
         val dao = db.visitDao()
-        dao.insertVisit(pendingVisit(id = "mia", guardado = 1))
+        dao.insertVisit(pendingVisit(id = MIA, guardado = 1))
         // Otra visita del teléfono que NO estaba en la tanda (pendiente): el
         // servidor la nombra por su cuenta y no debe confirmarse.
-        dao.insertVisit(pendingVisit(id = "intrusa"))
+        dao.insertVisit(pendingVisit(id = INTRUSA))
         val registro = Registro()
 
         construir(registro) {
-            casoDeUso(Servidor(tiene = setOf("mia"), ajenos = listOf("intrusa"))).execute()
+            casoDeUso(Servidor(tiene = setOf(MIA), ajenos = listOf(INTRUSA))).execute()
         }.doWork()
 
-        assertNotNull(dao.findVisitById("mia")!!.CONFIRMADA_EN)
-        val intrusa = dao.findVisitById("intrusa")!!
+        assertNotNull(dao.findVisitById(MIA)!!.CONFIRMADA_EN)
+        val intrusa = dao.findVisitById(INTRUSA)!!
         assertEquals(0, intrusa.GUARDADO_EN_MICROSIP)
         assertNull(intrusa.CONFIRMADA_EN)
     }
