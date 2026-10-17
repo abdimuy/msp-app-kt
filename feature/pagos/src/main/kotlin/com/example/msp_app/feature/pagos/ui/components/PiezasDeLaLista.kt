@@ -12,13 +12,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -36,6 +39,7 @@ import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.math.min
 
 /** Prefijo de `testTag` de cada chip: `"${CHIP_DE_SEGMENTO_TAG}todos"`, etc. */
 const val CHIP_DE_SEGMENTO_TAG: String = "pagos_chip_"
@@ -108,16 +112,29 @@ fun SegmentadoDeCobranza(
     onElegir: (SegmentoDeCobranza) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ControlSegmentado(
-        opciones = segmentosVisibles(),
-        seleccionado = seleccionado,
-        conteos = conteos,
-        etiquetaDe = { it.etiqueta },
-        tagDe = { CHIP_DE_SEGMENTO_TAG + it.name.lowercase() },
-        onElegir = onElegir,
-        modifier = modifier
-    )
+    // Con letra grande del sistema las tres pastillas no caben y se esconden;
+    // sólo este control topa su escala de letra para que siempre se vean las tres.
+    val densidad = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = densidad.density,
+            fontScale = min(densidad.fontScale, ESCALA_MAXIMA_DEL_SEGMENTADO)
+        )
+    ) {
+        ControlSegmentado(
+            opciones = segmentosVisibles(),
+            seleccionado = seleccionado,
+            conteos = conteos,
+            etiquetaDe = { it.etiqueta },
+            tagDe = { CHIP_DE_SEGMENTO_TAG + it.name.lowercase() },
+            onElegir = onElegir,
+            modifier = modifier
+        )
+    }
 }
+
+/** Escala de letra más grande con la que se pinta el control de la lista. */
+private const val ESCALA_MAXIMA_DEL_SEGMENTADO = 1.3f
 
 /**
  * Los chips que se pintan: **los tres, sin filtrar**.
