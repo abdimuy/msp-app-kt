@@ -8,14 +8,25 @@ import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.visitas.envio.ResultadoGet
+import com.example.msp_app.core.common.visitas.envio.SalidaDeEnvio
+import com.example.msp_app.core.common.visitas.envio.VisitaEnServidor
+import com.example.msp_app.core.common.visitas.envio.existenciaCompleta
+import com.example.msp_app.core.common.visitas.envio.salidaTras2xx
+import com.example.msp_app.core.common.visitas.envio.salidaTrasError
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.network.diagnostico.ClasificadorDeFalloDeEnvio
 import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
 import com.example.msp_app.core.network.diagnostico.EnvioObservado
 import com.example.msp_app.core.network.diagnostico.FalloDeEnvio
+import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
+import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
@@ -30,6 +41,9 @@ import com.example.msp_app.features.visit.upload.domain.VisitUploadDecision
 import com.google.gson.Gson
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
@@ -61,6 +75,23 @@ import retrofit2.HttpException
  * [useV2] (from `BuildConfig.VISITAS_USE_V2`) selects between them. There is no
  * dual send — two backends would risk a double insert.
  *
+ * ## Envío v3 (plan visitas P1, Tarea 11; cierra E-VIS-001 y H1b)
+ *
+ * Con `useV2` y el kill-switch `config/visitas_envio` en `v3` (el valor por
+ * omisión, [FirestoreModoEnvioVisitas]), la visita se suelta **solo con prueba
+ * del servidor** (spec visitas §2.2-1) y sin tope de reintentos (E-APP-071):
+ *  - «la apliqué»: 2xx con el eco del mismo id —y, si llevaba fotos, un
+ *    `GET /v2/visitas/{id}` con existencia completa (opción A del dueño,
+ *    2026-10-17; E-VIS-022)—, o existencia completa tras un error →
+ *    `CONFIRMADA_EN`. Las fotos locales se estampan y se borran solo aquí.
+ *  - «la tengo guardada»: un error con `X-Intent-Captured` que la tabla
+ *    compartida `classifyUpload` suelta (vía `salidaTrasError`; E-VIS-020) →
+ *    `RESGUARDADA_EN`. Las fotos locales no se tocan.
+ *  - todo lo demás: `Result.retry()`.
+ * Las marcas se escriben dentro de `NonCancellable`: una vez decidida la
+ * salida, una cancelación de WorkManager no deja la marca a medias. Con el
+ * kill-switch en `v2_actual` corre [uploadV2] intacto (el modo de reversa).
+ *
  * The injected seams (defaulted to production) let unit tests drive the worker
  * without WorkManager, Firebase, or a real network.
  */
@@ -87,7 +118,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
      * y nunca lanza hacia aquí; ver [anotar].
      */
     @VisibleForTesting
-    internal val diagnostico: EnvioDiagnosticoSink = EnvioDiagnostico.sink
+    internal val diagnostico: EnvioDiagnosticoSink = EnvioDiagnostico.sink,
+    /** Kill-switch `config/visitas_envio` (Tarea 10); se lee en cada corrida. */
+    @VisibleForTesting
+    internal val modo: () -> ModoEnvioVisitas = { FirestoreModoEnvioVisitas.actual },
+    /** Únicos escritores de `CONFIRMADA_EN`/`RESGUARDADA_EN` (Tarea 8). */
+    @VisibleForTesting
+    internal val visitDao: VisitDao = AppDatabase.getInstance(appContext).visitDao()
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -103,7 +140,264 @@ class PendingVisitsWorker @JvmOverloads constructor(
                 Log.e(TAG, "Visita no encontrada: $id")
             }
 
-        return if (useV2) uploadV2(visit) else uploadLegacy(visit)
+        if (!useV2 || modo() == ModoEnvioVisitas.V2_ACTUAL) {
+            return if (useV2) uploadV2(visit) else uploadLegacy(visit)
+        }
+        return uploadV3(visit)
+    }
+
+    // ─── envío v3 ──────────────────────────────────────────────────────────
+    //
+    // Cada `return` de este camino anota UNA vez su motivo (E-APP-065), con las
+    // mismas funciones que tragan todo; una anotación nunca cambia la salida
+    // (`PendingVisitsWorkerDiagnosticoTest`).
+
+    /**
+     * El envío v3. `maxAttempts` no se usa: no hay tope (spec §4.2-4). Lo
+     * inesperado reintenta; la cancelación se propaga.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun uploadV3(visit: VisitEntity): Result = try {
+        enviarV3(visit)
+    } catch (e: CancellationException) {
+        anotarExcepcion(visit.ID, e)
+        throw e
+    } catch (e: IOException) {
+        anotarExcepcion(visit.ID, e)
+        Log.w(TAG, "REINTENTA red: visita ${visit.ID}", e)
+        Result.retry()
+    } catch (e: Exception) {
+        anotarExcepcion(visit.ID, e)
+        Log.e(TAG, "REINTENTA error_inesperado: visita ${visit.ID}", e)
+        Result.retry()
+    }
+
+    private suspend fun enviarV3(visit: VisitEntity): Result {
+        // Spec §4.2-1: lo ya probado no se vuelve a mandar.
+        if (visit.CONFIRMADA_EN != null || visit.RESGUARDADA_EN != null) {
+            anotar(visit.ID, null)
+            Log.i(TAG, "Visita ${visit.ID} ya confirmada o resguardada; no se vuelve a mandar")
+            return Result.success()
+        }
+        // Un fallo de LECTURA no se traga (ver `comprobantesDe`): no se manda nada.
+        val pendientes = fotosPendientesDe(visit)
+            ?: return Result.retry().also {
+                anotar(visit.ID, FALLO_COMPROBANTES)
+                Log.w(TAG, "REINTENTA comprobantes_ilegibles: visita ${visit.ID}")
+            }
+        val comprobantes = partesDeComprobantesDeVisita(pendientes)
+        val respuesta = try {
+            enviar(visit, comprobantes)
+        } catch (e: HttpException) {
+            val custodia = !e.response()?.headers()?.get(HEADER_INTENT_CAPTURED).isNullOrBlank()
+            return trasError(visit, pendientes, e.code(), custodia) { anotarHttp(visit.ID, e) }
+        }
+        return tras2xx(visit, comprobantes, pendientes, respuesta.id)
+    }
+
+    /**
+     * 2xx. Decide [salidaTras2xx] con las fotos que VIAJARON en este envío: son
+     * las que el servidor debe listar en `imagen_ids` antes de borrarlas aquí.
+     * Una omitida (sin archivo) no puede llegar nunca; exigirla dejaría la
+     * visita reintentando para siempre, y se queda pendiente como hoy.
+     */
+    private suspend fun tras2xx(
+        visit: VisitEntity,
+        comprobantes: PartesDeComprobantesDeVisita,
+        pendientes: List<VisitImageEntity>,
+        eco: String?
+    ): Result {
+        val viajaron = comprobantes.enviadas.map { it.ID }.toSet()
+        val ecoCorrecto = eco == visit.ID
+        val get = if (ecoCorrecto && viajaron.isNotEmpty()) {
+            consultarVisitaEnServidor(
+                v2Api,
+                visit.ID
+            )
+        } else {
+            null
+        }
+        return when (salidaTras2xx(visit.ID, eco, viajaron, get)) {
+            // Relectura y marca en el mismo bloque NonCancellable (H1b): decidida
+            // la salida, una cancelación no la corta entre la prueba y la marca.
+            SalidaDeEnvio.CONFIRMADA -> withContext(NonCancellable) {
+                if (apareceFotoNueva(visit, pendientes)) {
+                    Result.retry()
+                } else {
+                    confirmarConFotos(
+                        visit,
+                        "CONFIRMADA",
+                        "fotos=${viajaron.size}",
+                        conocidas = pendientes,
+                        fotosAEstampar = comprobantes.enviadas
+                    ) {
+                        anotar(visit.ID, FALLO_SIN_MARCA)
+                    }
+                }
+            }
+            // Sin eco del mismo id: «HTTP 200 no es éxito». Decide la existencia.
+            else -> if (!ecoCorrecto) {
+                trasError(
+                    visit,
+                    pendientes,
+                    HTTP_OK,
+                    custodia = false
+                ) { anotar(visit.ID, FALLO_SIN_ECO) }
+            } else {
+                anotar(visit.ID, FALLO_FOTOS_SIN_CONFIRMAR)
+                Log.w(TAG, "REINTENTA fotos_sin_confirmar: visita ${visit.ID} get=${get?.codigo}")
+                Result.retry()
+            }
+        }
+    }
+
+    /**
+     * Error (o 2xx sin eco): primero la existencia completa, luego la tabla
+     * compartida, ambas en [salidaTrasError]. Aquí se exigen TODAS las fotos
+     * pendientes: con existencia COMPLETA el servidor tiene cada una.
+     *
+     * [anotarFallo] anota el motivo cuando NO se confirma (la confirmación
+     * anota éxito): así cada corrida anota una sola vez.
+     */
+    private suspend fun trasError(
+        visit: VisitEntity,
+        pendientes: List<VisitImageEntity>,
+        codigo: Int,
+        custodia: Boolean,
+        anotarFallo: () -> Unit
+    ): Result {
+        val get = consultarVisitaEnServidor(v2Api, visit.ID)
+        val existencia =
+            existenciaCompleta(visit.ID, get.visita, pendientes.map { it.ID }.toSet(), get.codigo)
+        return when (salidaTrasError(existencia, codigo, custodia)) {
+            // COMPLETA = el servidor lista CADA foto pendiente con fila y archivo
+            // (E-VIS-022): se estampan y se confirma sin la retención por foto de
+            // `VisitDao.confirmar`, que aquí marcaría 0 filas y atascaría la
+            // visita mientras el POST siga fallando (hallazgo de la Tarea 16).
+            SalidaDeEnvio.CONFIRMADA -> withContext(NonCancellable) {
+                if (apareceFotoNueva(visit, pendientes)) {
+                    Result.retry()
+                } else {
+                    confirmarConFotos(
+                        visit,
+                        "RECONCILED_VIA_GET",
+                        "HTTP original $codigo",
+                        conocidas = pendientes,
+                        fotosAEstampar = pendientes,
+                        anotarFallo = anotarFallo
+                    )
+                }
+            }
+            SalidaDeEnvio.RESGUARDADA -> withContext(NonCancellable) {
+                val marcadas = visitDao.resguardar(visit.ID, AppTime.toWireFormat(clock.now()))
+                if (marcadas > 0 || yaConfirmada(visit.ID)) {
+                    anotarFallo()
+                    Log.w(TAG, "RESGUARDADA: visita ${visit.ID} (HTTP $codigo, X-Intent-Captured)")
+                    Result.success()
+                } else {
+                    anotarFallo()
+                    Log.w(TAG, "REINTENTA sin_marca: visita ${visit.ID} (HTTP $codigo)")
+                    Result.retry()
+                }
+            }
+            SalidaDeEnvio.REINTENTA -> Result.retry().also {
+                anotarFallo()
+                Log.w(
+                    TAG,
+                    "REINTENTA: visita ${visit.ID} HTTP $codigo existencia=$existencia custodia=$custodia"
+                )
+            }
+        }
+    }
+
+    /**
+     * Marca CONFIRMADA con `confirmarTrasSubidaSiNoHayFotosNuevas`: el mismo
+     * UPDATE se niega si hay una foto pendiente fuera de [conocidas] (la
+     * lectura inicial), cerrando el hueco que la relectura no cierra con WAL.
+     * [fotosAEstampar] se estampan y se borran DESPUÉS de la marca y solo si
+     * cambió la fila. Éxito solo si la marca quedó escrita (o ya estaba); con
+     * 0 filas no se suelta: se anota y se reintenta.
+     */
+    private suspend fun confirmarConFotos(
+        visit: VisitEntity,
+        log: String,
+        detalle: String,
+        conocidas: List<VisitImageEntity>,
+        fotosAEstampar: List<VisitImageEntity>,
+        anotarFallo: () -> Unit
+    ): Result {
+        val marcadas = visitDao.confirmarTrasSubidaSiNoHayFotosNuevas(
+            visit.ID,
+            AppTime.toWireFormat(clock.now()),
+            conocidas.map { it.ID }
+        )
+        // Orden (simulación Go T16b): las fotos se estampan y se borran SOLO si
+        // la marca condicional cambió la fila. Con 0 filas la visita sigue
+        // pendiente y sus fotos conservan su archivo para reenviarse.
+        if (marcadas > 0) marcarSubidas(fotosAEstampar)
+        return if (marcadas > 0) {
+            anotar(visit.ID, null)
+            Log.i(TAG, "$log: visita ${visit.ID} ($detalle)")
+            Result.success()
+        } else if (yaConfirmada(visit.ID)) {
+            // Otro camino (p. ej. la reconciliación) la confirmó y la marca
+            // condicional dio 0 filas por una foto nueva. Éxito, pero no se
+            // estampa nada: la foto nueva queda pendiente con su archivo. Solo
+            // diagnóstico, para que se vea antes del barrido.
+            anotar(visit.ID, FALLO_CONFIRMADA_CON_FOTO_NUEVA)
+            Log.w(
+                TAG,
+                "$log: visita ${visit.ID} ya confirmada por otro camino; hay una foto nueva sin enviar"
+            )
+            Result.success()
+        } else {
+            anotarFallo()
+            Log.w(TAG, "REINTENTA sin_marca: visita ${visit.ID} ($log, $detalle)")
+            Result.retry()
+        }
+    }
+
+    /**
+     * Relectura justo antes de confirmar. `RegistroDeVisitaAdapter.guardar`
+     * confirma la Visit en su transacción y DESPUÉS inserta las fotos: un
+     * worker que corra en ese hueco leyó menos fotos de las que la visita
+     * tiene. Si aparece una pendiente que no estaba en [conocidas], no viajó
+     * ni la listó el servidor: no se confirma (se reintenta y la próxima
+     * corrida la manda). Una lectura que falla también reintenta. Anota.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun apareceFotoNueva(
+        visit: VisitEntity,
+        conocidas: List<VisitImageEntity>
+    ): Boolean {
+        val ids = conocidas.map { it.ID }.toSet()
+        val nueva = try {
+            imagenes.getPendientesDe(visit.ID).any { it.ID !in ids }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Visita ${visit.ID}: relectura de fotos fallida", e)
+            true
+        }
+        if (nueva) {
+            anotar(visit.ID, FALLO_FOTO_NUEVA)
+            Log.w(TAG, "REINTENTA foto_nueva: visita ${visit.ID} tiene fotos que no viajaron")
+        }
+        return nueva
+    }
+
+    private suspend fun yaConfirmada(id: String): Boolean =
+        visitDao.findVisitById(id)?.CONFIRMADA_EN != null
+
+    /** Las filas de foto sin `SUBIDA_EN`, o `null` si la lectura falló. */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun fotosPendientesDe(visit: VisitEntity): List<VisitImageEntity>? = try {
+        imagenes.getPendientesDe(visit.ID)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "Visita ${visit.ID}: no se pudieron leer los comprobantes", e)
+        null
     }
 
     /**
@@ -322,10 +616,14 @@ class PendingVisitsWorker @JvmOverloads constructor(
      * Best-effort de punta a punta: una entrega que ya tuvo éxito no se puede
      * tumbar por no poder escribir un timestamp.
      */
-    private suspend fun markUploaded(comprobantes: PartesDeComprobantesDeVisita) {
-        if (comprobantes.enviadas.isEmpty()) return
+    private suspend fun markUploaded(comprobantes: PartesDeComprobantesDeVisita) =
+        marcarSubidas(comprobantes.enviadas)
+
+    /** Estampa y borra [fotos]; best-effort por foto, como [markUploaded]. */
+    private suspend fun marcarSubidas(fotos: List<VisitImageEntity>) {
+        if (fotos.isEmpty()) return
         val subidaEn = AppTime.toWireFormat(clock.now())
-        comprobantes.enviadas.forEach { imagen ->
+        fotos.forEach { imagen ->
             try {
                 imagenes.marcarSubida(imagen.ID, subidaEn)
                 File(imagen.URI).delete()
@@ -381,5 +679,64 @@ class PendingVisitsWorker @JvmOverloads constructor(
             mensaje = "No se pudieron leer las fotos",
             http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
         )
+
+        private const val HTTP_OK = 200
+
+        /** v3: un 2xx sin el eco del mismo id (cuerpo vacío, HTML, otra visita). */
+        private val FALLO_SIN_ECO = FalloDeEnvio(
+            codigo = "visita_sin_eco",
+            mensaje = "El servidor no confirmó la visita",
+            http = HTTP_OK
+        )
+
+        /** v3: al releer antes de confirmar apareció una foto que no viajó. */
+        private val FALLO_FOTO_NUEVA = FalloDeEnvio(
+            codigo = "visita_foto_nueva",
+            mensaje = "La visita tiene fotos sin enviar",
+            http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
+        )
+
+        /** v3: otro camino confirmó la visita y la marca dio 0 filas por una foto nueva. */
+        private val FALLO_CONFIRMADA_CON_FOTO_NUEVA = FalloDeEnvio(
+            codigo = "visita_confirmada_por_otro_camino_con_foto_nueva",
+            mensaje = "Visita confirmada con una foto sin enviar",
+            http = ClasificadorDeFalloDeEnvio.SIN_RESPUESTA
+        )
+
+        /** v3: se decidió confirmar pero la marca no quedó escrita (0 filas). */
+        private val FALLO_SIN_MARCA = FalloDeEnvio(
+            codigo = "visita_sin_marca",
+            mensaje = "No se pudo marcar la visita",
+            http = HTTP_OK
+        )
+
+        /** v3: 2xx con eco, pero el GET no prueba que el servidor tenga las fotos (E-VIS-022). */
+        private val FALLO_FOTOS_SIN_CONFIRMAR = FalloDeEnvio(
+            codigo = "visita_fotos_sin_confirmar",
+            mensaje = "El servidor no confirmó las fotos",
+            http = HTTP_OK
+        )
     }
+}
+
+/**
+ * `GET /v2/visitas/{id}` traducido a [ResultadoGet] (opción A del dueño,
+ * 2026-10-17). `HttpException` → su código sin visita; cualquier otra
+ * excepción (HTML 200, cuerpo vacío, red, Gson) → `ResultadoGet(null, null)`:
+ * nunca se arma una visita a mano. Un 2xx con cuerpo legible es `200` con lo
+ * que dijo el servidor; [existenciaCompleta] decide qué prueba. La cancelación
+ * se propaga. Fijado por `ConsultaDeVisitaEnServidorTest`.
+ */
+private const val GET_OK = 200
+
+@Suppress("TooGenericExceptionCaught", "SwallowedException")
+internal suspend fun consultarVisitaEnServidor(api: V2VisitsApi, id: String): ResultadoGet = try {
+    val dto = api.obtenerVisita(id)
+    ResultadoGet(GET_OK, VisitaEnServidor(dto.id, dto.imagen_ids))
+} catch (e: HttpException) {
+    ResultadoGet(e.code(), null)
+} catch (e: CancellationException) {
+    throw e
+} catch (_: Exception) {
+    ResultadoGet(null, null)
 }

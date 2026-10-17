@@ -246,7 +246,7 @@ interface VisitDao {
     suspend fun markSyncedByIds(ids: List<String>): Int
 
     // ─── Entrega con prueba del servidor (spec visitas §4.2-1/-7) ─────────────
-    // Estas tres son las ÚNICAS que escriben CONFIRMADA_EN/RESGUARDADA_EN con un
+    // Estas cuatro son las ÚNICAS que escriben CONFIRMADA_EN/RESGUARDADA_EN con un
     // valor (lo guarda EscritoresDeEntregaTest). Como markSyncedByIds, cada
     // `IN (:ids)` liga un parámetro por id: el llamador acota la tanda por
     // debajo de SQLITE_MAX_VARIABLE_NUMBER = 999.
@@ -279,6 +279,34 @@ interface VisitDao {
         """
     )
     suspend fun confirmarTrasSubida(id: String, ahora: String): Int
+
+    /**
+     * [confirmarTrasSubida] con la carrera cerrada en el mismo UPDATE: no
+     * confirma si la visita tiene una foto pendiente que no está en
+     * [conocidas] (las pendientes que el worker leyó al empezar, omitidas
+     * incluidas). `RegistroDeVisitaAdapter.guardar` confirma la Visit y
+     * DESPUÉS inserta sus fotos, y con WAL una relectura previa no espera el
+     * candado de escritura: un `insertAll` encolado entra entre la relectura y
+     * esta marca. La condición la evalúa SQLite dentro de la escritura.
+     * `IN ()` con [conocidas] vacía es válido en SQLite (ninguna conocida).
+     *
+     * @return filas que cambiaron; 0 = no confirmó (el worker reintenta).
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = :ahora, RESGUARDADA_EN = NULL
+        WHERE ID = :id
+          AND NOT EXISTS (
+            SELECT 1 FROM visita_imagenes
+            WHERE VISITA_ID = :id AND SUBIDA_EN IS NULL AND ID NOT IN (:conocidas)
+          )
+        """
+    )
+    suspend fun confirmarTrasSubidaSiNoHayFotosNuevas(
+        id: String,
+        ahora: String,
+        conocidas: List<String>
+    ): Int
 
     /**
      * El servidor la RESGUARDÓ en la bandeja (`X-Intent-Captured`). Nunca pisa

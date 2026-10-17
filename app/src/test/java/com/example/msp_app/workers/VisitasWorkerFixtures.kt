@@ -7,8 +7,13 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
+import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
@@ -19,6 +24,8 @@ import com.example.msp_app.data.models.visit.Visit
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.Protocol
+import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.HttpException
@@ -26,7 +33,8 @@ import retrofit2.Response
 
 /*
  * Fixtures compartidas por las pruebas del worker de visitas
- * (PendingVisitsWorkerV2Test y MedicionesEnvioVisitasTest). Movidas tal cual
+ * (PendingVisitsWorkerModoV2ActualTest —antes PendingVisitsWorkerV2Test—,
+ * PendingVisitsWorkerV3Test y MedicionesEnvioVisitasTest). Movidas tal cual
  * desde PendingVisitsWorkerV2Test (plan visitas P1, Tarea 2); el único cambio
  * es que el corredor recibe `context`, `imagenes` y `clock` como parámetros
  * en vez de leerlos de la clase de prueba.
@@ -105,24 +113,83 @@ internal fun httpError(code: Int, body: String = "{}"): HttpException = HttpExce
     )
 )
 
+/** Un error HTTP con una cabecera de respuesta (p. ej. `X-Intent-Captured`). */
+internal fun httpErrorConCabecera(
+    code: Int,
+    nombre: String,
+    valor: String,
+    body: String = "{}"
+): HttpException {
+    val crudo = okhttp3.Response.Builder()
+        .code(code)
+        .message("x")
+        .protocol(Protocol.HTTP_1_1)
+        .request(Request.Builder().url("http://x/v2/visitas").build())
+        .header(nombre, valor)
+        .build()
+    return HttpException(
+        Response.error<VisitaDTO>(
+            body.toResponseBody("application/json".toMediaTypeOrNull()),
+            crudo
+        )
+    )
+}
+
+/** Respuesta del POST con el id dado (el resto, de [pendingVisit]). */
+internal fun visitaDto(id: String?) = VisitaDTO(
+    id = id,
+    cliente_id = 11486,
+    cobrador_id = 200,
+    cobrador = "Ramirez Ortiz, Fernando",
+    tipo_visita = "SIN_PAGO",
+    zona_cliente_id = 21552,
+    fecha = "2026-06-01T09:30:00Z"
+)
+
+/** Respuesta de `GET /v2/visitas/{id}` con el id y los `imagen_ids` dados. */
+internal fun visitaDetalle(id: String?, imagenIds: List<String>?) = VisitaDetalleDTO(
+    id = id,
+    cliente_id = 11486,
+    cobrador_id = 200,
+    cobrador = "Ramirez Ortiz, Fernando",
+    forma_cobro_id = 0,
+    lat = 0.0,
+    lng = 0.0,
+    nota = "El cliente pidio pasar la proxima semana",
+    tipo_visita = "SIN_PAGO",
+    zona_cliente_id = 21552,
+    impte_docto_cc_id = 5000,
+    fecha = "2026-06-01T09:30:00Z",
+    created_at = "2026-06-01T09:31:00Z",
+    imagen_ids = imagenIds
+)
+
 // ─── worker runner ───────────────────────────────────────────────────────────
 
-@Suppress("LongParameterList") // seams de test; el DAO de fotos es el septimo.
-internal fun runPendingVisitsWorker(
+/**
+ * Construye el worker real con sus costuras. [modo] es obligatorio a
+ * propósito: el kill-switch arranca en V3, así que una prueba que no lo diga
+ * mediría un camino que no eligió (plan visitas P1, Tarea 11).
+ */
+@Suppress("LongParameterList") // seams de test
+internal fun construirPendingVisitsWorker(
     context: Context,
     imagenes: VisitImageDao,
     clock: AppClock,
+    modo: ModoEnvioVisitas,
     visitId: String? = "visita-001",
     api: V2VisitsApi = happyApi(),
     legacyApi: VisitsApi = throwingLegacyApi(),
     useV2: Boolean = true,
     maxAttempts: Int = 10,
-    runAttemptCount: Int = 0
-): ListenableWorker.Result {
+    runAttemptCount: Int = 0,
+    visitDao: VisitDao? = null,
+    diagnostico: EnvioDiagnosticoSink? = null
+): PendingVisitsWorker {
     val inputBuilder = Data.Builder()
     if (visitId != null) inputBuilder.putString("visit_id", visitId)
 
-    val worker = TestListenableWorkerBuilder<PendingVisitsWorker>(
+    return TestListenableWorkerBuilder<PendingVisitsWorker>(
         context,
         inputBuilder.build()
     )
@@ -141,12 +208,44 @@ internal fun runPendingVisitsWorker(
                 useV2 = useV2,
                 maxAttempts = maxAttempts,
                 imagenes = imagenes,
-                clock = clock
+                clock = clock,
+                modo = { modo },
+                visitDao = visitDao ?: AppDatabase.getInstance(appContext).visitDao(),
+                diagnostico = diagnostico ?: EnvioDiagnostico.sink
             )
         })
-        .build()
+        .build() as PendingVisitsWorker
+}
 
-    var result: ListenableWorker.Result = ListenableWorker.Result.failure()
-    runBlocking { result = (worker as PendingVisitsWorker).doWork() }
-    return result
+/** Corre [construirPendingVisitsWorker] hasta el final. */
+@Suppress("LongParameterList") // seams de test
+internal fun runPendingVisitsWorker(
+    context: Context,
+    imagenes: VisitImageDao,
+    clock: AppClock,
+    modo: ModoEnvioVisitas,
+    visitId: String? = "visita-001",
+    api: V2VisitsApi = happyApi(),
+    legacyApi: VisitsApi = throwingLegacyApi(),
+    useV2: Boolean = true,
+    maxAttempts: Int = 10,
+    runAttemptCount: Int = 0,
+    visitDao: VisitDao? = null,
+    diagnostico: EnvioDiagnosticoSink? = null
+): ListenableWorker.Result {
+    val worker = construirPendingVisitsWorker(
+        context,
+        imagenes,
+        clock,
+        modo,
+        visitId,
+        api,
+        legacyApi,
+        useV2,
+        maxAttempts,
+        runAttemptCount,
+        visitDao,
+        diagnostico
+    )
+    return runBlocking { worker.doWork() }
 }

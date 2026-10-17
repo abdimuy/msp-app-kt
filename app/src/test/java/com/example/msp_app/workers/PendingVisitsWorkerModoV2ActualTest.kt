@@ -10,6 +10,7 @@ import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
 import com.example.msp_app.data.api.services.visits.VisitsApi
@@ -41,8 +42,18 @@ import org.junit.rules.TemporaryFolder
  * The invariant under test is the robustness rule: the visita is marked
  * GUARDADO_EN_MICROSIP=1 ONLY when the server is known to hold it (2xx, or a
  * captured 4xx), never on a network failure.
+ *
+ * **Modo de reversa (plan visitas P1, Tarea 11).** Esta clase se llamaba
+ * `PendingVisitsWorkerV2Test` y probaba el envío de hoy. Desde la Tarea 11 el
+ * envío por omisión es el v3 (`PendingVisitsWorkerV3Test`); el de hoy solo
+ * corre con el kill-switch `config/visitas_envio` en `v2_actual`, y por eso
+ * todas estas pruebas fijan `ModoEnvioVisitas.V2_ACTUAL`. Varias **fijan el
+ * defecto** E-VIS-001 a propósito (`v2_422_validation_marks_done_…`,
+ * `v2_403_marks_done`, `v2_5xx_at_cap_marks_done`, el 409 en el intento 1):
+ * describen lo que hace el modo de reversa, no lo que debe hacer el envío. Se
+ * borran con `VisitUploadClassifier` en la Tarea 20.
  */
-class PendingVisitsWorkerV2Test : RoomTestBase() {
+class PendingVisitsWorkerModoV2ActualTest : RoomTestBase() {
 
     /** El instante que el reloj falso da a `SUBIDA_EN`. */
     private val subidaEn: Instant = Instant.parse("2026-09-04T18:00:00Z")
@@ -138,6 +149,7 @@ class PendingVisitsWorkerV2Test : RoomTestBase() {
         context = context,
         imagenes = imagenes,
         clock = clock,
+        modo = ModoEnvioVisitas.V2_ACTUAL,
         visitId = visitId,
         api = api,
         legacyApi = legacyApi,
