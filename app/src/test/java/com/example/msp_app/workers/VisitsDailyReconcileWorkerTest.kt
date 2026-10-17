@@ -12,6 +12,7 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.Concilia
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
@@ -87,7 +88,7 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
                 pendientes = { db.visitDao().pendientesOrdenadas() },
                 encolar = { registro.encoladas += it },
                 anotarCorrida = { registro.corridas += it },
-                ahora = { ahora }
+                clock = FakeClock(ahora)
             )
         })
         .build()

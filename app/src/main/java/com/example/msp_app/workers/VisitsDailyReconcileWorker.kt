@@ -6,6 +6,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.pendingwork.di.VisitsReconcileEntryPoint
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
@@ -61,7 +62,7 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
         Instant
     ) -> Unit = { UltimaConciliacionDeVisitas.anotar(appContext, it) },
     @VisibleForTesting
-    internal val ahora: () -> Instant = { Instant.now() }
+    internal val clock: AppClock = AppClock.System
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -78,7 +79,7 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
                     "ilegibles=${r.entregadasIlegibles}"
             )
             if (r.faltantes > 0) reencolarPendientes()
-            if (r.tandasFallidas == 0 && !r.entregadasIlegibles) anotarCorrida(ahora())
+            if (r.tandasFallidas == 0 && !r.entregadasIlegibles) anotarCorrida(clock.now())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

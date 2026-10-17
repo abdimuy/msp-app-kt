@@ -2,11 +2,11 @@ package com.example.msp_app.core.sync.pendingwork.data.visits
 
 import androidx.annotation.VisibleForTesting
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingVisitsStore
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
-import java.time.Instant
 import javax.inject.Inject
 
 /**
@@ -34,14 +34,14 @@ import javax.inject.Inject
 class RoomPendingVisitsStore @VisibleForTesting internal constructor(
     private val visitDao: VisitDao,
     private val modo: () -> ModoEnvioVisitas,
-    private val ahora: () -> Instant
+    private val clock: AppClock
 ) : PendingVisitsStore {
 
     @Inject
     constructor(visitDao: VisitDao) : this(
         visitDao = visitDao,
         modo = { FirestoreModoEnvioVisitas.actual },
-        ahora = { Instant.now() }
+        clock = AppClock.System
     )
 
     override suspend fun pendingVisitIds(): List<String> = visitDao.getPendingVisits().map { it.ID }
@@ -70,7 +70,7 @@ class RoomPendingVisitsStore @VisibleForTesting internal constructor(
                 visitDao.markSyncedByIds(chunk)
             }
         }
-        val estampa = AppTime.toWireFormat(ahora())
+        val estampa = AppTime.toWireFormat(clock.now())
         return visitIds.chunked(SQLITE_MAX_IN_PARAMS).sumOf { chunk ->
             visitDao.confirmar(chunk, estampa)
         }

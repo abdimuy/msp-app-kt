@@ -2,6 +2,7 @@ package com.example.msp_app.core.sync.pendingwork.data.visits
 
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import java.time.Instant
 import kotlinx.coroutines.test.runTest
@@ -89,7 +90,7 @@ class RoomPendingVisitsStoreTest : RoomTestBase() {
     private fun storeEn(modo: ModoEnvioVisitas) = RoomPendingVisitsStore(
         visitDao = db.visitDao(),
         modo = { modo },
-        ahora = { Instant.parse("2026-10-17T15:00:00Z") }
+        clock = FakeClock(Instant.parse("2026-10-17T15:00:00Z"))
     )
 
     @Test

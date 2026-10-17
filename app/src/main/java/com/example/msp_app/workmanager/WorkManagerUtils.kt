@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.visitas.envio.UltimaConciliacionDeVisitas
 import com.example.msp_app.workers.ClienteSyncWorker
 import com.example.msp_app.workers.CobranzaReconcileWorker
@@ -23,7 +24,6 @@ import com.example.msp_app.workers.ReparacionDeCondonacionesWorker
 import com.example.msp_app.workers.ResolucionDeCapturasSueltasWorker
 import com.example.msp_app.workers.VisitsDailyReconcileWorker
 import com.example.msp_app.workers.VisitsReconcileWorker
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 /**
@@ -398,10 +398,10 @@ fun enqueueVisitsDailyReconcilePeriodicWorker(context: Context) {
  * `KEEP`. El periódico solo no basta: WorkManager puede diferirlo días en un
  * teléfono con ahorro de batería.
  */
-fun enqueueVisitsDailyReconcileIfDue(context: Context, ahora: Instant = Instant.now()) {
+fun enqueueVisitsDailyReconcileIfDue(context: Context, clock: AppClock = AppClock.System) {
     if (!UltimaConciliacionDeVisitas.vencida(
             UltimaConciliacionDeVisitas.leer(context),
-            ahora
+            clock.now()
         )
     ) {
         return
