@@ -12,6 +12,7 @@ import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
+import com.example.msp_app.data.api.services.visits.VisitaDetalleDTO
 import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.visit.Visit
@@ -82,6 +83,11 @@ internal fun fakeV2Api(
     // vez de responder algo plausible y esconder el acoplamiento nuevo.
     override suspend fun visitasExistentesPorIds(ids: String): List<String> =
         throw AssertionError("PendingVisitsWorker no debe llamar by-ids")
+
+    // El camino de hoy (v2) no consulta existencia; el v3 (Tarea 11) sí, y
+    // sus pruebas pasan su propio fake. Aquí, un GET inesperado es un rojo.
+    override suspend fun obtenerVisita(id: String): VisitaDetalleDTO =
+        throw AssertionError("no se esperaba GET")
 }
 
 internal fun happyApi(): V2VisitsApi = fakeV2Api { _, _ -> VisitaDTO(id = "visita-001") }

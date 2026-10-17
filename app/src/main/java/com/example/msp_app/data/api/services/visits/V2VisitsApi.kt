@@ -8,6 +8,7 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
@@ -107,7 +108,41 @@ interface V2VisitsApi {
      */
     @GET("v2/visitas/by-ids")
     suspend fun visitasExistentesPorIds(@Query("ids") ids: String): List<String>
+
+    /**
+     * Prueba de existencia completa (spec visitas §4.2-3). 404 = no existe.
+     *
+     * El servidor nuevo manda `imagen_ids` siempre (`[]` si no hay fotos) y
+     * lista solo las fotos con fila Y archivo en disco al momento del GET
+     * (msp-api `VisitaDetalleDTO`, E-VIS-022); un error de disco es 5xx, nunca
+     * una lista corta. Lo interpreta `existenciaCompleta` (`:core:common`).
+     */
+    @GET("v2/visitas/{id}")
+    suspend fun obtenerVisita(@Path("id") id: String): VisitaDetalleDTO
 }
+
+/**
+ * Respuesta de `GET /v2/visitas/{id}`: los campos de [VisitaDTO] más
+ * `imagen_ids`. **Todo nulable**: Gson no aplica defaults de Kotlin, y un
+ * servidor viejo omite `imagen_ids` — nulo significa "no lo dijo", que con
+ * fotos pendientes es existencia INCOMPLETA, nunca "no hay fotos".
+ */
+data class VisitaDetalleDTO(
+    val id: String?,
+    val cliente_id: Int?,
+    val cobrador_id: Int?,
+    val cobrador: String?,
+    val forma_cobro_id: Int?,
+    val lat: Double?,
+    val lng: Double?,
+    val nota: String?,
+    val tipo_visita: String?,
+    val zona_cliente_id: Int?,
+    val impte_docto_cc_id: Int?,
+    val fecha: String?,
+    val created_at: String?,
+    val imagen_ids: List<String>?
+)
 
 /**
  * Body serialized as the JSON request payload — either as the whole body

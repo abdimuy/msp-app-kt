@@ -63,6 +63,11 @@ dependencies {
     // dominio no depende de Android, así que NO se usa `kotlinx-coroutines-android`.
     implementation(libs.kotlinx.coroutines.core)
 
+    // La decisión de envío de visitas (visitas/envio/DecisionDeEnvio.kt) LLAMA a
+    // la tabla compartida `classifyUpload`; no la copia (plan visitas P1, Tarea 9).
+    // `:core:upload` no depende de `:core:common` en main: no hay ciclo.
+    implementation(project(":core:upload"))
+
     // El use case de pendingwork (SyncAllPendingWorkUseCase) usa runTest +
     // MainDispatcherRule en sus tests; :core:testing expone esas deps de test
     // (coroutines-test, turbine, junit) vía `api`.
