@@ -1,5 +1,8 @@
 #!/bin/sh
 
+echo "Running guardia de aislamiento..."
+bash scripts/guardia-aislamiento.sh --staged || exit 1
+
 echo "Running ktlint..."
 ./gradlew ktlintCheck --quiet
 LINT_RESULT=$?

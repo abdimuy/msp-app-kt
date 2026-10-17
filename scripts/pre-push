@@ -2,6 +2,12 @@
 
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
+echo "Running guardia de aislamiento..."
+# Lee de stdin los refs que se empujan (lo manda git al gancho): revisa lo que
+# trae cada uno, no HEAD, contra su merge-base con main (en CI, origin/main).
+# Debe ser lo primero que lea stdin.
+bash scripts/guardia-aislamiento.sh --pre-push || exit 1
+
 echo "Running full gate (all modules)..."
 ./gradlew prePushCheck --quiet
 GATE_RESULT=$?
