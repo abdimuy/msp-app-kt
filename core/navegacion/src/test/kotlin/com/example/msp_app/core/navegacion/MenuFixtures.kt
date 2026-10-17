@@ -18,7 +18,7 @@ object MenuFixtures {
                 "clientes",
                 "Clientes",
                 IconoDelMenu.CLIENTES,
-                contador = "8 por volver"
+                contador = "8 por visitar"
             ),
             ElementoDelMenu("reporte_cobranza", "Reporte de cobranza", IconoDelMenu.REPORTE),
             ElementoDelMenu("mapa_rutas", "Mapa de rutas", IconoDelMenu.MAPA)

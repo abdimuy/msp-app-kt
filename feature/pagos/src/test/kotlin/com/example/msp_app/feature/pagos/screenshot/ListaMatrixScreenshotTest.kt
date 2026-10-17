@@ -168,7 +168,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         }
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
@@ -176,7 +176,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
             cargando = false,
             clientes = proyeccion.clientes,
             conteos = proyeccion.conteos,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             temaOscuro = dark,
             hoy = ListaFixtures.HOY
         )
@@ -280,7 +280,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         Lista(
             ListaDeClientesUiState(
                 cargando = false,
-                segmento = SegmentoDeCobranza.VOLVER_A_VISITAR,
+                segmento = SegmentoDeCobranza.POR_VISITAR,
                 temaOscuro = dark
             )
         )
@@ -301,7 +301,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
     private fun estadoDeLaRuta(dark: Boolean): ListaDeClientesUiState {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.rutaConPromesaDeHoy(),
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
@@ -312,7 +312,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
             // Explícito aunque coincida con el default: el chip pintado y el que
             // filtró la lista tienen que ser el mismo, o el golden retrataría una
             // pantalla que la app no puede producir.
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             temaOscuro = dark,
             // Faltaba: sin esto cada "Vendida …" se leía contra el sentinel de
             // 1970, no contra el "hoy" que de verdad proyectó la cartera — un

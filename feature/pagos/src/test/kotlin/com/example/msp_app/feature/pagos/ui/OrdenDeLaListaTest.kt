@@ -91,7 +91,7 @@ class OrdenDeLaListaTest {
         query: String = ""
     ) = CarteraEnPantalla.proyectar(
         clientes = ruta,
-        segmento = SegmentoDeCobranza.SIN_VISITAR,
+        segmento = SegmentoDeCobranza.POR_VISITAR,
         query = query,
         hoy = hoy,
         orden = orden,
@@ -100,7 +100,7 @@ class OrdenDeLaListaTest {
 
     @Test
     fun `cobranza sigue siendo el orden por defecto y no cambia`() {
-        val porDefecto = CarteraEnPantalla.proyectar(ruta, SegmentoDeCobranza.SIN_VISITAR, "", hoy)
+        val porDefecto = CarteraEnPantalla.proyectar(ruta, SegmentoDeCobranza.POR_VISITAR, "", hoy)
             .clientes.map { it.nombre.substringBefore(' ') }
         assertEquals(porDefecto, ordenados(OrdenDeLaLista.COBRANZA))
         // La única sin abonos va primero; luego las más viejas.
@@ -189,7 +189,7 @@ class OrdenDeLaListaTest {
         )
         val dos = CarteraEnPantalla.proyectar(
             listOf(amalia, gemelo),
-            SegmentoDeCobranza.SIN_VISITAR,
+            SegmentoDeCobranza.POR_VISITAR,
             "",
             hoy,
             OrdenDeLaLista.NOMBRE,

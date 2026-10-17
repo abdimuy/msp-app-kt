@@ -66,7 +66,7 @@ class ElNombreSeArrastraTest : RobolectricTestBase() {
         nombre().performTouchInput { swipeLeft(startX = right - 10f, endX = left + 10f) }
         composeTestRule.waitForIdle()
 
-        assertEquals(listOf(SegmentoDeCobranza.VOLVER_A_VISITAR), segmentosElegidos)
+        assertEquals(listOf(SegmentoDeCobranza.NO_PAGA), segmentosElegidos)
     }
 
     @Test
@@ -108,7 +108,7 @@ class ElNombreSeArrastraTest : RobolectricTestBase() {
         val estado = ListaDeClientesUiState(
             cargando = false,
             clientes = listOf(cliente),
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             hoy = ListaFixtures.HOY
         )
         composeTestRule.setContent {

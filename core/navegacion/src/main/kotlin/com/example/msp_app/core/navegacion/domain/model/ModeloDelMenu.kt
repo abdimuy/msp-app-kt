@@ -19,7 +19,7 @@ enum class IconoDelMenu {
 }
 
 /**
- * Una opción del menú. [contador] llega YA formateado ("8 por volver") y sólo
+ * Una opción del menú. [contador] llega YA formateado ("8 por visitar") y sólo
  * cuando su fuente existe (spec §4): `null` es "sin contador", nunca un número
  * inventado.
  */

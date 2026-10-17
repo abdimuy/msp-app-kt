@@ -228,7 +228,7 @@ fun ListaDeClientesScreen(
  * recorrido o de velocidad; en el tope, siempre. Ver [rememberCabeceraQueSeEncoge],
  * que además documenta la causa raíz del teclado que se bajaba solo.
  *
- * El estado del colapso es UNO para los cuatro segmentos: cambiar de chip no abre ni
+ * El estado del colapso es UNO para los tres segmentos: cambiar de chip no abre ni
  * cierra la cabecera (decisión del dueño, 2026-10-07). Cada segmento sí conserva su
  * propio scroll ([ScrollPorSegmento]).
  */

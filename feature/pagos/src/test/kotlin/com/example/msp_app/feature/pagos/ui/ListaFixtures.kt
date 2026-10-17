@@ -31,6 +31,7 @@ object ListaFixtures {
     const val GUADALUPE: Int = 7310
     const val ESPERANZA: Int = 8412
     const val ARACELI: Int = 9210
+    const val OFELIA: Int = 8530
 
     fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
 
@@ -238,6 +239,34 @@ object ListaFixtures {
     )
 
     /**
+     * **Ofelia prometió pagar DENTRO DE TRES DÍAS** — la única puerta de la ruta
+     * que cae en la pastilla *No paga* (E-APP-070): promesa con fecha posterior
+     * a hoy. Vive en [rutaConTresPastillas], no en [ruta].
+     */
+    fun ofelia(): ClienteEnLista = cliente(
+        clienteId = OFELIA,
+        nombre = "Ofelia Ramos Díaz",
+        telefono = "238 127 3350",
+        direccion = "C. Hidalgo 18, Tepeaca",
+        ventas = listOf(
+            venta(
+                ventaId = 80410,
+                folio = "V-8410",
+                descripcion = "Recámara matrimonial",
+                saldo = dinero("3100"),
+                totalVenta = dinero("8000"),
+                enganche = dinero("900"),
+                fechaVenta = LocalDate.of(2026, 7, 20),
+                estado = estado(
+                    EstadoCuenta.PROMETIO_PROXIMA,
+                    fechaPromesa = HOY.plusDays(3),
+                    montoPrometido = dinero("500")
+                )
+            )
+        )
+    )
+
+    /**
      * **Araceli: una sola venta, SIN ningún abono, vendida hace 5 días** — el
      * caso "Nueva" al escalón de días (decisión del dueño, 2026-10-05).
      *
@@ -277,6 +306,13 @@ object ListaFixtures {
      * pendiente; la de mañana se iría a *después*.
      */
     fun rutaConPromesaDeHoy(): List<ClienteEnLista> = ruta() + esperanza()
+
+    /**
+     * La ruta con las **tres pastillas pobladas** (E-APP-070): [ruta] más la
+     * promesa de hoy (Por visitar) y la promesa a tres días (No paga). Pagados
+     * lo pone la otra venta de Victoria.
+     */
+    fun rutaConTresPastillas(): List<ClienteEnLista> = ruta() + esperanza() + ofelia()
 
     /** Las ventas crudas de la ruta, para los tests que entran por los puertos. */
     fun datosDeLaRuta(): List<DatosDeVenta> = listOf(

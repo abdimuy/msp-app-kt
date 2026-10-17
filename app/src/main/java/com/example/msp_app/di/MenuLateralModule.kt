@@ -96,10 +96,10 @@ object MenuLateralModule {
         telemetry: Telemetry,
         @PagosIoDispatcher io: CoroutineDispatcher
     ): ContadoresDelMenuPort = ContadoresDelMenuAdapter(
-        clientesPorVolver = {
+        clientesPorVisitar = {
             withContext(io) {
                 val cartera = reunirCartera(reportarIncidencias = false)
-                CarteraEnPantalla.clientesPorVolver(cartera.clientes, cartera.hoy)
+                CarteraEnPantalla.clientesPorVisitar(cartera.clientes, cartera.hoy)
             }
         },
         ventasSinSubir = { localSaleDao.observarSinSubir().first() },

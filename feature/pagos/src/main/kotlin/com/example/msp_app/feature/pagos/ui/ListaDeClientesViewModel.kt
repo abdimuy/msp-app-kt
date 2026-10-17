@@ -37,7 +37,7 @@ data class ListaDeClientesUiState(
     /** Los clientes YA buscados, filtrados por chip y ordenados. */
     val clientes: List<ClienteEnLista> = emptyList(),
     val conteos: Map<SegmentoDeCobranza, Int> = emptyMap(),
-    val segmento: SegmentoDeCobranza = SegmentoDeCobranza.SIN_VISITAR,
+    val segmento: SegmentoDeCobranza = SegmentoDeCobranza.POR_VISITAR,
     val query: String = "",
     /**
      * La carga falló. No hay una segunda rama "no está en el teléfono" como en
@@ -184,9 +184,13 @@ class ListaDeClientesViewModel @Inject constructor(
         }
 
     private var segmento: SegmentoDeCobranza
-        get() = SegmentoDeCobranza.entries[savedStateHandle[CLAVE_SEGMENTO] ?: 0]
+        // Por nombre (E-APP-070): la clave vieja guardaba el ordinal de cuatro chips
+        // y un 3 de 2.20.0 ya no existe. Un nombre desconocido cae en POR_VISITAR.
+        get() = SegmentoDeCobranza.entries.firstOrNull {
+            it.name == savedStateHandle.get<String>(CLAVE_SEGMENTO)
+        } ?: SegmentoDeCobranza.POR_VISITAR
         set(value) {
-            savedStateHandle[CLAVE_SEGMENTO] = value.ordinal
+            savedStateHandle[CLAVE_SEGMENTO] = value.name
         }
 
     init {
@@ -388,8 +392,12 @@ class ListaDeClientesViewModel @Inject constructor(
          */
         const val CLAVE_QUERY = "pagos_lista_query"
 
-        /** El chip elegido, por `ordinal` — un `Int` sobrevive al bundle sin ceremonia. */
-        const val CLAVE_SEGMENTO = "pagos_lista_segmento"
+        /**
+         * La pastilla elegida, por nombre. La clave de 2.20.0 (`pagos_lista_segmento`)
+         * guardaba el ordinal de cuatro chips; se cambió de clave para que ese
+         * entero no se lea como otra columna (E-APP-070).
+         */
+        const val CLAVE_SEGMENTO = "pagos_lista_columna"
 
         /** Id de la acción del toggle en telemetría — mismo nombre que usa el reporte. */
         const val ACCION_TEMA = "theme_toggle"

@@ -328,7 +328,7 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
     private fun Lista() {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.rutaConPromesaDeHoy(),
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
@@ -337,7 +337,7 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
                 cargando = false,
                 clientes = proyeccion.clientes,
                 conteos = proyeccion.conteos,
-                segmento = SegmentoDeCobranza.SIN_VISITAR
+                segmento = SegmentoDeCobranza.POR_VISITAR
             ),
             onBuscar = {},
             onElegirSegmento = {},

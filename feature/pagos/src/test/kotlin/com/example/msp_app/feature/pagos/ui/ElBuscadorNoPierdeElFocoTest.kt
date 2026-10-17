@@ -127,7 +127,7 @@ class ElBuscadorNoPierdeElFocoTest : RobolectricTestBase() {
         return ListaDeClientesUiState(
             cargando = false,
             clientes = clientes,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = query,
             hoy = ListaFixtures.HOY
         )

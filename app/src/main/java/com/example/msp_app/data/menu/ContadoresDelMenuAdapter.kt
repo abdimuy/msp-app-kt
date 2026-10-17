@@ -6,13 +6,13 @@ import com.example.msp_app.navigation.menu.IdsDelMenu
 import kotlinx.coroutines.CancellationException
 
 /**
- * Los contadores con fuente verificada (spec §4): Clientes "N por volver" y
+ * Los contadores con fuente verificada (spec §4): Clientes "N por visitar" y
  * Ventas "N sin subir". Reporte y Traspasos no tienen fuente en este plan y no
  * aparecen. Cada fuente falla sola: si la cartera no se puede leer, Ventas
  * conserva su número.
  */
 class ContadoresDelMenuAdapter(
-    private val clientesPorVolver: suspend () -> Int,
+    private val clientesPorVisitar: suspend () -> Int,
     private val ventasSinSubir: suspend () -> Int,
     private val telemetry: Telemetry
 ) : ContadoresDelMenuPort {
@@ -21,8 +21,8 @@ class ContadoresDelMenuAdapter(
         if (IdsDelMenu.CLIENTES in ids) {
             contar(
                 IdsDelMenu.CLIENTES,
-                clientesPorVolver
-            )?.let { put(IdsDelMenu.CLIENTES, "$it por volver") }
+                clientesPorVisitar
+            )?.let { put(IdsDelMenu.CLIENTES, "$it por visitar") }
         }
         if (IdsDelMenu.VENTAS in ids) {
             contar(

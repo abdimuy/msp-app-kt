@@ -166,37 +166,35 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
      * adaptador de producción y no uno armado a mano.
      */
     @Test
-    fun `una promesa para hoy cae en volver a visitar`() = runTest {
+    fun `una promesa para hoy cae en Por visitar`() = runTest {
         registrarPromesa(hoy, Money.of(BigDecimal("220")))
 
         val estado = estadoDerivado()
 
-        assertEquals(listOf(SegmentoDeCobranza.VOLVER_A_VISITAR), chipsDe(estado, hoy))
+        assertEquals(listOf(SegmentoDeCobranza.POR_VISITAR), chipsDe(estado, hoy))
     }
 
     /** Una cita de hoy con hora también: es el otro camino al mismo chip. */
     @Test
-    fun `una cita de hoy cae en volver a visitar`() = runTest {
+    fun `una cita de hoy cae en Por visitar`() = runTest {
         registrarCita(hoy, LocalTime.of(9, 0))
 
         val estado = estadoDerivado()
 
-        assertEquals(listOf(SegmentoDeCobranza.VOLVER_A_VISITAR), chipsDe(estado, hoy))
+        assertEquals(listOf(SegmentoDeCobranza.POR_VISITAR), chipsDe(estado, hoy))
     }
 
     /**
-     * **Una promesa futura es un acuerdo, no un pendiente:** cae en *ya no esta
-     * semana*. Antes —con `TODOS`/`VENCIDOS`/`HOY`/`SIN_VISITAR`— no caía en
-     * ningún chip de trabajo y sólo se veía bajo *todos*; ahora tiene chip
-     * propio, que es lo que le permite a `TODOS` desaparecer sin llevarse nada.
+     * **Una promesa futura es un acuerdo, no un pendiente:** cae en *No paga*
+     * (E-APP-070). Es la única que sale de *Por visitar* por su fecha.
      */
     @Test
-    fun `una promesa futura cae en ya no esta semana`() = runTest {
+    fun `una promesa futura cae en No paga`() = runTest {
         registrarPromesa(hoy.plusDays(3), null)
 
         val estado = estadoDerivado()
 
-        assertEquals(listOf(SegmentoDeCobranza.YA_NO_ESTA_SEMANA), chipsDe(estado, hoy))
+        assertEquals(listOf(SegmentoDeCobranza.NO_PAGA), chipsDe(estado, hoy))
     }
 
     /**
@@ -208,13 +206,13 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
      * como trabajo pendiente, no quedarse archivada.
      */
     @Test
-    fun `la misma promesa pasa de ya no esta semana a volver a visitar al vencer`() = runTest {
+    fun `la misma promesa pasa de No paga a Por visitar al vencer`() = runTest {
         registrarPromesa(hoy.plusDays(2), Money.of(BigDecimal("220")))
         val estado = estadoDerivado()
 
-        assertEquals(listOf(SegmentoDeCobranza.YA_NO_ESTA_SEMANA), chipsDe(estado, hoy))
+        assertEquals(listOf(SegmentoDeCobranza.NO_PAGA), chipsDe(estado, hoy))
         assertEquals(
-            listOf(SegmentoDeCobranza.VOLVER_A_VISITAR),
+            listOf(SegmentoDeCobranza.POR_VISITAR),
             chipsDe(estado, hoy.plusDays(4))
         )
     }
