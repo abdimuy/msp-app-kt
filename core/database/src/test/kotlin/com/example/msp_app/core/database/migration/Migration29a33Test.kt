@@ -20,7 +20,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-29-a-33-test.db"
 private const val V29 = 29
 private const val V33 = 33
-private const val V34 = 34
+private const val V35 = 35
 
 private const val SEEDED_SALE_ID = "sale-migracion-29-a-33"
 private const val SEEDED_PRODUCT_ARTICULO_ID = 4821
@@ -291,7 +291,7 @@ class Migration29a33Test : RobolectricTestBase() {
      * un teléfono con ventas pendientes adentro.
      */
     @Test
-    fun `abrir por el camino de produccion lleva una base v29 hasta la ultima, v34`() {
+    fun `abrir por el camino de produccion lleva una base v29 hasta la ultima, v35`() {
         seedV29()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val dbPath = context.getDatabasePath(MIGRATION_DB).path
@@ -302,8 +302,8 @@ class Migration29a33Test : RobolectricTestBase() {
 
         try {
             assertEquals(
-                "abrir por el camino real de produccion debe terminar en la ultima version (v34)",
-                V34,
+                "abrir por el camino real de produccion debe terminar en la ultima version (v35)",
+                V35,
                 abierta.openHelper.readableDatabase.version
             )
 

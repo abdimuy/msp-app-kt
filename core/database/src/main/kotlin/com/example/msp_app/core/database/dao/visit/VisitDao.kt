@@ -28,7 +28,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -68,7 +70,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -100,7 +104,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 0
         """
@@ -127,7 +133,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE FECHA >= :start AND FECHA < :end
         ORDER BY FECHA DESC
@@ -169,7 +177,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE CLIENTE_ID = :clienteId
         ORDER BY FECHA DESC
@@ -234,6 +244,83 @@ interface VisitDao {
         """
     )
     suspend fun markSyncedByIds(ids: List<String>): Int
+
+    // ─── Entrega con prueba del servidor (spec visitas §4.2-1/-7) ─────────────
+    // Estas tres son las ÚNICAS que escriben CONFIRMADA_EN/RESGUARDADA_EN con un
+    // valor (lo guarda EscritoresDeEntregaTest). Como markSyncedByIds, cada
+    // `IN (:ids)` liga un parámetro por id: el llamador acota la tanda por
+    // debajo de SQLITE_MAX_VARIABLE_NUMBER = 999.
+
+    /**
+     * El servidor CONFIRMÓ [ids] (by-ids o GET de existencia completa): suelta
+     * la visita y deja la prueba en `CONFIRMADA_EN`. Conserva la retención por
+     * foto de [markSyncedByIds]: una visita con un comprobante sin `SUBIDA_EN`
+     * no se toca.
+     *
+     * @return filas que cambiaron.
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = :ahora, RESGUARDADA_EN = NULL
+        WHERE ID IN (:ids)
+          AND ID NOT IN (SELECT VISITA_ID FROM visita_imagenes WHERE SUBIDA_EN IS NULL)
+        """
+    )
+    suspend fun confirmar(ids: List<String>, ahora: String): Int
+
+    /**
+     * Igual que [confirmar] para una sola visita, sin la retención por foto: el
+     * worker acaba de subir en el mismo request las fotos que viajaron.
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = :ahora, RESGUARDADA_EN = NULL
+        WHERE ID = :id
+        """
+    )
+    suspend fun confirmarTrasSubida(id: String, ahora: String): Int
+
+    /**
+     * El servidor la RESGUARDÓ en la bandeja (`X-Intent-Captured`). Nunca pisa
+     * una visita ya confirmada.
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, RESGUARDADA_EN = :ahora
+        WHERE ID = :id AND CONFIRMADA_EN IS NULL
+        """
+    )
+    suspend fun resguardar(id: String, ahora: String): Int
+
+    /** La reconciliación inversa no la encontró en el servidor: vuelve a la cola. */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 0, CONFIRMADA_EN = NULL, RESGUARDADA_EN = NULL
+        WHERE ID IN (:ids)
+        """
+    )
+    suspend fun devolverAPendiente(ids: List<String>): Int
+
+    /** Todas las pendientes, sin tope ni azar, de la más vieja a la más nueva. */
+    @Query("SELECT ID FROM Visit WHERE GUARDADO_EN_MICROSIP = 0 ORDER BY FECHA ASC, ID ASC")
+    suspend fun pendientesOrdenadas(): List<String>
+
+    /**
+     * Las soltadas que la reconciliación inversa debe revisar: las confirmadas
+     * en o después de [desde] y **todas** las legadas sin confirmar
+     * (`CONFIRMADA_EN` nulo tras la 34→35). Las resguardadas no: están en la
+     * bandeja, no en `MSP_VISITAS`.
+     */
+    @Query(
+        """
+        SELECT ID FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND RESGUARDADA_EN IS NULL
+          AND (CONFIRMADA_EN IS NULL OR CONFIRMADA_EN >= :desde)
+        ORDER BY FECHA ASC, ID ASC
+        """
+    )
+    suspend fun entregadasDesde(desde: String): List<String>
 
     @Query("DELETE FROM Visit")
     suspend fun deleteAllVisits()

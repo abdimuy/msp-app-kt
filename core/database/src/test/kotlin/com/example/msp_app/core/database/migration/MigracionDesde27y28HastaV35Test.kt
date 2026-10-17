@@ -12,12 +12,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-private const val ULTIMA_VERSION = 34
+private const val ULTIMA_VERSION = 35
 
 /**
  * E-APP-063: un teléfono con una base de cualquier versión exportada (v27, v28,
- * v29, v33) abre por el camino REAL de producción (`AppDatabase.buildDatabase`)
- * hasta la última versión, **exactamente** v34, y cada columna que sus filas de
+ * v29, v33, v34) abre por el camino REAL de producción (`AppDatabase.buildDatabase`)
+ * hasta la última versión, **exactamente** v35, y cada columna que sus filas de
  * `Payment` y `Visit` ya tenían conserva valor y tipo de almacenamiento
  * (`typeof` + `quote`).
  *
@@ -25,7 +25,7 @@ private const val ULTIMA_VERSION = 34
  * table_info`): toda columna recibe un valor, y las que admiten nulo alternan
  * con `NULL`, así que ninguna columna existente queda sin cubrir.
  */
-class MigracionDesde27y28HastaV34Test : RobolectricTestBase() {
+class MigracionDesde27y28HastaV35Test : RobolectricTestBase() {
 
     @get:Rule
     val migrationTestHelper = MigrationTestHelper(
@@ -34,25 +34,30 @@ class MigracionDesde27y28HastaV34Test : RobolectricTestBase() {
     )
 
     @Test
-    fun `E-APP-063 desde v27 por buildDatabase llega a v34 con Payment y Visit intactos`() =
+    fun `E-APP-063 desde v27 por buildDatabase llega a v35 con Payment y Visit intactos`() =
         verificarDesde(
             27
         )
 
     @Test
-    fun `E-APP-063 desde v28 por buildDatabase llega a v34 con Payment y Visit intactos`() =
+    fun `E-APP-063 desde v28 por buildDatabase llega a v35 con Payment y Visit intactos`() =
         verificarDesde(
             28
         )
 
     @Test
-    fun `desde v29 por buildDatabase llega a v34 con Payment y Visit intactos`() = verificarDesde(
+    fun `desde v29 por buildDatabase llega a v35 con Payment y Visit intactos`() = verificarDesde(
         29
     )
 
     @Test
-    fun `desde v33 por buildDatabase llega a v34 con Payment y Visit intactos`() = verificarDesde(
+    fun `desde v33 por buildDatabase llega a v35 con Payment y Visit intactos`() = verificarDesde(
         33
+    )
+
+    @Test
+    fun `desde v34 por buildDatabase llega a v35 con Payment y Visit intactos`() = verificarDesde(
+        34
     )
 
     private fun verificarDesde(version: Int) {
