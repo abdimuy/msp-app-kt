@@ -7,6 +7,7 @@ import com.example.msp_app.core.debug.RemoteDbDebugger
 import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -56,6 +57,9 @@ class MspApplication : Application(), Configuration.Provider {
 
         // Motivo del último fallo de envío (solo diagnóstico, E-APP-063)
         EnvioDiagnostico.instalar(this)
+
+        // Kill-switch del envío de visitas: config/visitas_envio (nunca api_settings)
+        FirestoreModoEnvioVisitas.instalar()
 
         // Inicializar sincronización periódica de clientes
         enqueueClienteSyncWorker(this)
