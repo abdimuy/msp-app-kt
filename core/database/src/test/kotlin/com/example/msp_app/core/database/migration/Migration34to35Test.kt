@@ -79,10 +79,9 @@ class Migration34to35Test : RobolectricTestBase() {
             )
         }
         val (columnasAntes, filasAntes, sqlAntes) = antes
-        // Control positivo: el volcado sí ve lo sembrado.
-        assertEquals(4, filasAntes.getValue("Visit").size)
-        assertEquals(2, filasAntes.getValue("Payment").size)
-        assertEquals(1, filasAntes.getValue("visita_imagenes").size)
+        // Control positivo: el volcado ve lo sembrado en CADA tabla de v34. Si
+        // una versión futura agrega una tabla y nadie la siembra, esto truena.
+        assertEquals(FILAS_SEMBRADAS, filasAntes.mapValues { it.value.size })
 
         val migrada = migrationTestHelper.runMigrationsAndValidate(
             MIGRATION_DB,
@@ -144,6 +143,176 @@ class Migration34to35Test : RobolectricTestBase() {
     // ─── siembra con forma real ────────────────────────────────────────────────
 
     private fun sembrar(db: SupportSQLiteDatabase) {
+        sembrarVisitasYPagos(db)
+        sembrarNegocio(db)
+    }
+
+    /** Inserta una fila por nombre de columna. */
+    private fun fila(
+        db: SupportSQLiteDatabase,
+        tabla: String,
+        vararg columnas: Pair<String, Any?>
+    ) {
+        db.execSQL(
+            "INSERT INTO `$tabla` (${columnas.joinToString { "`${it.first}`" }}) " +
+                "VALUES (${columnas.joinToString { "?" }})",
+            columnas.map { it.second }.toTypedArray()
+        )
+    }
+
+    /** Una fila con forma real en cada tabla de v34 que no es Visit/Payment/visita_imagenes. */
+    private fun sembrarNegocio(db: SupportSQLiteDatabase) {
+        fila(
+            db, "sales",
+            "DOCTO_CC_ACR_ID" to 512345, "DOCTO_CC_ID" to 8800120, "FOLIO" to "B-041237",
+            "CLIENTE_ID" to 11486, "APLICADO" to "S", "COBRADOR_ID" to 2991009,
+            "CLIENTE" to "Mendoza Torres, Ana", "ZONA_CLIENTE_ID" to 21552, "LIMITE_CREDITO" to 15000.0,
+            "NOTAS" to "Casa azul junto a la tienda", "ZONA_NOMBRE" to "Tehuacán Centro",
+            "IMPORTE_PAGO_PROMEDIO" to 175.5, "TOTAL_IMPORTE" to 6200.0, "NUM_IMPORTES" to 31,
+            "FECHA" to "2026-03-02T00:00:00Z", "PARCIALIDAD" to 200, "ENGANCHE" to 500.0,
+            "TIEMPO_A_CORTO_PLAZOMESES" to 3, "MONTO_A_CORTO_PLAZO" to 9800.0,
+            "VENDEDOR_1" to "Pérez Núñez, José María", "VENDEDOR_2" to "", "VENDEDOR_3" to "",
+            "PRECIO_TOTAL" to 12400.0, "IMPTE_REST" to 6200.0, "SALDO_REST" to 5700.25,
+            "FECHA_ULT_PAGO" to "2026-10-14T15:00:00Z", "CALLE" to "Av. Reforma 1204",
+            "CIUDAD" to "Tehuacán", "ESTADO" to "Puebla", "TELEFONO" to "2381234567",
+            "NOMBRE_COBRADOR" to "López García, Minerva", "ESTADO_COBRANZA" to "PENDIENTE",
+            "DIA_COBRANZA" to "JUEVES", "DIA_TEMPORAL_COBRANZA" to "", "PRECIO_DE_CONTADO" to 8900.0,
+            "AVAL_O_RESPONSABLE" to "Torres Ruiz, Rosa", "FREC_PAGO" to "SEMANAL"
+        )
+        fila(
+            db, "products",
+            "DOCTO_PV_DET_ID" to 7700451, "DOCTO_PV_ID" to 7700450, "FOLIO" to "B-041237",
+            "ARTICULO_ID" to 30211, "ARTICULO" to "Recámara Matrimonial Lisboa", "CANTIDAD" to 1,
+            "PRECIO_UNITARIO_IMPTO" to 12400.0, "PRECIO_TOTAL_NETO" to 12400.0, "POSICION" to 1
+        )
+        fila(
+            db, "garantias",
+            "ID" to 1, "EXTERNAL_ID" to "6d1f0c2e-8a4b-4f7e-9c3d-2b1a0f9e8d7c", "DOCTO_CC_ID" to 8800120,
+            "ESTADO" to "SOLICITADA", "DESCRIPCION_FALLA" to "La puerta del ropero no cierra",
+            "OBSERVACIONES" to null, "UPLOADED" to 0, "FECHA_SOLICITUD" to "2026-10-12T16:20:00Z",
+            "NOMBRE_CLIENTE" to "Mendoza Torres, Ana", "NOMBRE_PRODUCTO" to "Recámara Matrimonial Lisboa"
+        )
+        fila(
+            db,
+            "garantia_imagenes",
+            "ID" to "g-img-1",
+            "GARANTIA_ID" to "6d1f0c2e-8a4b-4f7e-9c3d-2b1a0f9e8d7c",
+            "IMG_PATH" to "/data/garantias/puerta.jpg",
+            "IMG_MIME" to "image/jpeg",
+            "IMG_DESC" to "Bisagra rota",
+            "FECHA_SUBIDA" to "2026-10-12T16:21:00Z"
+        )
+        fila(
+            db,
+            "garantia_eventos",
+            "ID" to "g-ev-1",
+            "GARANTIA_ID" to "6d1f0c2e-8a4b-4f7e-9c3d-2b1a0f9e8d7c",
+            "TIPO_EVENTO" to "SOLICITUD",
+            "FECHA_EVENTO" to "2026-10-12T16:20:00Z",
+            "COMENTARIO" to "Cliente pide revisión",
+            "ENVIADO" to 0
+        )
+        fila(
+            db,
+            "product_inventory",
+            "ARTICULO_ID" to 30211,
+            "ARTICULO" to "Recámara Matrimonial Lisboa",
+            "EXISTENCIAS" to 4,
+            "LINEA_ARTICULO_ID" to 12,
+            "LINEA_ARTICULO" to "Recámaras",
+            "PRECIOS" to "Precio de lista:12400.0,Precio 3 meses:9800.0,Precio contado:8900.0"
+        )
+        fila(
+            db,
+            "products_inventory_images",
+            "IMAGEN_ID" to 88001,
+            "ARTICULO_ID" to 30211,
+            "RUTA_LOCAL" to "/data/inventario/30211-1.jpg"
+        )
+        fila(
+            db, "local_sale",
+            "LOCAL_SALE_ID" to LOCAL_SALE, "NOMBRE_CLIENTE" to "Ramírez Ortiz, Fernando",
+            "FECHA_VENTA" to "2026-10-16T12:30:00Z", "LATITUD" to 18.4616, "LONGITUD" to -97.3928,
+            "DIRECCION" to "Calle 5 Sur 302", "PARCIALIDAD" to 250.0, "ENGANCHE" to 1000.0,
+            "TELEFONO" to "2389876543", "FREC_PAGO" to "SEMANAL", "AVAL_O_RESPONSABLE" to null,
+            "NOTA" to "Entregar por la tarde", "DIA_COBRANZA" to "SABADO", "PRECIO_TOTAL" to 15800.0,
+            "TIEMPO_A_CORTO_PLAZOMESES" to 3, "MONTO_A_CORTO_PLAZO" to 12600.0, "MONTO_DE_CONTADO" to 11200.0,
+            "ENVIADO" to 0, "NUMERO" to "302", "COLONIA" to "El Carmen", "POBLACION" to "Tehuacán",
+            "CIUDAD" to "Tehuacán", "TIPO_VENTA" to "CREDITO", "ZONA_CLIENTE_ID" to 21553,
+            "ZONA_CLIENTE" to "Tehuacán Sur", "CLIENTE_ID" to null, "IDEMPOTENCY_KEY" to "idem-ls-1",
+            "REVISION" to 0, "CORRECCION_NO_ENVIADA" to 0, "CORRECCION_REMOTA_PENDIENTE" to 0
+        )
+        fila(
+            db,
+            "sale_image",
+            "LOCAL_SALE_IMAGE_ID" to "ls-img-1",
+            "LOCAL_SALE_ID" to LOCAL_SALE,
+            "IMAGE_URI" to "/data/ventas/ine-frente.jpg",
+            "FECHA_SUBIDA" to "2026-10-16T12:31:00Z",
+            "SERVER_UUID" to null
+        )
+        fila(
+            db, "local_sale_combos",
+            "COMBO_ID" to "combo-1", "LOCAL_SALE_ID" to LOCAL_SALE, "NOMBRE_COMBO" to "Sala y comedor",
+            "PRECIO_LISTA" to 15800.0, "PRECIO_CORTO_PLAZO" to 12600.0, "PRECIO_CONTADO" to 11200.0,
+            "SERVER_UUID" to null
+        )
+        fila(
+            db, "local_sale_products",
+            "LOCAL_SALE_ID" to LOCAL_SALE, "ARTICULO_ID" to 30455, "ARTICULO" to "Sala Venecia 3-2-1",
+            "CANTIDAD" to 1, "PRECIO_LISTA" to 9800.0, "PRECIO_CORTO_PLAZO" to 7800.0,
+            "PRECIO_CONTADO" to 6900.0, "COMBO_ID" to "combo-1", "SERVER_UUID" to null
+        )
+        fila(
+            db,
+            "cliente",
+            "CLIENTE_ID" to 11486,
+            "NOMBRE" to "Mendoza Torres, Ana",
+            "ESTATUS" to "V",
+            "CAUSA_SUSP" to null,
+            "NOMBRE_NORMALIZADO" to "mendoza torres ana"
+        )
+        fila(
+            db, "cobranza_sync_state",
+            "RESOURCE" to "pagos", "ZONA_CLIENTE_ID" to 21552, "CURSOR" to "2026-10-16T18:00:00Z|8800124",
+            "LAST_SYNCED_AT" to "2026-10-16T18:00:05Z", "LAST_ERROR" to null, "EPOCH" to 3, "AFTER_ID" to 8800124
+        )
+        fila(
+            db, "pago_imagenes",
+            "ID" to "img-p-1", "PAGO_ID" to "7f3c2a10-5b1e-4c7a-9d2f-1a2b3c4d5e6f", "URI" to "/data/comprobante.jpg",
+            "MIME" to "image/jpeg", "DESCRIPCION" to null, "ORDEN" to 0, "CREADA_EN" to "2026-10-15T17:42:09Z",
+            "SUBIDA_EN" to null
+        )
+        fila(
+            db, "visita_recomendaciones",
+            "ID" to "rec-1", "CLIENTE_ID" to 11486, "VENTA_ID" to 512345, "COBRADOR_ID" to 2991009,
+            "GENERADA_EN" to "2026-10-15T07:00:00Z", "POSICION" to 1, "MOTIVO" to "promesa_vencida",
+            "ALGORITMO" to "v1", "GRUPO" to "tratamiento", "VISITA_ID" to PENDIENTE
+        )
+        fila(
+            db,
+            "cliente_ficha",
+            "CLIENTE_ID" to 11486,
+            "NOTA" to "Paga los jueves después de las 5",
+            "ACTUALIZADA_EN" to "2026-10-10T19:00:00Z",
+            "COBRADOR_ID" to 2991009
+        )
+        fila(
+            db,
+            "cliente_ficha_senales",
+            "CLIENTE_ID" to 11486,
+            "SENAL" to "PERRO_BRAVO",
+            "ACTUALIZADA_EN" to "2026-10-10T19:00:00Z"
+        )
+        fila(
+            db, "envio_diagnostico",
+            "TIPO" to "visita", "FILA_ID" to PENDIENTE, "ULTIMO_ERROR_CODIGO" to "timeout",
+            "ULTIMO_ERROR_MENSAJE" to "sin respuesta", "ULTIMO_ERROR_HTTP" to null, "INTENTOS" to 2,
+            "ULTIMO_INTENTO_AT" to "2026-10-16T11:06:00Z", "ULTIMO_EXITO_AT" to null, "REPORTADO_CODIGO" to "timeout"
+        )
+    }
+
+    private fun sembrarVisitasYPagos(db: SupportSQLiteDatabase) {
         val visitas = listOf(
             arrayOf<Any?>(
                 PENDIENTE, 11486, "Mendoza Torres, Ana", 2991009, "2026-10-15T18:00:00Z", 0,
@@ -246,5 +415,16 @@ class Migration34to35Test : RobolectricTestBase() {
         const val PENDIENTE_CON_FOTO = "a1b2c3d4-0000-3000-8000-000000000000"
         const val LEGADA_ENTREGADA = "a1b2c3d4-0000-3000-8000-000000000002"
         const val LEGADA_ENTREGADA_CON_PROMESA = "a1b2c3d4-0000-3000-8000-000000000003"
+        const val LOCAL_SALE = "3e9b7c1a-2d4f-4a6b-8c0e-1f2a3b4c5d6e"
+
+        /** Las 21 tablas de v34 (`34.json`), cada una con lo que [sembrar] le pone. */
+        val FILAS_SEMBRADAS = mapOf(
+            "Payment" to 2, "Visit" to 4, "cliente" to 1, "cliente_ficha" to 1,
+            "cliente_ficha_senales" to 1, "cobranza_sync_state" to 1, "envio_diagnostico" to 1,
+            "garantia_eventos" to 1, "garantia_imagenes" to 1, "garantias" to 1, "local_sale" to 1,
+            "local_sale_combos" to 1, "local_sale_products" to 1, "pago_imagenes" to 1,
+            "product_inventory" to 1, "products" to 1, "products_inventory_images" to 1, "sale_image" to 1,
+            "sales" to 1, "visita_imagenes" to 1, "visita_recomendaciones" to 1
+        )
     }
 }

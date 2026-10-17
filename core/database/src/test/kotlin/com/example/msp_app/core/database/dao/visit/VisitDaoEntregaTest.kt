@@ -168,6 +168,28 @@ class VisitDaoEntregaTest : RoomTestBase() {
         assertEquals(T2, porFecha.getValue("b").RESGUARDADA_EN)
     }
 
+    /**
+     * `getPendingVisits` también lee las dos columnas. Una pendiente legítima
+     * las trae en NULL (tras `devolverAPendiente`), así que para probar que el
+     * SELECT las lee se inserta además una fila pendiente con las dos marcas
+     * puestas a mano: solo esta prueba la escribe así.
+     */
+    @Test
+    fun `getPendingVisits devuelve las dos marcas`() = runTest {
+        dao.insertVisit(visita("devuelta"))
+        dao.confirmar(listOf("devuelta"), T1)
+        dao.devolverAPendiente(listOf("devuelta"))
+        dao.insertVisit(visita("con-marcas").copy(CONFIRMADA_EN = T1, RESGUARDADA_EN = T2))
+
+        val pendientes = dao.getPendingVisits().associateBy { it.ID }
+
+        assertEquals(setOf("devuelta", "con-marcas"), pendientes.keys)
+        assertNull(pendientes.getValue("devuelta").CONFIRMADA_EN)
+        assertNull(pendientes.getValue("devuelta").RESGUARDADA_EN)
+        assertEquals(T1, pendientes.getValue("con-marcas").CONFIRMADA_EN)
+        assertEquals(T2, pendientes.getValue("con-marcas").RESGUARDADA_EN)
+    }
+
     private fun visita(id: String, fecha: String = "2026-10-16T10:00:00Z", guardado: Int = 0) =
         VisitEntity(
             ID = id,
