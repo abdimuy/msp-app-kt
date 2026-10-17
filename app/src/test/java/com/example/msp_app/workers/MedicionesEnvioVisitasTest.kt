@@ -23,6 +23,7 @@ import com.example.msp_app.core.network.RetrofitClientFactory
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.VisitsPendingSynchronizer
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
@@ -69,6 +70,8 @@ class MedicionesEnvioVisitasTest : RoomTestBase() {
             context = context,
             imagenes = db.visitImageDao(),
             clock = FakeClock(subidaEn),
+            // E-VIS-001 mide el envío de hoy: el modo de reversa.
+            modo = ModoEnvioVisitas.V2_ACTUAL,
             api = api,
             maxAttempts = 10,
             runAttemptCount = runAttemptCount
@@ -104,6 +107,8 @@ class MedicionesEnvioVisitasTest : RoomTestBase() {
             context = context,
             imagenes = db.visitImageDao(),
             clock = FakeClock(subidaEn),
+            // E-VIS-001 mide el envío de hoy: el modo de reversa.
+            modo = ModoEnvioVisitas.V2_ACTUAL,
             visitId = "visita-002",
             api = fakeV2Api { _, _ -> VisitaDTO(id = "visita-002") }
         )

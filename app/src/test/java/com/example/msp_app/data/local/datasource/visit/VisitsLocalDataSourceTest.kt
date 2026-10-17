@@ -25,7 +25,7 @@ import org.junit.Test
  * de DAOs inyectados** (la forma Hilt) con DAOs de la DB in-memory de
  * [RoomTestBase]. Cubre las visitas (con y sin pago) y la transaccion que
  * cambia el estado de cobranza de la venta, y prueba que la forma inyectada es
- * EQUIVALENTE al puente `context` que usan `PendingVisitsWorkerV2Test` y los
+ * EQUIVALENTE al puente `context` que usan `PendingVisitsWorkerModoV2ActualTest` y los
  * ViewModels no-Hilt (ambos resuelven a la misma DB via
  * [com.example.msp_app.core.database.AppDatabase.getInstance]).
  */

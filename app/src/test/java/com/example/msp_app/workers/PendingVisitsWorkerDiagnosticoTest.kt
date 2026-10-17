@@ -16,6 +16,8 @@ import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
 import com.example.msp_app.core.network.diagnostico.EnvioObservado
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
@@ -40,6 +42,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
@@ -49,6 +52,10 @@ import retrofit2.converter.gson.GsonConverterFactory
  * E-APP-065: el worker de visitas anota el motivo en CADA salida y, sobre todo,
  * **decide lo mismo** con el diagnóstico apagado (destino mudo), grabando, con
  * un destino que revienta y con la escritura en la base fallando.
+ *
+ * Se prueba en los dos modos del kill-switch: el de reversa (`V2_ACTUAL`, las
+ * pruebas de siempre) y el envío v3 (plan visitas P1, Tarea 11), que conserva
+ * una anotación por corrida en cada `return`.
  *
  * El API es el `V2VisitsApi` REAL de Retrofit contra MockWebServer, salvo el
  * escenario de "excepción inesperada", que necesita un API que lance algo que
@@ -68,7 +75,8 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
         val http: Int?
     )
 
-    private data class Resultado(val result: ListenableWorker.Result, val fila: VisitEntity?, val peticiones: Int)
+    /** [result] es el `Result` o, si `doWork` lanzó, el nombre de la excepción. */
+    private data class Resultado(val result: Any, val fila: VisitEntity?, val peticiones: Int)
 
     private lateinit var context: Context
     private val clock = FakeClock(Instant.parse("2026-10-16T18:00:00Z"))
@@ -217,7 +225,11 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
         )
     }
 
-    private fun correr(e: Escenario, modo: Modo): Resultado {
+    private fun correr(
+        e: Escenario,
+        modo: Modo,
+        envio: ModoEnvioVisitas = ModoEnvioVisitas.V2_ACTUAL
+    ): Resultado {
         db.clearAllTables()
         val store = VisitsLocalDataSource(context)
         runBlocking { store.saveVisit(visita()) }
@@ -253,10 +265,15 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
                     maxAttempts = 10,
                     imagenes = imagenes,
                     clock = clock,
-                    diagnostico = sink(modo)
+                    diagnostico = sink(modo),
+                    modo = { envio }
                 )
             }).build()
-            val result = runBlocking { (worker as PendingVisitsWorker).doWork() }
+            val result: Any = try {
+                runBlocking { (worker as PendingVisitsWorker).doWork() }
+            } catch (c: CancellationException) {
+                c::class.java.simpleName
+            }
             val fila = runBlocking { store.getVisitById("visita-001") }
             return Resultado(result, fila, server.requestCount)
         } finally {
@@ -308,6 +325,10 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
 
     @Test
     fun `E-APP-065 las dos salidas por failure tambien anotan y siguen siendo failure`() {
+        ModoEnvioVisitas.entries.forEach { envio -> salidasPorFailure(envio) }
+    }
+
+    private fun salidasPorFailure(envio: ModoEnvioVisitas) {
         fun correrSin(inputData: Data, sink: EnvioDiagnosticoSink): ListenableWorker.Result {
             val worker = TestListenableWorkerBuilder<PendingVisitsWorker>(context, inputData)
                 .setWorkerFactory(object : WorkerFactory() {
@@ -327,7 +348,8 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
                         useV2 = true,
                         imagenes = db.visitImageDao(),
                         clock = clock,
-                        diagnostico = sink
+                        diagnostico = sink,
+                        modo = { envio }
                     )
                 }).build()
             return runBlocking { (worker as PendingVisitsWorker).doWork() }
@@ -337,7 +359,7 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
         listOf(sinId, noExiste).forEach { datos ->
             Modo.entries.forEach { modo ->
                 assertEquals(
-                    "$datos / $modo",
+                    "$envio / $datos / $modo",
                     ListenableWorker.Result.failure(),
                     correrSin(datos, sink(modo))
                 )
@@ -353,6 +375,165 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
             ),
             grabados.map { it.filaId to it.fallo!!.codigo }
         )
+    }
+
+    // ─── modo v3 (plan visitas P1, Tarea 11) ─────────────────────────────────
+
+    private fun conCustodia(r: MockResponse) = r.setHeader(
+        HEADER_INTENT_CAPTURED,
+        "c0ffee00-0000-4000-8000-000000000000"
+    )
+
+    private fun get404() = MockResponse().setResponseCode(404).setBody("""{"code":"not_found"}""")
+
+    private fun escenariosV3() = listOf(
+        Escenario(
+            "201",
+            listOf(MockResponse().setResponseCode(201).setBody("""{"id":"visita-001"}""")),
+            codigo = null,
+            http = null
+        ),
+        Escenario(
+            "201 con eco ajeno",
+            listOf(MockResponse().setResponseCode(201).setBody("""{"id":"otra"}"""), get404()),
+            codigo = "visita_sin_eco",
+            http = 200
+        ),
+        Escenario(
+            "200 sin cuerpo",
+            listOf(MockResponse().setResponseCode(200)),
+            codigo = "network_error",
+            http = 0
+        ),
+        Escenario(
+            "409",
+            listOf(problema(409, "visita_conflicto"), get404()),
+            codigo = "visita_conflicto",
+            http = 409
+        ),
+        Escenario(
+            "422 sin cabecera",
+            listOf(problema(422, "visita_fecha_futura"), get404()),
+            codigo = "visita_fecha_futura",
+            http = 422
+        ),
+        Escenario(
+            "422 con cabecera",
+            listOf(conCustodia(problema(422, "visita_fecha_futura")), get404()),
+            codigo = "visita_fecha_futura",
+            http = 422
+        ),
+        Escenario(
+            "500 y GET completo",
+            listOf(
+                problema(500, "internal_error"),
+                MockResponse().setResponseCode(
+                    200
+                ).setBody("""{"id":"visita-001","imagen_ids":[]}""")
+            ),
+            codigo = null,
+            http = null
+        ),
+        Escenario(
+            "500 y GET 404",
+            listOf(problema(500, "internal_error"), get404()),
+            codigo = "internal_error",
+            http = 500
+        ),
+        Escenario(
+            "500 en el intento 30",
+            listOf(problema(500, "internal_error"), get404()),
+            intento = 29,
+            codigo = "internal_error",
+            http = 500
+        ),
+        Escenario(
+            "401 en el intento 30",
+            listOf(problema(401, "unauthorized"), get404()),
+            intento = 29,
+            codigo = "unauthorized",
+            http = 401
+        ),
+        Escenario(
+            "IOException",
+            listOf(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START)),
+            codigo = "network_error",
+            http = 0
+        ),
+        Escenario(
+            "timeout",
+            listOf(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)),
+            codigo = "timeout",
+            http = 0
+        ),
+        Escenario(
+            "excepcion inesperada",
+            apiFija = apiQueRevienta(IllegalStateException("inesperado")),
+            codigo = "error_inesperado",
+            http = 0
+        ),
+        Escenario(
+            "cancelacion",
+            apiFija = apiQueRevienta(CancellationException("WorkManager detuvo")),
+            codigo = "cancelado",
+            http = 0
+        ),
+        Escenario(
+            "comprobantes ilegibles",
+            imagenesRotas = true,
+            codigo = "comprobantes_ilegibles",
+            http = 0
+        )
+    )
+
+    @Test
+    fun `E-APP-065 v3 la decision es identica con y sin diagnostico`() {
+        escenariosV3().forEach { e ->
+            val base = correr(e, Modo.MUDO, ModoEnvioVisitas.V3)
+            Modo.entries.filter { it != Modo.MUDO }.forEach { modo ->
+                assertEquals("${e.nombre} / $modo", base, correr(e, modo, ModoEnvioVisitas.V3))
+            }
+        }
+    }
+
+    @Test
+    fun `E-APP-065 v3 cada salida anota una vez su motivo, y lo confirmado anota exito`() {
+        escenariosV3().forEach { e ->
+            grabados.clear()
+            correr(e, Modo.GRABA, ModoEnvioVisitas.V3)
+            val unico = grabados.single()
+            assertEquals(e.nombre, "visita", unico.tipo)
+            assertEquals(e.nombre, "visita-001", unico.filaId)
+            assertEquals(e.nombre, e.codigo, unico.fallo?.codigo)
+            assertEquals(e.nombre, e.http, unico.fallo?.http)
+        }
+    }
+
+    /** Control positivo: en v3 los escenarios recorren las tres salidas y nada suelta sin prueba. */
+    @Test
+    fun `v3 controles positivos de los caminos`() {
+        val r = escenariosV3().associate { it.nombre to correr(it, Modo.MUDO, ModoEnvioVisitas.V3) }
+        val ok = ListenableWorker.Result.success()
+        val retry = ListenableWorker.Result.retry()
+        assertEquals(ok, r.getValue("201").result)
+        assertEquals("201 sin GET", 1, r.getValue("201").peticiones)
+        assertTrue(r.getValue("201").fila!!.CONFIRMADA_EN != null)
+        assertEquals(ok, r.getValue("422 con cabecera").result)
+        assertTrue(r.getValue("422 con cabecera").fila!!.RESGUARDADA_EN != null)
+        assertEquals(ok, r.getValue("500 y GET completo").result)
+        assertEquals(2, r.getValue("500 y GET completo").peticiones)
+        assertTrue(r.getValue("500 y GET completo").fila!!.CONFIRMADA_EN != null)
+        listOf(
+            "201 con eco ajeno", "200 sin cuerpo", "409", "422 sin cabecera", "500 y GET 404",
+            "500 en el intento 30", "401 en el intento 30", "IOException", "timeout",
+            "excepcion inesperada", "comprobantes ilegibles"
+        ).forEach { nombre ->
+            assertEquals(nombre, retry, r.getValue(nombre).result)
+            assertEquals(nombre, 0, r.getValue(nombre).fila!!.GUARDADO_EN_MICROSIP)
+        }
+        assertEquals("CancellationException", r.getValue("cancelacion").result)
+        assertEquals(0, r.getValue("cancelacion").fila!!.GUARDADO_EN_MICROSIP)
+        assertEquals("ilegibles no manda nada", 0, r.getValue("comprobantes ilegibles").peticiones)
     }
 
     private class ImagenesQueRevientan(private val db: AppDatabase) : VisitImageDao {
