@@ -72,7 +72,20 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
             IMPTE_DOCTO_CC_ID = 5000,
             GUARDADO_EN_MICROSIP = guardado,
             PROMESA_FECHA = promesa,
-            CITA_FECHA = cita
+            CITA_FECHA = cita,
+            // Plan visitas P1, Tarea 12: la poda exige la prueba del servidor.
+            // "Subida" en estas pruebas = confirmada hace mucho; la legada sin
+            // marca la cubre `VisitDaoPodaTest` (`:core:database`).
+            CONFIRMADA_EN = if (guardado == 1) CONFIRMADA_HACE_MUCHO else null
+        )
+
+    /** La poda con los cortes de estas pruebas; solo cambian compromisos y comprobantes. */
+    private suspend fun podar(conservarDesde: String, comprobantesDesde: String) =
+        dao.deleteUploadedVisits(
+            confirmadasAntesDe = CORTE_DE_CONFIRMADAS,
+            resguardadasAntesDe = CORTE_DE_CONFIRMADAS,
+            comprobantesDesde = comprobantesDesde,
+            conservarCompromisosDesde = conservarDesde
         )
 
     @Test
@@ -85,7 +98,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-pending-1", guardado = 0))
         dao.insertVisit(visit(id = "visita-pending-2", guardado = 0))
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = sinComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = sinComprobantes)
 
         // The two confirmed visitas are gone.
         assertNoLongerExists(dao, "visita-uploaded-1")
@@ -132,7 +145,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-con-cita", guardado = 1, cita = "2026-07-01"))
         dao.insertVisit(visit(id = "visita-sin-compromiso", guardado = 1))
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = sinComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = sinComprobantes)
 
         assertNotNull(
             "la promesa no puede morir en la poda",
@@ -153,7 +166,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "promesa-vieja", guardado = 1, promesa = "2026-06-14"))
         dao.insertVisit(visit(id = "promesa-del-corte", guardado = 1, promesa = corte))
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = sinComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = sinComprobantes)
 
         assertNoLongerExists(dao, "promesa-vieja")
         // El borde exacto: el día del corte SOBREVIVE (`<`, no `<=`).
@@ -175,7 +188,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
             )
         )
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = sinComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = sinComprobantes)
 
         assertNotNull(
             "el compromiso mas lejano decide, no el primero",
@@ -199,7 +212,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-sin-foto", guardado = 1))
         sembrarImagen(id = "IMG-1", visitaId = "visita-con-foto", creadaEn = reciente)
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNotNull(
             "la foto pendiente retiene su visita",
@@ -225,7 +238,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
             subidaEn = "2026-06-14T12:00:00Z"
         )
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNoLongerExists(dao, "visita-con-foto-subida")
     }
@@ -243,7 +256,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-con-foto-vieja", guardado = 1))
         sembrarImagen(id = "IMG-1", visitaId = "visita-con-foto-vieja", creadaEn = antiguo)
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNoLongerExists(dao, "visita-con-foto-vieja")
     }
@@ -265,7 +278,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
             creadaEn = justoAntesDelCorte
         )
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNoLongerExists(dao, "visita-borde-anterior")
     }
@@ -276,7 +289,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-borde", guardado = 1))
         sembrarImagen(id = "IMG-1", visitaId = "visita-borde", creadaEn = corteDeComprobantes)
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNotNull("el instante del corte retiene", dao.getVisitById("visita-borde"))
     }
@@ -292,7 +305,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-vecina", guardado = 1))
         sembrarImagen(id = "IMG-1", visitaId = "visita-con-foto", creadaEn = reciente)
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNotNull(dao.getVisitById("visita-con-foto"))
         assertNoLongerExists(dao, "visita-vecina")
@@ -304,7 +317,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-pendiente", guardado = 0))
         sembrarImagen(id = "IMG-1", visitaId = "visita-pendiente", creadaEn = reciente)
 
-        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+        podar(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNotNull(
             "una visita sin subir nunca se poda, con foto o sin ella",
@@ -338,5 +351,10 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
             null,
             result
         )
+    }
+
+    private companion object {
+        const val CONFIRMADA_HACE_MUCHO = "2026-01-01T00:00:00Z"
+        const val CORTE_DE_CONFIRMADAS = "2026-06-01T00:00:00Z"
     }
 }

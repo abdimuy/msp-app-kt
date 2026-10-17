@@ -386,12 +386,16 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
     fun `la recomendacion sobrevive a la poda de su visita`() = runTest {
         db.visitRecommendationDao().guardar(recomendacion())
         adaptador.registrar(visita(recomendacionId = REC_ID))
-        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+        db.visitDao().confirmar(listOf(VISITA_ID), "2026-01-01T00:00:00Z")
 
         db.visitDao().deleteUploadedVisits(
-            conservarDesde = "2027-01-01",
-            comprobantesDesde = "2027-01-01T00:00:00Z"
+            confirmadasAntesDe = "2027-01-01T00:00:00Z",
+            resguardadasAntesDe = "2027-01-01T00:00:00Z",
+            comprobantesDesde = "2027-01-01T00:00:00Z",
+            conservarCompromisosDesde = "2027-01-01"
         )
+        // Control positivo: la visita sí se podó.
+        assertNull(db.visitDao().findVisitById(VISITA_ID))
 
         val ligada = db.visitRecommendationDao().porId(REC_ID)
         assertEquals("la sugerencia no se va con la visita", VISITA_ID, ligada?.VISITA_ID)

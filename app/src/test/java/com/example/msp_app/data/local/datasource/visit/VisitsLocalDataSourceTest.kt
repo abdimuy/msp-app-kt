@@ -3,19 +3,24 @@ package com.example.msp_app.data.local.datasource.visit
 import android.location.Location
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
+import com.example.msp_app.core.common.visitas.envio.ReglaDePoda
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
+import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.visit.toEntity
 import com.example.msp_app.features.visit.newvisit.VisitFactory
 import com.example.msp_app.services.UpdateLocationHandler
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -669,7 +674,9 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
     @Test
     fun deleteUploadedVisits_preservesPending() = runTest {
         store.saveVisit(visit(id = "pend-1", guardado = 0))
-        store.saveVisit(visit(id = "sync-1", guardado = 1))
+        store.saveVisit(visit(id = "sync-1", guardado = 0))
+        // Plan visitas P1, Tarea 12: la poda exige la prueba del servidor y 30 días.
+        db.visitDao().confirmar(listOf("sync-1"), "2020-01-01T00:00:00Z")
 
         store.deleteUploadedVisits()
 
@@ -684,6 +691,93 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
                 it.ID == "sync-1"
             }
         )
+    }
+
+    // ─── poda segura (plan visitas P1, Tarea 12; cierra H2) ────────────────────
+
+    private val ahora = Instant.parse("2026-10-17T15:00:00Z")
+
+    private class MemoriaEnPrueba(var valor: String? = null) : MemoriaDePodaDeResguardadas {
+        override fun reportadasHasta(): String? = valor
+        override fun anotarReportadasHasta(limite: String) {
+            valor = limite
+        }
+    }
+
+    private fun storeCon(clock: FakeClock, memoria: MemoriaDePodaDeResguardadas) =
+        VisitsLocalDataSource(db.visitDao(), db.saleDao(), enqueuer, clock, memoria)
+
+    /** Review Focus 2: la legada soltada sin prueba no se poda por la fuente real. */
+    @Test
+    fun `la poda real no borra la legada sin confirmar`() = runTest {
+        val s = storeCon(FakeClock(ahora), MemoriaEnPrueba())
+        s.saveVisit(visit(id = "legada", guardado = 1))
+        s.saveVisit(visit(id = "confirmada-vieja"))
+        db.visitDao().confirmar(listOf("confirmada-vieja"), "2026-09-01T00:00:00Z")
+        s.saveVisit(visit(id = "confirmada-reciente"))
+        db.visitDao().confirmar(listOf("confirmada-reciente"), "2026-10-01T00:00:00Z")
+
+        s.deleteUploadedVisits()
+
+        assertNotNull(db.visitDao().findVisitById("legada"))
+        assertNull(
+            "confirmada hace más de 30 días",
+            db.visitDao().findVisitById("confirmada-vieja")
+        )
+        assertNotNull("confirmada hace 16 días", db.visitDao().findVisitById("confirmada-reciente"))
+    }
+
+    /** Spec §4.2-8: una resguardada vencida se reporta en una corrida y se poda en la siguiente. */
+    @Test
+    fun `la resguardada vencida se reporta antes y se poda en la corrida siguiente`() = runTest {
+        val clock = FakeClock(ahora)
+        val memoria = MemoriaEnPrueba()
+        val s = storeCon(clock, memoria)
+        s.saveVisit(visit(id = "r-vieja"))
+        db.visitDao().resguardar("r-vieja", "2026-07-01T00:00:00Z") // > 90 días
+
+        s.deleteUploadedVisits()
+        assertNotNull("primera corrida: solo se reporta", db.visitDao().findVisitById("r-vieja"))
+        assertEquals(ReglaDePoda.limiteResguardadas(ahora), memoria.valor)
+
+        clock.setNow(ahora.plusSeconds(3600))
+        s.deleteUploadedVisits()
+        assertNull("segunda corrida: ya reportada, se poda", db.visitDao().findVisitById("r-vieja"))
+    }
+
+    @Test
+    fun `sin memoria nunca se poda una resguardada`() = runTest {
+        val clock = FakeClock(ahora)
+        val s = storeCon(clock, MemoriaDePodaDeResguardadas.Ninguna)
+        s.saveVisit(visit(id = "r-vieja"))
+        db.visitDao().resguardar("r-vieja", "2026-01-01T00:00:00Z")
+        s.deleteUploadedVisits()
+        clock.setNow(ahora.plusSeconds(86_400))
+        s.deleteUploadedVisits()
+        assertNotNull(db.visitDao().findVisitById("r-vieja"))
+    }
+
+    @Test
+    fun `una resguardada reciente no se poda aunque haya memoria`() = runTest {
+        val s =
+            storeCon(
+                FakeClock(ahora),
+                MemoriaEnPrueba(valor = ReglaDePoda.limiteResguardadas(ahora))
+            )
+        s.saveVisit(visit(id = "r-reciente"))
+        db.visitDao().resguardar("r-reciente", "2026-09-01T00:00:00Z")
+        s.deleteUploadedVisits()
+        assertNotNull(db.visitDao().findVisitById("r-reciente"))
+    }
+
+    /** Si el reloj retrocedió, la memoria no autoriza podar más allá del límite de hoy. */
+    @Test
+    fun `una memoria en el futuro no adelanta la poda`() = runTest {
+        val s = storeCon(FakeClock(ahora), MemoriaEnPrueba(valor = "2099-01-01T00:00:00Z"))
+        s.saveVisit(visit(id = "r"))
+        db.visitDao().resguardar("r", "2026-08-01T00:00:00Z") // 77 días: aún dentro de los 90
+        s.deleteUploadedVisits()
+        assertNotNull(db.visitDao().findVisitById("r"))
     }
 
     @Test

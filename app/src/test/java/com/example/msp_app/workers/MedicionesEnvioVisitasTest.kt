@@ -39,6 +39,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -167,9 +168,14 @@ class MedicionesEnvioVisitasTest : RoomTestBase() {
         }
     }
 
-    /** E-APP-072 (spec E-APP-059, H3): el reencolado de sesión toma 50 y no ordena. */
+    /**
+     * E-APP-072 (spec E-APP-059, H3). Medido el 2026-10-17 con el código de
+     * entonces: tomaba 50 de 60 en orden de inserción. La Tarea 12 de P1 lo
+     * cierra; esta prueba, ajustada como pide el plan, exige las 60 en
+     * `FECHA ASC, ID ASC` y se pone roja al volver a `take(50)`.
+     */
     @Test
-    fun `E-APP-072 el reencolado de sesion toma 50 sin orden`() = runBlocking {
+    fun `E-APP-072 el reencolado de sesion toma las 60 en orden FECHA ASC`() = runBlocking {
         val store = VisitsLocalDataSource(context)
         // 60 pendientes sembradas con FECHA descendente (la más nueva primero).
         val sembradas = (0 until 60).map { i ->
@@ -180,23 +186,25 @@ class MedicionesEnvioVisitasTest : RoomTestBase() {
         sembradas.forEach { store.saveVisit(it) }
 
         val encolador = EncoladorQueAnota()
-        // El mismo fetchPending que cablea PendingWorkSyncFactory.kt:99-102.
+        // El mismo fetchPendingIds que cablea PendingWorkSyncFactory.
         val sync = VisitsPendingSynchronizer(
-            fetchPending = { VisitsLocalDataSource(context).getPendingVisits() },
+            fetchPendingIds = { VisitsLocalDataSource(context).getPendingVisitIdsOrdered() },
             enqueuer = encolador
         )
         val resultado = sync.sync(SyncContext(userId = "u1", userEmail = "cobrador@msp.com"))
 
-        val porFechaAsc = sembradas.sortedBy { it.FECHA }.map { it.ID }.take(50)
-        val ordenSiembra = sembradas.map { it.ID }.take(50)
+        val porFechaAsc = sembradas.sortedBy { it.FECHA }.map { it.ID }
+        val ordenSiembra = sembradas.map { it.ID }
         medicion("E-APP-072 resultado=$resultado encolados=${encolador.ids.size}")
         medicion("E-APP-072 primeros 5 encolados=${encolador.ids.take(5)}")
         medicion(
             "E-APP-072 orden == FECHA ASC: ${encolador.ids == porFechaAsc}; " +
                 "orden == orden de inserción: ${encolador.ids == ordenSiembra}"
         )
-        assertEquals(SyncResult.Enqueued(itemCount = 50, workRequestCount = 50), resultado)
-        assertEquals(50, encolador.ids.size)
+        assertEquals(SyncResult.Enqueued(itemCount = 60, workRequestCount = 60), resultado)
+        assertEquals(porFechaAsc, encolador.ids)
+        // Control positivo: los dos órdenes candidatos son distintos.
+        assertNotEquals(ordenSiembra, porFechaAsc)
     }
 
     // ─── E-APP-074 ────────────────────────────────────────────────────────────

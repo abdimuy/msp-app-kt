@@ -55,6 +55,18 @@ object PendingWorkSyncFactory {
     ): List<LocalSaleEntity> = localSalesDataSource.getUploadableSales(clock.now().toEpochMilli())
 
     /**
+     * Qué visitas reencola el barrido de sesión: **todas** las pendientes, en
+     * orden `FECHA ASC, ID ASC`, sin tope (E-APP-072, plan visitas P1 Tarea 12).
+     * Función con nombre, como [ventasParaElBarrido], para que la prueba ejerza
+     * ESTA lectura: si vuelve a `getPendingVisits()` (sin `ORDER BY`) o a un
+     * `take(50)`, se pone roja (`VisitasParaElBarridoTest`).
+     */
+    @VisibleForTesting
+    internal suspend fun visitasParaElBarrido(
+        visitsDataSource: VisitsLocalDataSource
+    ): List<String> = visitsDataSource.getPendingVisitIdsOrdered()
+
+    /**
      * [clock] alimenta el predicado de expiración del candado de
      * `local_sale` (Task 4 del plan "Corregir una venta antes de que suba").
      * Se inyecta —en vez de leer el reloj dentro del barrido— porque el
@@ -97,7 +109,7 @@ object PendingWorkSyncFactory {
             enqueuer = PaymentsWorkManagerEnqueuer(appContext)
         )
         val visitsSynchronizer = VisitsPendingSynchronizer(
-            fetchPending = { visitsDataSource.getPendingVisits() },
+            fetchPendingIds = { visitasParaElBarrido(visitsDataSource) },
             enqueuer = VisitsWorkManagerEnqueuer(appContext)
         )
         val guaranteesSynchronizer = GuaranteesPendingSynchronizer(

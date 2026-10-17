@@ -354,8 +354,21 @@ interface VisitDao {
     suspend fun deleteAllVisits()
 
     /**
-     * Prunes only visitas already confirmed by the server (GUARDADO_EN_MICROSIP = 1)
-     * **and that no longer carry a local-only commitment**.
+     * Prunes only visitas the server PROVED it has —`CONFIRMADA_EN` older than
+     * [confirmadasAntesDe]— or that it holds in the failed-intents tray
+     * —`RESGUARDADA_EN` older than [resguardadasAntesDe]— **and that no longer
+     * carry a local-only commitment**.
+     *
+     * ## Por qué exige la marca (spec visitas §4.2-8, cierra H2; plan P1 Tarea 12)
+     *
+     * `GUARDADO_EN_MICROSIP = 1` a secas NO prueba nada: el envío anterior a
+     * v35 lo ponía también tras respuestas que no traían la visita (E-VIS-001).
+     * Una legada con las dos marcas nulas no se poda aquí: la reconciliación
+     * inversa (Tarea 13) la confirma —y entonces corre la ventana de 30 días— o
+     * la devuelve a pendiente. Podarla antes borraba la única copia de una
+     * visita que el servidor quizá nunca recibió (Review Focus 2,
+     * `VisitDaoPodaTest.podaNoBorraEntregadaLegadaSinConfirmar`). Los límites
+     * los calcula `ReglaDePoda` (DA-4).
      * Unlike [deleteAllVisits], this never touches a visita still pending upload —
      * see [com.example.msp_app.features.sales.viewmodels.SalesViewModel.syncSales].
      *
@@ -372,7 +385,7 @@ interface VisitDao {
      * medir si se cumplió.
      *
      * La condición se lee: *"borra la visita subida cuyo compromiso más lejano
-     * ya quedó antes de [conservarDesde]"*. `MAX(...)` es el escalar de dos
+     * ya quedó antes de [conservarCompromisosDesde]"*. `MAX(...)` es el escalar de dos
      * argumentos de SQLite, y los `COALESCE(..., '')` hacen que una visita SIN
      * compromiso (las dos columnas en `NULL`) dé `''`, que es menor que
      * cualquier fecha `yyyy-MM-dd` — o sea que se poda igual que antes. **El
@@ -400,7 +413,11 @@ interface VisitDao {
      * nadie la reintenta— clavaría su visita en la tabla para siempre, que es un
      * defecto peor que el que se está cerrando.
      *
-     * @param conservarDesde fecha de corte en formato de cable (`yyyy-MM-dd`).
+     * @param confirmadasAntesDe instante de corte (`AppTime.toWireFormat`): una
+     *   confirmada en ese instante o después SOBREVIVE.
+     * @param resguardadasAntesDe instante de corte: una resguardada en ese
+     *   instante o después SOBREVIVE.
+     * @param conservarCompromisosDesde fecha de corte en formato de cable (`yyyy-MM-dd`).
      *   Una visita cuyo compromiso caiga en ese día o después SOBREVIVE.
      * @param comprobantesDesde instante de corte en formato de cable de `AppTime`
      *   (`ISO_INSTANT`, UTC, ancho fijo — comparable como texto). Una visita con
@@ -410,12 +427,38 @@ interface VisitDao {
         """
         DELETE FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 1
-          AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarDesde
+          AND (
+                (CONFIRMADA_EN IS NOT NULL AND CONFIRMADA_EN < :confirmadasAntesDe)
+             OR (RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL
+                 AND RESGUARDADA_EN < :resguardadasAntesDe)
+          )
           AND ID NOT IN (
               SELECT VISITA_ID FROM visita_imagenes
               WHERE SUBIDA_EN IS NULL AND CREADA_EN >= :comprobantesDesde
           )
+          AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarCompromisosDesde
         """
     )
-    suspend fun deleteUploadedVisits(conservarDesde: String, comprobantesDesde: String)
+    suspend fun deleteUploadedVisits(
+        confirmadasAntesDe: String,
+        resguardadasAntesDe: String,
+        comprobantesDesde: String,
+        conservarCompromisosDesde: String
+    )
+
+    /**
+     * Cuántas resguardadas ya rebasaron [antesDe] (la segunda rama de
+     * [deleteUploadedVisits]): se reportan ANTES de podarlas (spec visitas
+     * §4.2-8). Cuenta de más a propósito —ignora compromisos y fotos que la
+     * poda todavía respeta—: el reporte nunca se queda corto.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL
+          AND RESGUARDADA_EN < :antesDe
+        """
+    )
+    suspend fun resguardadasPorPodar(antesDe: String): Int
 }
