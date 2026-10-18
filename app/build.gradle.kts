@@ -13,6 +13,7 @@ plugins {
     // doble-apply usando solo el alias de Hilt + sus deps a mano. `msp.hilt`
     // queda reservado para módulos nuevos `:core:*`/`:feature:*`.
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.pitest.android)
 }
 
 fun loadProperties(file: File): Properties {
@@ -369,4 +370,23 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.gson)
     implementation(libs.androidx.biometric)
+}
+
+// PIT sobre el worker de visitas (plan visitas P1, Tarea 17; E-APP-076).
+// Se corre a mano: ./gradlew --no-parallel :app:pitestDevlocalDebug
+pitest {
+    targetClasses.set(listOf("com.example.msp_app.workers.PendingVisitsWorker*"))
+    targetTests.set(
+        listOf(
+            "com.example.msp_app.workers.PendingVisitsWorker*",
+            "com.example.msp_app.workers.ConsultaDeVisitaEnServidorTest",
+            "com.example.msp_app.visitas.envio.simulacion.SimulacionEnvioVisitasTest"
+        )
+    )
+    threads.set(1)
+    timeoutConstInMillis.set(60000)
+    // La simulación completa (500 semillas) tarda minutos por mutante.
+    jvmArgs.set(listOf("-Dsim.semillas=60"))
+    outputFormats.set(listOf("HTML", "XML"))
+    timestampedReports.set(false)
 }
