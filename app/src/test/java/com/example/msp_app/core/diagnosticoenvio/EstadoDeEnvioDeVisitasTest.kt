@@ -3,6 +3,8 @@ package com.example.msp_app.core.diagnosticoenvio
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.core.visitas.envio.LimitadorDeEstadoDeVisitas
+import com.example.msp_app.core.visitas.envio.MemoriaDeEstadoEnProceso
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import java.time.Instant
 import kotlinx.coroutines.test.runTest
@@ -69,6 +71,33 @@ class EstadoDeEnvioDeVisitasTest : RoomTestBase() {
         )
         val texto = datos.toString()
         assertTrue(listOf("6f1c2a3b", "30144", "Efraín", "19.04", "jueves").none { it in texto })
+    }
+
+    /** El worker corre cada 15 min; sin cambio de contenido el estado se manda una vez por hora. */
+    @Test
+    fun `H14 sin cambios no se vuelve a mandar en la siguiente corrida`() = runTest {
+        db.visitDao().insertVisit(
+            visita("6f1c2a3b-0000-4000-8000-000000000001", "2026-10-16T09:00:00Z")
+        )
+        val capturado = mutableListOf<String>()
+        TelemetriaDeVisitas.sinkParaPrueba = { e, _ -> capturado += e }
+        val clock = FakeClock(ahora)
+        val estado = EstadoDeEnvioDeVisitas(
+            db.visitDao(),
+            db.envioDiagnosticoDao(),
+            clock,
+            "2.21.0",
+            LimitadorDeEstadoDeVisitas(MemoriaDeEstadoEnProceso())
+        )
+
+        estado.emitir()
+        clock.setNow(ahora.plusSeconds(15 * 60))
+        estado.emitir()
+        assertEquals(1, capturado.size)
+
+        clock.setNow(ahora.plusSeconds(61 * 60))
+        estado.emitir()
+        assertEquals("latido de una hora", 2, capturado.size)
     }
 
     @Test

@@ -8,6 +8,9 @@ import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.enviodiagnostico.EnvioDiagnosticoDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.entities.EnvioDiagnosticoEntity
+import com.example.msp_app.core.visitas.envio.LimitadorDeEstadoDeVisitas
+import com.example.msp_app.core.visitas.envio.MemoriaDeEstadoEnProceso
+import com.example.msp_app.core.visitas.envio.PreferenciasDeEstadoEmitido
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import java.time.Duration
 import kotlinx.coroutines.CancellationException
@@ -24,7 +27,10 @@ class EstadoDeEnvioDeVisitas(
     private val visitDao: VisitDao,
     private val diagnosticoDao: EnvioDiagnosticoDao,
     private val clock: AppClock = AppClock.System,
-    private val version: String = BuildConfig.VERSION_NAME
+    private val version: String = BuildConfig.VERSION_NAME,
+    /** Cuándo vale la pena mandar (cambio de contenido o latido de 1 h); ver su KDoc. */
+    private val limitador: LimitadorDeEstadoDeVisitas =
+        LimitadorDeEstadoDeVisitas(MemoriaDeEstadoEnProceso())
 ) {
 
     suspend fun datos(): Map<String, Any> {
@@ -43,7 +49,10 @@ class EstadoDeEnvioDeVisitas(
         } catch (_: Throwable) {
             return // Telemetría: una lectura fallida no tumba la corrida.
         }
+        val ahora = clock.now()
+        if (!limitador.debeEmitir(datos, ahora)) return
         TelemetriaDeVisitas.emitir(TelemetriaDeVisitas.EVENTO_ESTADO, datos)
+        limitador.anotar(datos, ahora)
     }
 
     companion object {
@@ -51,7 +60,11 @@ class EstadoDeEnvioDeVisitas(
 
         fun de(context: Context): EstadoDeEnvioDeVisitas {
             val db = AppDatabase.getInstance(context)
-            return EstadoDeEnvioDeVisitas(db.visitDao(), db.envioDiagnosticoDao())
+            return EstadoDeEnvioDeVisitas(
+                visitDao = db.visitDao(),
+                diagnosticoDao = db.envioDiagnosticoDao(),
+                limitador = LimitadorDeEstadoDeVisitas(PreferenciasDeEstadoEmitido(context))
+            )
         }
     }
 }
