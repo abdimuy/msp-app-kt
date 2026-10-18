@@ -805,7 +805,7 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
 
         override suspend fun marcarSubida(imagenId: String, subidaEn: String) = Unit
 
-        override suspend fun pendientesDeConfirmadas(): List<VisitImageEntity> = emptyList()
+        override suspend fun pendientesDeEntregadas(): List<VisitImageEntity> = emptyList()
 
         override suspend fun rutasVivas(): List<String> = emptyList()
 

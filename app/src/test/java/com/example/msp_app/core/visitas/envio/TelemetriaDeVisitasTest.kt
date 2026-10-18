@@ -60,7 +60,9 @@ class TelemetriaDeVisitasTest {
             "visitas.conciliacion.devolver_fallido",
             "visitas.conciliacion.entregadas_ilegibles",
             "visitas.conciliacion.devueltas_por_foto",
-            "visitas.conciliacion.fotos_abandonadas",
+            "visitas.conciliacion.fotos_sin_enviar",
+            "visitas.conciliacion.fotos_sin_enviar_viejas",
+            "visitas.conciliacion.foto_sin_enviar_mas_vieja_min",
             "visitas.resguardadas_por_podar",
             "visitas.guardado_cancelado.escritas",
             "visitas.guardado_cancelado.cuentas",
@@ -149,7 +151,9 @@ class TelemetriaDeVisitasTest {
                 confirmacionesFallidas = 6,
                 devolucionesFallidas = 7,
                 devueltasPorFoto = 8,
-                fotosAbandonadas = 9
+                fotosSinEnviar = 9,
+                fotosSinEnviarViejas = 10,
+                fotoSinEnviarMasViejaMin = 11L
             )
         )
         assertEquals(
@@ -166,7 +170,9 @@ class TelemetriaDeVisitasTest {
                 "visitas.conciliacion.devolver_fallido" to 7,
                 "visitas.conciliacion.entregadas_ilegibles" to 0,
                 "visitas.conciliacion.devueltas_por_foto" to 8,
-                "visitas.conciliacion.fotos_abandonadas" to 9
+                "visitas.conciliacion.fotos_sin_enviar" to 9,
+                "visitas.conciliacion.fotos_sin_enviar_viejas" to 10,
+                "visitas.conciliacion.foto_sin_enviar_mas_vieja_min" to 11L
             ),
             d
         )

@@ -17,7 +17,7 @@ class FakeDeliveredVisitsStore(
     private val failOnConfirmar: Throwable? = null,
     private val failOnDevolver: Throwable? = null,
     private val retenidas: Set<String> = emptySet(),
-    /** Fotos sin `SUBIDA_EN` de visitas confirmadas, con archivo (barrido E-APP-079). */
+    /** Fotos sin `SUBIDA_EN` de visitas entregadas, con archivo (barrido E-APP-079, E-VIS-031). */
     var fotosSinEnviar: List<FotoSinEnviar> = emptyList()
 ) : DeliveredVisitsStore {
 
@@ -61,7 +61,7 @@ class FakeDeliveredVisitsStore(
         return ids.size
     }
 
-    override suspend fun fotosSinEnviarDeConfirmadas(): List<FotoSinEnviar> {
+    override suspend fun fotosSinEnviarDeEntregadas(): List<FotoSinEnviar> {
         failOnFotos?.let { throw it }
         return fotosSinEnviar
     }

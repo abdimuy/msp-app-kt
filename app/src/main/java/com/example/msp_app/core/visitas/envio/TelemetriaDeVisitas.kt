@@ -89,11 +89,25 @@ object TelemetriaDeVisitas {
     const val CONC_DEVOLVER_FALLIDO = "visitas.conciliacion.devolver_fallido"
     const val CONC_ILEGIBLES = "visitas.conciliacion.entregadas_ilegibles"
 
-    /** E-APP-079: confirmadas devueltas a pendiente por una foto sin enviar. */
+    /** E-APP-079, E-VIS-031: entregadas (confirmadas o legadas) devueltas a pendiente por una foto sin enviar. */
     const val CONC_DEVUELTAS_POR_FOTO = "visitas.conciliacion.devueltas_por_foto"
 
-    /** E-APP-079: fotos sin enviar fuera de la ventana; ya no devuelven su visita (alerta si > 0). */
-    const val CONC_FOTOS_ABANDONADAS = "visitas.conciliacion.fotos_abandonadas"
+    /**
+     * E-VIS-032: fotos sin enviar que vio el barrido. Todas devuelven su
+     * visita: el barrido ya no abandona ninguna.
+     */
+    const val CONC_FOTOS_SIN_ENVIAR = "visitas.conciliacion.fotos_sin_enviar"
+
+    /**
+     * E-VIS-032: de esas, las que llevan más de una semana según el reloj del
+     * teléfono (o con fecha ilegible). Alerta si > 0. Reemplaza a
+     * `visitas.conciliacion.fotos_abandonadas` de E-APP-079: antes esas fotos
+     * dejaban de viajar; ahora se reenvían igual y esto solo avisa.
+     */
+    const val CONC_FOTOS_SIN_ENVIAR_VIEJAS = "visitas.conciliacion.fotos_sin_enviar_viejas"
+
+    /** E-VIS-032: minutos desde la foto sin enviar más vieja (reloj del teléfono). Solo si hay. */
+    const val CONC_FOTO_SIN_ENVIAR_MAS_VIEJA_MIN = "visitas.conciliacion.foto_sin_enviar_mas_vieja_min"
 
     /** T12: resguardadas que rebasaron la retención; se reportan antes de podarlas (spec §4.2-8). */
     const val RESGUARDADAS_POR_PODAR = "visitas.resguardadas_por_podar"
@@ -200,7 +214,9 @@ object TelemetriaDeVisitas {
         CONC_DEVOLVER_FALLIDO,
         CONC_ILEGIBLES,
         CONC_DEVUELTAS_POR_FOTO,
-        CONC_FOTOS_ABANDONADAS,
+        CONC_FOTOS_SIN_ENVIAR,
+        CONC_FOTOS_SIN_ENVIAR_VIEJAS,
+        CONC_FOTO_SIN_ENVIAR_MAS_VIEJA_MIN,
         RESGUARDADAS_POR_PODAR,
         GC_ESCRITAS,
         GC_CUENTAS,
@@ -243,7 +259,12 @@ object TelemetriaDeVisitas {
     }
 
     /** Resultado de la reconciliación inversa diaria (Tarea 13): todos sus conteos. */
-    fun conciliacion(r: ConciliacionInversa): Map<String, Any> = mapOf(
+    fun conciliacion(r: ConciliacionInversa): Map<String, Any> = buildMap {
+        putAll(conteosDeConciliacion(r))
+        r.fotoSinEnviarMasViejaMin?.let { put(CONC_FOTO_SIN_ENVIAR_MAS_VIEJA_MIN, it) }
+    }
+
+    private fun conteosDeConciliacion(r: ConciliacionInversa): Map<String, Any> = mapOf(
         DEVUELTA_A_PENDIENTE to r.faltantes,
         CONC_REVISADAS to r.revisadas,
         CONC_FALTANTES to r.faltantes,
@@ -256,7 +277,8 @@ object TelemetriaDeVisitas {
         CONC_DEVOLVER_FALLIDO to r.devolucionesFallidas,
         CONC_ILEGIBLES to if (r.entregadasIlegibles) 1 else 0,
         CONC_DEVUELTAS_POR_FOTO to r.devueltasPorFoto,
-        CONC_FOTOS_ABANDONADAS to r.fotosAbandonadas
+        CONC_FOTOS_SIN_ENVIAR to r.fotosSinEnviar,
+        CONC_FOTOS_SIN_ENVIAR_VIEJAS to r.fotosSinEnviarViejas
     )
 
     /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */

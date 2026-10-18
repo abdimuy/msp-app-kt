@@ -459,11 +459,12 @@ class MundoSimulado(
                 "barrido_devuelve n=${r.devueltasPorFoto}"
             )
         }
-        if (r.fotosAbandonadas > 0) {
+        // E-VIS-032: ya nada se abandona; la edad solo es telemetría.
+        if (r.fotosSinEnviarViejas > 0) {
             evento(
                 TipoEvento.FALLA,
                 "",
-                "barrido_abandona n=${r.fotosAbandonadas}"
+                "barrido_foto_vieja n=${r.fotosSinEnviarViejas}"
             )
         }
         observarTelefono()
@@ -474,8 +475,10 @@ class MundoSimulado(
      * Avanza el reloj falso [dias] días, en saltos de a lo más
      * [DIAS_POR_SALTO]: en cada salto corre la reconciliación inversa (el
      * trabajo diario de un teléfono que se usa) y la poda real (Tarea 12).
-     * Sin la inversa en el camino, una foto sin enviar envejecería más allá
-     * de la ventana del barrido sin que nadie la mirara (E-APP-079).
+     * Es el trabajo diario de un teléfono en uso; el barrido ya no tiene
+     * ventana (E-VIS-032), pero la poda sí deja de proteger una foto sin
+     * enviar pasada la semana, así que la inversa en el camino sigue
+     * importando.
      */
     suspend fun avanzarYPodar(dias: Long, conInversa: Boolean = true) {
         var resta = dias

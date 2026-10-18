@@ -545,8 +545,8 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
             throw IllegalStateException("no se pudo leer visita_imagenes")
         override suspend fun marcarSubida(imagenId: String, subidaEn: String) =
             db.visitImageDao().marcarSubida(imagenId, subidaEn)
-        override suspend fun pendientesDeConfirmadas(): List<VisitImageEntity> =
-            db.visitImageDao().pendientesDeConfirmadas()
+        override suspend fun pendientesDeEntregadas(): List<VisitImageEntity> =
+            db.visitImageDao().pendientesDeEntregadas()
 
         override suspend fun rutasVivas(): List<String> = db.visitImageDao().rutasVivas()
         override suspend fun huerfanasAnterioresA(limite: String) =

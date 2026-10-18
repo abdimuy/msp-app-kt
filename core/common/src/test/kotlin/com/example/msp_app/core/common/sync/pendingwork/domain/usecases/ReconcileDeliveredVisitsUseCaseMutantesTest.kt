@@ -55,9 +55,9 @@ class ReconcileDeliveredVisitsUseCaseMutantesTest {
             return real.devolverAPendiente(ids)
         }
 
-        override suspend fun fotosSinEnviarDeConfirmadas(): List<FotoSinEnviar> {
+        override suspend fun fotosSinEnviarDeEntregadas(): List<FotoSinEnviar> {
             yield()
-            return real.fotosSinEnviarDeConfirmadas()
+            return real.fotosSinEnviarDeEntregadas()
         }
     }
 

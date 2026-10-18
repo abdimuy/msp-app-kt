@@ -281,10 +281,12 @@ class VisitsLocalDataSource @Inject constructor(
          * que la visita se poda y su archivo se queda, o uno en el que la visita
          * no se poda y nadie limpia nunca.
          *
-         * Y es la ventana del barrido de fotos sin enviar de la reconciliación
-         * inversa (E-APP-079): se DERIVA de [ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS]
-         * para que no puedan divergir. Mientras el barrido todavía puede
-         * rescatar una foto, la poda no se lleva su visita.
+         * Se DERIVA de [ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS]. Desde E-VIS-032 el
+         * barrido de la reconciliación inversa ya no usa esa semana para
+         * decidir (devuelve toda foto que pueda viajar, sin importar su edad);
+         * solo la usa como umbral de alerta. La poda sí la sigue usando: una
+         * confirmada con una foto sin enviar de más de una semana se poda si
+         * la inversa no la devolvió antes (residuo R2 de E-APP-079).
          */
         val RETENCION_DE_COMPROBANTES: Duration = Duration.ofDays(
             ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS.toLong()

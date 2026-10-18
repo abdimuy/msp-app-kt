@@ -1,6 +1,7 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
 import com.example.msp_app.core.common.time.AppTime
@@ -47,10 +48,28 @@ data class ConciliacionInversa(
     val retenidasPorComprobante: Int = 0,
     val confirmacionesFallidas: Int = 0,
     val devolucionesFallidas: Int = 0,
-    /** Barrido (E-APP-079): confirmadas devueltas a pendiente por una foto sin enviar. */
+    /** Barrido (E-APP-079, E-VIS-031): entregadas devueltas a pendiente por una foto sin enviar. */
     val devueltasPorFoto: Int = 0,
-    /** Barrido (E-APP-079): fotos sin enviar más viejas que la ventana; ya no devuelven. */
-    val fotosAbandonadas: Int = 0
+    /**
+     * Barrido (E-VIS-032): cuántas fotos sin enviar vio la corrida. TODAS
+     * devuelven su visita; ninguna se abandona.
+     */
+    val fotosSinEnviar: Int = 0,
+    /**
+     * Barrido (E-VIS-032): de [fotosSinEnviar], las que según el reloj del
+     * teléfono llevan más de [ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS] días, o cuya
+     * `CREADA_EN` no se puede leer. Reemplaza al antiguo conteo de
+     * "abandonadas": antes esas fotos dejaban de viajar; ahora viajan igual y
+     * esto es solo la alerta (> 0) de que una foto lleva más de una semana sin
+     * llegar.
+     */
+    val fotosSinEnviarViejas: Int = 0,
+    /**
+     * Barrido (E-VIS-032): minutos desde la `CREADA_EN` legible más vieja,
+     * según el reloj del teléfono, nunca negativo. Nulo sin fotos legibles.
+     * Solo telemetría: no decide nada.
+     */
+    val fotoSinEnviarMasViejaMin: Long? = null
 )
 
 /**
@@ -130,7 +149,9 @@ class ReconcileDeliveredVisitsUseCase(
             entregadasIlegibles = true,
             devolucionesFallidas = cuenta.devolverFallido,
             devueltasPorFoto = cuenta.devueltasPorFoto,
-            fotosAbandonadas = cuenta.fotosAbandonadas
+            fotosSinEnviar = cuenta.fotosSinEnviar,
+            fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
+            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin
         )
 
         val (validos, invalidos) = separarInvalidos(ids)
@@ -161,51 +182,69 @@ class ReconcileDeliveredVisitsUseCase(
             confirmacionesFallidas = cuenta.confirmarFallido,
             devolucionesFallidas = cuenta.devolverFallido,
             devueltasPorFoto = cuenta.devueltasPorFoto,
-            fotosAbandonadas = cuenta.fotosAbandonadas
+            fotosSinEnviar = cuenta.fotosSinEnviar,
+            fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
+            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin
         )
     }
 
     /**
-     * Barrido del HALLAZGO de E-APP-076 (E-APP-079). Una visita CONFIRMADA con
-     * una foto sin `SUBIDA_EN` cuyo archivo existe no la manda nadie: el
-     * worker no la vuelve a tomar y `confirmar` solo la retiene. Se devuelve a
-     * pendiente; el reenvío es idempotente por UUID y el servidor guarda la
-     * foto que le falta (`planImagenes`, E-VIS-004). No pregunta al servidor:
-     * es un hecho local.
+     * Barrido del HALLAZGO de E-APP-076 (E-APP-079). Una visita ENTREGADA
+     * (confirmada, o legada sin marcas) con una foto sin `SUBIDA_EN` cuyo
+     * archivo existe no la manda nadie: el worker solo toma pendientes y
+     * `confirmar` solo la retiene. Se devuelve a pendiente; el reenvío es
+     * idempotente por UUID y el servidor guarda la foto que le falta
+     * (`planImagenes`, E-VIS-004). No pregunta al servidor: es un hecho local.
      *
-     * Acotado por la edad de la foto ([ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS]):
-     * con una corrida diaria, una foto que nunca se estampa devuelve su visita
-     * a lo sumo una vez por día durante esa ventana; después se cuenta como
-     * abandonada y se reporta. Una `CREADA_EN` ilegible también se abandona:
-     * sin fecha no hay tope.
+     * - **Incluye las legadas (E-VIS-031).** Una legada con foto la nombraba el
+     *   servidor, `confirmar` la retenía por la foto y el barrido no la veía
+     *   (solo miraba confirmadas): retenida para siempre, la foto sin viajar.
+     * - **Nunca abandona (E-VIS-032).** Antes una foto con más de 7 días
+     *   según `CREADA_EN` dejaba de devolver su visita. Esa edad sale del reloj
+     *   de pared del teléfono: con la fecha atrasada y luego corregida, la foto
+     *   se abandonaba sin que pasara un día real. Ahora toda foto que podría
+     *   viajar devuelve su visita, en cada corrida. La edad solo se cuenta
+     *   para la telemetría ([ConciliacionInversa.fotosSinEnviarViejas] y
+     *   [ConciliacionInversa.fotoSinEnviarMasViejaMin]).
+     * - **El precio:** una foto que el reenvío nunca logra estampar reabre su
+     *   visita en cada corrida (un `POST` idempotente por corrida). Se ve en
+     *   la telemetría: `fotos_sin_enviar_viejas` > 0 y la edad crece.
+     * - **Un id que no es UUID canónico no se decide**, igual que en la parte
+     *   by-ids: se queda como está.
      */
     private suspend fun barrerFotosSinEnviar(ahora: Instant, cuenta: Contadores) {
         val fotos = attempt(ERROR_CODE_BARRIDO_ILEGIBLE, CONTEXT_BARRIDO) {
-            store.fotosSinEnviarDeConfirmadas()
-        } ?: return
+            store.fotosSinEnviarDeEntregadas()
+        }?.filter { UUID_CANONICO.matches(it.visitaId) } ?: return
         if (fotos.isEmpty()) return
-        val limite = ReglaDePoda.limiteFotosSinEnviar(ahora)
-        val (vigentes, abandonadas) = fotos.partition { foto ->
-            val creada = AppTime.parseWireFormatOrNull(foto.creadaEn)
-            creada != null && !creada.isBefore(limite)
-        }
-        if (abandonadas.isNotEmpty()) {
-            cuenta.fotosAbandonadas += abandonadas.size
-            errorReporter.report(
-                code = ERROR_CODE_FOTO_ABANDONADA,
-                message = "$CONTEXT_BARRIDO: fotos sin enviar fuera de la ventana; ya no devuelven su visita",
-                props = mapOf(PROP_FOTOS to abandonadas.size.toString())
-            )
-        }
-        val ids = vigentes.map { it.visitaId }.distinct()
-        if (ids.isEmpty()) return
+        contarEdades(fotos, ahora, cuenta)
+        val ids = fotos.map { it.visitaId }.distinct()
         val devueltas = devolver(ids, cuenta)
         if (devueltas > 0) {
             cuenta.devueltasPorFoto += devueltas
             errorReporter.report(
                 code = ERROR_CODE_DEVUELTA_POR_FOTO,
-                message = "$CONTEXT_BARRIDO: confirmadas con una foto sin enviar vuelven a pendiente",
+                message = "$CONTEXT_BARRIDO: entregadas con una foto sin enviar vuelven a pendiente",
                 props = mapOf(PROP_DEVUELTAS to devueltas.toString())
+            )
+        }
+    }
+
+    /** Solo telemetría (E-VIS-032): la edad de las fotos no decide nada. */
+    private fun contarEdades(fotos: List<FotoSinEnviar>, ahora: Instant, cuenta: Contadores) {
+        val limite = ReglaDePoda.limiteFotosSinEnviar(ahora)
+        val creadas = fotos.map { AppTime.parseWireFormatOrNull(it.creadaEn) }
+        val viejas = creadas.count { it == null || it.isBefore(limite) }
+        cuenta.fotosSinEnviar += fotos.size
+        cuenta.fotosSinEnviarViejas += viejas
+        cuenta.fotoSinEnviarMasViejaMin = creadas.filterNotNull().minOrNull()?.let {
+            Duration.between(it, ahora).toMinutes().coerceAtLeast(0L)
+        }
+        if (viejas > 0) {
+            errorReporter.report(
+                code = ERROR_CODE_FOTO_SIN_ENVIAR_VIEJA,
+                message = "$CONTEXT_BARRIDO: fotos sin enviar con mas de una semana; se reenvian igual",
+                props = mapOf(PROP_FOTOS to viejas.toString())
             )
         }
     }
@@ -258,7 +297,9 @@ class ReconcileDeliveredVisitsUseCase(
         var confirmarFallido = 0
         var devolverFallido = 0
         var devueltasPorFoto = 0
-        var fotosAbandonadas = 0
+        var fotosSinEnviar = 0
+        var fotosSinEnviarViejas = 0
+        var fotoSinEnviarMasViejaMin: Long? = null
     }
 
     /** Ver el KDoc de clase: un id sin forma de UUID tumbaría su tanda entera con un 422. */
@@ -355,16 +396,20 @@ class ReconcileDeliveredVisitsUseCase(
         /** Alerta del spec §12-1 (`visitas.reconcilia.devuelta_a_pendiente` > 0). */
         const val ERROR_CODE_DEVUELTA_A_PENDIENTE: String = "visitas_reconcilia_devuelta_a_pendiente"
 
-        /** Barrido (E-APP-079): confirmadas devueltas a pendiente por una foto sin enviar. */
+        /** Barrido (E-APP-079, E-VIS-031): entregadas devueltas a pendiente por una foto sin enviar. */
         const val ERROR_CODE_DEVUELTA_POR_FOTO: String = "visitas_reconcilia_devuelta_por_foto"
 
-        /** Barrido (E-APP-079): fotos sin enviar fuera de la ventana; no devuelven más. */
-        const val ERROR_CODE_FOTO_ABANDONADA: String = "visitas_reconcilia_foto_abandonada"
+        /**
+         * Barrido (E-VIS-032): fotos sin enviar con más de una semana según el
+         * reloj del teléfono. Solo alerta: se reenvían igual. Reemplaza a
+         * `visitas_reconcilia_foto_abandonada` (ya nada se abandona).
+         */
+        const val ERROR_CODE_FOTO_SIN_ENVIAR_VIEJA: String = "visitas_reconcilia_foto_sin_enviar_vieja"
 
         /** Barrido (E-APP-079): la lectura de fotos sin enviar falló; no se decidió nada. */
         const val ERROR_CODE_BARRIDO_ILEGIBLE: String = "visitas_reconcilia_barrido_ilegible"
 
-        private const val CONTEXT_BARRIDO = "ReconcileDeliveredVisitsUseCase.fotosSinEnviarDeConfirmadas"
+        private const val CONTEXT_BARRIDO = "ReconcileDeliveredVisitsUseCase.fotosSinEnviarDeEntregadas"
         private const val CONTEXT_LEER = "ReconcileDeliveredVisitsUseCase.entregadasDesde"
         private const val CONTEXT_CONSULTA = "ReconcileDeliveredVisitsUseCase.findExisting"
         private const val CONTEXT_CONFIRMAR = "ReconcileDeliveredVisitsUseCase.confirmar"

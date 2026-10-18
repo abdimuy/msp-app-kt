@@ -4,11 +4,9 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
-import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -22,13 +20,10 @@ import org.junit.rules.TemporaryFolder
  * sobre el worker REAL, Room en memoria y los casos de uso reales
  * ([MundoSimulado]).
  *
- * Dos clases de prueba conviven aquí y el nombre lo dice:
- *  - **ESPERADA ROJA**: el escenario "pasa" (la foto no llega nunca). La
- *    prueba afirma el defecto tal como está hoy, para que la suite siga verde
- *    y el hallazgo quede fijado; se pone ROJA el día que alguien lo arregle, y
- *    entonces se reescribe con el esperado bueno. El adversario no toca el
- *    código de producción: el coordinador decide.
- *  - El resto: el código resiste y la prueba lo fija.
+ * Las tres fijan el invariante bueno. E-VIS-031 y E-VIS-032 nacieron como
+ * ESPERADA ROJA (afirmaban el defecto); al arreglarlos se les dio la vuelta
+ * y ahora afirman que la foto viaja. Al revertir cualquiera de los dos
+ * arreglos, su prueba se pone roja.
  */
 class AdversarioEnvioVisitasTest : RoomTestBase() {
 
@@ -54,58 +49,55 @@ class AdversarioEnvioVisitasTest : RoomTestBase() {
      * E-VIS-031. Una legada (`GUARDADO_EN_MICROSIP = 1`, sin marcas; la deja
      * el envío de antes de v35 o el modo `v2_actual` cuando una foto entra
      * después de soltar la visita) con una foto sin `SUBIDA_EN` y CON
-     * archivo. El servidor tiene la visita pero no la foto. La inversa la
-     * pregunta cada día, el servidor la nombra y `VisitDao.confirmar` la
-     * RETIENE por la foto; el barrido de E-APP-079 no la ve (no está
-     * confirmada) y nadie la reencola. Resultado: la foto no viaja nunca y la
-     * visita no se confirma nunca (E-APP-079 lo dejó INFERIDO; aquí queda
-     * medido en la simulación).
+     * archivo. El servidor tiene la visita pero no la foto. Antes del arreglo
+     * `VisitDao.confirmar` la retenía por la foto y el barrido no la veía (solo
+     * miraba confirmadas): la foto no viajaba nunca. Ahora el barrido incluye
+     * las legadas: la devuelve a pendiente, el reenvío idempotente sube la foto
+     * y la visita se confirma.
      */
     @Test
-    fun `E-VIS-031 ESPERADA ROJA legada con foto con archivo queda retenida para siempre y la foto nunca viaja`() =
-        runBlocking {
-            val m = mundo(31)
-            val id = m.capturarLegada(enServidor = true)
-            val foto = m.agregarFotoA(id, conArchivo = true)
-            // Control: una legada sin foto, igual de vieja, sí se confirma.
-            val control = m.capturarLegada(enServidor = true)
+    fun `E-VIS-031 legada con foto con archivo vuelve a pendiente y la foto viaja`() = runBlocking {
+        val m = mundo(31)
+        val id = m.capturarLegada(enServidor = true)
+        val foto = m.agregarFotoA(id, conArchivo = true)
+        // Control: una legada sin foto, igual de vieja, se confirma sin el barrido.
+        val control = m.capturarLegada(enServidor = true)
 
-            m.repararRedYDrenar()
-            assertNotNull(
-                "control: la legada sin foto se confirma",
-                db.visitDao().findVisitById(control)?.CONFIRMADA_EN
-            )
-            m.avanzarYPodar(DIAS_DE_INVERSAS)
-            m.repararRedYDrenar()
+        m.repararRedYDrenar()
 
-            val fila = db.visitDao().findVisitById(id)
-            assertNotNull("la legada no se poda (sin marca)", fila)
-            // El defecto, hoy:
-            assertNull("hoy: nunca se confirma", fila!!.CONFIRMADA_EN)
-            assertEquals("hoy: nunca vuelve a pendiente", 1, fila.GUARDADO_EN_MICROSIP)
-            val img = fotosDe(id).single { it.ID == foto }
-            assertNull("hoy: la foto nunca se estampa", img.SUBIDA_EN)
-            assertTrue("conserva su archivo", File(img.URI).exists())
-            assertFalse("hoy: el servidor nunca la recibe", foto in m.fotosEnServidor(id))
-            val fallo = runCatching { m.verificarFinal() }.exceptionOrNull()
-            assertNotNull(
-                "hoy: el verificador final la caza (vivacidad / soltada sin marca)",
-                fallo
-            )
-            println("E-VIS-031 ESPERADA ROJA: ${fallo!!.message}")
-        }
+        assertNotNull(
+            "control: la legada sin foto se confirma",
+            db.visitDao().findVisitById(control)?.CONFIRMADA_EN
+        )
+        assertTrue(
+            "el barrido devolvió la legada",
+            m.historial.any { it.detalle.startsWith("barrido_devuelve") }
+        )
+        val fila = db.visitDao().findVisitById(id)
+        assertNotNull(fila)
+        assertNotNull("la legada se confirma", fila!!.CONFIRMADA_EN)
+        assertEquals(1, fila.GUARDADO_EN_MICROSIP)
+        val img = fotosDe(id).single { it.ID == foto }
+        assertNotNull("la foto se estampa", img.SUBIDA_EN)
+        assertTrue("el servidor recibe la foto", foto in m.fotosEnServidor(id))
+        m.verificarFinal()
+
+        // Y el mes siguiente no cambia nada: la poda se la lleva como a cualquier confirmada.
+        m.avanzarYPodar(DIAS_DE_INVERSAS)
+        m.repararRedYDrenar()
+        m.verificarFinal()
+    }
 
     /**
-     * E-VIS-032. El barrido de E-APP-079 abandona una foto por la edad de su
-     * `CREADA_EN`, que sale del reloj del teléfono. Un teléfono con la fecha
-     * atrasada (pila agotada, fecha puesta a mano) confirma la visita y recibe
-     * la foto tardía con la fecha vieja; la red corrige el reloj y la inversa
-     * corre ESE MISMO DÍA: la foto ya "tiene" más de 7 días y se abandona sin
-     * haber viajado. Es el residuo R1 de E-APP-079 (aceptado con "más de 7
-     * días sin inversa") alcanzado sin que pase un solo día real.
+     * E-VIS-032. Antes del arreglo el barrido abandonaba una foto por la edad
+     * de su `CREADA_EN`, que sale del reloj del teléfono: con la fecha
+     * atrasada (pila agotada, fecha puesta a mano) y luego corregida, la foto
+     * tardía ya "tenía" más de 7 días y se abandonaba el mismo día. Ahora el
+     * barrido NUNCA abandona una foto sin enviar (decisión 032-a): la edad
+     * solo va a la telemetría.
      */
     @Test
-    fun `E-VIS-032 ESPERADA ROJA reloj atrasado y corregido abandona la foto tras confirmar aunque la inversa corra el mismo dia`() =
+    fun `E-VIS-032 reloj atrasado y corregido no abandona la foto tras confirmar y la foto viaja`() =
         runBlocking {
             val m = mundo(32)
             val real = m.clock.now()
@@ -114,21 +106,28 @@ class AdversarioEnvioVisitasTest : RoomTestBase() {
             m.armarOtroCamino(fotoConArchivo = true)
             m.intentarId(id)
             assertNotNull(db.visitDao().findVisitById(id)!!.CONFIRMADA_EN)
+            val tardia = fotosDe(id).single()
+            assertNull("control: la foto tardía entró sin enviar", tardia.SUBIDA_EN)
 
             m.clock.setNow(real) // la red corrige el reloj
             m.reconciliacionInversa()
             m.repararRedYDrenar()
 
             assertTrue(
-                "hoy: el barrido la abandona",
-                m.historial.any { it.detalle.startsWith("barrido_abandona") }
+                "el barrido la devuelve aunque la foto parezca vieja",
+                m.historial.any { it.detalle.startsWith("barrido_devuelve") }
+            )
+            assertTrue(
+                "la telemetría la cuenta como vieja",
+                m.historial.any { it.detalle.startsWith("barrido_foto_vieja") }
             )
             val img = fotosDe(id).single()
-            assertNull("hoy: la foto nunca viaja", img.SUBIDA_EN)
-            assertTrue("conserva su archivo", File(img.URI).exists())
-            assertEquals("hoy: I3-foto (deuda sin cobrar)", "I3-foto", m.violaciones()?.inv)
+            assertNotNull("la foto viaja", img.SUBIDA_EN)
+            assertTrue("el servidor la tiene", img.ID in m.fotosEnServidor(id))
+            assertNull("sin violaciones", m.violaciones())
+            m.verificarFinal()
 
-            // Control: el mismo guion sin el atraso lo cobra el barrido.
+            // Control: el mismo guion sin el atraso también lo cobra el barrido.
             db.clearAllTables()
             val c = mundo(32)
             val idc = c.capturar(fotos = 0, sinArchivo = 0, rechazable = false)
