@@ -5,7 +5,8 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * Cuándo vale la pena mandar `visitas_estado` (revisión de la Tarea 14).
+ * Cuándo vale la pena mandar `visitas_estado` (revisión de la Tarea 14;
+ * E-VIS-029 en msp-api `docs/evidencia/visitas.md`).
  *
  * Sin límite, `VisitsReconcileWorker` lo mandaría cada 15 min: ~96 escrituras
  * al día por teléfono, ~5,500 en la flota (57 teléfonos), cuando el resto de

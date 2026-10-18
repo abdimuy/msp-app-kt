@@ -9,7 +9,7 @@ import org.junit.Test
 
 /**
  * Revisión de la Tarea 14: `visitas_estado` no se manda cada 15 min. Se manda
- * cuando cambia el contenido o como latido de 1 h (alerta §12-5).
+ * cuando cambia el contenido o como latido de 1 h (alerta §12-5). E-VIS-029.
  */
 class LimitadorDeEstadoDeVisitasTest {
 
@@ -22,7 +22,7 @@ class LimitadorDeEstadoDeVisitasTest {
 
     /** Simula un día de corridas cada 15 min sin cambios y cuenta envíos. */
     @Test
-    fun `H14 un dia sin cambios manda a lo mas un latido por hora`() {
+    fun `E-VIS-029 un dia sin cambios manda a lo mas un latido por hora`() {
         val limitador = LimitadorDeEstadoDeVisitas(MemoriaDeEstadoEnProceso())
         var enviados = 0
         (0 until 96).forEach { i ->
@@ -37,7 +37,7 @@ class LimitadorDeEstadoDeVisitasTest {
     }
 
     @Test
-    fun `H14 un cambio de contenido se manda en la misma corrida`() {
+    fun `E-VIS-029 un cambio de contenido se manda en la misma corrida`() {
         val limitador = LimitadorDeEstadoDeVisitas(MemoriaDeEstadoEnProceso())
         limitador.anotar(datos(2), t0)
         assertFalse(limitador.debeEmitir(datos(2, viejaMin = 45L), t0.plusSeconds(900)))
@@ -45,12 +45,12 @@ class LimitadorDeEstadoDeVisitasTest {
     }
 
     @Test
-    fun `H14 la primera vez siempre se manda`() {
+    fun `E-VIS-029 la primera vez siempre se manda`() {
         assertTrue(LimitadorDeEstadoDeVisitas(MemoriaDeEstadoEnProceso()).debeEmitir(datos(0), t0))
     }
 
     @Test
-    fun `H14 un ultimo envio en el futuro no silencia el reporte`() {
+    fun `E-VIS-029 un ultimo envio en el futuro no silencia el reporte`() {
         val limitador = LimitadorDeEstadoDeVisitas(MemoriaDeEstadoEnProceso())
         limitador.anotar(datos(2), t0.plusSeconds(86_400))
         assertTrue(limitador.debeEmitir(datos(2), t0))
@@ -58,7 +58,7 @@ class LimitadorDeEstadoDeVisitasTest {
 
     /** La memoria solo vale en el aparato que la escribió: no entra al respaldo. */
     @Test
-    fun `H14 visitas_telemetria se excluye del respaldo y de la transferencia`() {
+    fun `E-VIS-029 visitas_telemetria se excluye del respaldo y de la transferencia`() {
         val sinComentarios = { nombre: String ->
             File("src/main/res/xml/$nombre").readText().replace(Regex("""<!--[\s\S]*?-->"""), "")
         }
@@ -74,5 +74,17 @@ class LimitadorDeEstadoDeVisitasTest {
             )
         }
         assertTrue(excluir in sinComentarios("backup_rules.xml"))
+    }
+
+    /**
+     * Un salto de reloj hacia adelante (o un teléfono dormido) mayor que el
+     * latido no deja al teléfono callado: con el mismo contenido, se manda.
+     */
+    @Test
+    fun `E-VIS-029 un salto de reloj mayor que el latido manda aunque no cambie nada`() {
+        val limitador = LimitadorDeEstadoDeVisitas(MemoriaDeEstadoEnProceso())
+        limitador.anotar(datos(2), t0)
+        assertFalse(limitador.debeEmitir(datos(2), t0.plusSeconds(59 * 60)))
+        assertTrue(limitador.debeEmitir(datos(2), t0.plusSeconds(3 * 86_400)))
     }
 }

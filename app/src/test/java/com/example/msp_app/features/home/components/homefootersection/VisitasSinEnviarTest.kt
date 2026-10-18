@@ -179,6 +179,7 @@ class VisitasSinEnviarTest {
         }
         compose.onNodeWithText("cargando visitas").assertIsDisplayed()
         compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
+        guardarPng("visitas_sin_enviar_cargando")
     }
 
     @Test
@@ -200,5 +201,23 @@ class VisitasSinEnviarTest {
         compose.onNodeWithText("15/10/2026 09:00 · pendiente de envío").assertIsDisplayed()
         compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
         guardarPng("visitas_sin_enviar_fallo_de_lectura")
+    }
+
+    @Test
+    fun `H14 fallo de lectura sin lista previa solo avisa`() {
+        compose.setContent {
+            MaterialTheme {
+                VisitasSinEnviar(
+                    envios = null,
+                    motivos = emptyMap(),
+                    onEnviar = {},
+                    fallo = true
+                )
+            }
+        }
+        compose.onNodeWithText("no se pudieron leer las visitas").assertIsDisplayed()
+        compose.onNodeWithText("cargando visitas").assertDoesNotExist()
+        compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
+        guardarPng("visitas_sin_enviar_fallo_sin_lista")
     }
 }
