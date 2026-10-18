@@ -171,18 +171,31 @@ class RegistroDeVisitaAdapter(
         cobradorId: Int
     ) {
         val entidad = entidadDe(visita, venta, cobradorId)
-        withContext(NonCancellable) {
-            db.withTransaction {
-                visitas.insertVisitAndUpdateState(
-                    saleId = entidad.IMPTE_DOCTO_CC_ID,
-                    visit = entidad,
-                    newState = VisitStatusMapper.map(entidad.TIPO_VISITA)
-                )
-                reagendarCobranzaLegada(entidad)
-                ligarRecomendacion(visita)
+        var bloqueTerminado = false
+        try {
+            withContext(NonCancellable) {
+                db.withTransaction {
+                    visitas.insertVisitAndUpdateState(
+                        saleId = entidad.IMPTE_DOCTO_CC_ID,
+                        visit = entidad,
+                        newState = VisitStatusMapper.map(entidad.TIPO_VISITA)
+                    )
+                    reagendarCobranzaLegada(entidad)
+                    ligarRecomendacion(visita)
+                }
+                guardarComprobantes(visita)
+                encolarEnvio(entidad.ID)
+                bloqueTerminado = true
             }
-            guardarComprobantes(visita)
-            encolarEnvio(entidad.ID)
+        } catch (tardia: CancellationException) {
+            // E-APP-078: `withTransaction` (Room 2.6.1) corre en un `runBlocking`
+            // HIJO de este bloque, que puede terminar despues que el bloque.
+            // Entonces el resultado vuelve por `resumeCancellableWith` y, con el
+            // job ya cancelado, `withContext` lanza aunque todo quedo escrito y
+            // encolado. Solo esa cancelacion tardia se ignora, para que el
+            // llamador cuente la visita escrita; el job sigue cancelado y la
+            // cancelacion se observa en la siguiente suspension, como sin carrera.
+            if (!bloqueTerminado) throw tardia
         }
     }
 

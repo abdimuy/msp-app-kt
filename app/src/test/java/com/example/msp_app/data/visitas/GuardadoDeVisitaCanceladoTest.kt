@@ -27,6 +27,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -198,6 +199,38 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
             alEncolar = { if (encoladas.size == 1) job.cancel() }
 
             job = launch {
+                casoDeUso(ubicacionInmediata).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+            }
+            job.join()
+
+            assertEquals(1, visitas())
+            assertEquals(1, encoladas.size)
+            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
+            assertEquals(
+                "1",
+                evento(
+                    VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
+                ).props[VisitasTelemetria.PROP_OCURRENCIAS]
+            )
+        }
+
+    /**
+     * La carrera que hacía intermitente a la prueba anterior (1 de 2855), forzada.
+     * `withTransaction` de Room 2.6.1 corre en un `runBlocking` HIJO del bloque
+     * `NonCancellable` y reanuda al llamador antes de que ese hijo termine. Si el
+     * resto del bloque acaba primero, el bloque espera al hijo y su resultado
+     * vuelve por `resumeCancellableWith`: con el job ya cancelado, `withContext`
+     * lanzaba la cancelación y la cuenta escrita se reportaba como 0. Con un
+     * despachador sin despacho el resto del bloque corre dentro del
+     * `runBlocking`, así que el orden malo ocurre siempre.
+     */
+    @Test
+    fun `E-APP-078 cancelada dentro del bloque protegido con la transaccion aun abierta cuenta esa cuenta como escrita`() =
+        runTest {
+            lateinit var job: Job
+            alEncolar = { if (encoladas.size == 1) job.cancel() }
+
+            job = launch(UnconfinedTestDispatcher(testScheduler)) {
                 casoDeUso(ubicacionInmediata).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
             }
             job.join()
