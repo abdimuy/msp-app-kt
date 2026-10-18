@@ -149,6 +149,20 @@ class VerificadorDeHistorialTest {
             )
         ),
         Triple(
+            "devuelta y resguardada con una bandeja vieja (R4 del revisor, E-APP-079)",
+            "I3",
+            listOf(
+                e(1, CAPTURA, "a", "fotos= sin_archivo="),
+                e(2, BANDEJA, "a", "http=422 entera=1 cabecera=1"),
+                e(3, SERVIDOR, "a", "filas=1 fotos="),
+                e(4, CONFIRMADA, "a", "estampadas="),
+                e(5, FOTO_AGREGADA, "a", "foto=f9 archivo=1"),
+                e(6, DEVUELTA, "a"),
+                e(7, RESGUARDADA, "a"),
+                e(8, FINAL, "a", "resguardada")
+            )
+        ),
+        Triple(
             "devuelta y confirmada otra vez sin la foto agregada tras confirmar (E-APP-079)",
             "I3-foto",
             listOf(
@@ -259,7 +273,7 @@ class VerificadorDeHistorialTest {
                 verificar(h, false)
             )
         }
-        assertEquals("los 21 malos de Go", 21, malos.size)
+        assertEquals("los 22 malos de Go", 22, malos.size)
     }
 
     /**

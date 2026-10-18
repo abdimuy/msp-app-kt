@@ -327,6 +327,28 @@ class SimulacionEnvioVisitasTest : RoomTestBase() {
         m.verificarInvariantes("final")
     }
 
+    /**
+     * La defensa de antes de E-APP-079 (guion de `a5da1027`): una poda SIN
+     * inversa en medio no borra legadas sin confirmar ni pendientes, por
+     * viejas que sean. Con la inversa en el salto, las legadas se resuelven
+     * antes y esta mutación ("la poda también borra legadas") ya no se vería.
+     */
+    @Test
+    fun `E-APP-076 poda sin inversa en medio no borra legadas ni pendientes`() = runBlocking {
+        val m = mundo(10, prob = sinFallas, capturaFalla = 0.0)
+        val confirmada = m.capturar(0, 0, false).also { m.intentarId(it) }
+        val pendiente = m.capturar(1, 0, false)
+        val legadaFuera = m.capturarLegada(enServidor = false)
+        val legadaDentro = m.capturarLegada(enServidor = true)
+        repeat(3) { m.avanzarYPodar(DIAS_PODA, conInversa = false) }
+        val dao = db.visitDao()
+        assertNull("confirmada vieja se poda", dao.findVisitById(confirmada))
+        assertNotNull("pendiente nunca", dao.findVisitById(pendiente))
+        assertNotNull("legada sin confirmar nunca", dao.findVisitById(legadaFuera))
+        assertNotNull("legada sin confirmar nunca", dao.findVisitById(legadaDentro))
+        m.verificarInvariantes("tras podar sin inversa")
+    }
+
     // ─── 3. control positivo ───────────────────────────────────────────────
 
     @Test

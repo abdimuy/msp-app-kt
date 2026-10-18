@@ -280,7 +280,14 @@ class VisitsLocalDataSource @Inject constructor(
          * ya la puede recoger. Con dos números distintos habría un hueco en el
          * que la visita se poda y su archivo se queda, o uno en el que la visita
          * no se poda y nadie limpia nunca.
+         *
+         * Y es la ventana del barrido de fotos sin enviar de la reconciliación
+         * inversa (E-APP-079): se DERIVA de [ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS]
+         * para que no puedan divergir. Mientras el barrido todavía puede
+         * rescatar una foto, la poda no se lleva su visita.
          */
-        val RETENCION_DE_COMPROBANTES: Duration = Duration.ofDays(7)
+        val RETENCION_DE_COMPROBANTES: Duration = Duration.ofDays(
+            ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS.toLong()
+        )
     }
 }

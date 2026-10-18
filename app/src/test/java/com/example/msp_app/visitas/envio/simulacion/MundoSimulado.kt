@@ -462,13 +462,16 @@ class MundoSimulado(
      * Sin la inversa en el camino, una foto sin enviar envejecería más allá
      * de la ventana del barrido sin que nadie la mirara (E-APP-079).
      */
-    suspend fun avanzarYPodar(dias: Long) {
+    suspend fun avanzarYPodar(dias: Long, conInversa: Boolean = true) {
         var resta = dias
         while (resta > 0) {
             val salto = minOf(resta, DIAS_POR_SALTO)
             resta -= salto
             clock.advanceDays(salto)
-            reconciliacionInversa()
+            // conInversa = false: un teléfono que no corre la inversa (sin red,
+            // WorkManager diferido) y solo poda. Guarda "la poda no borra
+            // legadas" sin que la inversa las resuelva antes.
+            if (conInversa) reconciliacionInversa()
             VisitsLocalDataSource(
                 db.visitDao(),
                 db.saleDao(),

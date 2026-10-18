@@ -194,6 +194,9 @@ fun verificar(
             TipoEvento.DEVUELTA -> {
                 val v = get(e) ?: return nunca(e)
                 v.estado = "pendiente"
+                // Una fila de bandeja anterior ya no prueba nada: resguardar
+                // otra vez exige una bandeja nueva (R4 del revisor, E-APP-079).
+                v.bandejaEntera = false
                 // La deuda vuelve a ser una foto pendiente normal: el reenvío la exige.
                 v.fotos += v.deuda.filterNot { it in v.fotos }
                 v.deuda.clear()

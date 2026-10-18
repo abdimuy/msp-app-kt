@@ -61,12 +61,6 @@ interface VisitImageDao {
     suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity>
 
     /**
-     * Marca UNA imagen como subida. Filtra por `ID` —el de la imagen— y no por
-     * `VISITA_ID`: marcar por visita estamparía también las que el servidor no
-     * recibió (un archivo que ya no estaba en disco, un tipo no permitido), y
-     * esas tienen que quedarse pendientes para que se vean.
-     */
-    /**
      * Fotos sin `SUBIDA_EN` de visitas que ya tienen `CONFIRMADA_EN`: el
      * barrido de la reconciliación inversa (E-APP-079) las revisa, porque una
      * foto que entró después de confirmar no la vuelve a mandar nadie. Solo
@@ -79,6 +73,12 @@ interface VisitImageDao {
     )
     suspend fun pendientesDeConfirmadas(): List<VisitImageEntity>
 
+    /**
+     * Marca UNA imagen como subida. Filtra por `ID` —el de la imagen— y no por
+     * `VISITA_ID`: marcar por visita estamparía también las que el servidor no
+     * recibió (un archivo que ya no estaba en disco, un tipo no permitido), y
+     * esas tienen que quedarse pendientes para que se vean.
+     */
     @Query("UPDATE visita_imagenes SET SUBIDA_EN = :subidaEn WHERE ID = :imagenId")
     suspend fun marcarSubida(imagenId: String, subidaEn: String)
 
