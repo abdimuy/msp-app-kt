@@ -2,6 +2,7 @@ package com.example.msp_app.feature.visitas.application
 
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.telemetry.TelemetryEvent
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
@@ -567,6 +568,65 @@ class RegistrarVisitaTest {
         assertEquals(VisitasTelemetria.FASE_CUENTAS, cancelado.props[VisitasTelemetria.PROP_FASE])
         assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
     }
+
+    /** Telemetría que revienta en `error` (p. ej. el insert síncrono de `DurableTelemetry`). */
+    private val telemetriaRota = object : Telemetry {
+        override fun screenView(screen: String) = Unit
+        override fun tap(screen: String, element: String) = Unit
+        override fun event(name: String, props: Map<String, String>) = Unit
+        override fun error(code: String, message: String, props: Map<String, String>) {
+            error("telemetria rota")
+        }
+    }
+
+    /**
+     * C1 de la compuerta DESPUÉS (medido por el revisor): con la telemetría rota,
+     * el parcial entre cuentas no puede reemplazar a la cancelación ni saltarse
+     * el aviso. Sale la MISMA instancia y el aviso a la oficina llega igual.
+     */
+    @Test
+    fun `E-APP-078 telemetria rota con parcial entre cuentas relanza la misma instancia`() =
+        runTest {
+            val cancelacion = CancellationException("el cobrador salio de la pantalla")
+            val registroQueSeCancela = object : RegistroDeVisitaPort {
+                var llamadas = 0
+                override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro {
+                    if (llamadas++ > 0) throw cancelacion
+                    return ResultadoDelRegistro.REGISTRADA
+                }
+            }
+            val caso =
+                RegistrarVisita(registroQueSeCancela, FakeUbicacionPort(), telemetriaRota, aviso)
+
+            val atrapada = registrarYAtraparCancelacion(
+                caso,
+                seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR))
+            )
+
+            assertSame(cancelacion, atrapada)
+            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
+        }
+
+    /** Idem en la ubicación, con la telemetría Y el aviso rotos. */
+    @Test
+    fun `E-APP-078 telemetria y aviso rotos en la ubicacion relanzan la misma instancia`() =
+        runTest {
+            val cancelacion = CancellationException("el cobrador salio de la pantalla")
+            val caso = RegistrarVisita(
+                registro,
+                FakeUbicacionPort(falla = cancelacion),
+                telemetriaRota,
+                GuardadoCanceladoPort { _, _, _ -> error("aviso roto") }
+            )
+
+            assertSame(
+                cancelacion,
+                registrarYAtraparCancelacion(
+                    caso,
+                    seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR))
+                )
+            )
+        }
 
     /** Alcance CLIENTE: una sola fila; cancelada dentro de ella es 0 de 1. */
     @Test

@@ -181,8 +181,11 @@ class RegistrarVisita @Inject constructor(
     }
 
     /**
-     * Anota la cancelación. Total: un fallo de la telemetría no puede cambiar la
-     * excepción que sale (anti-PII: solo conteos y la fase).
+     * Anota la cancelación. Cada una de sus dos salidas (la telemetría local y el
+     * aviso a la oficina) va en su propio `try`: si una lanza, la otra se intenta
+     * igual y la excepción que sale sigue siendo la cancelación. Lo mismo vale
+     * para el parcial del `catch` de [registrarUnaPorCuenta] (C1 de la compuerta
+     * DESPUÉS). Anti-PII: solo conteos y la fase.
      */
     @Suppress("TooGenericExceptionCaught") // la telemetria nunca reemplaza a la cancelacion.
     private fun reportarCancelado(avance: Avance) {
@@ -233,6 +236,7 @@ class RegistrarVisita @Inject constructor(
      *   [ResultadoDeVisita.admiteVariasCuentas] la deja fuera de la selección
      *   múltiple: aquí su lista trae exactamente una.
      */
+    @Suppress("TooGenericExceptionCaught") // el parcial de una cancelacion nunca la reemplaza (C1).
     private suspend fun registrarUnaPorCuenta(
         plantilla: VisitaARegistrar,
         resultado: ResultadoDeVisita,
@@ -264,13 +268,20 @@ class RegistrarVisita @Inject constructor(
             }
         } catch (cancelada: CancellationException) {
             // E-APP-078: cortada entre cuentas. El parcial se reporta igual que
-            // un fallo y la cancelación sigue su camino.
+            // un fallo y la cancelación sigue su camino. Envuelto (C1): si la
+            // telemetría lanza —`DurableTelemetry.error` inserta en Room de forma
+            // síncrona—, su excepción reemplazaría a la cancelación y se saltaría
+            // [reportarCancelado].
             if (escritas > 0) {
-                reportarParcial(
-                    escritas = escritas,
-                    total = ids.size,
-                    fallo = VisitasTelemetria.RESULTADO_CANCELADO
-                )
+                try {
+                    reportarParcial(
+                        escritas = escritas,
+                        total = ids.size,
+                        fallo = VisitasTelemetria.RESULTADO_CANCELADO
+                    )
+                } catch (_: Throwable) {
+                    // La cancelación sale intacta; el aviso lo intenta reportarCancelado.
+                }
             }
             throw cancelada
         }
