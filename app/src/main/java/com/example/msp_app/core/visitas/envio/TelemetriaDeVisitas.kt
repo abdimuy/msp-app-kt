@@ -61,7 +61,11 @@ object TelemetriaDeVisitas {
     const val EVENTO_ESTADO = "visitas_estado"
     const val EVENTO_CONCILIACION = "visitas_conciliacion"
     const val EVENTO_PODA = "visitas_poda"
-    val EVENTOS: Set<String> = setOf(EVENTO_ESTADO, EVENTO_CONCILIACION, EVENTO_PODA)
+
+    /** E-APP-078: un guardado de visita se canceló al salir de la pantalla. */
+    const val EVENTO_GUARDADO_CANCELADO = "visitas_guardado_cancelado"
+    val EVENTOS: Set<String> =
+        setOf(EVENTO_ESTADO, EVENTO_CONCILIACION, EVENTO_PODA, EVENTO_GUARDADO_CANCELADO)
 
     const val APP_VERSION = "app.version"
     const val PENDIENTES = "visitas.pendientes"
@@ -93,6 +97,13 @@ object TelemetriaDeVisitas {
 
     /** T12: resguardadas que rebasaron la retención; se reportan antes de podarlas (spec §4.2-8). */
     const val RESGUARDADAS_POR_PODAR = "visitas.resguardadas_por_podar"
+
+    /** E-APP-078: cuentas escritas antes del corte, de [GC_CUENTAS]. */
+    const val GC_ESCRITAS = "visitas.guardado_cancelado.escritas"
+    const val GC_CUENTAS = "visitas.guardado_cancelado.cuentas"
+
+    /** 1 si se canceló esperando la ubicación (nada se intentó escribir), 0 si escribiendo. */
+    const val GC_EN_UBICACION = "visitas.guardado_cancelado.en_ubicacion"
 
     private val HTTP_CONOCIDOS = listOf(
         400, 401, 403, 404, 405, 408, 409, 410, 413, 415, 422, 425, 429, 500, 502, 503, 504
@@ -190,7 +201,10 @@ object TelemetriaDeVisitas {
         CONC_ILEGIBLES,
         CONC_DEVUELTAS_POR_FOTO,
         CONC_FOTOS_ABANDONADAS,
-        RESGUARDADAS_POR_PODAR
+        RESGUARDADAS_POR_PODAR,
+        GC_ESCRITAS,
+        GC_CUENTAS,
+        GC_EN_UBICACION
     ) + CODIGOS_DE_FALLO.map { PREFIJO_FALLOS + it }
 
     private val FORMA_DE_VERSION = Regex("^[0-9][0-9A-Za-z._+-]{0,39}$")
@@ -248,6 +262,14 @@ object TelemetriaDeVisitas {
     /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */
     fun poda(resguardadasPorPodar: Int): Map<String, Any> =
         mapOf(RESGUARDADAS_POR_PODAR to resguardadasPorPodar)
+
+    /** Guardado cancelado (E-APP-078): solo conteos. */
+    fun guardadoCancelado(escritas: Int, cuentas: Int, enUbicacion: Boolean): Map<String, Any> =
+        mapOf(
+            GC_ESCRITAS to escritas,
+            GC_CUENTAS to cuentas,
+            GC_EN_UBICACION to if (enUbicacion) 1 else 0
+        )
 
     /** Solo pruebas: reemplaza el envío a `RemoteLogger`. */
     @VisibleForTesting

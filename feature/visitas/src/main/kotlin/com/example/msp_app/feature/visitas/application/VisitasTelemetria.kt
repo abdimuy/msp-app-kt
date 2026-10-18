@@ -208,6 +208,32 @@ object VisitasTelemetria {
     /** Prop con el NOMBRE de la clase de la excepción — nunca su texto. */
     const val PROP_EXCEPCION: String = "exception"
 
+    /**
+     * **El guardado de una visita se canceló** (E-APP-078): el cobrador salió de
+     * la pantalla mientras se guardaba y el `viewModelScope` se canceló.
+     *
+     * Medido en el emulador sin red: Atrás durante la espera de la ubicación
+     * (~30 s sin fix) pierde la visita, 9 de 9, y antes no dejaba ningún rastro.
+     * Este evento NO cambia esa conducta: solo la hace visible. Lleva
+     * [PROP_ESCRITAS] de [PROP_CUENTAS] y [PROP_FASE].
+     */
+    const val CODE_VISITA_GUARDADO_CANCELADO: String = "visita_guardado_cancelado"
+
+    /** Prop con CUÁNTAS cuentas quedaron escritas antes de cortarse. Un conteo. */
+    const val PROP_ESCRITAS: String = "escritas"
+
+    /** Prop con la fase en que se canceló: [FASE_UBICACION] o [FASE_CUENTAS]. */
+    const val PROP_FASE: String = "fase"
+
+    /** Se canceló esperando la ubicación: no se intentó escribir nada. */
+    const val FASE_UBICACION: String = "ubicacion"
+
+    /** Se canceló escribiendo las cuentas. */
+    const val FASE_CUENTAS: String = "cuentas"
+
+    /** Valor de [PROP_RESULTADO] cuando el parcial lo cortó una cancelación. */
+    const val RESULTADO_CANCELADO: String = "CANCELADO"
+
     /** Prop que distingue por qué no hubo ubicación. */
     const val PROP_CAUSA: String = "causa"
 
