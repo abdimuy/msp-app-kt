@@ -149,4 +149,56 @@ class VisitasSinEnviarTest {
         assertEquals("1 pendiente de envío", resumenDeEnvio(listOf(envios[0])))
         assertEquals("", resumenDeEnvio(emptyList()))
     }
+
+    // ─── estado de la lectura (revisión de T14) ───────────────────────────
+
+    /** Una lectura que falla no convierte "hay 3" en "no hay": se conserva la lista y se avisa. */
+    @Test
+    fun `H14 una lectura fallida conserva la lista anterior y marca el fallo`() {
+        val antes = EstadoDeEnvios().tras(Result.success(envios))
+        val despues = antes.tras(Result.failure(IllegalStateException("db")))
+        assertEquals(EstadoDeEnvios(envios = envios, fallo = true), despues)
+        assertEquals(
+            EstadoDeEnvios(envios = envios, fallo = false),
+            despues.tras(Result.success(envios))
+        )
+    }
+
+    @Test
+    fun `H14 una lectura fallida sin lista previa no inventa una vacia`() {
+        assertEquals(
+            EstadoDeEnvios(envios = null, fallo = true),
+            EstadoDeEnvios().tras(Result.failure(IllegalStateException("db")))
+        )
+    }
+
+    @Test
+    fun `H14 mientras carga no dice que no hay`() {
+        compose.setContent {
+            MaterialTheme { VisitasSinEnviar(envios = null, motivos = emptyMap(), onEnviar = {}) }
+        }
+        compose.onNodeWithText("cargando visitas").assertIsDisplayed()
+        compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
+    }
+
+    @Test
+    fun `H14 con fallo de lectura avisa y sigue mostrando lo que sabia`() {
+        val estado = EstadoDeEnvios().tras(
+            Result.success(envios)
+        ).tras(Result.failure(IllegalStateException("db")))
+        compose.setContent {
+            MaterialTheme {
+                VisitasSinEnviar(
+                    envios = estado.envios,
+                    motivos = emptyMap(),
+                    onEnviar = {},
+                    fallo = estado.fallo
+                )
+            }
+        }
+        compose.onNodeWithText("no se pudieron leer las visitas").assertIsDisplayed()
+        compose.onNodeWithText("15/10/2026 09:00 · pendiente de envío").assertIsDisplayed()
+        compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
+        guardarPng("visitas_sin_enviar_fallo_de_lectura")
+    }
 }

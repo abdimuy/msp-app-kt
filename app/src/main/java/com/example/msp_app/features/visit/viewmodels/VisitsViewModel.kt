@@ -12,6 +12,7 @@ import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.data.models.visit.toDomain
 import com.example.msp_app.data.models.visit.toEntity
 import com.example.msp_app.features.home.components.homefootersection.EnvioDeVisita
+import com.example.msp_app.features.home.components.homefootersection.EstadoDeEnvios
 import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,21 +28,30 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
     val pendingVisits: StateFlow<ResultState<List<Visit>>> = _pendingVisits
 
     /** Pantalla de pendientes (plan visitas P1, Tarea 14): pendientes y resguardadas con su rótulo. */
-    private val _enviosDeVisitas = MutableStateFlow<List<EnvioDeVisita>>(emptyList())
-    val enviosDeVisitas: StateFlow<List<EnvioDeVisita>> = _enviosDeVisitas
+    // Arranca sin lista (se pinta "cargando", no "no hay"); una lectura
+    // fallida conserva la lista anterior y lo avisa (EstadoDeEnvios.tras).
+    private val _enviosDeVisitas = MutableStateFlow(EstadoDeEnvios())
+    val enviosDeVisitas: StateFlow<EstadoDeEnvios> = _enviosDeVisitas
 
     private suspend fun cargarEnvios() {
-        _enviosDeVisitas.value = try {
-            withContext(Dispatchers.IO) {
-                visitStore.getVisitasParaPantallaDeEnvio().map {
-                    EnvioDeVisita(it.ID, AppTime.formatIsoForDisplay(it.FECHA), rotuloDeEnvio(it))
+        val lectura = try {
+            Result.success(
+                withContext(Dispatchers.IO) {
+                    visitStore.getVisitasParaPantallaDeEnvio().map {
+                        EnvioDeVisita(
+                            it.ID,
+                            AppTime.formatIsoForDisplay(it.FECHA),
+                            rotuloDeEnvio(it)
+                        )
+                    }
                 }
-            }
+            )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (_: Exception) {
-            emptyList()
+        } catch (e: Exception) {
+            Result.failure(e)
         }
+        _enviosDeVisitas.value = _enviosDeVisitas.value.tras(lectura)
     }
 
     @Suppress("PropertyName")

@@ -55,7 +55,7 @@ fun HomeFooterSection(
     motivoPagos: String? = null,
     // Plan visitas P1, Tarea 14: cada visita pendiente o resguardada, y el
     // motivo e intentos de la que tiene un fallo vigente.
-    enviosDeVisitas: List<EnvioDeVisita> = emptyList(),
+    enviosDeVisitas: EstadoDeEnvios = EstadoDeEnvios(),
     motivosDeVisitas: Map<String, MotivoDeFila> = emptyMap(),
     // Ranura para el aviso de H15 (abierta); vacía por omisión.
     avisoDeVisitas: (@Composable () -> Unit)? = null
@@ -95,9 +95,10 @@ fun HomeFooterSection(
                     )
 
                     is ResultState.Success -> VisitasSinEnviar(
-                        envios = enviosDeVisitas,
+                        envios = enviosDeVisitas.envios,
                         motivos = motivosDeVisitas,
                         onEnviar = onSyncPendingVisits,
+                        fallo = enviosDeVisitas.fallo,
                         aviso = avisoDeVisitas
                     )
 

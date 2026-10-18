@@ -21,6 +21,21 @@ import com.example.msp_app.core.visitas.envio.ROTULO_PENDIENTE
 data class EnvioDeVisita(val id: String, val fecha: String, val rotulo: String)
 
 /**
+ * Lo que la pantalla sabe de los envíos. [envios] nulo = todavía no se leyó
+ * nunca (se pinta "cargando", no "no hay"). [fallo] = la última lectura
+ * falló: se conserva la lista anterior y se avisa, en vez de decir que no hay
+ * pendientes cuando sí las hay.
+ */
+data class EstadoDeEnvios(val envios: List<EnvioDeVisita>? = null, val fallo: Boolean = false) {
+
+    /** Aplica el resultado de una lectura. Una falla nunca borra lo que ya se sabía. */
+    fun tras(lectura: Result<List<EnvioDeVisita>>): EstadoDeEnvios = lectura.fold(
+        onSuccess = { EstadoDeEnvios(envios = it, fallo = false) },
+        onFailure = { copy(fallo = true) }
+    )
+}
+
+/**
  * Pantalla de pendientes de visitas (plan visitas P1, Tarea 14; spec §4.4).
  *
  * Muestra cada pendiente y cada resguardada ("en revisión de oficina"), y para
@@ -33,14 +48,26 @@ data class EnvioDeVisita(val id: String, val fecha: String, val rotulo: String)
  */
 @Composable
 fun VisitasSinEnviar(
-    envios: List<EnvioDeVisita>,
+    envios: List<EnvioDeVisita>?,
     motivos: Map<String, MotivoDeFila>,
     onEnviar: () -> Unit,
     modifier: Modifier = Modifier,
+    fallo: Boolean = false,
     aviso: (@Composable () -> Unit)? = null
 ) {
     Column(modifier = modifier) {
         aviso?.invoke()
+        if (fallo) {
+            Text(
+                "no se pudieron leer las visitas",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        if (envios == null) {
+            if (!fallo) Text("cargando visitas")
+            return@Column
+        }
         if (envios.isEmpty()) {
             Text("no hay visitas pendientes")
             return@Column
