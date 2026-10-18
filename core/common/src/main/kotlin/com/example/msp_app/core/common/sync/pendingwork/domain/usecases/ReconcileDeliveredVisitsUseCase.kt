@@ -121,33 +121,7 @@ class ReconcileDeliveredVisitsUseCase(
         val cuenta = Contadores()
 
         validos.chunked(VisitCustodyRegistry.MAX_IDS_PER_REQUEST).forEach { tanda ->
-            val contestadas = attempt(
-                ERROR_CODE_CONSULTA_FALLIDA,
-                CONTEXT_CONSULTA,
-                mapOf(PROP_TAMANO_LOTE to tanda.size.toString())
-            ) { registry.findExisting(tanda) }
-            if (contestadas == null) {
-                cuenta.fallidas++
-                return@forEach
-            }
-            val preguntadas = tanda.toSet()
-            val ajenas = contestadas.filterNot { it in preguntadas }
-            if (ajenas.isNotEmpty()) {
-                cuenta.ajenos += ajenas.size
-                errorReporter.report(
-                    code = ERROR_CODE_RESPUESTA_AJENA,
-                    message = "$CONTEXT_CONSULTA: la respuesta trae ids que no se preguntaron",
-                    props = mapOf(
-                        PROP_TAMANO_LOTE to tanda.size.toString(),
-                        PROP_DESCARTADOS to ajenas.size.toString()
-                    )
-                )
-            }
-            val existentes = contestadas.filter { it in preguntadas }.toSet()
-            val si = tanda.filter { it in existentes }
-            val no = tanda.filterNot { it in existentes }
-            cuenta.confirmadas += confirmar(si, ahoraEnCable, cuenta)
-            cuenta.faltantes += devolver(no, cuenta)
+            decidirTanda(tanda, ahoraEnCable, cuenta)
         }
         val faltantes = cuenta.faltantes
 
@@ -172,6 +146,44 @@ class ReconcileDeliveredVisitsUseCase(
             confirmacionesFallidas = cuenta.confirmarFallido,
             devolucionesFallidas = cuenta.devolverFallido
         )
+    }
+
+    /**
+     * Una tanda: si la consulta falla no decide nada (Review Focus 3); si
+     * contesta, confirma lo nombrado de lo preguntado y devuelve el resto.
+     */
+    private suspend fun decidirTanda(
+        tanda: List<String>,
+        ahoraEnCable: String,
+        cuenta: Contadores
+    ) {
+        val contestadas = attempt(
+            ERROR_CODE_CONSULTA_FALLIDA,
+            CONTEXT_CONSULTA,
+            mapOf(PROP_TAMANO_LOTE to tanda.size.toString())
+        ) { registry.findExisting(tanda) }
+        if (contestadas == null) {
+            cuenta.fallidas++
+            return
+        }
+        val preguntadas = tanda.toSet()
+        val ajenas = contestadas.filterNot { it in preguntadas }
+        if (ajenas.isNotEmpty()) {
+            cuenta.ajenos += ajenas.size
+            errorReporter.report(
+                code = ERROR_CODE_RESPUESTA_AJENA,
+                message = "$CONTEXT_CONSULTA: la respuesta trae ids que no se preguntaron",
+                props = mapOf(
+                    PROP_TAMANO_LOTE to tanda.size.toString(),
+                    PROP_DESCARTADOS to ajenas.size.toString()
+                )
+            )
+        }
+        val existentes = contestadas.filter { it in preguntadas }.toSet()
+        val si = tanda.filter { it in existentes }
+        val no = tanda.filterNot { it in existentes }
+        cuenta.confirmadas += confirmar(si, ahoraEnCable, cuenta)
+        cuenta.faltantes += devolver(no, cuenta)
     }
 
     /** Acumuladores de una corrida (Tarea 14: cada código reportado también se cuenta). */
