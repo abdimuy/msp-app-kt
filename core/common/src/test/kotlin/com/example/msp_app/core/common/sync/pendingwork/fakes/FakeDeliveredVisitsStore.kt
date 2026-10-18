@@ -1,6 +1,7 @@
 package com.example.msp_app.core.common.sync.pendingwork.fakes
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 
 /**
  * Fake escrito a mano del lado local de la reconciliación inversa: estado
@@ -15,8 +16,13 @@ class FakeDeliveredVisitsStore(
     private val failOnRead: Throwable? = null,
     private val failOnConfirmar: Throwable? = null,
     private val failOnDevolver: Throwable? = null,
-    private val retenidas: Set<String> = emptySet()
+    private val retenidas: Set<String> = emptySet(),
+    /** Fotos sin `SUBIDA_EN` de visitas confirmadas, con archivo (barrido E-APP-079). */
+    var fotosSinEnviar: List<FotoSinEnviar> = emptyList()
 ) : DeliveredVisitsStore {
+
+    /** Si no es nulo, el barrido (E-APP-079) falla con esto. */
+    var failOnFotos: Throwable? = null
 
     var entregadas: List<String> = entregadas
 
@@ -49,6 +55,14 @@ class FakeDeliveredVisitsStore(
     override suspend fun devolverAPendiente(ids: List<String>): Int {
         failOnDevolver?.let { throw it }
         devueltas += ids
+        // Como el DAO: la devuelta ya no es una soltada ni una confirmada.
+        entregadas = entregadas - ids.toSet()
+        fotosSinEnviar = fotosSinEnviar.filterNot { it.visitaId in ids }
         return ids.size
+    }
+
+    override suspend fun fotosSinEnviarDeConfirmadas(): List<FotoSinEnviar> {
+        failOnFotos?.let { throw it }
+        return fotosSinEnviar
     }
 }

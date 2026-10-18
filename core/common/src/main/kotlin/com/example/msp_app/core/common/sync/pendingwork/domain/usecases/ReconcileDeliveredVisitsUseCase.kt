@@ -46,7 +46,11 @@ data class ConciliacionInversa(
     val idsAjenos: Int = 0,
     val retenidasPorComprobante: Int = 0,
     val confirmacionesFallidas: Int = 0,
-    val devolucionesFallidas: Int = 0
+    val devolucionesFallidas: Int = 0,
+    /** Barrido (E-APP-079): confirmadas devueltas a pendiente por una foto sin enviar. */
+    val devueltasPorFoto: Int = 0,
+    /** Barrido (E-APP-079): fotos sin enviar más viejas que la ventana; ya no devuelven. */
+    val fotosAbandonadas: Int = 0
 )
 
 /**
@@ -112,13 +116,24 @@ class ReconcileDeliveredVisitsUseCase(
         val desde = AppTime.toWireFormat(ahora.minus(Duration.ofDays(dias.toLong())))
         val ahoraEnCable = AppTime.toWireFormat(ahora)
 
+        val cuenta = Contadores()
+        // Primero el barrido: lo que devuelve ya no se lee como soltado.
+        barrerFotosSinEnviar(ahora, cuenta)
+
         val ids = attempt(ERROR_CODE_ENTREGADAS_ILEGIBLES, CONTEXT_LEER) {
             store.entregadasDesde(desde)
-        }?.distinct() ?: return ConciliacionInversa(0, 0, 0, 0, entregadasIlegibles = true)
+        }?.distinct() ?: return ConciliacionInversa(
+            0,
+            0,
+            0,
+            0,
+            entregadasIlegibles = true,
+            devolucionesFallidas = cuenta.devolverFallido,
+            devueltasPorFoto = cuenta.devueltasPorFoto,
+            fotosAbandonadas = cuenta.fotosAbandonadas
+        )
 
         val (validos, invalidos) = separarInvalidos(ids)
-
-        val cuenta = Contadores()
 
         validos.chunked(VisitCustodyRegistry.MAX_IDS_PER_REQUEST).forEach { tanda ->
             decidirTanda(tanda, ahoraEnCable, cuenta)
@@ -144,8 +159,55 @@ class ReconcileDeliveredVisitsUseCase(
             idsAjenos = cuenta.ajenos,
             retenidasPorComprobante = cuenta.retenidas,
             confirmacionesFallidas = cuenta.confirmarFallido,
-            devolucionesFallidas = cuenta.devolverFallido
+            devolucionesFallidas = cuenta.devolverFallido,
+            devueltasPorFoto = cuenta.devueltasPorFoto,
+            fotosAbandonadas = cuenta.fotosAbandonadas
         )
+    }
+
+    /**
+     * Barrido del HALLAZGO de E-APP-076 (E-APP-079). Una visita CONFIRMADA con
+     * una foto sin `SUBIDA_EN` cuyo archivo existe no la manda nadie: el
+     * worker no la vuelve a tomar y `confirmar` solo la retiene. Se devuelve a
+     * pendiente; el reenvío es idempotente por UUID y el servidor guarda la
+     * foto que le falta (`planImagenes`, E-VIS-004). No pregunta al servidor:
+     * es un hecho local.
+     *
+     * Acotado por la edad de la foto ([ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS]):
+     * con una corrida diaria, una foto que nunca se estampa devuelve su visita
+     * a lo sumo una vez por día durante esa ventana; después se cuenta como
+     * abandonada y se reporta. Una `CREADA_EN` ilegible también se abandona:
+     * sin fecha no hay tope.
+     */
+    private suspend fun barrerFotosSinEnviar(ahora: Instant, cuenta: Contadores) {
+        val fotos = attempt(ERROR_CODE_BARRIDO_ILEGIBLE, CONTEXT_BARRIDO) {
+            store.fotosSinEnviarDeConfirmadas()
+        } ?: return
+        if (fotos.isEmpty()) return
+        val limite = ReglaDePoda.limiteFotosSinEnviar(ahora)
+        val (vigentes, abandonadas) = fotos.partition { foto ->
+            val creada = AppTime.parseWireFormatOrNull(foto.creadaEn)
+            creada != null && !creada.isBefore(limite)
+        }
+        if (abandonadas.isNotEmpty()) {
+            cuenta.fotosAbandonadas += abandonadas.size
+            errorReporter.report(
+                code = ERROR_CODE_FOTO_ABANDONADA,
+                message = "$CONTEXT_BARRIDO: fotos sin enviar fuera de la ventana; ya no devuelven su visita",
+                props = mapOf(PROP_FOTOS to abandonadas.size.toString())
+            )
+        }
+        val ids = vigentes.map { it.visitaId }.distinct()
+        if (ids.isEmpty()) return
+        val devueltas = devolver(ids, cuenta)
+        if (devueltas > 0) {
+            cuenta.devueltasPorFoto += devueltas
+            errorReporter.report(
+                code = ERROR_CODE_DEVUELTA_POR_FOTO,
+                message = "$CONTEXT_BARRIDO: confirmadas con una foto sin enviar vuelven a pendiente",
+                props = mapOf(PROP_DEVUELTAS to devueltas.toString())
+            )
+        }
     }
 
     /**
@@ -195,6 +257,8 @@ class ReconcileDeliveredVisitsUseCase(
         var retenidas = 0
         var confirmarFallido = 0
         var devolverFallido = 0
+        var devueltasPorFoto = 0
+        var fotosAbandonadas = 0
     }
 
     /** Ver el KDoc de clase: un id sin forma de UUID tumbaría su tanda entera con un 422. */
@@ -291,6 +355,16 @@ class ReconcileDeliveredVisitsUseCase(
         /** Alerta del spec §12-1 (`visitas.reconcilia.devuelta_a_pendiente` > 0). */
         const val ERROR_CODE_DEVUELTA_A_PENDIENTE: String = "visitas_reconcilia_devuelta_a_pendiente"
 
+        /** Barrido (E-APP-079): confirmadas devueltas a pendiente por una foto sin enviar. */
+        const val ERROR_CODE_DEVUELTA_POR_FOTO: String = "visitas_reconcilia_devuelta_por_foto"
+
+        /** Barrido (E-APP-079): fotos sin enviar fuera de la ventana; no devuelven más. */
+        const val ERROR_CODE_FOTO_ABANDONADA: String = "visitas_reconcilia_foto_abandonada"
+
+        /** Barrido (E-APP-079): la lectura de fotos sin enviar falló; no se decidió nada. */
+        const val ERROR_CODE_BARRIDO_ILEGIBLE: String = "visitas_reconcilia_barrido_ilegible"
+
+        private const val CONTEXT_BARRIDO = "ReconcileDeliveredVisitsUseCase.fotosSinEnviarDeConfirmadas"
         private const val CONTEXT_LEER = "ReconcileDeliveredVisitsUseCase.entregadasDesde"
         private const val CONTEXT_CONSULTA = "ReconcileDeliveredVisitsUseCase.findExisting"
         private const val CONTEXT_CONFIRMAR = "ReconcileDeliveredVisitsUseCase.confirmar"
@@ -301,5 +375,6 @@ class ReconcileDeliveredVisitsUseCase(
         private const val PROP_RETENIDAS = "retenidas"
         private const val PROP_DEVUELTAS = "devueltas"
         private const val PROP_REVISADAS = "revisadas"
+        private const val PROP_FOTOS = "fotos"
     }
 }

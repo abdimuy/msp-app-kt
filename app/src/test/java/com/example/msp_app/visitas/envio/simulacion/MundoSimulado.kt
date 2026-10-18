@@ -191,10 +191,18 @@ class MundoSimulado(
         }
     }
 
-    fun verificarInvariantes(cuando: String) {
+    /**
+     * I1–I3 e I3-foto sobre lo que va del historial. A media corrida se
+     * permite la DEUDA de E-APP-079 (una foto con archivo agregada a una
+     * visita ya confirmada): la cobra la siguiente reconciliación inversa.
+     * [permitirDeuda] = false al final, después de drenar: ahí ya no hay
+     * excusa.
+     */
+    fun verificarInvariantes(cuando: String, permitirDeuda: Boolean = true) {
         if (h.isEmpty()) return
         verificar(
-            finales()
+            finales(),
+            permitirDeuda = permitirDeuda
         )?.let { throw AssertionError("semilla=$semilla $cuando: ${it.message}", it) }
     }
 
@@ -423,24 +431,55 @@ class MundoSimulado(
 
     /** La reconciliación inversa diaria, real (Tarea 13). */
     suspend fun reconciliacionInversa() {
-        ReconcileDeliveredVisitsUseCase(
-            RoomDeliveredVisitsStore(db.visitDao()),
+        val r = ReconcileDeliveredVisitsUseCase(
+            RoomDeliveredVisitsStore(db.visitDao(), db.visitImageDao()),
             V2VisitCustodyRegistry(api),
             reporter
         ) { clock.now() }.execute()
+        // Cobertura del barrido de E-APP-079 (no lo mira el verificador).
+        if (r.devueltasPorFoto > 0) {
+            evento(
+                TipoEvento.FALLA,
+                "",
+                "barrido_devuelve n=${r.devueltasPorFoto}"
+            )
+        }
+        if (r.fotosAbandonadas > 0) {
+            evento(
+                TipoEvento.FALLA,
+                "",
+                "barrido_abandona n=${r.fotosAbandonadas}"
+            )
+        }
         observarTelefono()
     }
 
     /** Avanza el reloj falso y corre la poda real (Tarea 12). */
-    suspend fun avanzarYPodar(dias: Long) {
-        clock.advanceDays(dias)
-        VisitsLocalDataSource(
-            db.visitDao(),
-            db.saleDao(),
-            sinEncolar,
-            clock,
-            memoriaDePoda
-        ).deleteUploadedVisits()
+    /**
+     * Avanza el reloj falso [dias] días, en saltos de a lo más
+     * [DIAS_POR_SALTO]: en cada salto corre la reconciliación inversa (el
+     * trabajo diario de un teléfono que se usa) y la poda real (Tarea 12).
+     * Sin la inversa en el camino, una foto sin enviar envejecería más allá
+     * de la ventana del barrido sin que nadie la mirara (E-APP-079).
+     */
+    suspend fun avanzarYPodar(dias: Long, conInversa: Boolean = true) {
+        var resta = dias
+        while (resta > 0) {
+            val salto = minOf(resta, DIAS_POR_SALTO)
+            resta -= salto
+            clock.advanceDays(salto)
+            // conInversa = false: un teléfono que no corre la inversa (sin red,
+            // WorkManager diferido) y solo poda. Guarda "la poda no borra
+            // legadas" sin que la inversa las resuelva antes.
+            if (conInversa) reconciliacionInversa()
+            VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                sinEncolar,
+                clock,
+                memoriaDePoda
+            ).deleteUploadedVisits()
+        }
         evento(TipoEvento.FALLA, "", "reloj_avanza dias=$dias")
         observarTelefono()
     }
@@ -472,7 +511,9 @@ class MundoSimulado(
             in 22 until 26 -> perderFotoLocal(rnd.nextInt(1000))
             in 26 until 30 -> armarFotoTardia()
             in 30 until 34 -> armarFotoTardiaTrasRelectura()
-            in 34 until 37 -> armarOtroCamino(fotoConArchivo = false)
+            // Con y sin archivo: con archivo es el HALLAZGO de E-APP-076, que
+            // cierra el barrido de E-APP-079.
+            in 34 until 37 -> armarOtroCamino(fotoConArchivo = rnd.nextBoolean())
             in 37 until 41 -> armarMatar()
             in 41 until 46 -> reconciliacionInversa()
             in 46 until 50 -> reconciliarPendientes()
@@ -498,7 +539,7 @@ class MundoSimulado(
     }
 
     suspend fun verificarFinal() {
-        verificarInvariantes("final")
+        verificarInvariantes("final", permitirDeuda = false)
         val sinDecidir = locales.values.filter {
             !it.podada && it.estado == "pendiente" && !it.incapturable
         }
@@ -518,7 +559,14 @@ class MundoSimulado(
         }
     }
 
-    fun violaciones(): InvarianteError? = if (h.isEmpty()) null else verificar(finales())
+    fun violaciones(): InvarianteError? = if (h.isEmpty()) {
+        null
+    } else {
+        verificar(
+            finales(),
+            permitirDeuda = false
+        )
+    }
 
     fun escribirHistorial(archivo: File) = escribirJsonl(archivo, finales())
 
@@ -683,7 +731,11 @@ class MundoSimulado(
             val otro = otroCamino
             if (id == visita && otro != null) {
                 otroCamino = null
-                evento(TipoEvento.FALLA, id, "otro_camino_confirma")
+                evento(
+                    TipoEvento.FALLA,
+                    id,
+                    if (otro) "otro_camino_confirma_con_archivo" else "otro_camino_confirma"
+                )
                 ReconcileVisitsUseCase(
                     RoomPendingVisitsStore(real),
                     V2VisitCustodyRegistry(api),
@@ -705,6 +757,7 @@ class MundoSimulado(
         private const val HTTP_503 = 503
         private const val ORDEN_TARDIA = 50
         private const val RONDAS_DE_DRENADO = 6
+        private const val DIAS_POR_SALTO = 3L
 
         /** El modo v2_actual suelta el 5xx en el intento 10 (E-VIS-001). */
         const val MAX_INTENTOS_V2 = 10

@@ -85,6 +85,12 @@ object TelemetriaDeVisitas {
     const val CONC_DEVOLVER_FALLIDO = "visitas.conciliacion.devolver_fallido"
     const val CONC_ILEGIBLES = "visitas.conciliacion.entregadas_ilegibles"
 
+    /** E-APP-079: confirmadas devueltas a pendiente por una foto sin enviar. */
+    const val CONC_DEVUELTAS_POR_FOTO = "visitas.conciliacion.devueltas_por_foto"
+
+    /** E-APP-079: fotos sin enviar fuera de la ventana; ya no devuelven su visita (alerta si > 0). */
+    const val CONC_FOTOS_ABANDONADAS = "visitas.conciliacion.fotos_abandonadas"
+
     /** T12: resguardadas que rebasaron la retención; se reportan antes de podarlas (spec §4.2-8). */
     const val RESGUARDADAS_POR_PODAR = "visitas.resguardadas_por_podar"
 
@@ -182,6 +188,8 @@ object TelemetriaDeVisitas {
         CONC_CONFIRMAR_FALLIDO,
         CONC_DEVOLVER_FALLIDO,
         CONC_ILEGIBLES,
+        CONC_DEVUELTAS_POR_FOTO,
+        CONC_FOTOS_ABANDONADAS,
         RESGUARDADAS_POR_PODAR
     ) + CODIGOS_DE_FALLO.map { PREFIJO_FALLOS + it }
 
@@ -232,7 +240,9 @@ object TelemetriaDeVisitas {
         CONC_RETENIDAS to r.retenidasPorComprobante,
         CONC_CONFIRMAR_FALLIDO to r.confirmacionesFallidas,
         CONC_DEVOLVER_FALLIDO to r.devolucionesFallidas,
-        CONC_ILEGIBLES to if (r.entregadasIlegibles) 1 else 0
+        CONC_ILEGIBLES to if (r.entregadasIlegibles) 1 else 0,
+        CONC_DEVUELTAS_POR_FOTO to r.devueltasPorFoto,
+        CONC_FOTOS_ABANDONADAS to r.fotosAbandonadas
     )
 
     /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */

@@ -59,6 +59,8 @@ class TelemetriaDeVisitasTest {
             "visitas.conciliacion.confirmar_fallido",
             "visitas.conciliacion.devolver_fallido",
             "visitas.conciliacion.entregadas_ilegibles",
+            "visitas.conciliacion.devueltas_por_foto",
+            "visitas.conciliacion.fotos_abandonadas",
             "visitas.resguardadas_por_podar"
         )
         val fallos = TelemetriaDeVisitas.CODIGOS_DE_FALLO.map { "visitas.fallos.$it" }.toSet()
@@ -137,7 +139,9 @@ class TelemetriaDeVisitasTest {
                 idsAjenos = 4,
                 retenidasPorComprobante = 5,
                 confirmacionesFallidas = 6,
-                devolucionesFallidas = 7
+                devolucionesFallidas = 7,
+                devueltasPorFoto = 8,
+                fotosAbandonadas = 9
             )
         )
         assertEquals(
@@ -152,7 +156,9 @@ class TelemetriaDeVisitasTest {
                 "visitas.conciliacion.retenidas_por_comprobante" to 5,
                 "visitas.conciliacion.confirmar_fallido" to 6,
                 "visitas.conciliacion.devolver_fallido" to 7,
-                "visitas.conciliacion.entregadas_ilegibles" to 0
+                "visitas.conciliacion.entregadas_ilegibles" to 0,
+                "visitas.conciliacion.devueltas_por_foto" to 8,
+                "visitas.conciliacion.fotos_abandonadas" to 9
             ),
             d
         )

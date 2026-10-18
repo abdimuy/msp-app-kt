@@ -2,7 +2,11 @@ package com.example.msp_app.core.sync.pendingwork.data.visits
 
 import androidx.annotation.VisibleForTesting
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.dao.visit.VisitImageDao
+import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
+import java.io.File
 import javax.inject.Inject
 
 /**
@@ -22,13 +26,16 @@ import javax.inject.Inject
  */
 class RoomDeliveredVisitsStore @VisibleForTesting internal constructor(
     private val visitDao: VisitDao,
+    private val imagenes: VisitImageDao,
     private val confirmarLote: suspend (List<String>, String) -> Int,
-    private val devolverLote: suspend (List<String>) -> Int
+    private val devolverLote: suspend (List<String>) -> Int,
+    private val archivoExiste: (String) -> Boolean = { File(it).exists() }
 ) : DeliveredVisitsStore {
 
     @Inject
-    constructor(visitDao: VisitDao) : this(
+    constructor(visitDao: VisitDao, imagenes: VisitImageDao) : this(
         visitDao = visitDao,
+        imagenes = imagenes,
         confirmarLote = { ids, ahora -> visitDao.confirmar(ids, ahora) },
         devolverLote = { ids -> visitDao.devolverAPendiente(ids) }
     )
@@ -42,4 +49,16 @@ class RoomDeliveredVisitsStore @VisibleForTesting internal constructor(
 
     override suspend fun devolverAPendiente(ids: List<String>): Int =
         ids.chunked(RoomPendingVisitsStore.SQLITE_MAX_IN_PARAMS).sumOf { devolverLote(it) }
+
+    /**
+     * Barrido (E-APP-079): solo las fotos que el envío de verdad mandaría, con
+     * el MISMO criterio que `partesDeComprobantesDeVisita` (archivo presente y
+     * tipo permitido). Una foto sin archivo o de un tipo que nunca viaja no
+     * puede llegar al servidor: devolver su visita solo la reenviaría sin
+     * ella, cada día.
+     */
+    override suspend fun fotosSinEnviarDeConfirmadas(): List<FotoSinEnviar> =
+        imagenes.pendientesDeConfirmadas()
+            .filter { ComprobantesDeVisita.permitido(it.MIME) && archivoExiste(it.URI) }
+            .map { FotoSinEnviar(visitaId = it.VISITA_ID, creadaEn = it.CREADA_EN) }
 }

@@ -26,9 +26,25 @@ object ReglaDePoda {
     const val CONFIRMADAS_DIAS = 30
     const val RESGUARDADAS_DIAS = 90
 
+    /**
+     * Cuántos días, desde que se creó, una foto sin enviar de una visita ya
+     * confirmada todavía devuelve su visita a pendiente (barrido de la
+     * reconciliación inversa, E-APP-079). Es la misma semana durante la que
+     * un comprobante sin subir bloquea la poda
+     * (`VisitsLocalDataSource.RETENCION_DE_COMPROBANTES`): mientras el barrido
+     * puede rescatarla, la poda no se lleva la visita. Pasado el límite la
+     * foto se reporta como abandonada y deja de devolver: una foto que el
+     * servidor nunca toma no puede reabrir su visita cada día para siempre.
+     */
+    const val FOTOS_SIN_ENVIAR_DIAS = 7
+
     /** Una confirmada ANTES de este instante ya se puede podar. */
     fun limiteConfirmadas(ahora: Instant): String =
         AppTime.toWireFormat(ahora.minus(Duration.ofDays(CONFIRMADAS_DIAS.toLong())))
+
+    /** Una foto sin enviar creada ANTES de este instante ya no devuelve su visita. */
+    fun limiteFotosSinEnviar(ahora: Instant): Instant =
+        ahora.minus(Duration.ofDays(FOTOS_SIN_ENVIAR_DIAS.toLong()))
 
     /** Una resguardada ANTES de este instante ya se puede podar (tras reportarla). */
     fun limiteResguardadas(ahora: Instant): String =
