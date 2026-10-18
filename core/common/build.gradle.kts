@@ -8,6 +8,10 @@ plugins {
     // Ruleset completo (Plan 2: detekt-strict); + money rule vía detektPlugins abajo.
     id("msp.detekt")
     alias(libs.plugins.ktlint) // para que el ktlintCheck raíz cubra el módulo
+    // Mutación dirigida del envío de visitas (plan visitas P1, Tarea 17;
+    // E-APP-076). No entra al prePushCheck: se corre a mano con
+    // `./gradlew --no-parallel :core:common:pitestDebug`.
+    alias(libs.plugins.pitest.android)
 }
 
 android {
@@ -55,6 +59,24 @@ extensions.configure<KoverProjectExtension> {
             }
         }
     }
+}
+
+pitest {
+    targetClasses.set(
+        listOf(
+            "com.example.msp_app.core.common.visitas.envio.*",
+            "com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase*"
+        )
+    )
+    targetTests.set(
+        listOf(
+            "com.example.msp_app.core.common.visitas.envio.*",
+            "com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase*"
+        )
+    )
+    threads.set(2)
+    outputFormats.set(listOf("HTML", "XML"))
+    timestampedReports.set(false)
 }
 
 dependencies {

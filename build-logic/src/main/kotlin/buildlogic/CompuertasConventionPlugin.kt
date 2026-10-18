@@ -182,6 +182,11 @@ class CompuertasConventionPlugin : Plugin<Project> {
                 "y está en la base congelada. (Sólo declara su grupo cuando esas tareas por " +
                 "source set ya fueron realizadas, así que aparece como candidata dentro del gate " +
                 "y no en una corrida suelta.)",
+            "pitest" to
+                "la registra el plugin `pl.droidsonroids.pitest` (agregado de sus tareas por " +
+                "variante) en `:core:common` y `:app`: mutación dirigida del envío de visitas " +
+                "(plan visitas P1, Tarea 17; E-APP-076). Se corre a mano: en `:app` tarda más de " +
+                "una hora y no cabe en el pre-push.",
             "prePushCheck" to
                 "es la compuerta agregada: marcarla la haría depender de sí misma. Su alcance lo " +
                 "vigila la base congelada `gradle/prepush-baseline.txt`."
