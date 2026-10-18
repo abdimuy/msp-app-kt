@@ -113,6 +113,7 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
 
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
+    val enviosDeVisitas by visitsViewModel.enviosDeVisitas.collectAsState()
 
     // Solo diagnóstico (E-APP-063): el motivo del último fallo de los pendientes.
     val lectorDeDiagnostico = remember {
@@ -125,16 +126,16 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
     }
     val idsPagosPendientes = (pendingPaymentsState as? ResultState.Success)?.data
         ?.map { it.ID }?.toSet().orEmpty()
-    val idsVisitasPendientes = (visitsPendingState as? ResultState.Success)?.data
-        ?.map { it.ID }?.toSet().orEmpty()
     val motivoPagos by remember(lectorDeDiagnostico, idsPagosPendientes) {
         lectorDeDiagnostico?.motivoMasReciente(LectorDeEnvioDiagnostico.TIPO_PAGO, idsPagosPendientes)
             ?: flowOf(null)
     }.collectAsState(initial = null)
-    val motivoVisitas by remember(lectorDeDiagnostico, idsVisitasPendientes) {
-        lectorDeDiagnostico?.motivoMasReciente(LectorDeEnvioDiagnostico.TIPO_VISITA, idsVisitasPendientes)
-            ?: flowOf(null)
-    }.collectAsState(initial = null)
+    // Plan visitas P1, Tarea 14: motivo e intentos por fila, para que la visita
+    // que se reintenta para siempre se vea en la pantalla de pendientes.
+    val motivosDeVisitas by remember(lectorDeDiagnostico) {
+        lectorDeDiagnostico?.motivosPorFila(LectorDeEnvioDiagnostico.TIPO_VISITA)
+            ?: flowOf(emptyMap())
+    }.collectAsState(initial = emptyMap())
 
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
 
@@ -460,8 +461,9 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
                             onInitWeek = { authViewModel.updateStartOfWeekDate() },
-                            motivoVisitas = motivoVisitas,
-                            motivoPagos = motivoPagos
+                            motivoPagos = motivoPagos,
+                            enviosDeVisitas = enviosDeVisitas,
+                            motivosDeVisitas = motivosDeVisitas
                         )
                     }
                 }

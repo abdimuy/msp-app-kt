@@ -3,12 +3,15 @@ package com.example.msp_app.features.visit.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.VisitStatusMapper
+import com.example.msp_app.core.visitas.envio.rotuloDeEnvio
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.data.models.visit.toDomain
 import com.example.msp_app.data.models.visit.toEntity
+import com.example.msp_app.features.home.components.homefootersection.EnvioDeVisita
 import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +25,24 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _pendingVisits = MutableStateFlow<ResultState<List<Visit>>>(ResultState.Idle)
     val pendingVisits: StateFlow<ResultState<List<Visit>>> = _pendingVisits
+
+    /** Pantalla de pendientes (plan visitas P1, Tarea 14): pendientes y resguardadas con su rótulo. */
+    private val _enviosDeVisitas = MutableStateFlow<List<EnvioDeVisita>>(emptyList())
+    val enviosDeVisitas: StateFlow<List<EnvioDeVisita>> = _enviosDeVisitas
+
+    private suspend fun cargarEnvios() {
+        _enviosDeVisitas.value = try {
+            withContext(Dispatchers.IO) {
+                visitStore.getVisitasParaPantallaDeEnvio().map {
+                    EnvioDeVisita(it.ID, AppTime.formatIsoForDisplay(it.FECHA), rotuloDeEnvio(it))
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
 
     @Suppress("PropertyName")
     private val _saveVisitState = MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
@@ -43,6 +64,7 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
                 _pendingVisits.value =
                     ResultState.Error(e.message ?: "Error obteniendo visitas pendientes")
             }
+            cargarEnvios()
         }
     }
 
@@ -56,6 +78,7 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
 
                 if (pendingVisits.isEmpty()) {
                     _pendingVisits.value = ResultState.Success(emptyList())
+                    cargarEnvios()
                     return@launch
                 }
 
@@ -68,6 +91,7 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
 
                 val newPendingVisits = visitStore.getPendingVisits().map { it.toDomain() }
                 _pendingVisits.value = ResultState.Success(newPendingVisits)
+                cargarEnvios()
             } catch (e: Exception) {
                 _pendingVisits.value =
                     ResultState.Error(e.message ?: "Error sincronizando visitas pendientes")
