@@ -166,12 +166,16 @@ class TelemetriaDeVisitasTest {
         )
     }
 
+    /**
+     * El valor de la clave ajena es un `Int` a propósito: así solo el filtro de
+     * claves puede descartarla (un texto lo descartaría también el de valores).
+     */
     @Test
     fun `emitir descarta claves fuera de la lista blanca`() {
         val capturado = capturar()
         TelemetriaDeVisitas.emitir(
             "visitas_estado",
-            mapOf("visitas.pendientes" to 1, "cliente" to "Rosa")
+            mapOf("visitas.pendientes" to 1, "cliente" to 30144)
         )
         assertEquals(setOf("visitas.pendientes"), capturado.single().second.keys)
     }

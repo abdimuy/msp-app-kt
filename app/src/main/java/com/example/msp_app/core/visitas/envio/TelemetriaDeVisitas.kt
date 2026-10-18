@@ -23,7 +23,19 @@ import java.time.Instant
  * solo se veía en `Log` o en `SyncErrorReporter` (T11, T12, T13) se cuenta y
  * sale por aquí.
  *
- * ## Cero datos personales (mismo criterio que `COBRANZA-SYNC.md:506-511`)
+ * ## Qué controla esta clase y qué no
+ *
+ * La lista blanca controla SOLO el mapa `data` del evento. `RemoteLogger`
+ * envuelve cada evento en un sobre que esta clase no controla
+ * (`sobreDeIdentidad` en `RemoteLogger.kt`), igual para todos los eventos de
+ * la app: `userId` (el uid del empleado, como seudónimo), `userEmail` (el
+ * correo del empleado) y `appVersion`. O sea, el evento sí identifica al
+ * cobrador por el sobre. El correo se conserva porque hoy es la única medida
+ * de adopción del canario (runbook P1, paso 3); `deviceInfo` se quitó
+ * (decisión del coordinador, 2026-10-17, informada al dueño). En P3 se
+ * reconsidera quitar el correo junto con un tablero de adopción por uid.
+ *
+ * ## Cero datos personales en `data` (mismo criterio que `COBRANZA-SYNC.md:506-511`)
  *
  * - Las claves son una lista blanca CERRADA ([CLAVES]); [emitir] descarta
  *   cualquier otra. `TelemetriaDeVisitasTest` fija la lista entera escrita a
