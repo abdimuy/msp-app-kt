@@ -39,7 +39,7 @@ class InversaNoRejuveneceLaConfirmadaTest : RoomTestBase() {
     }
 
     private suspend fun corridaDiaria(cuando: Instant) = ReconcileDeliveredVisitsUseCase(
-        store = RoomDeliveredVisitsStore(db.visitDao()),
+        store = RoomDeliveredVisitsStore(db.visitDao(), db.visitImageDao()),
         registry = servidorQueLaTiene,
         errorReporter = sinReporte,
         clock = { cuando }

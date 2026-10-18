@@ -61,6 +61,8 @@ private fun lista(v: String?): List<String> =
 
 private class Vista(
     val fotos: MutableList<String>,
+    /** Fotos con archivo agregadas DESPUÉS de confirmar (E-APP-079): se cobran al final. */
+    val deuda: MutableList<String> = mutableListOf(),
     var filas: Int = 0,
     var enDisco: List<String> = emptyList(),
     var bandejaEntera: Boolean = false,
@@ -80,7 +82,11 @@ private class Vista(
  *   historiales hechos a mano que se copian tal cual de Go.
  */
 @Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount", "NestedBlockDepth")
-fun verificar(h: List<Evento>, exigirEstampadas: Boolean = true): InvarianteError? {
+fun verificar(
+    h: List<Evento>,
+    exigirEstampadas: Boolean = true,
+    permitirDeuda: Boolean = false
+): InvarianteError? {
     val vs = linkedMapOf<String, Vista>()
     fun get(e: Evento): Vista? = vs[e.visitaId]
     fun nunca(e: Evento) =
@@ -112,15 +118,10 @@ fun verificar(h: List<Evento>, exigirEstampadas: Boolean = true): InvarianteErro
             TipoEvento.FOTO_AGREGADA -> {
                 val v = get(e) ?: return nunca(e)
                 if (c["archivo"] == "1") {
-                    if (v.estado == "confirmada") {
-                        return InvarianteError(
-                            "I3-foto",
-                            e.paso,
-                            e.visitaId,
-                            "foto con archivo agregada a una visita ya confirmada: nunca se enviará"
-                        )
-                    }
-                    v.fotos += c["foto"].orEmpty()
+                    // E-APP-079: ya no es violación en el acto. Queda como
+                    // deuda: la visita tiene que volver a pendiente (barrido)
+                    // o la foto llegar al servidor antes del final.
+                    if (v.estado == "confirmada") v.deuda += c["foto"].orEmpty() else v.fotos += c["foto"].orEmpty()
                 }
             }
             TipoEvento.SERVIDOR -> {
@@ -167,6 +168,7 @@ fun verificar(h: List<Evento>, exigirEstampadas: Boolean = true): InvarianteErro
                     )
                 }
                 lista(c["estampadas"]).forEach { if (it !in v.fotos) v.fotos += it }
+                v.deuda.removeAll { it in v.fotos }
                 if (!v.completaEnServidor()) {
                     return InvarianteError(
                         "I3-foto",
@@ -189,7 +191,13 @@ fun verificar(h: List<Evento>, exigirEstampadas: Boolean = true): InvarianteErro
                 }
                 v.estado = "resguardada"
             }
-            TipoEvento.DEVUELTA -> (get(e) ?: return nunca(e)).estado = "pendiente"
+            TipoEvento.DEVUELTA -> {
+                val v = get(e) ?: return nunca(e)
+                v.estado = "pendiente"
+                // La deuda vuelve a ser una foto pendiente normal: el reenvío la exige.
+                v.fotos += v.deuda.filterNot { it in v.fotos }
+                v.deuda.clear()
+            }
             TipoEvento.FINAL -> {
                 val v = get(e) ?: return nunca(e)
                 v.finalVisto = true
@@ -199,6 +207,14 @@ fun verificar(h: List<Evento>, exigirEstampadas: Boolean = true): InvarianteErro
                         e.paso,
                         e.visitaId,
                         "estado final ${e.detalle} no sale de las marcas (${v.estado})"
+                    )
+                }
+                if (!permitirDeuda && v.estado == "confirmada" && v.deuda.isNotEmpty()) {
+                    return InvarianteError(
+                        "I3-foto",
+                        e.paso,
+                        e.visitaId,
+                        "foto con archivo agregada después de confirmar y nunca enviada: ${v.deuda}"
                     )
                 }
                 if (e.detalle != "pendiente" && !v.bandejaEntera && !v.completaEnServidor()) {
@@ -214,6 +230,8 @@ fun verificar(h: List<Evento>, exigirEstampadas: Boolean = true): InvarianteErro
                 if (e.detalle.substringBefore(' ') == FALLA_FOTO_SIN_ARCHIVO) {
                     val v = get(e) ?: return nunca(e)
                     if (v.estado != "confirmada") v.fotos.removeAll { it == c["foto"] }
+                    // Una deuda que pierde su archivo ya no la puede mandar nadie (como sin_archivo).
+                    v.deuda.removeAll { it == c["foto"] }
                 }
             }
             TipoEvento.ENVIO, TipoEvento.RESPUESTA, TipoEvento.GET -> Unit

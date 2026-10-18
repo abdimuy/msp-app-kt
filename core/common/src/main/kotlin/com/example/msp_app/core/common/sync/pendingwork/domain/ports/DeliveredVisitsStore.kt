@@ -38,4 +38,19 @@ interface DeliveredVisitsStore {
      * @return cuántas cambiaron de verdad.
      */
     suspend fun devolverAPendiente(ids: List<String>): Int
+
+    /**
+     * Las fotos sin `SUBIDA_EN` de visitas YA CONFIRMADAS que todavía podrían
+     * viajar: su archivo local existe y su tipo es de los que el envío manda
+     * (barrido del HALLAZGO de E-APP-076; E-APP-079). Solo el adaptador puede
+     * mirar el disco; la decisión (ventana, devolver o abandonar) es del use
+     * case.
+     */
+    suspend fun fotosSinEnviarDeConfirmadas(): List<FotoSinEnviar>
 }
+
+/**
+ * Una foto sin enviar de una visita confirmada: a qué visita pertenece y
+ * cuándo se creó (`CREADA_EN`, formato de cable de `AppTime`).
+ */
+data class FotoSinEnviar(val visitaId: String, val creadaEn: String)

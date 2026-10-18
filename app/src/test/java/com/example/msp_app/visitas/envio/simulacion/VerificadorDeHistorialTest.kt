@@ -143,7 +143,21 @@ class VerificadorDeHistorialTest {
                 e(1, CAPTURA, "a", "fotos= sin_archivo="),
                 e(2, SERVIDOR, "a", "filas=1 fotos="),
                 e(3, CONFIRMADA, "a"),
-                e(4, FOTO_AGREGADA, "a", "foto=f9 archivo=1")
+                e(4, FOTO_AGREGADA, "a", "foto=f9 archivo=1"),
+                // E-APP-079: la deuda se cobra al final, no en el acto.
+                e(5, FINAL, "a", "confirmada")
+            )
+        ),
+        Triple(
+            "devuelta y confirmada otra vez sin la foto agregada tras confirmar (E-APP-079)",
+            "I3-foto",
+            listOf(
+                e(1, CAPTURA, "a", "fotos= sin_archivo="),
+                e(2, SERVIDOR, "a", "filas=1 fotos="),
+                e(3, CONFIRMADA, "a", "estampadas="),
+                e(4, FOTO_AGREGADA, "a", "foto=f9 archivo=1"),
+                e(5, DEVUELTA, "a"),
+                e(6, CONFIRMADA, "a", "estampadas=")
             )
         ),
         Triple(
@@ -245,7 +259,7 @@ class VerificadorDeHistorialTest {
                 verificar(h, false)
             )
         }
-        assertEquals("los 20 malos de Go", 20, malos.size)
+        assertEquals("los 21 malos de Go", 21, malos.size)
     }
 
     /**
@@ -271,6 +285,47 @@ class VerificadorDeHistorialTest {
         assertEquals("con estampadas= la foto se exige", "I3-foto", verificar(dicha)!!.inv)
         val vacia = escondida.toMutableList().also { it[3] = e(4, CONFIRMADA, "a", "estampadas=") }
         assertNull("estampadas= vacío es válido: no estampó nada", verificar(vacia))
+    }
+
+    /**
+     * E-APP-079: una foto con archivo agregada a una visita YA confirmada es
+     * deuda. A media corrida se permite (la cobra la siguiente inversa); al
+     * final, si la visita sigue confirmada sin esa foto, es I3-foto. Si el
+     * barrido la devuelve y el reenvío la entrega, sale limpio.
+     */
+    @Test
+    fun `E-APP-079 la foto agregada tras confirmar es deuda que se cobra al final`() {
+        val deuda = listOf(
+            e(1, CAPTURA, "a", "fotos= sin_archivo="),
+            e(2, SERVIDOR, "a", "filas=1 fotos="),
+            e(3, CONFIRMADA, "a", "estampadas="),
+            e(4, FOTO_AGREGADA, "a", "foto=f9 archivo=1"),
+            e(5, FINAL, "a", "confirmada")
+        )
+        assertNull("a media corrida se permite", verificar(deuda, permitirDeuda = true))
+        assertEquals("al final no", "I3-foto", verificar(deuda)!!.inv)
+
+        val pagada = listOf(
+            e(1, CAPTURA, "a", "fotos= sin_archivo="),
+            e(2, SERVIDOR, "a", "filas=1 fotos="),
+            e(3, CONFIRMADA, "a", "estampadas="),
+            e(4, FOTO_AGREGADA, "a", "foto=f9 archivo=1"),
+            e(5, DEVUELTA, "a"),
+            e(6, SERVIDOR, "a", "filas=1 fotos=f9"),
+            e(7, CONFIRMADA, "a", "estampadas=f9"),
+            e(8, FINAL, "a", "confirmada")
+        )
+        assertNull("devuelta y reenviada: limpia", verificar(pagada))
+
+        val devueltaSinEntregar = pagada.take(5) + e(6, CONFIRMADA, "a", "estampadas=") + e(7, FINAL, "a", "confirmada")
+        assertEquals(
+            "devuelta y confirmada sin la foto: I3-foto",
+            "I3-foto",
+            verificar(devueltaSinEntregar)!!.inv
+        )
+
+        val perdioArchivo = deuda.take(4) + e(5, FALLA, "a", "$FALLA_FOTO_SIN_ARCHIVO foto=f9") + e(6, FINAL, "a", "confirmada")
+        assertNull("una deuda sin archivo ya no la puede mandar nadie", verificar(perdioArchivo))
     }
 
     @Test

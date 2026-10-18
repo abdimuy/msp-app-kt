@@ -87,7 +87,8 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
                     "ilegibles=${r.entregadasIlegibles}"
             )
             reportar(r)
-            if (r.faltantes > 0) reencolarPendientes()
+            // E-APP-079: las devueltas por una foto sin enviar también tienen que salir hoy.
+            if (r.faltantes > 0 || r.devueltasPorFoto > 0) reencolarPendientes()
             if (r.tandasFallidas == 0 && !r.entregadasIlegibles) anotarCorrida(clock.now())
         } catch (e: CancellationException) {
             throw e

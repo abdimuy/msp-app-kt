@@ -59,7 +59,7 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
     }
 
     private fun casoDeUso(servidor: Servidor) = ReconcileDeliveredVisitsUseCase(
-        store = RoomDeliveredVisitsStore(db.visitDao()),
+        store = RoomDeliveredVisitsStore(db.visitDao(), db.visitImageDao()),
         registry = servidor,
         errorReporter = sinReporte,
         clock = { ahora }
@@ -176,6 +176,18 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
         construir(registro) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
 
         assertEquals(emptyList<String>(), registro.encoladas)
+        assertEquals(listOf(ahora), registro.corridas)
+    }
+
+    /** E-APP-079: la devuelta por una foto sin enviar sale hoy, no en la próxima pasada de 15 min. */
+    @Test
+    fun `E-APP-079 devueltas por foto reencolan las pendientes`() = runBlocking {
+        db.visitDao().insertVisit(pendingVisit(id = "devuelta-por-foto"))
+        val registro = Registro()
+
+        construir(registro) { ConciliacionInversa(3, 0, 2, 0, devueltasPorFoto = 1) }.doWork()
+
+        assertEquals(listOf("devuelta-por-foto"), registro.encoladas)
         assertEquals(listOf(ahora), registro.corridas)
     }
 

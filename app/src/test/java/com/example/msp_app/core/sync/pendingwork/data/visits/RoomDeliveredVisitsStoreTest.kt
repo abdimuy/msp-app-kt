@@ -14,7 +14,7 @@ import org.junit.Test
  */
 class RoomDeliveredVisitsStoreTest : RoomTestBase() {
 
-    private fun store() = RoomDeliveredVisitsStore(db.visitDao())
+    private fun store() = RoomDeliveredVisitsStore(db.visitDao(), db.visitImageDao())
 
     @Test
     fun `lee la legada sin confirmar y la confirmada reciente, no la vieja ni la resguardada ni la pendiente`() =
@@ -77,6 +77,7 @@ class RoomDeliveredVisitsStoreTest : RoomTestBase() {
         val lotesDevolver = mutableListOf<Int>()
         val contado = RoomDeliveredVisitsStore(
             visitDao = db.visitDao(),
+            imagenes = db.visitImageDao(),
             confirmarLote = { ids, _ ->
                 lotesConfirmar += ids.size
                 ids.size
@@ -93,5 +94,61 @@ class RoomDeliveredVisitsStoreTest : RoomTestBase() {
 
         assertEquals(listOf(900, 900, 101), lotesConfirmar)
         assertEquals(listOf(900, 900, 101), lotesDevolver)
+    }
+
+    /**
+     * E-APP-079: el barrido solo ve fotos sin `SUBIDA_EN` de visitas
+     * CONFIRMADAS que de verdad podrían viajar (archivo presente y tipo
+     * permitido, el mismo criterio que `partesDeComprobantesDeVisita`).
+     */
+    @Test
+    fun `E-APP-079 fotos sin enviar de confirmadas con archivo y tipo permitido`() = runTest {
+        val dao = db.visitDao()
+        dao.insertVisit(pendingVisit(id = "confirmada"))
+        dao.confirmar(listOf("confirmada"), "2026-10-10T00:00:00Z")
+        dao.insertVisit(pendingVisit(id = "pendiente"))
+        fun foto(id: String, visita: String, mime: String = "image/jpeg", subida: String? = null) =
+            com.example.msp_app.core.database.entities.VisitImageEntity(
+                ID = id,
+                VISITA_ID = visita,
+                URI = "/fotos/$id.jpg",
+                MIME = mime,
+                ORDEN = 0,
+                CREADA_EN = "2026-10-11T00:00:00Z",
+                SUBIDA_EN = subida
+            )
+        db.visitImageDao().insertAll(
+            listOf(
+                foto("viaja", "confirmada"),
+                foto("sin-archivo", "confirmada"),
+                foto("tipo-raro", "confirmada", mime = "image/bmp"),
+                foto("ya-subida", "confirmada", subida = "2026-10-10T00:00:00Z"),
+                foto("de-pendiente", "pendiente")
+            )
+        )
+        val existen =
+            setOf(
+                "/fotos/viaja.jpg",
+                "/fotos/tipo-raro.jpg",
+                "/fotos/ya-subida.jpg",
+                "/fotos/de-pendiente.jpg"
+            )
+        val store = RoomDeliveredVisitsStore(
+            visitDao = dao,
+            imagenes = db.visitImageDao(),
+            confirmarLote = { ids, ahora -> dao.confirmar(ids, ahora) },
+            devolverLote = { ids -> dao.devolverAPendiente(ids) },
+            archivoExiste = { it in existen }
+        )
+
+        assertEquals(
+            listOf(
+                com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar(
+                    "confirmada",
+                    "2026-10-11T00:00:00Z"
+                )
+            ),
+            store.fotosSinEnviarDeConfirmadas()
+        )
     }
 }

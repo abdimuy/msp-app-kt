@@ -1,6 +1,7 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_CONFIRMAR_FALLIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_CONSULTA_FALLIDA
@@ -52,6 +53,11 @@ class ReconcileDeliveredVisitsUseCaseMutantesTest {
         override suspend fun devolverAPendiente(ids: List<String>): Int {
             yield()
             return real.devolverAPendiente(ids)
+        }
+
+        override suspend fun fotosSinEnviarDeConfirmadas(): List<FotoSinEnviar> {
+            yield()
+            return real.fotosSinEnviarDeConfirmadas()
         }
     }
 

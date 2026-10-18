@@ -111,6 +111,8 @@ class SimulacionEnvioVisitasTest : RoomTestBase() {
                 "foto_tardia",
                 "foto_tardia_tras_relectura",
                 "otro_camino_confirma",
+                "otro_camino_confirma_con_archivo",
+                "barrido_devuelve",
                 "proceso_muerto_antes_de_marcar",
                 FALLA_FOTO_SIN_ARCHIVO,
                 "archivo_borrado",
@@ -211,14 +213,15 @@ class SimulacionEnvioVisitasTest : RoomTestBase() {
         }
 
     /**
-     * HALLAZGO (MEDIDO en la simulación, E-APP-076): si la foto que entra en
-     * esa ventana SÍ tiene archivo, la visita queda confirmada con una foto
-     * que nadie volverá a mandar. El worker solo lo anota en diagnóstico; el
-     * verificador lo marca I3-foto. Esta prueba fija el comportamiento de hoy:
-     * cuando se cierre, debe cambiar de esperado.
+     * El HALLAZGO de E-APP-076, ya cerrado (E-APP-079). La foto con archivo
+     * que entra justo después de que otro camino confirmó la visita queda sin
+     * estampar y con su archivo; a media corrida es deuda (el verificador
+     * estricto la marca I3-foto). La reconciliación inversa la barre: la
+     * visita vuelve a pendiente, el reenvío idempotente entrega la foto, se
+     * estampa y el verificador sale limpio.
      */
     @Test
-    fun `E-APP-076 hallazgo foto con archivo tras confirmar por otro camino queda sin enviar`() =
+    fun `E-APP-076 E-APP-079 hallazgo foto con archivo tras confirmar por otro camino se envia tras el barrido`() =
         runBlocking {
             val m = mundo(5, prob = sinFallas)
             val id = m.capturar(fotos = 0, sinArchivo = 0, rechazable = false)
@@ -227,9 +230,20 @@ class SimulacionEnvioVisitasTest : RoomTestBase() {
             val f = fotosDe(id).single()
             assertNull("no se estampa", f.SUBIDA_EN)
             assertTrue("conserva su archivo", File(f.URI).exists())
-            assertEquals("I3-foto", m.violaciones()?.inv)
+            m.verificarInvariantes("deuda a media corrida")
+            assertEquals("antes del barrido es deuda", "I3-foto", m.violaciones()?.inv)
+
             m.repararRedYDrenar()
-            assertNull("nadie la reenvía: sigue sin SUBIDA_EN", fotosDe(id).single().SUBIDA_EN)
+
+            assertTrue(
+                "el barrido la devolvió",
+                m.historial.any { it.detalle.startsWith("barrido_devuelve") }
+            )
+            assertNotNull("la foto se estampó", fotosDe(id).single().SUBIDA_EN)
+            assertTrue("y su archivo se borró", !File(f.URI).exists())
+            assertNotNull(db.visitDao().findVisitById(id)!!.CONFIRMADA_EN)
+            m.verificarFinal()
+            assertNull(m.violaciones())
         }
 
     @Test
@@ -291,16 +305,21 @@ class SimulacionEnvioVisitasTest : RoomTestBase() {
         val dao = db.visitDao()
         assertNull("confirmada vieja se poda", dao.findVisitById(confirmada))
         assertNotNull("pendiente nunca", dao.findVisitById(pendiente))
-        assertNotNull("legada sin confirmar nunca", dao.findVisitById(legadaFuera))
-        assertNotNull(dao.findVisitById(legadaDentro))
-        m.verificarInvariantes("tras podar")
-        m.reconciliacionInversa()
+        // Desde E-APP-079 el salto de reloj corre la inversa diaria en el
+        // camino: la legada que el servidor no tiene vuelve a pendiente (y
+        // nunca se poda); la que sí tiene se confirma primero y SOLO después
+        // envejece y se poda.
         assertEquals(
             "la que el servidor no tiene vuelve a pendiente",
             0,
             dao.findVisitById(legadaFuera)!!.GUARDADO_EN_MICROSIP
         )
-        assertNotNull(dao.findVisitById(legadaDentro)!!.CONFIRMADA_EN)
+        assertTrue(
+            "la que el servidor tiene se confirmó antes de podarse",
+            m.historial.any { it.tipo == TipoEvento.CONFIRMADA && it.visitaId == legadaDentro }
+        )
+        assertNull("confirmada hace más de 30 días: se poda", dao.findVisitById(legadaDentro))
+        m.verificarInvariantes("tras podar")
         m.repararRedYDrenar()
         m.verificarFinal()
         m.avanzarYPodar(DIAS_PODA * 4)
