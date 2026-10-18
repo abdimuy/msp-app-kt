@@ -21,6 +21,20 @@ class LectorDeEnvioDiagnostico(private val dao: EnvioDiagnosticoDao) {
             .map { filas -> textoDelMotivo(filas.firstOrNull { it.FILA_ID in pendientes }) }
             .catch { emit(null) }
 
+    /**
+     * Motivo e intentos de cada fila de [tipo] con un fallo vigente (plan
+     * visitas P1, Tarea 14): la pantalla de pendientes los pinta por fila
+     * para que la que se reintenta para siempre se vea.
+     */
+    fun motivosPorFila(tipo: String): Flow<Map<String, MotivoDeFila>> =
+        dao.observarFallosVigentes(tipo)
+            .map { filas ->
+                filas.mapNotNull { fila ->
+                    textoDelMotivo(fila)?.let { fila.FILA_ID to MotivoDeFila(it, fila.INTENTOS) }
+                }.toMap()
+            }
+            .catch { emit(emptyMap()) }
+
     companion object {
         const val TIPO_PAGO = EnvioDiagnosticoEntity.TIPO_PAGO
         const val TIPO_VISITA = EnvioDiagnosticoEntity.TIPO_VISITA
@@ -33,3 +47,6 @@ class LectorDeEnvioDiagnostico(private val dao: EnvioDiagnosticoDao) {
         }
     }
 }
+
+/** Lo que la pantalla de pendientes pinta de una fila con fallo vigente. */
+data class MotivoDeFila(val texto: String, val intentos: Int)

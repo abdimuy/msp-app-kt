@@ -373,4 +373,58 @@ class ReconcileDeliveredVisitsUseCaseTest {
 
         assertEquals(listOf(listOf(mayus)), servidor.peticiones)
     }
+
+    // ─── Tarea 14 (H14): lo que antes solo salía por SyncErrorReporter ────
+    //
+    // `SyncErrorReporter` termina en `StubTelemetrySink` y no sale del
+    // teléfono. Para que la telemetría de visitas (lista blanca cerrada) vea
+    // cada código, el resultado de la corrida los CUENTA. Cada prueba fija un
+    // contador y se pone roja si el contador se deja en cero.
+
+    @Test
+    fun `H14 los ids ajenos se cuentan en el resultado`() = runTest {
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a))
+        val reg =
+            FakeVisitCustodyRegistry(known = setOf(a), volunteeredIds = listOf(intruso, u(9998)))
+
+        val r = uc(store, reg).execute()
+
+        assertEquals(2, r.idsAjenos)
+    }
+
+    @Test
+    fun `H14 las retenidas por comprobante se cuentan en el resultado`() = runTest {
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a, b), retenidas = setOf(b))
+
+        val r = uc(store, FakeVisitCustodyRegistry(known = setOf(a, b))).execute()
+
+        assertEquals(1, r.retenidasPorComprobante)
+    }
+
+    @Test
+    fun `H14 las escrituras locales fallidas se cuentan en el resultado`() = runTest {
+        val store = FakeDeliveredVisitsStore(
+            entregadas = ids(150),
+            failOnConfirmar = IllegalStateException("x"),
+            failOnDevolver = IllegalStateException("y")
+        )
+        val reg = FakeVisitCustodyRegistry(known = setOf(u(1), u(101)))
+
+        val r = uc(store, reg).execute()
+
+        assertEquals(2, r.confirmacionesFallidas)
+        assertEquals(2, r.devolucionesFallidas)
+    }
+
+    @Test
+    fun `H14 una corrida limpia deja los contadores nuevos en cero`() = runTest {
+        val store = FakeDeliveredVisitsStore(entregadas = listOf(a, b))
+
+        val r = uc(store, FakeVisitCustodyRegistry(known = setOf(a))).execute()
+
+        assertEquals(0, r.idsAjenos)
+        assertEquals(0, r.retenidasPorComprobante)
+        assertEquals(0, r.confirmacionesFallidas)
+        assertEquals(0, r.devolucionesFallidas)
+    }
 }

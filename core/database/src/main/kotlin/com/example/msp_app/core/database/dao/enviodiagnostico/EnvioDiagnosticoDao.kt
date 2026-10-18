@@ -38,6 +38,22 @@ abstract class EnvioDiagnosticoDao {
     abstract fun observarFallosVigentes(tipo: String): Flow<List<EnvioDiagnosticoEntity>>
 
     /**
+     * Fallos vigentes de [tipo] agrupados por código, para la telemetría
+     * (plan visitas P1, Tarea 14, H14): cuántas filas y su máximo de intentos.
+     * Solo diagnóstico.
+     */
+    @Query(
+        """
+        SELECT ULTIMO_ERROR_CODIGO AS codigo, COUNT(*) AS filas, MAX(INTENTOS) AS intentosMax
+        FROM envio_diagnostico
+        WHERE TIPO = :tipo AND ULTIMO_ERROR_CODIGO IS NOT NULL
+        GROUP BY ULTIMO_ERROR_CODIGO
+        ORDER BY ULTIMO_ERROR_CODIGO ASC
+        """
+    )
+    abstract suspend fun fallosVigentesPorCodigo(tipo: String): List<FallosPorCodigo>
+
+    /**
      * Poda: borra toda fila cuyo último envío observado es anterior a [limite]
      * (formato de cable). Cubre también las filas de lo que se soltó sin un 2xx
      * (p. ej. un 4xx resguardado): dejan de recibir intentos y se van solas.

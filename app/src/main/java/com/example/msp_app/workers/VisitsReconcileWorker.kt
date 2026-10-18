@@ -6,6 +6,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.diagnosticoenvio.EstadoDeEnvioDeVisitas
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
 import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import kotlinx.coroutines.CancellationException
@@ -44,14 +45,40 @@ class VisitsReconcileWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val trigger: suspend () -> Unit = {
         VisitsReconcileTriggerProvider.get(appContext).execute()
+    },
+    /**
+     * Telemetría `visitas_estado` (plan visitas P1, Tarea 14; H14): solo
+     * conteos y antigüedades, lista blanca de `TelemetriaDeVisitas`. Solo
+     * reporta: no devuelve nada y no cambia el resultado.
+     */
+    @VisibleForTesting
+    internal val reportarEstado: suspend () -> Unit = {
+        EstadoDeEnvioDeVisitas.de(appContext).emitir()
     }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         reencolarPendientes()
-        return try {
+        reconciliar()
+        reportarEstadoSinRiesgo()
+        return Result.success()
+    }
+
+    /** Después de reconciliar, para que los conteos ya digan lo que el servidor confirmó. */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun reportarEstadoSinRiesgo() {
+        try {
+            reportarEstado()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "telemetria de visitas fallo; la corrida sigue", e)
+        }
+    }
+
+    private suspend fun reconciliar() {
+        try {
             trigger()
-            Result.success()
         } catch (e: Exception) {
             // Defensa: el guard y `ReconcileVisitsUseCase` ya reportan y
             // absorben todo lo esperable (ver KDoc de clase); esto solo cubre
@@ -59,7 +86,6 @@ class VisitsReconcileWorker @JvmOverloads constructor(
             // fuera de la norma de errores (Ruling I) — Log.w es lo mismo que
             // usa `CobranzaReconcileWorker` al lado.
             Log.w(TAG, "trigger de reconciliacion de visitas fallo de forma inesperada", e)
-            Result.success()
         }
     }
 

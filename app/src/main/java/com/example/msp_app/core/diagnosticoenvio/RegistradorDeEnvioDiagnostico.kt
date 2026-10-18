@@ -29,7 +29,8 @@ import kotlinx.coroutines.launch
  * Telemetría: a lo más un evento por (fila, código), con tope de
  * [EnvioDiagnosticoDao.MAX_CODIGOS_REPORTADOS] por fila (lo decide
  * [EnvioDiagnosticoDao.registrarFallo]); el evento lleva solo tipo, id de la
- * fila, código y estado HTTP — ningún dato personal.
+ * huella de la fila ([huellaDeFila], nunca el UUID crudo), código y estado
+ * HTTP — ningún dato personal.
  *
  * Poda: a lo más una vez al día (por proceso), el mismo consumidor borra las
  * filas sin intentos en [RETENCION] — así la tabla queda acotada también para
@@ -92,7 +93,7 @@ class RegistradorDeEnvioDiagnostico(
                 reportar(
                     mapOf(
                         "tipo" to observado.tipo,
-                        "fila_id" to observado.filaId,
+                        "fila_huella" to huellaDeFila(observado.filaId),
                         "codigo" to fallo.codigo,
                         "http" to fallo.http
                     )
@@ -122,3 +123,26 @@ class RegistradorDeEnvioDiagnostico(
         val CADA_PODA: Duration = Duration.ofDays(1)
     }
 }
+
+/**
+ * Huella de la fila para la telemetría `envio_fallido` (E-APP-063; revisión de
+ * la Tarea 14, decisión del coordinador 2026-10-17, opción b): los primeros
+ * 12 hex de SHA-256 del id en minúsculas (UTF-8). Estable y reproducible fuera
+ * del teléfono: la oficina encuentra la fila hasheando con la misma función
+ * los UUID candidatos del servidor (procedimiento y vector en
+ * `docs/evidencia/app-android.md`, E-APP-063, de msp-api).
+ *
+ * No es anonimización criptográfica: el espacio de UUID de una zona es chico y
+ * se puede recorrer. Evita que el id crudo salga del teléfono en el evento.
+ *
+ * Vector: `6f1c2a3b-0000-4000-8000-00000000000a` → `2bc2aa3fac32`.
+ * Pendiente: si algún día se calcula también en Go, hace falta un caso
+ * compartido Go↔Kotlin con este mismo vector.
+ */
+internal fun huellaDeFila(filaId: String): String =
+    java.security.MessageDigest.getInstance("SHA-256")
+        .digest(filaId.lowercase(java.util.Locale.ROOT).toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(java.util.Locale.ROOT, it) }
+        .take(HUELLA_HEX)
+
+private const val HUELLA_HEX = 12

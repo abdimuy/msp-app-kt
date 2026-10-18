@@ -6,6 +6,8 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
+    <!-- Tarea 14 (visitas P1): ver data_extraction_rules.xml. -->
+    <exclude domain="sharedpref" path="visitas_telemetria.xml"/>
     <!--
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>

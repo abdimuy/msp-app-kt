@@ -15,6 +15,7 @@ import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import com.example.msp_app.core.utils.VisitScope
 import com.example.msp_app.core.utils.VisitScopeMapper
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import java.time.Duration
 import javax.inject.Inject
 
@@ -23,7 +24,9 @@ class VisitsLocalDataSource @Inject constructor(
     private val saleDao: SaleDao,
     private val enqueuer: VisitsWorkEnqueuer,
     private val clock: AppClock = AppClock.System,
-    private val memoriaDePoda: MemoriaDePodaDeResguardadas = MemoriaDePodaDeResguardadas.Ninguna
+    private val memoriaDePoda: MemoriaDePodaDeResguardadas = MemoriaDePodaDeResguardadas.Ninguna,
+    /** Telemetría de la poda (plan visitas P1, Tarea 14): solo el conteo. Nunca lanza. */
+    private val telemetria: (String, Map<String, Any>) -> Unit = TelemetriaDeVisitas::emitir
 ) {
     /**
      * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
@@ -51,6 +54,9 @@ class VisitsLocalDataSource @Inject constructor(
     suspend fun getPendingVisits(): List<VisitEntity> {
         return visitDao.getPendingVisits()
     }
+
+    /** Pendientes y resguardadas sin confirmar, para la pantalla de pendientes (Tarea 14). Solo pinta. */
+    suspend fun getVisitasParaPantallaDeEnvio(): List<VisitEntity> = visitDao.paraPantallaDeEnvio()
 
     /** Ids de todas las pendientes, `FECHA ASC, ID ASC`, sin tope (E-APP-072). */
     suspend fun getPendingVisitIdsOrdered(): List<String> = visitDao.pendientesOrdenadas()
@@ -218,8 +224,9 @@ class VisitsLocalDataSource @Inject constructor(
         // podar más allá del límite de hoy si el reloj retrocedió.
         val porPodar = visitDao.resguardadasPorPodar(limiteResguardadas)
         if (porPodar > 0) {
-            // Solo un conteo: ningún dato personal. La Tarea 14 lo pasa a TelemetriaDeVisitas.
+            // Solo un conteo: ningún dato personal (Tarea 14, lista blanca de TelemetriaDeVisitas).
             Log.w(TAG, "visitas.resguardadas_por_podar=$porPodar")
+            reportarPorPodar(porPodar)
         }
         val reportadas = memoriaDePoda.reportadasHasta()
         val resguardadasAntesDe = if (reportadas == null) {
@@ -238,6 +245,15 @@ class VisitsLocalDataSource @Inject constructor(
             conservarCompromisosDesde = AppTime.toWireDate(corte)
         )
         memoriaDePoda.anotarReportadasHasta(limiteResguardadas)
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun reportarPorPodar(porPodar: Int) {
+        try {
+            telemetria(TelemetriaDeVisitas.EVENTO_PODA, TelemetriaDeVisitas.poda(porPodar))
+        } catch (e: Exception) {
+            Log.w(TAG, "telemetria de la poda fallo; la poda sigue", e)
+        }
     }
 
     private companion object {

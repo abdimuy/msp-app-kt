@@ -476,4 +476,36 @@ interface VisitDao {
         """
     )
     suspend fun resguardadasPorPodar(antesDe: String): Int
+
+    /**
+     * Conteos para la telemetría de visitas (plan visitas P1, Tarea 14, H14).
+     * Solo lectura; no participa en ninguna decisión de envío.
+     * [desde24h] en formato de cable de `AppTime`.
+     */
+    @Query(
+        """
+        SELECT
+            COALESCE(SUM(GUARDADO_EN_MICROSIP = 0), 0) AS pendientes,
+            MIN(CASE WHEN GUARDADO_EN_MICROSIP = 0 THEN FECHA END) AS masVieja,
+            COALESCE(SUM(RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL), 0) AS resguardadas,
+            COALESCE(SUM(CONFIRMADA_EN IS NOT NULL AND CONFIRMADA_EN >= :desde24h), 0) AS confirmadas24h
+        FROM Visit
+        """
+    )
+    suspend fun conteosDeEnvio(desde24h: String): ConteosDeEnvio
+
+    /**
+     * Lo que muestra la pantalla de pendientes (Tarea 14; spec §4.4): las
+     * pendientes y las resguardadas sin confirmar ("en revisión de oficina"),
+     * de la más vieja a la más nueva. Solo pinta.
+     */
+    @Query(
+        """
+        SELECT * FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 0
+           OR (RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL)
+        ORDER BY FECHA ASC, ID ASC
+        """
+    )
+    suspend fun paraPantallaDeEnvio(): List<VisitEntity>
 }

@@ -19,6 +19,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** E-APP-063: el registrador escribe, deduplica la telemetría, no bloquea y no lanza. */
@@ -54,7 +55,7 @@ class RegistradorDeEnvioDiagnosticoTest : RoomTestBase() {
                 listOf(
                     mapOf<String, Any>(
                         "tipo" to "pago",
-                        "fila_id" to "p1",
+                        "fila_huella" to huellaDeFila("p1"),
                         "codigo" to "network_error",
                         "http" to 0
                     )
@@ -179,5 +180,25 @@ class RegistradorDeEnvioDiagnosticoTest : RoomTestBase() {
             Thread.sleep(10)
         }
         throw AssertionError("no se escribieron los tres en orden")
+    }
+
+    // ─── huella de la fila (revisión de T14, opción b) ─────────────────────
+
+    /** Vector fijo: cualquiera que lo reproduzca fuera del teléfono encuentra la fila. */
+    @Test
+    fun `E-APP-063 la huella es SHA-256 en minusculas truncado a 12 hex`() {
+        assertEquals("2bc2aa3fac32", huellaDeFila("6f1c2a3b-0000-4000-8000-00000000000a"))
+        assertEquals("2bc2aa3fac32", huellaDeFila("6F1C2A3B-0000-4000-8000-00000000000A"))
+    }
+
+    /** Ningún valor del evento es el id crudo, ni lo contiene. */
+    @Test
+    fun `E-APP-063 el evento nunca lleva el UUID crudo`() = runBlocking {
+        val uuid = "6f1c2a3b-0000-4000-8000-00000000000a"
+        registrador().escribir(EnvioObservado("visita", uuid, red))
+        val evento = reportes.single()
+        assertEquals("2bc2aa3fac32", evento["fila_huella"])
+        assertTrue(evento.values.none { it.toString().contains(uuid, ignoreCase = true) })
+        assertTrue("fila_id" !in evento.keys)
     }
 }

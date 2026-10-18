@@ -745,6 +745,63 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         assertNull("segunda corrida: ya reportada, se poda", db.visitDao().findVisitById("r-vieja"))
     }
 
+    /** Plan visitas P1, Tarea 14 (H14): el conteo de T12 sale por la telemetría, antes de podar. */
+    @Test
+    fun `H14 la resguardada vencida se reporta por telemetria con solo su conteo`() = runTest {
+        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+        val s = VisitsLocalDataSource(
+            db.visitDao(),
+            db.saleDao(),
+            enqueuer,
+            FakeClock(ahora),
+            MemoriaEnPrueba(),
+            telemetria = { e, m -> emitidos += e to m }
+        )
+        s.saveVisit(visit(id = "r-vieja-1"))
+        db.visitDao().resguardar("r-vieja-1", "2026-07-01T00:00:00Z")
+        s.saveVisit(visit(id = "r-vieja-2"))
+        db.visitDao().resguardar("r-vieja-2", "2026-06-01T00:00:00Z")
+        s.saveVisit(visit(id = "r-reciente"))
+        db.visitDao().resguardar("r-reciente", "2026-10-01T00:00:00Z")
+
+        s.deleteUploadedVisits()
+
+        assertEquals(
+            listOf("visitas_poda" to mapOf<String, Any>("visitas.resguardadas_por_podar" to 2)),
+            emitidos
+        )
+        assertNotNull("se reporta antes de podar", db.visitDao().findVisitById("r-vieja-1"))
+    }
+
+    @Test
+    fun `H14 sin resguardadas vencidas la poda no emite y si la telemetria revienta la poda sigue`() =
+        runTest {
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                telemetria = { _, _ -> error("no debe emitir") }
+            )
+            s.saveVisit(visit(id = "confirmada-vieja"))
+            db.visitDao().confirmar(listOf("confirmada-vieja"), "2026-09-01T00:00:00Z")
+            s.deleteUploadedVisits()
+            assertNull(db.visitDao().findVisitById("confirmada-vieja"))
+
+            val reventona = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                telemetria = { _, _ -> error("boom") }
+            )
+            reventona.saveVisit(visit(id = "r-vieja"))
+            db.visitDao().resguardar("r-vieja", "2026-07-01T00:00:00Z")
+            reventona.deleteUploadedVisits() // no lanza
+        }
+
     @Test
     fun `sin memoria nunca se poda una resguardada`() = runTest {
         val clock = FakeClock(ahora)
