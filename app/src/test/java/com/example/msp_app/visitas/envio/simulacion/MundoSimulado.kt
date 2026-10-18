@@ -104,7 +104,8 @@ class MundoSimulado(
     private val db: AppDatabase,
     private val context: Context,
     private val carpeta: File,
-    private val modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
+    /** Kill-switch `config/visitas_envio`; mutable para el ida y vuelta del adversario (Tarea 19). */
+    var modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
     probabilidades: Map<Falla, Double> = PROBABILIDADES_POR_OMISION,
     /** Fracción de las visitas rechazables cuya captura del 422 falla SIEMPRE (sin fila ni cabecera). */
     private val capturaFalla: Double = 0.2
@@ -349,6 +350,20 @@ class MundoSimulado(
         val f = insertarFoto(v.id, conArchivo, ORDEN_TARDIA)
         evento(TipoEvento.FOTO_AGREGADA, v.id, "foto=$f archivo=${if (conArchivo) 1 else 0}")
     }
+
+    /**
+     * Inserta una foto en la visita [id], sea cual sea su estado (agente
+     * adversario, Tarea 19: una legada con foto sin enviar, E-VIS-031).
+     * [agregarFoto] solo elige entre pendientes no legadas.
+     */
+    suspend fun agregarFotoA(id: String, conArchivo: Boolean): String {
+        val f = insertarFoto(id, conArchivo, ORDEN_TARDIA)
+        evento(TipoEvento.FOTO_AGREGADA, id, "foto=$f archivo=${if (conArchivo) 1 else 0}")
+        return f
+    }
+
+    /** Las fotos que el servidor tiene de [id] (fila y archivo), para las pruebas del adversario. */
+    fun fotosEnServidor(id: String): Set<String> = servidor[id].orEmpty().toSet()
 
     /** INYECTOR de `foto_sin_archivo_local`: borra el archivo y lo anota en el mismo paso. */
     suspend fun perderFotoLocal(cual: Int) {
