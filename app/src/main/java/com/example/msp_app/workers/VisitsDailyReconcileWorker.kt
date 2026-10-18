@@ -11,6 +11,7 @@ import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.pendingwork.di.VisitsReconcileEntryPoint
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import com.example.msp_app.core.visitas.envio.UltimaConciliacionDeVisitas
 import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import dagger.hilt.android.EntryPointAccessors
@@ -62,7 +63,14 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
         Instant
     ) -> Unit = { UltimaConciliacionDeVisitas.anotar(appContext, it) },
     @VisibleForTesting
-    internal val clock: AppClock = AppClock.System
+    internal val clock: AppClock = AppClock.System,
+    /**
+     * Telemetría `visitas_conciliacion` (Tarea 14; H14): todos los conteos de
+     * la corrida, incluida la alerta §12-1 `visitas.reconcilia.devuelta_a_pendiente`.
+     * `TelemetriaDeVisitas.emitir` nunca lanza; igual va aislada.
+     */
+    @VisibleForTesting
+    internal val telemetria: (String, Map<String, Any>) -> Unit = TelemetriaDeVisitas::emitir
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -78,6 +86,7 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
                     "confirmadas=${r.confirmadas} tandas_fallidas=${r.tandasFallidas} " +
                     "ilegibles=${r.entregadasIlegibles}"
             )
+            reportar(r)
             if (r.faltantes > 0) reencolarPendientes()
             if (r.tandasFallidas == 0 && !r.entregadasIlegibles) anotarCorrida(clock.now())
         } catch (e: CancellationException) {
@@ -88,6 +97,15 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
             Log.w(TAG, "reconciliacion inversa de visitas fallo de forma inesperada", e)
         }
         return Result.success()
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun reportar(r: ConciliacionInversa) {
+        try {
+            telemetria(TelemetriaDeVisitas.EVENTO_CONCILIACION, TelemetriaDeVisitas.conciliacion(r))
+        } catch (e: Exception) {
+            Log.w(TAG, "telemetria de la conciliacion fallo; la corrida sigue", e)
+        }
     }
 
     private suspend fun reencolarPendientes() {

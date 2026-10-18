@@ -22,6 +22,19 @@ import kotlinx.coroutines.CancellationException
  * @param entregadasIlegibles la lectura local falló: no se preguntó nada.
  * @param idsInvalidos ids leídos que no son UUID canónicos: no se preguntaron
  *   ni cambiaron (ver [ReconcileDeliveredVisitsUseCase]).
+ * @param idsAjenos ids que el servidor contestó sin que se le preguntaran
+ *   (descartados; `visitas_reconcilia_respuesta_ajena`).
+ * @param retenidasPorComprobante nombradas por el servidor que no se
+ *   confirmaron porque tienen una foto sin subir
+ *   (`visitas_reconcilia_retenidas_por_comprobante`).
+ * @param confirmacionesFallidas escrituras de confirmación que fallaron.
+ * @param devolucionesFallidas escrituras de devolución a pendiente que fallaron.
+ *
+ * Los cuatro últimos existen para la telemetría de visitas (Tarea 14, H14):
+ * `SyncErrorReporter` termina en `StubTelemetrySink` y no sale del teléfono,
+ * así que cada código que reporta esta corrida también se CUENTA aquí y
+ * `TelemetriaDeVisitas.conciliacion` lo manda con su lista blanca. Solo
+ * conteos: ningún id viaja.
  */
 data class ConciliacionInversa(
     val revisadas: Int,
@@ -29,7 +42,11 @@ data class ConciliacionInversa(
     val confirmadas: Int,
     val tandasFallidas: Int,
     val entregadasIlegibles: Boolean = false,
-    val idsInvalidos: Int = 0
+    val idsInvalidos: Int = 0,
+    val idsAjenos: Int = 0,
+    val retenidasPorComprobante: Int = 0,
+    val confirmacionesFallidas: Int = 0,
+    val devolucionesFallidas: Int = 0
 )
 
 /**
@@ -101,9 +118,7 @@ class ReconcileDeliveredVisitsUseCase(
 
         val (validos, invalidos) = separarInvalidos(ids)
 
-        var faltantes = 0
-        var confirmadas = 0
-        var fallidas = 0
+        val cuenta = Contadores()
 
         validos.chunked(VisitCustodyRegistry.MAX_IDS_PER_REQUEST).forEach { tanda ->
             val contestadas = attempt(
@@ -112,12 +127,13 @@ class ReconcileDeliveredVisitsUseCase(
                 mapOf(PROP_TAMANO_LOTE to tanda.size.toString())
             ) { registry.findExisting(tanda) }
             if (contestadas == null) {
-                fallidas++
+                cuenta.fallidas++
                 return@forEach
             }
             val preguntadas = tanda.toSet()
             val ajenas = contestadas.filterNot { it in preguntadas }
             if (ajenas.isNotEmpty()) {
+                cuenta.ajenos += ajenas.size
                 errorReporter.report(
                     code = ERROR_CODE_RESPUESTA_AJENA,
                     message = "$CONTEXT_CONSULTA: la respuesta trae ids que no se preguntaron",
@@ -130,9 +146,10 @@ class ReconcileDeliveredVisitsUseCase(
             val existentes = contestadas.filter { it in preguntadas }.toSet()
             val si = tanda.filter { it in existentes }
             val no = tanda.filterNot { it in existentes }
-            confirmadas += confirmar(si, ahoraEnCable)
-            faltantes += devolver(no)
+            cuenta.confirmadas += confirmar(si, ahoraEnCable, cuenta)
+            cuenta.faltantes += devolver(no, cuenta)
         }
+        val faltantes = cuenta.faltantes
 
         if (faltantes > 0) {
             errorReporter.report(
@@ -147,10 +164,25 @@ class ReconcileDeliveredVisitsUseCase(
         return ConciliacionInversa(
             revisadas = ids.size,
             faltantes = faltantes,
-            confirmadas = confirmadas,
-            tandasFallidas = fallidas,
-            idsInvalidos = invalidos.size
+            confirmadas = cuenta.confirmadas,
+            tandasFallidas = cuenta.fallidas,
+            idsInvalidos = invalidos.size,
+            idsAjenos = cuenta.ajenos,
+            retenidasPorComprobante = cuenta.retenidas,
+            confirmacionesFallidas = cuenta.confirmarFallido,
+            devolucionesFallidas = cuenta.devolverFallido
         )
+    }
+
+    /** Acumuladores de una corrida (Tarea 14: cada código reportado también se cuenta). */
+    private class Contadores {
+        var faltantes = 0
+        var confirmadas = 0
+        var fallidas = 0
+        var ajenos = 0
+        var retenidas = 0
+        var confirmarFallido = 0
+        var devolverFallido = 0
     }
 
     /** Ver el KDoc de clase: un id sin forma de UUID tumbaría su tanda entera con un 422. */
@@ -166,14 +198,19 @@ class ReconcileDeliveredVisitsUseCase(
         return validos to invalidos
     }
 
-    private suspend fun confirmar(ids: List<String>, ahora: String): Int {
+    private suspend fun confirmar(ids: List<String>, ahora: String, cuenta: Contadores): Int {
         if (ids.isEmpty()) return 0
         val cambiadas = attempt(
             ERROR_CODE_CONFIRMAR_FALLIDO,
             CONTEXT_CONFIRMAR,
             mapOf(PROP_TAMANO_LOTE to ids.size.toString())
-        ) { store.confirmar(ids, ahora) } ?: return 0
+        ) { store.confirmar(ids, ahora) }
+        if (cambiadas == null) {
+            cuenta.confirmarFallido++
+            return 0
+        }
         if (cambiadas < ids.size) {
+            cuenta.retenidas += ids.size - cambiadas
             errorReporter.report(
                 code = ERROR_CODE_RETENIDAS_POR_COMPROBANTE,
                 message = "$CONTEXT_CONFIRMAR: la retencion por foto dejo algunas sin confirmar",
@@ -186,13 +223,15 @@ class ReconcileDeliveredVisitsUseCase(
         return cambiadas
     }
 
-    private suspend fun devolver(ids: List<String>): Int {
+    private suspend fun devolver(ids: List<String>, cuenta: Contadores): Int {
         if (ids.isEmpty()) return 0
-        return attempt(
+        val devueltas = attempt(
             ERROR_CODE_DEVOLVER_FALLIDO,
             CONTEXT_DEVOLVER,
             mapOf(PROP_TAMANO_LOTE to ids.size.toString())
-        ) { store.devolverAPendiente(ids) } ?: 0
+        ) { store.devolverAPendiente(ids) }
+        if (devueltas == null) cuenta.devolverFallido++
+        return devueltas ?: 0
     }
 
     /** Igual que en [ReconcileVisitsUseCase]: reporta todo y relanza la cancelación. */

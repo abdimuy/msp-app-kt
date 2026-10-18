@@ -177,4 +177,37 @@ class EnvioDiagnosticoDaoTest : RoomTestBase() {
             assertNull(dao.obtener("pago", "exito-viejo"))
             assertEquals("sigue-fallando", dao.obtener("pago", "sigue-fallando")!!.FILA_ID)
         }
+
+    /**
+     * Plan visitas P1, Tarea 14 (H14): la telemetría cuenta los fallos
+     * VIGENTES de un tipo por código, con el máximo de intentos —así se ve una
+     * fila que se reintenta para siempre—. Un éxito saca a su fila de la
+     * cuenta; el otro tipo no se mezcla.
+     */
+    @Test
+    fun `H14 fallos vigentes por codigo cuentan filas e intentos maximos`() = runTest {
+        repeat(5) {
+            dao.registrarFallo(
+                "visita",
+                "v1",
+                "visita_fecha_futura",
+                "m",
+                422,
+                "2026-10-16T10:0$it:00Z"
+            )
+        }
+        dao.registrarFallo("visita", "v2", "visita_fecha_futura", "m", 422, "2026-10-16T10:00:00Z")
+        dao.registrarFallo("visita", "v3", "timeout", "m", 0, "2026-10-16T10:00:00Z")
+        dao.registrarFallo("visita", "v4", "timeout", "m", 0, "2026-10-16T10:00:00Z")
+        dao.registrarExito("visita", "v4", "2026-10-16T10:01:00Z")
+        dao.registrarFallo("pago", "p1", "timeout", "m", 0, "2026-10-16T10:00:00Z")
+
+        assertEquals(
+            listOf(
+                FallosPorCodigo(codigo = "timeout", filas = 1, intentosMax = 1),
+                FallosPorCodigo(codigo = "visita_fecha_futura", filas = 2, intentosMax = 5)
+            ),
+            dao.fallosVigentesPorCodigo("visita")
+        )
+    }
 }
