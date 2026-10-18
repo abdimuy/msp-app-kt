@@ -1,24 +1,25 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Spec visitas §4.2-9 (H15, E-APP-073): reglas de Android 12+ (API 31+).
-     La base de Room nunca se respalda ni se transfiere: restaurarla resucitaría
-     pendientes o la base de otro cobrador en un teléfono reasignado. Excluir el
-     dominio `database` deja fuera todo `databases/` (msp_db, la cola de
-     telemetría y la caché local de Firestore).
-     Las marcas de visitas solo valen junto a la base que las escribió: sin ella,
-     `visitas_poda` dejaría podar resguardadas que este teléfono no reportó.
-     `visitas_telemetria` (Tarea 14): lo último que este aparato mandó de
-     `visitas_estado`; en otro aparato no significa nada. -->
+<?xml version="1.0" encoding="utf-8"?><!--
+   Sample data extraction rules file; uncomment and customize as necessary.
+   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
+   for details.
+-->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="database" path="."/>
-        <exclude domain="sharedpref" path="visitas_poda.xml"/>
-        <exclude domain="sharedpref" path="visitas_conciliacion_ultima.xml"/>
+        <!-- Tarea 14 (visitas P1): lo último que este aparato mandó de
+             visitas_estado; en otro aparato no significa nada. -->
         <exclude domain="sharedpref" path="visitas_telemetria.xml"/>
+        <!-- TODO: Use <include> and <exclude> to control what is backed up.
+        <include .../>
+        <exclude .../>
+        -->
     </cloud-backup>
+    <!--
     <device-transfer>
-        <exclude domain="database" path="."/>
-        <exclude domain="sharedpref" path="visitas_poda.xml"/>
-        <exclude domain="sharedpref" path="visitas_conciliacion_ultima.xml"/>
+        <include .../>
+        <exclude .../>
+    </device-transfer>
+    -->
+    <device-transfer>
         <exclude domain="sharedpref" path="visitas_telemetria.xml"/>
     </device-transfer>
 </data-extraction-rules>
