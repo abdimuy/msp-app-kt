@@ -64,7 +64,8 @@ class TelemetriaDeVisitasTest {
             "visitas.resguardadas_por_podar",
             "visitas.guardado_cancelado.escritas",
             "visitas.guardado_cancelado.cuentas",
-            "visitas.guardado_cancelado.en_ubicacion"
+            "visitas.guardado_cancelado.en_ubicacion",
+            "visitas.guardado.cuenta_ausente_al_reintentar"
         )
         val fallos = TelemetriaDeVisitas.CODIGOS_DE_FALLO.map { "visitas.fallos.$it" }.toSet()
         assertEquals(base + fallos, TelemetriaDeVisitas.CLAVES)
@@ -73,7 +74,8 @@ class TelemetriaDeVisitasTest {
                 "visitas_estado",
                 "visitas_conciliacion",
                 "visitas_poda",
-                "visitas_guardado_cancelado"
+                "visitas_guardado_cancelado",
+                "visitas_cuenta_ausente_al_reintentar"
             ),
             TelemetriaDeVisitas.EVENTOS
         )

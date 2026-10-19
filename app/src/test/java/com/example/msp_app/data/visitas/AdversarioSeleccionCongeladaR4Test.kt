@@ -6,8 +6,10 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
+import com.example.msp_app.di.VisitasPortsModule
 import com.example.msp_app.feature.visitas.application.RegistrarVisita
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.IdsDeLaVisita
@@ -182,6 +184,30 @@ class AdversarioSeleccionCongeladaR4Test : RoomTestBase() {
             assertEquals(listOf("IMG-QUEDA"), partes.enviadas.map { it.ID })
             assertEquals("la quitada se omite en cada envío", 1, partes.omitidas)
         }
+
+    /**
+     * **H-r4-5**, el cableado real de `:app`: la cuenta ausente sale por
+     * `TelemetriaDeVisitas` con su evento y solo el conteo.
+     */
+    @Test
+    fun `H-r4-5 el aviso de cuenta ausente cableado sale por TelemetriaDeVisitas con solo el conteo`() {
+        val capturado = mutableListOf<Pair<String, Map<String, Any>>>()
+        TelemetriaDeVisitas.sinkParaPrueba = { e, m -> capturado += e to m }
+        try {
+            VisitasPortsModule.provideCuentaAusentePort().ausentes(2)
+        } finally {
+            TelemetriaDeVisitas.sinkParaPrueba = null
+        }
+
+        assertEquals(
+            listOf(
+                "visitas_cuenta_ausente_al_reintentar" to mapOf<String, Any>(
+                    "visitas.guardado.cuenta_ausente_al_reintentar" to 2
+                )
+            ),
+            capturado
+        )
+    }
 
     // ─── utilidades ──────────────────────────────────────────────────────────
 

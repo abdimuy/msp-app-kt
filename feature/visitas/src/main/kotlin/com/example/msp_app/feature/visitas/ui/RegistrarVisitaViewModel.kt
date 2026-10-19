@@ -26,6 +26,7 @@ import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
+import com.example.msp_app.feature.visitas.domain.port.CuentaAusentePort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
 import com.example.msp_app.feature.visitas.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -103,7 +104,8 @@ class RegistrarVisitaViewModel @Inject constructor(
     private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     private val clock: AppClock,
-    @VisitasIoDispatcher private val io: CoroutineDispatcher
+    @VisitasIoDispatcher private val io: CoroutineDispatcher,
+    private val cuentaAusente: CuentaAusentePort = CuentaAusentePort { }
 ) : ViewModel() {
 
     val clienteId: Int = checkNotNull(savedStateHandle.get<Int>(VisitasRutas.ARG_CLIENTE_ID)) {
@@ -994,6 +996,7 @@ class RegistrarVisitaViewModel @Inject constructor(
         // escribir: lo escrito por el intento anterior sigue ahí.
         val previa = seleccionCongelada
         val yaEstabaCongelada = previa != null
+        if (yaEstabaCongelada) reportarCuentasAusentes(actual)
         // E-VIS-072: las fotos que este intento se puede llevar quedan fijas.
         val fijas = previa?.fotos.orEmpty() + actual.comprobantes.map { it.id }
         seleccionCongelada = SeleccionCongelada.de(actual.captura, fijas)
@@ -1030,6 +1033,33 @@ class RegistrarVisitaViewModel @Inject constructor(
                 seleccionCongelada = null
             }
             aplicar(resultado, conLasFotosDeAhora.captura)
+        }
+    }
+
+    /**
+     * H-r4-5: el reintento congelado escribe también las cuentas que el sync
+     * quitó del teléfono después del primer guardado. Se deja igual (decisión
+     * del coordinador) y se cuenta: local y a la oficina. **Nunca detiene el
+     * guardado**: cada salida va en su propio `try`.
+     */
+    @Suppress("TooGenericExceptionCaught") // la telemetria caida no detiene el guardado.
+    private fun reportarCuentasAusentes(actual: RegistrarVisitaUiState) {
+        val enElTelefono = actual.contexto?.ventas.orEmpty().map { it.ventaId }.toSet()
+        val ausentes = (actual.captura.cuentas - enElTelefono).size
+        if (ausentes == 0) return
+        try {
+            telemetry.error(
+                code = VisitasTelemetria.CODE_VISITA_CUENTA_AUSENTE_AL_REINTENTAR,
+                message = "el reintento congelado escribe cuentas que ya no estan en el telefono",
+                props = mapOf(VisitasTelemetria.PROP_OCURRENCIAS to ausentes.toString())
+            )
+        } catch (_: Throwable) {
+            // Sin rastro local; el aviso a la oficina se intenta igual.
+        }
+        try {
+            cuentaAusente.ausentes(ausentes)
+        } catch (_: Throwable) {
+            // Idem: el guardado sigue.
         }
     }
 

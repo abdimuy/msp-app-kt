@@ -201,3 +201,16 @@ enum class FaseDelGuardado {
 fun interface GuardadoCanceladoPort {
     fun cancelado(fase: FaseDelGuardado, escritas: Int, cuentas: Int)
 }
+
+/**
+ * Avisa a la oficina que un reintento con la selección congelada escribe
+ * cuentas que ya no están en el teléfono (H-r4-5): el sync las quitó después
+ * del primer guardado, la pantalla ya no las pinta y la visita se escribe igual.
+ * El comportamiento no cambia; esto deja el rastro.
+ *
+ * Mismo camino que [GuardadoCanceladoPort] (`TelemetriaDeVisitas`, `:app`).
+ * **Solo el conteo:** la lista blanca descarta ids por diseño. No lanza.
+ */
+fun interface CuentaAusentePort {
+    fun ausentes(cuantas: Int)
+}

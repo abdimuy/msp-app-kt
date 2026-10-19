@@ -16,6 +16,7 @@ import com.example.msp_app.data.visitas.RegistroDeVisitaAdapter
 import com.example.msp_app.data.visitas.ThemeControllerTemaDeLaAppAdapter
 import com.example.msp_app.data.visitas.UbicacionDeVisitaAdapter
 import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
+import com.example.msp_app.feature.visitas.domain.port.CuentaAusentePort
 import com.example.msp_app.feature.visitas.domain.port.FaseDelGuardado
 import com.example.msp_app.feature.visitas.domain.port.GuardadoCanceladoPort
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
@@ -130,4 +131,16 @@ object VisitasPortsModule {
                 )
             )
         }
+
+    /**
+     * H-r4-5: el reintento congelado que escribe cuentas ausentes sale por
+     * [TelemetriaDeVisitas]. Solo el conteo, filtrado por la lista blanca.
+     */
+    @Provides
+    fun provideCuentaAusentePort(): CuentaAusentePort = CuentaAusentePort { cuantas ->
+        TelemetriaDeVisitas.emitir(
+            TelemetriaDeVisitas.EVENTO_CUENTA_AUSENTE,
+            TelemetriaDeVisitas.cuentaAusente(cuantas)
+        )
+    }
 }

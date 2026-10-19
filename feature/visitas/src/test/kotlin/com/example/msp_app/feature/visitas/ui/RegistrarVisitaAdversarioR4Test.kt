@@ -6,6 +6,7 @@ import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.visitas.application.AbrirRegistroDeVisita
 import com.example.msp_app.feature.visitas.application.RegistrarVisita
+import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.data.fake.DictadoFalso
 import com.example.msp_app.feature.visitas.data.fake.FakeComprobantesDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeContextoDeVisitaPort
@@ -15,6 +16,7 @@ import com.example.msp_app.feature.visitas.data.fake.FakeUbicacionPort
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.IdsDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
+import com.example.msp_app.feature.visitas.domain.port.CuentaAusentePort
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
 import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
@@ -279,6 +281,34 @@ class RegistrarVisitaAdversarioR4Test {
                 "se escribe la cuenta que ya no se pinta",
                 puerto.llamadas.drop(2).any { it.ventaId == VisitasFixtures.REFRIGERADOR }
             )
+            // Decisión del coordinador: igual, pero con rastro (solo el conteo).
+            assertEquals(listOf(1), avisosDeAusentes)
+            val evento = telemetria.recorded.single {
+                it.name == VisitasTelemetria.CODE_VISITA_CUENTA_AUSENTE_AL_REINTENTAR
+            }
+            assertEquals("1", evento.props[VisitasTelemetria.PROP_OCURRENCIAS])
+        }
+
+    /** **H-r4-5, control.** El reintento congelado con todas sus cuentas presentes no avisa. */
+    @Test
+    fun `H-r4-5 control sin cuentas ausentes el reintento no deja rastro`() =
+        runTest(testDispatcher) {
+            val handle = handle()
+            val muerto = viewModel(handle)
+            advanceUntilIdle()
+            parcialSobreLasDos(muerto)
+
+            val vm = viewModel(handle)
+            advanceUntilIdle()
+            reintentar(vm)
+
+            assertTrue(vm.state.value.registrada != null)
+            assertEquals(emptyList<Int>(), avisosDeAusentes)
+            assertTrue(
+                telemetria.recorded.none {
+                    it.name == VisitasTelemetria.CODE_VISITA_CUENTA_AUSENTE_AL_REINTENTAR
+                }
+            )
         }
 
     // ─── lo que resiste ──────────────────────────────────────────────────────
@@ -386,8 +416,11 @@ class RegistrarVisitaAdversarioR4Test {
         tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
         clock = clock,
-        io = testDispatcher
+        io = testDispatcher,
+        cuentaAusente = CuentaAusentePort { avisosDeAusentes += it }
     )
+
+    private val avisosDeAusentes: MutableList<Int> = mutableListOf()
 
     /**
      * Puerto con la tabla de fotos. Por índice de llamada (global):
