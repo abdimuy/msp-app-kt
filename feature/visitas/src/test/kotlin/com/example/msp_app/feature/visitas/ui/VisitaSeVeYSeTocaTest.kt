@@ -303,6 +303,12 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
         assertEquals(emptyList<Int>(), tocadas)
         assertEquals(0, cambios)
         composeTestRule.onNode(hasText(TEXTO_CONGELADA)).performScrollTo().assertIsDisplayed()
+        assertEquals(
+            "E-VIS-073: nada en la pantalla afirma que ya se guardó",
+            0,
+            composeTestRule.onAllNodes(hasText("guardó", substring = true))
+                .fetchSemanticsNodes().size
+        )
     }
 
     /**
@@ -566,7 +572,7 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
         /** El piso del plan. El design system pide 56dp, que nunca lo viola. */
         val MINIMO_TOCABLE = 50.dp
 
-        /** E-VIS-055: el texto de la selección congelada. */
-        const val TEXTO_CONGELADA = "Ya se guardó en estas cuentas"
+        /** E-VIS-055 / E-VIS-073: el texto de la selección congelada. */
+        const val TEXTO_CONGELADA = "Estas cuentas ya no se pueden cambiar"
     }
 }

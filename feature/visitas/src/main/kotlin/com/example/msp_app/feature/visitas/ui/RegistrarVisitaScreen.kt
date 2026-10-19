@@ -553,10 +553,12 @@ private fun SeccionDeCuentas(state: RegistrarVisitaUiState, acciones: AccionesDe
     } else {
         TituloDeSeccion("¿De cuál cuenta?")
     }
-    // E-VIS-055: la foto ya quedó atada a la visita de estas cuentas.
+    // E-VIS-055: la foto ya quedó atada a la visita de estas cuentas. E-VIS-073:
+    // el texto no dice "ya se guardó": tras un parcial la cuenta que falló no se
+    // guardó, y tras morir el proceso antes de escribir no se guardó ninguna.
     if (state.seleccionCongelada) {
         Text(
-            text = "Ya se guardó en estas cuentas",
+            text = "Estas cuentas ya no se pueden cambiar",
             style = MspTheme.type.caption,
             color = MspTheme.colors.onSurfaceMuted
         )

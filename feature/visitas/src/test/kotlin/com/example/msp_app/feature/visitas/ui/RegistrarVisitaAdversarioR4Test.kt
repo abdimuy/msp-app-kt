@@ -221,15 +221,14 @@ class RegistrarVisitaAdversarioR4Test {
     // ─── H-r4-4: "ya se guardó" sin haber guardado nada ──────────────────────
 
     /**
-     * **H-r4-4, ESPERADA ROJA.** El proceso muere después de congelar y antes de
-     * la primera escritura. La pantalla restaurada vuelve congelada, sin banda
-     * de fallo y sin registrar — y con la selección congelada la pantalla pinta
-     * "Ya se guardó en estas cuentas" (`RegistrarVisitaScreen.kt:558`, medido en
-     * `VisitaSeVeYSeTocaTest`). Nada se guardó: el cobrador puede irse creyendo
-     * que la visita quedó.
+     * **E-VIS-073** (era H-r4-4, ESPERADA ROJA). El proceso muere después de
+     * congelar y antes de la primera escritura. La pantalla restaurada vuelve
+     * congelada, sin banda de fallo y sin registrar: es lo conservador, y por
+     * eso el texto de la selección congelada ya no dice "ya se guardó" (lo
+     * fija `VisitaSeVeYSeTocaTest`).
      */
     @Test
-    fun `H-r4-4 ESPERADA ROJA tras morir antes de escribir la pantalla vuelve congelada sin fallo y sin nada escrito`() =
+    fun `E-VIS-073 tras morir antes de escribir la pantalla vuelve congelada sin fallo y sin nada escrito`() =
         runTest(testDispatcher) {
             val handle = handle()
             val muerto = viewModel(handle, ubicacion = UbicacionQueNoContesta)
@@ -241,10 +240,7 @@ class RegistrarVisitaAdversarioR4Test {
             advanceUntilIdle()
 
             assertEquals("nada se escribió", 0, puerto.llamadas.size)
-            assertTrue(
-                "HOY vuelve congelada (pinta 'ya se guardó')",
-                vm.state.value.seleccionCongelada
-            )
+            assertTrue(vm.state.value.seleccionCongelada)
             assertNull(vm.state.value.fallo)
             assertNull(vm.state.value.registrada)
         }
