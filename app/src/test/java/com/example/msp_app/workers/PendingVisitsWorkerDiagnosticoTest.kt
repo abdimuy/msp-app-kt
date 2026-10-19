@@ -33,6 +33,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -552,5 +553,6 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
         override suspend fun huerfanasAnterioresA(limite: String) =
             db.visitImageDao().huerfanasAnterioresA(limite)
         override suspend fun eliminar(imagenId: String) = db.visitImageDao().eliminar(imagenId)
+        override fun observarSinSubir(): Flow<Int> = db.visitImageDao().observarSinSubir()
     }
 }
