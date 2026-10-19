@@ -2,12 +2,14 @@ package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.MemoriaDeBarridoPospuesto
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_BARRIDO_ILEGIBLE
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DEVUELTA_A_PENDIENTE
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DEVUELTA_POR_FOTO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DINERO_ILEGIBLE
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_FOTO_SIN_ENVIAR_VIEJA
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_MEMORIA_DE_POSPUESTO
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakeDeliveredVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakeVisitCustodyRegistry
 import com.example.msp_app.core.common.sync.pendingwork.fakes.RecordingSyncErrorReporter
@@ -46,12 +48,14 @@ class ReconcileDeliveredVisitsBarridoTest {
         store: FakeDeliveredVisitsStore,
         rep: RecordingSyncErrorReporter = RecordingSyncErrorReporter(),
         dinero: DineroPendiente = DineroPendiente.NINGUNO,
-        conocidas: Set<String> = setOf(a, b, c)
+        conocidas: Set<String> = setOf(a, b, c),
+        memoria: MemoriaDeBarridoPospuesto = MemoriaDeBarridoPospuesto.NINGUNA
     ) = ReconcileDeliveredVisitsUseCase(
         store,
         FakeVisitCustodyRegistry(known = conocidas),
         rep,
-        dinero
+        dinero,
+        memoria
     ) {
         ahora
     }
@@ -250,6 +254,104 @@ class ReconcileDeliveredVisitsBarridoTest {
         assertEquals("la edad se cuenta igual", 1, r.fotosSinEnviarViejas)
         assertTrue(ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO in rep.codes)
         assertEquals("la parte by-ids sigue", listOf(a, b), store.confirmadas)
+    }
+
+    /** Memoria de corridas pospuestas en prueba; [falla] la vuelve ilegible. */
+    private class MemoriaEnPrueba(
+        var n: Int = 0,
+        var falla: Boolean = false
+    ) : MemoriaDeBarridoPospuesto {
+        override fun seguidas(): Int = if (falla) throw IOException("x") else n
+        override fun anotar(seguidas: Int) {
+            n = seguidas
+        }
+    }
+
+    /**
+     * Válvula (adenda de E-APP-079): un pago atorado no pospone el barrido
+     * para siempre. Tras 3 corridas seguidas pospuestas por dinero, la
+     * siguiente reabre igual, a lo más 2 visitas; el contador vuelve a 0 y la
+     * prioridad del dinero sigue en las corridas siguientes.
+     */
+    @Test
+    fun `E-APP-079 valvula tras 3 corridas pospuestas la cuarta reabre 2 aunque haya dinero`() =
+        runTest {
+            val ids = (1..5).map { u(200 + it) }
+            val store = FakeDeliveredVisitsStore(
+                entregadas = ids,
+                fotosSinEnviar = ids.mapIndexed { i, id -> FotoSinEnviar(id, haceDias(10L - i)) }
+            )
+            val memoria = MemoriaEnPrueba()
+            fun corrida() = uc(
+                store,
+                dinero = DineroPendiente {
+                    true
+                },
+                conocidas = ids.toSet(),
+                memoria = memoria
+            )
+
+            (1..ReconcileDeliveredVisitsUseCase.POSPUESTAS_ANTES_DE_LA_VALVULA).forEach { n ->
+                val r = corrida().execute()
+                assertEquals("corrida $n: pospuesta", 0, r.devueltasPorFoto)
+                assertEquals(n, r.barridoPospuestoSeguidas)
+                assertEquals(false, r.barridoPorValvula)
+            }
+            val valvula = corrida().execute()
+            assertTrue(valvula.barridoPorValvula)
+            assertEquals(
+                "a lo más 2, las más viejas",
+                ids.take(ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_VALVULA),
+                store.devueltas
+            )
+            assertEquals(0, valvula.barridoPospuestoSeguidas)
+            assertEquals(0, memoria.n)
+
+            val despues = corrida().execute()
+            assertEquals("el dinero vuelve a mandar", 0, despues.devueltasPorFoto)
+            assertEquals(1, despues.barridoPospuestoSeguidas)
+        }
+
+    @Test
+    fun `E-APP-079 valvula sin dinero o sin fotos el contador vuelve a cero`() = runTest {
+        val sinDinero = MemoriaEnPrueba(n = 2)
+        val r = uc(
+            FakeDeliveredVisitsStore(
+                entregadas = listOf(a),
+                fotosSinEnviar = listOf(FotoSinEnviar(a, haceDias(1)))
+            ),
+            memoria = sinDinero
+        ).execute()
+        assertEquals(1, r.devueltasPorFoto)
+        assertEquals(0, sinDinero.n)
+
+        val sinFotos = MemoriaEnPrueba(n = 2)
+        uc(
+            FakeDeliveredVisitsStore(entregadas = listOf(a)),
+            dinero = DineroPendiente {
+                true
+            },
+            memoria = sinFotos
+        )
+            .execute()
+        assertEquals(0, sinFotos.n)
+    }
+
+    @Test
+    fun `E-APP-079 valvula con la memoria ilegible cuenta desde cero y lo reporta`() = runTest {
+        val rep = RecordingSyncErrorReporter()
+        val r = uc(
+            FakeDeliveredVisitsStore(
+                entregadas = listOf(a),
+                fotosSinEnviar = listOf(FotoSinEnviar(a, haceDias(1)))
+            ),
+            rep,
+            dinero = DineroPendiente { true },
+            memoria = MemoriaEnPrueba(n = 5, falla = true)
+        ).execute()
+        assertEquals("no abre la válvula a ciegas", 0, r.devueltasPorFoto)
+        assertEquals(1, r.barridoPospuestoSeguidas)
+        assertTrue(ERROR_CODE_MEMORIA_DE_POSPUESTO in rep.codes)
     }
 
     /** Si no se puede saber si hay dinero por subir, el barrido espera. */

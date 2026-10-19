@@ -112,6 +112,12 @@ object TelemetriaDeVisitas {
     /** Barrido: visitas con foto sin enviar que esta pasada no reabrió (tope o dinero). */
     const val CONC_VISITAS_FOTO_EN_ESPERA = "visitas.conciliacion.visitas_con_foto_en_espera"
 
+    /** Válvula: corridas seguidas con el barrido pospuesto por dinero (contando esta). */
+    const val CONC_BARRIDO_POSPUESTO_SEGUIDAS = "visitas.conciliacion.barrido_pospuesto_seguidas"
+
+    /** Válvula: 1 si el barrido corrió por encima del dinero, con tope de 2. */
+    const val CONC_BARRIDO_POR_VALVULA = "visitas.conciliacion.barrido_por_valvula"
+
     /** E-VIS-032: minutos desde la foto sin enviar más vieja (reloj del teléfono). Solo si hay. */
     const val CONC_FOTO_SIN_ENVIAR_MAS_VIEJA_MIN = "visitas.conciliacion.foto_sin_enviar_mas_vieja_min"
 
@@ -225,6 +231,8 @@ object TelemetriaDeVisitas {
         CONC_FOTO_SIN_ENVIAR_MAS_VIEJA_MIN,
         CONC_BARRIDO_POSPUESTO,
         CONC_VISITAS_FOTO_EN_ESPERA,
+        CONC_BARRIDO_POSPUESTO_SEGUIDAS,
+        CONC_BARRIDO_POR_VALVULA,
         RESGUARDADAS_POR_PODAR,
         GC_ESCRITAS,
         GC_CUENTAS,
@@ -288,7 +296,9 @@ object TelemetriaDeVisitas {
         CONC_FOTOS_SIN_ENVIAR to r.fotosSinEnviar,
         CONC_FOTOS_SIN_ENVIAR_VIEJAS to r.fotosSinEnviarViejas,
         CONC_BARRIDO_POSPUESTO to if (r.barridoPospuestoPorDinero) 1 else 0,
-        CONC_VISITAS_FOTO_EN_ESPERA to r.visitasConFotoEnEspera
+        CONC_VISITAS_FOTO_EN_ESPERA to r.visitasConFotoEnEspera,
+        CONC_BARRIDO_POSPUESTO_SEGUIDAS to r.barridoPospuestoSeguidas,
+        CONC_BARRIDO_POR_VALVULA to if (r.barridoPorValvula) 1 else 0
     )
 
     /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */

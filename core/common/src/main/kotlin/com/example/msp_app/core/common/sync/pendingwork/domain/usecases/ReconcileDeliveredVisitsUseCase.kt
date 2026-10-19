@@ -3,6 +3,7 @@ package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.MemoriaDeBarridoPospuesto
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
 import com.example.msp_app.core.common.time.AppTime
@@ -81,7 +82,20 @@ data class ConciliacionInversa(
      * el tope [ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_PASADA] o por
      * el dinero). Pasan a la siguiente; ninguna se abandona.
      */
-    val visitasConFotoEnEspera: Int = 0
+    val visitasConFotoEnEspera: Int = 0,
+    /**
+     * Válvula: corridas seguidas con el barrido pospuesto por dinero, contando
+     * esta. Vuelve a 0 cuando el barrido corre (normal o por la válvula) o no
+     * hay fotos que esperen.
+     */
+    val barridoPospuestoSeguidas: Int = 0,
+    /**
+     * Válvula: el barrido corrió aunque había dinero por subir, porque ya
+     * llevaba [ReconcileDeliveredVisitsUseCase.POSPUESTAS_ANTES_DE_LA_VALVULA]
+     * corridas pospuestas, con tope
+     * [ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_VALVULA].
+     */
+    val barridoPorValvula: Boolean = false
 )
 
 /**
@@ -141,6 +155,8 @@ class ReconcileDeliveredVisitsUseCase(
     private val errorReporter: SyncErrorReporter,
     /** Prioridad del dinero: con pagos o ventas por subir, el barrido no reabre nada. */
     private val dineroPendiente: DineroPendiente = DineroPendiente.NINGUNO,
+    /** Válvula: corridas seguidas pospuestas por dinero, entre corridas. */
+    private val memoriaDePospuesto: MemoriaDeBarridoPospuesto = MemoriaDeBarridoPospuesto.NINGUNA,
     private val clock: () -> Instant
 ) {
 
@@ -167,7 +183,9 @@ class ReconcileDeliveredVisitsUseCase(
             fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
             fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin,
             barridoPospuestoPorDinero = cuenta.pospuesto,
-            visitasConFotoEnEspera = cuenta.enEspera
+            visitasConFotoEnEspera = cuenta.enEspera,
+            barridoPospuestoSeguidas = cuenta.seguidas,
+            barridoPorValvula = cuenta.porValvula
         )
 
         val (validos, invalidos) = separarInvalidos(ids)
@@ -202,7 +220,9 @@ class ReconcileDeliveredVisitsUseCase(
             fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
             fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin,
             barridoPospuestoPorDinero = cuenta.pospuesto,
-            visitasConFotoEnEspera = cuenta.enEspera
+            visitasConFotoEnEspera = cuenta.enEspera,
+            barridoPospuestoSeguidas = cuenta.seguidas,
+            barridoPorValvula = cuenta.porValvula
         )
     }
 
@@ -232,6 +252,11 @@ class ReconcileDeliveredVisitsUseCase(
      * - **El dinero va primero.** Con pagos o ventas por subir
      *   ([DineroPendiente]) no reabre nada: cada visita reabierta es un `POST`
      *   multipart por la misma red. Si no se puede saber, tampoco.
+     * - **Válvula:** si ya lleva [POSPUESTAS_ANTES_DE_LA_VALVULA] corridas
+     *   seguidas pospuestas por dinero, la siguiente corre igual con tope
+     *   [MAX_DEVUELTAS_POR_VALVULA] y el contador vuelve a 0: un pago atorado
+     *   no pospone el barrido para siempre (con dinero atorado, 2 visitas cada
+     *   4 corridas).
      * - **Tope por pasada:** a lo más [MAX_DEVUELTAS_POR_PASADA] visitas, de la
      *   foto más vieja a la más nueva (por `CREADA_EN`; ilegible primero, luego
      *   id). El resto espera a la siguiente pasada; ninguna se abandona.
@@ -240,20 +265,33 @@ class ReconcileDeliveredVisitsUseCase(
         val fotos = attempt(ERROR_CODE_BARRIDO_ILEGIBLE, CONTEXT_BARRIDO) {
             store.fotosSinEnviarDeEntregadas()
         }?.filter { UUID_CANONICO.matches(it.visitaId) } ?: return
-        if (fotos.isEmpty()) return
-        contarEdades(fotos, ahora, cuenta)
-        val ids = deLaMasViejaALaMasNueva(fotos)
-        if (hayDineroPendiente()) {
-            cuenta.pospuesto = true
-            cuenta.enEspera += ids.size
-            errorReporter.report(
-                code = ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO,
-                message = "$CONTEXT_BARRIDO: hay pagos o ventas por subir; no se reabre nada",
-                props = mapOf(PROP_VISITAS to ids.size.toString())
-            )
+        if (fotos.isEmpty()) {
+            anotarSeguidas(0)
             return
         }
-        val tanda = ids.take(MAX_DEVUELTAS_POR_PASADA)
+        contarEdades(fotos, ahora, cuenta)
+        val ids = deLaMasViejaALaMasNueva(fotos)
+        var tope = MAX_DEVUELTAS_POR_PASADA
+        if (hayDineroPendiente()) {
+            val previas = leerSeguidas()
+            if (previas < POSPUESTAS_ANTES_DE_LA_VALVULA) {
+                cuenta.pospuesto = true
+                cuenta.enEspera += ids.size
+                cuenta.seguidas = previas + 1
+                anotarSeguidas(cuenta.seguidas)
+                errorReporter.report(
+                    code = ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO,
+                    message = "$CONTEXT_BARRIDO: hay pagos o ventas por subir; no se reabre nada",
+                    props = mapOf(PROP_VISITAS to ids.size.toString())
+                )
+                return
+            }
+            // Válvula: un pago atorado no pospone el barrido para siempre.
+            cuenta.porValvula = true
+            tope = MAX_DEVUELTAS_POR_VALVULA
+        }
+        anotarSeguidas(0)
+        val tanda = ids.take(tope)
         cuenta.enEspera += ids.size - tanda.size
         val devueltas = devolver(tanda, cuenta)
         if (devueltas > 0) {
@@ -274,6 +312,32 @@ class ReconcileDeliveredVisitsUseCase(
             }
             .sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
             .map { it.first }
+
+    /** Válvula: una memoria ilegible cuenta como 0 (no abre la válvula a ciegas) y se reporta. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun leerSeguidas(): Int = try {
+        memoriaDePospuesto.seguidas()
+    } catch (e: Exception) {
+        errorReporter.report(
+            ERROR_CODE_MEMORIA_DE_POSPUESTO,
+            "$CONTEXT_BARRIDO: ${e::class.simpleName}",
+            emptyMap()
+        )
+        0
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun anotarSeguidas(n: Int) {
+        try {
+            memoriaDePospuesto.anotar(n)
+        } catch (e: Exception) {
+            errorReporter.report(
+                ERROR_CODE_MEMORIA_DE_POSPUESTO,
+                "$CONTEXT_BARRIDO: ${e::class.simpleName}",
+                emptyMap()
+            )
+        }
+    }
 
     /** Si la lectura falla, se trata como "hay dinero": el barrido espera. */
     private suspend fun hayDineroPendiente(): Boolean =
@@ -351,6 +415,8 @@ class ReconcileDeliveredVisitsUseCase(
         var fotoSinEnviarMasViejaMin: Long? = null
         var pospuesto = false
         var enEspera = 0
+        var seguidas = 0
+        var porValvula = false
     }
 
     /** Ver el KDoc de clase: un id sin forma de UUID tumbaría su tanda entera con un 422. */
@@ -465,6 +531,18 @@ class ReconcileDeliveredVisitsUseCase(
          * residuo grande, que se vacía en varias pasadas.
          */
         const val MAX_DEVUELTAS_POR_PASADA: Int = 10
+
+        /**
+         * Válvula: con esta cantidad de corridas seguidas ya pospuestas por
+         * dinero, la siguiente corre igual, con tope [MAX_DEVUELTAS_POR_VALVULA].
+         */
+        const val POSPUESTAS_ANTES_DE_LA_VALVULA: Int = 3
+
+        /** Válvula: visitas que reabre la corrida que pasa por encima del dinero. */
+        const val MAX_DEVUELTAS_POR_VALVULA: Int = 2
+
+        /** Válvula: no se pudo leer o anotar la memoria de corridas pospuestas. */
+        const val ERROR_CODE_MEMORIA_DE_POSPUESTO: String = "visitas_reconcilia_memoria_de_pospuesto"
 
         /** Barrido: hay pagos o ventas por subir; esta pasada no reabre nada. */
         const val ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO: String = "visitas_reconcilia_barrido_pospuesto_por_dinero"
