@@ -21,6 +21,8 @@ import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.VisitScopeMapper
 import com.example.msp_app.core.utils.VisitStatusMapper
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
+import com.example.msp_app.data.api.services.cobranza.IdsResponse
+import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.SyncPagosResponse
 import com.example.msp_app.data.api.services.cobranza.SyncVentasResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
@@ -39,9 +41,12 @@ import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,13 +56,15 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
- * MEDICIÓN de E-APP-081 (no es un arreglo): `CobranzaSyncManager.mergeVentas`
- * no va en transacción. Lee la venta (`findByDoctoCcId`), suma lo no reconocido
- * (`sumImporteNoReconocidoPorElServidor`) y hace REPLACE (`insertAll`) copiando
- * `ESTADO_COBRANZA` de la fila que leyó.
+ * E-APP-081: `CobranzaSyncManager.mergeVentas` aplica cada venta en UNA
+ * transacción (lectura de la fila, suma de lo no reconocido, REPLACE y
+ * productos), y la reinserción de faltantes de `CobranzaReconciler`
+ * re-verifica dentro de su transacción que la venta siga faltando y resta lo
+ * que sigue en vuelo.
  *
  * Método:
  *  - Room REAL sobre archivo, con el builder de producción
@@ -66,22 +73,32 @@ import org.junit.Test
  *    con `SALDOS` (la ruta SSE by-ids), contra un API falso que devuelve el DTO.
  *  - La pausa NO toca producción: el manager recibe un [SaleDao]/[PaymentDao]
  *    envuelto por delegación de Kotlin que, DESPUÉS de que la lectura real
- *    devolvió, se detiene en un [CompletableDeferred]. En esa ventana el escritor
- *    real (abono, visita o condonación) confirma, y luego se suelta el merge.
+ *    devolvió, se detiene en un [CompletableDeferred]. Con el arreglo esa pausa
+ *    cae DENTRO de la transacción.
+ *  - El escritor real (abono, visita o condonación, SIN el candado del sync) se
+ *    lanza en paralelo mientras el merge está detenido. Se espera [ESPERA_MS] y
+ *    se anota si el escritor ya terminó: con la ventana cerrada debe seguir
+ *    bloqueado por la transacción. Luego se suelta el merge y se afirma.
  *  - El segundo merge (el "siguiente tick") usa un manager SIN pausa y el mismo
  *    DTO, por la misma ruta.
  *  - Control positivo: la misma secuencia sin pausa (escritor antes o después del
- *    merge completo) deja los valores correctos. Cada caso se repite
- *    [REPETICIONES] veces, cada vez con la base recién creada.
+ *    merge completo) deja los mismos valores correctos.
  *
- * Las afirmaciones de los casos con pausa fijan lo que se MIDIÓ, no lo deseable:
- * cuando se arregle E-APP-081 deben ponerse rojas y cambiarse por los valores del
- * control.
+ * Cada caso se repite [REPETICIONES] veces, cada vez con la base recién creada,
+ * y se afirma sobre las [REPETICIONES] observaciones (se imprimen todas antes).
+ *
+ * Medido sin el arreglo (base `37db01f4`): el abono, la condonación y las dos
+ * visitas perdían su efecto 20/20; ver el log de la rama.
  */
 class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var db: AppDatabase
+
+    @Before
+    fun byIdsDisponible() {
+        ByIdsChunker.byIdsAvailable.set(true)
+    }
 
     @After
     fun cerrarBase() {
@@ -89,137 +106,265 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         context.deleteDatabase(NOMBRE_DE_LA_BASE)
     }
 
-    // ─── H1: abono que confirma entre la suma y el REPLACE ──────────────────
+    // ─── H1: abono ──────────────────────────────────────────────────────────
 
     @Test
-    fun `EAPP081 H1 abono entre la suma y el REPLACE`() {
-        val obs = repetir("H1") {
-            val tras = carrera(pausaEnSuma = Pausa()) { abonar() }
-            Observacion(tras.first, tras.second)
-        }
-        imprimir("H1", obs)
-        // Correcto (control): 1230.0 / PAGADO tras ambos merges.
-        val o = obs.first()
-        obs.forEach { assertEquals(o, it) }
-        assertEquals(Fila(SALDO_SERVIDOR, PENDIENTE), o.first)
-        assertEquals(Fila(SALDO_SERVIDOR - ABONO, PENDIENTE), o.second)
+    fun `EAPP081 H1 abono entre la suma y el REPLACE no se pierde`() {
+        val obs = repetir("H1") { carreraDelMerge(pausaEnSuma = Pausa()) { abonar() } }
+        afirmar(
+            "H1",
+            obs,
+            Observacion(
+                true,
+                Fila(SALDO_SERVIDOR - ABONO, PAGADO),
+                Fila(SALDO_SERVIDOR - ABONO, PAGADO)
+            )
+        )
     }
 
-    /** H1, segunda ventana: el abono confirma entre la lectura de la fila y la suma. */
     @Test
-    fun `EAPP081 H1b abono entre la lectura de la fila y la suma`() {
-        val obs = repetir("H1b") {
-            val tras = carrera(pausaEnLectura = Pausa()) { abonar() }
-            Observacion(tras.first, tras.second)
-        }
-        imprimir("H1b", obs)
-        val o = obs.first()
-        obs.forEach { assertEquals(o, it) }
-        assertEquals(Fila(SALDO_SERVIDOR - ABONO, PENDIENTE), o.first)
-        assertEquals(Fila(SALDO_SERVIDOR - ABONO, PENDIENTE), o.second)
+    fun `EAPP081 H1b abono entre la lectura de la fila y la suma no se pierde`() {
+        val obs = repetir("H1b") { carreraDelMerge(pausaEnLectura = Pausa()) { abonar() } }
+        afirmar(
+            "H1b",
+            obs,
+            Observacion(
+                true,
+                Fila(SALDO_SERVIDOR - ABONO, PAGADO),
+                Fila(SALDO_SERVIDOR - ABONO, PAGADO)
+            )
+        )
     }
 
     @Test
     fun `EAPP081 H1 control abono antes o despues del merge completo`() {
-        val antes = repetir("H1-control-antes") { controlAntes { abonar() } }
-        val despues = repetir("H1-control-despues") { controlDespues { abonar() } }
-        imprimir("H1-control-antes", antes)
-        imprimir("H1-control-despues", despues)
         val correcto = Fila(SALDO_SERVIDOR - ABONO, PAGADO)
-        (antes + despues).forEach { assertEquals(Observacion(correcto, correcto), it) }
+        afirmar(
+            "H1-control-antes",
+            repetir("H1-control-antes") {
+                controlAntes { abonar() }
+            },
+            Observacion(null, correcto, correcto)
+        )
+        afirmar(
+            "H1-control-despues",
+            repetir("H1-control-despues") {
+                controlDespues { abonar() }
+            },
+            Observacion(null, correcto, correcto)
+        )
     }
 
-    // ─── H2: visita que cambia ESTADO_COBRANZA entre la lectura y el REPLACE ─
+    // ─── H2: visita que cambia ESTADO_COBRANZA ──────────────────────────────
 
     @Test
-    fun `EAPP081 H2 visita de alcance cliente entre la lectura y el REPLACE`() {
+    fun `EAPP081 H2 visita de alcance cliente entre la lectura y el REPLACE no se pierde`() {
         assertEquals(VisitScope.CLIENTE, VisitScopeMapper.map(Constants.NO_SE_ENCONTRABA, false))
+        val correcto = Fila(SALDO_SERVIDOR, VisitStatusMapper.map(Constants.NO_SE_ENCONTRABA).name)
+        assertEquals(EstadoCobranza.VOLVER_VISITAR.name, correcto.estado)
         val obs = repetir("H2-cliente") {
-            val tras = carrera(pausaEnLectura = Pausa()) { visitar(Constants.NO_SE_ENCONTRABA) }
-            Observacion(tras.first, tras.second)
+            carreraDelMerge(pausaEnLectura = Pausa()) { visitar(Constants.NO_SE_ENCONTRABA) }
         }
-        imprimir("H2-cliente", obs)
-        // Correcto (control): VOLVER_VISITAR tras ambos merges.
-        val o = obs.first()
-        obs.forEach { assertEquals(o, it) }
-        assertEquals(Fila(SALDO_SERVIDOR, PENDIENTE), o.first)
-        assertEquals(Fila(SALDO_SERVIDOR, PENDIENTE), o.second)
+        afirmar("H2-cliente", obs, Observacion(true, correcto, correcto))
     }
 
     @Test
-    fun `EAPP081 H2 visita de alcance venta entre la lectura y el REPLACE`() {
+    fun `EAPP081 H2 visita de alcance venta entre la lectura y el REPLACE no se pierde`() {
         assertEquals(VisitScope.VENTA, VisitScopeMapper.map(Constants.NO_VA_A_DAR_PAGO, false))
+        val correcto = Fila(SALDO_SERVIDOR, VisitStatusMapper.map(Constants.NO_VA_A_DAR_PAGO).name)
+        assertEquals(EstadoCobranza.NO_PAGADO.name, correcto.estado)
         val obs = repetir("H2-venta") {
-            val tras = carrera(pausaEnLectura = Pausa()) { visitar(Constants.NO_VA_A_DAR_PAGO) }
-            Observacion(tras.first, tras.second)
+            carreraDelMerge(pausaEnLectura = Pausa()) { visitar(Constants.NO_VA_A_DAR_PAGO) }
         }
-        imprimir("H2-venta", obs)
-        val o = obs.first()
-        obs.forEach { assertEquals(o, it) }
-        assertEquals(Fila(SALDO_SERVIDOR, PENDIENTE), o.first)
-        assertEquals(Fila(SALDO_SERVIDOR, PENDIENTE), o.second)
+        afirmar("H2-venta", obs, Observacion(true, correcto, correcto))
     }
 
     @Test
     fun `EAPP081 H2 control visita antes o despues del merge completo`() {
         for (tipo in listOf(Constants.NO_SE_ENCONTRABA, Constants.NO_VA_A_DAR_PAGO)) {
-            val esperado = VisitStatusMapper.map(tipo).name
-            val antes = repetir("H2-control-antes-$tipo") { controlAntes { visitar(tipo) } }
-            val despues = repetir("H2-control-despues-$tipo") { controlDespues { visitar(tipo) } }
-            imprimir("H2-control-antes-$tipo", antes)
-            imprimir("H2-control-despues-$tipo", despues)
-            val correcto = Fila(SALDO_SERVIDOR, esperado)
-            (antes + despues).forEach { assertEquals(Observacion(correcto, correcto), it) }
+            val correcto = Fila(SALDO_SERVIDOR, VisitStatusMapper.map(tipo).name)
+            afirmar(
+                "H2-control-antes-$tipo",
+                repetir("H2-control-antes-$tipo") {
+                    controlAntes { visitar(tipo) }
+                },
+                Observacion(null, correcto, correcto)
+            )
+            afirmar(
+                "H2-control-despues-$tipo",
+                repetir("H2-control-despues-$tipo") {
+                    controlDespues { visitar(tipo) }
+                },
+                Observacion(null, correcto, correcto)
+            )
         }
     }
 
-    // ─── H3: condonación entre la suma y el REPLACE ─────────────────────────
+    // ─── H3: condonación ────────────────────────────────────────────────────
 
     @Test
-    fun `EAPP081 H3 condonacion entre la suma y el REPLACE`() {
-        val obs = repetir("H3") {
-            val tras = carrera(pausaEnSuma = Pausa()) { condonar() }
-            Observacion(tras.first, tras.second)
-        }
-        imprimir("H3", obs)
-        // Correcto (control): 1150.0 / PAGADO tras ambos merges.
-        val o = obs.first()
-        obs.forEach { assertEquals(o, it) }
-        assertEquals(Fila(SALDO_SERVIDOR, PENDIENTE), o.first)
-        assertEquals(Fila(SALDO_SERVIDOR - CONDONADO, PENDIENTE), o.second)
+    fun `EAPP081 H3 condonacion entre la suma y el REPLACE no se pierde`() {
+        val obs = repetir("H3") { carreraDelMerge(pausaEnSuma = Pausa()) { condonar() } }
+        afirmar(
+            "H3",
+            obs,
+            Observacion(
+                true,
+                Fila(SALDO_SERVIDOR - CONDONADO, PAGADO),
+                Fila(SALDO_SERVIDOR - CONDONADO, PAGADO)
+            )
+        )
     }
 
     @Test
     fun `EAPP081 H3 control condonacion antes o despues del merge completo`() {
-        val antes = repetir("H3-control-antes") { controlAntes { condonar() } }
-        val despues = repetir("H3-control-despues") { controlDespues { condonar() } }
-        imprimir("H3-control-antes", antes)
-        imprimir("H3-control-despues", despues)
         val correcto = Fila(SALDO_SERVIDOR - CONDONADO, PAGADO)
-        (antes + despues).forEach { assertEquals(Observacion(correcto, correcto), it) }
+        afirmar(
+            "H3-control-antes",
+            repetir("H3-control-antes") {
+                controlAntes { condonar() }
+            },
+            Observacion(null, correcto, correcto)
+        )
+        afirmar(
+            "H3-control-despues",
+            repetir("H3-control-despues") {
+                controlDespues { condonar() }
+            },
+            Observacion(null, correcto, correcto)
+        )
+    }
+
+    // ─── R: reinserción de faltantes del reconciliador ──────────────────────
+
+    /**
+     * La venta falta cuando el reconciliador lista los ids locales; en la
+     * ventana (antes de la red) otro escritor reescribe `sales` con una foto
+     * que la trae (`replaceAll`, como "inicio de semana") y el cobrador abona.
+     * La reinserción debe ver que ya no falta y no pisar el abono.
+     */
+    @Test
+    fun `EAPP081 R reinsercion de faltantes no pisa la venta que volvio con un abono`() {
+        val obs = repetir("R-foto-vieja") {
+            db.saleDao().deleteByDoctoCcId(VENTA)
+            val pausa = Pausa()
+            val tras = carrera(
+                proceso = { reconciliar(pausa) },
+                pausa = pausa,
+                escritor = {
+                    db.saleDao().replaceAll(listOf(DTO.toEntity()))
+                    abonar()
+                }
+            )
+            Observacion(null, tras, leer())
+        }
+        val correcto = Fila(SALDO_SERVIDOR - ABONO, PAGADO)
+        afirmar("R-foto-vieja", obs, Observacion(null, correcto, correcto))
+    }
+
+    /**
+     * La venta falta y tiene un abono en vuelo (capturado, sin documento del
+     * servidor). La fila que reinserta el reconciliador debe restarlo, con la
+     * misma fórmula que `mergeVentas`.
+     */
+    @Test
+    fun `EAPP081 R reinsercion de faltantes resta lo que sigue en vuelo`() {
+        val obs = repetir("R-en-vuelo") {
+            abonar()
+            db.saleDao().deleteByDoctoCcId(VENTA)
+            reconciliar(null)
+            Observacion(null, leer(), leer())
+        }
+        val correcto = Fila(SALDO_SERVIDOR - ABONO, PENDIENTE)
+        afirmar("R-en-vuelo", obs, Observacion(null, correcto, correcto))
+    }
+
+    @Test
+    fun `EAPP081 R control reinsercion sin escritor`() {
+        val obs = repetir("R-control") {
+            db.saleDao().deleteByDoctoCcId(VENTA)
+            reconciliar(null)
+            Observacion(null, leer(), leer())
+        }
+        val correcto = Fila(SALDO_SERVIDOR, PENDIENTE)
+        afirmar("R-control", obs, Observacion(null, correcto, correcto))
+    }
+
+    // ─── Espera del abono mientras el sync aplica una página de 1000 ventas ──
+
+    /**
+     * Medición (n=[REPETICIONES]): cuánto espera un abono real, lanzado mientras
+     * `syncNow` aplica una página de 1000 ventas venta por venta en transacción.
+     * Imprime p50/p95/máx en microsegundos. Afirma sólo lo que no es tiempo: el
+     * abono se registra, el sync termina bien y la venta queda 1230/PAGADO.
+     */
+    @Test
+    fun `EAPP081 espera de un abono durante el merge de una pagina de 1000 ventas`() {
+        val esperas = mutableListOf<Long>()
+        var solapados = 0
+        val finales = mutableListOf<Fila>()
+        repeat(REPETICIONES) { i ->
+            abrirBaseNueva()
+            runBlocking(Dispatchers.IO) {
+                withTimeout(TIEMPO_MAXIMO_MS * 3) {
+                    val aplicando = CompletableDeferred<Unit>()
+                    val m = managerDePagina(SaleDaoQueAvisaAlAplicar(db.saleDao(), aplicando))
+                    val sync = async(Dispatchers.IO) { m.syncNow() }
+                    aplicando.await()
+                    val t0 = System.nanoTime()
+                    val r = abonar("abono-eapp081-pagina-$i")
+                    esperas += (System.nanoTime() - t0) / NANOS_POR_MICRO
+                    if (!sync.isCompleted) solapados++
+                    val out = sync.await()
+                    assertTrue("sync: $out", out is SyncOutcome.Ok)
+                    assertEquals(ResultadoDelAbono.REGISTRADO, r)
+                    finales += leer()
+                }
+            }
+        }
+        val s = esperas.sorted()
+        println("EAPP081 espera_abono_us=$esperas")
+        println(
+            "EAPP081 espera_abono_us p50=${percentil(s, 50)} p95=${percentil(s, 95)} " +
+                "max=${s.last()} n=${s.size} abono_termino_con_el_sync_corriendo=$solapados/$REPETICIONES"
+        )
+        finales.forEach { assertEquals(Fila(SALDO_SERVIDOR - ABONO, PAGADO), it) }
     }
 
     // ─── Arnés ──────────────────────────────────────────────────────────────
 
     private data class Fila(val saldo: Double, val estado: String)
 
-    /** `first` = justo después del merge con la ventana; `second` = tras el 2o merge. */
-    private data class Observacion(val first: Fila, val second: Fila)
+    /**
+     * [ventanaCerrada]: el escritor seguía sin terminar [ESPERA_MS] después de
+     * lanzarse con el proceso detenido (null = el caso no lo mide).
+     * [trasProceso] = justo después del proceso con la ventana; [trasSegundo] =
+     * tras el 2o merge.
+     */
+    private data class Observacion(
+        val ventanaCerrada: Boolean?,
+        val trasProceso: Fila,
+        val trasSegundo: Fila
+    )
 
     /** Corre [cuerpo] [REPETICIONES] veces, cada una con la base recién creada. */
     private fun repetir(caso: String, cuerpo: suspend () -> Observacion): List<Observacion> =
         (1..REPETICIONES).map {
             abrirBaseNueva()
             runBlocking(Dispatchers.IO) { withTimeout(TIEMPO_MAXIMO_MS) { cuerpo() } }
-        }.also { println("EAPP081 $caso corridas=${it.size}/$REPETICIONES") }
+        }
 
-    private fun imprimir(caso: String, obs: List<Observacion>) {
-        obs.forEachIndexed { i, o ->
+    /** Imprime las [REPETICIONES] observaciones agrupadas y luego afirma cada una. */
+    private fun afirmar(caso: String, obs: List<Observacion>, correcto: Observacion) {
+        obs.groupingBy { it }.eachCount().forEach { (o, n) ->
             println(
-                "EAPP081 $caso #${i + 1} tras_replace=${o.first.saldo}/${o.first.estado} " +
-                    "tras_2o_merge=${o.second.saldo}/${o.second.estado}"
+                "EAPP081 $caso $n/${obs.size} ventana_cerrada=${o.ventanaCerrada} " +
+                    "tras_proceso=${o.trasProceso.saldo}/${o.trasProceso.estado} " +
+                    "tras_2o_merge=${o.trasSegundo.saldo}/${o.trasSegundo.estado}"
             )
         }
+        assertEquals(REPETICIONES, obs.size)
+        obs.forEachIndexed { i, o -> assertEquals("$caso repetición ${i + 1}", correcto, o) }
     }
 
     private fun abrirBaseNueva() {
@@ -230,26 +375,49 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
     }
 
     /**
-     * Arranca el merge con la pausa puesta, espera a que llegue a ella, confirma
-     * [escritor] por su camino real, suelta, y lee. Luego un segundo merge sin
-     * pausa con el mismo DTO, y vuelve a leer.
+     * Arranca [proceso] (que se detiene en [pausa]), lanza [escritor] en
+     * paralelo, espera [ESPERA_MS] y anota en [ventana] si el escritor ya
+     * terminó; suelta y espera a los dos. Devuelve la fila tras ambos.
      */
     private suspend fun carrera(
+        proceso: suspend () -> Unit,
+        pausa: Pausa,
+        escritor: suspend () -> Unit,
+        ventana: (Boolean) -> Unit = {}
+    ): Fila = coroutineScope {
+        val p = async(Dispatchers.IO) { proceso() }
+        pausa.llego.await()
+        val w = async(Dispatchers.IO) { escritor() }
+        delay(ESPERA_MS)
+        ventana(!w.isCompleted)
+        assertTrue("el proceso sigue detenido mientras el escritor intenta", !p.isCompleted)
+        pausa.suelta.complete(Unit)
+        p.await()
+        w.await()
+        leer()
+    }
+
+    /** La carrera contra `mergeVentas`, seguida del 2o merge sin pausa. */
+    private suspend fun carreraDelMerge(
         pausaEnLectura: Pausa? = null,
         pausaEnSuma: Pausa? = null,
         escritor: suspend () -> Unit
-    ): Pair<Fila, Fila> = kotlinx.coroutines.coroutineScope {
+    ): Observacion {
         val pausa = checkNotNull(pausaEnLectura ?: pausaEnSuma)
-        val conPausa = manager(pausaEnLectura, pausaEnSuma)
-        val merge = async(Dispatchers.IO) { conPausa.applyByIds(SseKind.SALDOS, listOf(VENTA)) }
-        pausa.llego.await()
-        escritor()
-        assertTrue("el merge sigue detenido mientras escribe el otro", !merge.isCompleted)
-        pausa.suelta.complete(Unit)
-        merge.await()
-        val trasReplace = leer()
+        var cerrada = false
+        val tras = carrera(
+            proceso = {
+                manager(
+                    pausaEnLectura,
+                    pausaEnSuma
+                ).applyByIds(SseKind.SALDOS, listOf(VENTA))
+            },
+            pausa = pausa,
+            escritor = escritor,
+            ventana = { cerrada = it }
+        )
         manager().applyByIds(SseKind.SALDOS, listOf(VENTA))
-        trasReplace to leer()
+        return Observacion(cerrada, tras, leer())
     }
 
     private suspend fun controlAntes(escritor: suspend () -> Unit): Observacion {
@@ -257,7 +425,7 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         manager().applyByIds(SseKind.SALDOS, listOf(VENTA))
         val uno = leer()
         manager().applyByIds(SseKind.SALDOS, listOf(VENTA))
-        return Observacion(uno, leer())
+        return Observacion(null, uno, leer())
     }
 
     private suspend fun controlDespues(escritor: suspend () -> Unit): Observacion {
@@ -265,13 +433,17 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         escritor()
         val uno = leer()
         manager().applyByIds(SseKind.SALDOS, listOf(VENTA))
-        return Observacion(uno, leer())
+        return Observacion(null, uno, leer())
     }
 
     private suspend fun leer(): Fila {
-        val v = checkNotNull(db.saleDao().findByDoctoCcId(VENTA))
+        val v = checkNotNull(db.saleDao().findByDoctoCcId(VENTA)) { "la venta no está" }
         return Fila(v.SALDO_REST, v.ESTADO_COBRANZA)
     }
+
+    private fun contexto() = MutableStateFlow<UserContext?>(
+        UserContext(zona = ZONA, fechaCargaInicial = null)
+    ).asStateFlow()
 
     private fun manager(lectura: Pausa? = null, suma: Pausa? = null) = CobranzaSyncManager(
         api = ApiQueDevuelveElDto,
@@ -281,16 +453,41 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         productDao = db.productDao(),
         syncStateDao = db.cobranzaSyncStateDao(),
         connectivity = SiempreEnLinea(context),
+        userContextFlow = contexto(),
+        cobranzaWriteMutex = CobranzaWriteMutex()
+    )
+
+    private fun managerDePagina(saleDao: SaleDao) = CobranzaSyncManager(
+        api = ApiDePaginas,
+        db = db,
+        saleDao = saleDao,
+        paymentDao = db.paymentDao(),
+        productDao = db.productDao(),
+        syncStateDao = db.cobranzaSyncStateDao(),
+        connectivity = SiempreEnLinea(context),
         userContextFlow = MutableStateFlow<UserContext?>(
-            UserContext(zona = ZONA, fechaCargaInicial = null)
+            UserContext(zona = ZONA, fechaCargaInicial = Instant.parse("2026-10-11T00:00:00Z"))
         ).asStateFlow(),
         cobranzaWriteMutex = CobranzaWriteMutex()
     )
 
-    // ─── Escritores reales ──────────────────────────────────────────────────
+    private suspend fun reconciliar(pausa: Pausa?) {
+        val out = CobranzaReconciler(
+            api = ApiQueReconcilia,
+            db = db,
+            saleDao = SaleDaoQuePausaEnLaSegundaLista(db.saleDao(), pausa),
+            paymentDao = db.paymentDao(),
+            connectivity = SiempreEnLinea(context),
+            userContextFlow = contexto(),
+            cobranzaWriteMutex = CobranzaWriteMutex()
+        ).reconcileNow()
+        assertTrue("reconcile: $out", out is ReconcileOutcome.Ok)
+    }
+
+    // ─── Escritores reales (ninguno toma el candado del sync) ───────────────
 
     /** El abono por el adaptador de producción (`withTransaction` + `updateTotal`). */
-    private suspend fun abonar() {
+    private suspend fun abonar(id: String = "abono-eapp081-0001"): ResultadoDelAbono {
         val adaptador = RegistroDeAbonoAdapter(
             db = db,
             saleDao = db.saleDao(),
@@ -304,13 +501,14 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         )
         val r = adaptador.registrar(
             AbonoARegistrar(
-                abonoId = "abono-eapp081-0001",
+                abonoId = id,
                 ventaId = VENTA,
                 importe = Money.of(BigDecimal("220.00")),
                 metodo = MetodoDeCobro.EFECTIVO
             )
         )
         assertEquals(ResultadoDelAbono.REGISTRADO, r)
+        return r
     }
 
     /**
@@ -348,6 +546,12 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         )
         assertEquals(ResultadoDeLaCondonacion.GUARDADA, r)
     }
+
+    private fun percentil(ordenados: List<Long>, p: Int): Long = ordenados[
+        kotlin.math.ceil(
+            p / 100.0 * (ordenados.size - 1)
+        ).toInt().coerceIn(0, ordenados.size - 1)
+    ]
 
     // ─── Dobles (fakes a mano, sin MockK) ───────────────────────────────────
 
@@ -387,6 +591,34 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         }
     }
 
+    /**
+     * La 1a llamada es el pre-check de digest de `reconcileNow`; la 2a es la
+     * lista local de `reconcileSaldosViaIds`, ANTES de ir a la red. Ahí se detiene.
+     */
+    private class SaleDaoQuePausaEnLaSegundaLista(
+        private val real: SaleDao,
+        private val pausa: Pausa?
+    ) : SaleDao by real {
+        private val llamadas = AtomicInteger()
+        override suspend fun getActiveIdsByZona(zonaId: Int): List<Int> {
+            val ids = real.getActiveIdsByZona(zonaId)
+            if (llamadas.incrementAndGet() == 2) pausa?.aqui()
+            return ids
+        }
+    }
+
+    /** Avisa (sin detener) cuando el sync ya va por la venta número [AVISO_EN] de la página. */
+    private class SaleDaoQueAvisaAlAplicar(
+        private val real: SaleDao,
+        private val aplicando: CompletableDeferred<Unit>
+    ) : SaleDao by real {
+        private val n = AtomicInteger()
+        override suspend fun findByDoctoCcId(doctoCcId: Int): SaleEntity? {
+            if (n.incrementAndGet() == AVISO_EN) aplicando.complete(Unit)
+            return real.findByDoctoCcId(doctoCcId)
+        }
+    }
+
     private class SiempreEnLinea(context: Context) : ConnectivityMonitor(context) {
         override fun isNetworkAvailable(): Boolean = true
         override val isConnected: Flow<Boolean> = flowOf(true)
@@ -401,9 +633,9 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
     }
 
     /** El servidor todavía no sabe del abono/condonación: devuelve siempre el mismo DTO. */
-    private object ApiQueDevuelveElDto : V2CobranzaApi {
+    private open class ApiFija : V2CobranzaApi {
         override suspend fun saldosByIds(zonaId: Int, ids: String): List<VentaDto> = listOf(DTO)
-        override suspend fun pagosByIds(zonaId: Int, ids: String) = error("no se usa")
+        override suspend fun pagosByIds(zonaId: Int, ids: String): List<PagoDto> = emptyList()
         override suspend fun syncVentas(
             zonaId: Int,
             cursor: String?,
@@ -422,16 +654,67 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
             error("no se usa")
         override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse =
             error("no se usa")
-        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
-            error("no se usa")
+        override suspend fun listPagoIds(
+            zonaId: Int,
+            after: Int,
+            limit: Int,
+            desde: String?
+        ): IdsResponse = error("no se usa")
+        override suspend fun listSaldoIds(
+            zonaId: Int,
+            after: Int,
+            limit: Int,
+            desde: String?
+        ): IdsResponse = error("no se usa")
+    }
+
+    private object ApiQueDevuelveElDto : ApiFija()
+
+    /** Digest de pagos igual al local (vacío); el de saldos distinto; `/ids` trae la venta. */
+    private object ApiQueReconcilia : ApiFija() {
+        override suspend fun pagosDigest(zonaId: Int, desde: String?) =
+            DigestResponse(0, "0", "0", null)
+        override suspend fun saldosDigest(zonaId: Int, desde: String?) =
+            DigestResponse(1, VENTA.toString(), VENTA.toString(), null)
         override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
-            error("no se usa")
+            IdsResponse(listOf(VENTA), false)
+    }
+
+    /** Una página de 1000 pagos y una de 1000 ventas (la primera es [DTO]). */
+    private object ApiDePaginas : ApiFija() {
+        override suspend fun syncPagos(
+            zonaId: Int,
+            cursor: String?,
+            afterId: Int,
+            limit: Int,
+            desde: String?
+        ) = SyncPagosResponse(
+            PAGOS_PAGINA,
+            "2026-10-18T17:00:00.000000Z",
+            "2026-10-18T17:00:01Z",
+            false
+        )
+        override suspend fun syncVentas(
+            zonaId: Int,
+            cursor: String?,
+            afterId: Int,
+            limit: Int,
+            desde: String?
+        ) = SyncVentasResponse(
+            VENTAS_PAGINA,
+            "2026-10-18T17:00:00.000000Z",
+            "2026-10-18T17:00:01Z",
+            false
+        )
     }
 
     private companion object {
         const val NOMBRE_DE_LA_BASE = "msp_db"
-        const val REPETICIONES = 10
-        const val TIEMPO_MAXIMO_MS = 20_000L
+        const val REPETICIONES = 20
+        const val TIEMPO_MAXIMO_MS = 30_000L
+        const val ESPERA_MS = 300L
+        const val AVISO_EN = 2
+        const val NANOS_POR_MICRO = 1_000L
         const val VENTA = CondonacionFixtures.VENTA
         const val CLIENTE = 4821
         const val ZONA = 21
@@ -450,29 +733,29 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
             COBRADOR_ID = 77
         )
 
-        val DTO = VentaDto(
-            docto_cc_id = VENTA,
+        fun venta(id: Int, cliente: Int, saldo: String, folio: String) = VentaDto(
+            docto_cc_id = id,
             docto_pv_id = null,
-            cliente_id = CLIENTE,
+            cliente_id = cliente,
             zona_cliente_id = ZONA,
-            folio = "Y00013662",
+            folio = folio,
             fecha_cargo = "2026-02-15T00:00:00Z",
             fecha_venta = null,
             precio_total = "3500.00",
             total_importe = "3500.00",
-            impte_rest = "1450.00",
-            saldo = "1450.00",
+            impte_rest = saldo,
+            saldo = saldo,
             num_pagos = 10,
             fecha_ult_pago = null,
             cargo_cancelado = false,
             updated_at = "2026-10-18T17:00:00.000000Z",
-            cliente_nombre = "Cliente de prueba",
+            cliente_nombre = "Maria Guadalupe Hernandez Lopez",
             limite_credito = null,
             cliente_notas = "",
             cobrador_id = 77,
             nombre_cobrador = "Cobrador de prueba",
             zona_nombre = "R/21",
-            calle = "Calle de prueba 1",
+            calle = "Av. Reforma 214",
             ciudad = "Tehuacan",
             estado = "Puebla",
             telefono = "",
@@ -487,5 +770,45 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
             vendedor_3 = "",
             frec_pago = "SEMANAL"
         )
+
+        val DTO = venta(VENTA, CLIENTE, "1450.00", "Y00013662")
+
+        val VENTAS_PAGINA: List<VentaDto> = (0 until 1000).map { i ->
+            if (i == 0) {
+                DTO
+            } else {
+                venta(
+                    9_000_000 + i,
+                    50_000 + i / 2,
+                    "%d.00".format(500 + (i % 30) * 100),
+                    "Y%08d".format(20_000 + i)
+                )
+            }
+        }
+
+        val PAGOS_PAGINA: List<PagoDto> = (0 until 1000).map { i ->
+            val v = VENTAS_PAGINA[i]
+            PagoDto(
+                impte_docto_cc_id = 80_000_000 + i,
+                docto_cc_id = 70_100_000 + i,
+                docto_cc_acr_id = v.docto_cc_id,
+                cliente_id = v.cliente_id,
+                zona_cliente_id = ZONA,
+                folio = "P%08d".format(i),
+                concepto_cc_id = 87327,
+                fecha = "2026-10-1${i % 8}T16:00:00Z",
+                importe = "150.00",
+                impuesto = "0",
+                lat = "18.46",
+                lon = "-97.39",
+                cancelado = false,
+                aplicado = true,
+                updated_at = "2026-10-18T17:00:00.000000Z",
+                cobrador = "Cobrador de prueba",
+                cobrador_id = 77,
+                nombre_cliente = "Maria Guadalupe Hernandez Lopez",
+                forma_cobro_id = 157
+            )
+        }
     }
 }
