@@ -85,6 +85,37 @@ class VisitDaoCompromisoTest : RoomTestBase() {
             assertNull(dao.findVisitById("b")!!.COMPROMISO_RESGUARDADO_EN)
         }
 
+    /**
+     * E-APP-099 (observación A del revisor de la Tarea 14): la reconciliación
+     * inversa no encontró la visita en el servidor y la devuelve a la cola. Si
+     * el servidor la perdió, perdió también su compromiso: la marca no puede
+     * seguir afirmándolo. Si se reenvía por contrato 2 (bajó la capacidad), el
+     * compromiso tiene que volver a quedar por rellenar.
+     */
+    @Test
+    fun `E-APP-099 devolverAPendiente limpia las marcas del compromiso y lo deja por rellenar`() =
+        runTest {
+            dao.insertVisit(visita("confirmado", promesa = "2026-10-20"))
+            dao.confirmarTrasSubida("confirmado", T1)
+            dao.confirmarCompromiso("confirmado", T1)
+            dao.insertVisit(visita("resguardado", cita = "2026-10-21"))
+            dao.confirmarTrasSubida("resguardado", T1)
+            dao.resguardarCompromiso("resguardado", T1)
+            // Control positivo: con las marcas puestas, nada está por rellenar.
+            assertEquals(emptyList<String>(), dao.compromisosPorRellenar())
+
+            assertEquals(2, dao.devolverAPendiente(listOf("confirmado", "resguardado")))
+
+            listOf("confirmado", "resguardado").forEach { id ->
+                val v = dao.findVisitById(id)!!
+                assertNull("$id COMPROMISO_CONFIRMADO_EN", v.COMPROMISO_CONFIRMADO_EN)
+                assertNull("$id COMPROMISO_RESGUARDADO_EN", v.COMPROMISO_RESGUARDADO_EN)
+                assertNull(v.CONFIRMADA_EN)
+                assertEquals(0, v.GUARDADO_EN_MICROSIP)
+            }
+            assertEquals(listOf("confirmado", "resguardado"), dao.compromisosPorRellenar().sorted())
+        }
+
     @Test
     fun `las lecturas de Visit devuelven las dos marcas del compromiso`() = runTest {
         dao.insertVisit(visita("a", promesa = "2026-10-20").copy(COMPROMISO_CONFIRMADO_EN = T1))

@@ -18,10 +18,12 @@ import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import com.example.msp_app.data.api.services.visits.CapacidadesDTO
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
 import com.example.msp_app.data.api.services.visits.VisitaDetalleDTO
+import com.example.msp_app.data.api.services.visits.VisitaExistenteDTO
 import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.visit.Visit
@@ -130,6 +132,13 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
 
         override suspend fun obtenerVisita(id: String): VisitaDetalleDTO =
             throw AssertionError("no se esperaba GET")
+
+        override suspend fun capacidades(): CapacidadesDTO = throw AssertionError("no")
+
+        override suspend fun visitasExistentesPorIdsDetalle(
+            ids: String,
+            detalle: Int
+        ): List<VisitaExistenteDTO> = throw AssertionError("no")
     }
 
     private fun escenarios() = listOf(

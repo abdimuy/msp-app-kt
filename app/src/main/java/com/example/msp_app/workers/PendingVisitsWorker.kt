@@ -8,9 +8,12 @@ import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.visitas.envio.CompromisoLocal
+import com.example.msp_app.core.common.visitas.envio.Existencia
 import com.example.msp_app.core.common.visitas.envio.ResultadoGet
 import com.example.msp_app.core.common.visitas.envio.SalidaDeEnvio
 import com.example.msp_app.core.common.visitas.envio.VisitaEnServidor
+import com.example.msp_app.core.common.visitas.envio.compromisoProbado
 import com.example.msp_app.core.common.visitas.envio.existenciaCompleta
 import com.example.msp_app.core.common.visitas.envio.salidaTras2xx
 import com.example.msp_app.core.common.visitas.envio.salidaTrasError
@@ -25,12 +28,17 @@ import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
 import com.example.msp_app.core.network.diagnostico.EnvioObservado
 import com.example.msp_app.core.network.diagnostico.FalloDeEnvio
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
+import com.example.msp_app.core.visitas.capacidades.Capacidades
+import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
+import com.example.msp_app.data.api.services.visits.VisitaDTO
 import com.example.msp_app.data.api.services.visits.VisitsApi
+import com.example.msp_app.data.api.services.visits.compromiso
+import com.example.msp_app.data.api.services.visits.compromisoLocal
 import com.example.msp_app.data.api.services.visits.toCrearVisitaBody
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.visit.toDomain
@@ -92,6 +100,24 @@ import retrofit2.HttpException
  * salida, una cancelación de WorkManager no deja la marca a medias. Con el
  * kill-switch en `v2_actual` corre [uploadV2] intacto (el modo de reversa).
  *
+ * ## Contrato de visitas 3: el compromiso (plan visitas P2, Tarea 15)
+ *
+ * La promesa y la cita viajan con la visita SOLO si [capacidades] dice
+ * `contrato >= 3 && compromisos` (E-APP-097); si no, el cuerpo es el de
+ * siempre y el compromiso se queda en Room con `COMPROMISO_CONFIRMADO_EN` nulo,
+ * por rellenar cuando el servidor lo acepte. La prueba del compromiso es
+ * aparte de la de la visita (E-APP-098):
+ *  - envío normal: la visita base se suelta como antes; el compromiso se marca
+ *    confirmado solo si la respuesta (o el GET) trae cada bloque local igual.
+ *    Tras un error, la existencia completa exige además los bloques iguales
+ *    (spec §4.2-3): "existencia sin compromiso no suelta".
+ *  - relleno ([rellenarCompromiso]): la visita ya está confirmada y su
+ *    compromiso no; se reenvía con el mismo id y solo se escriben las marcas
+ *    del compromiso. `CONFIRMADA_EN` no se toca (E-VIS-028).
+ *  - un 422 con custodia (p. ej. `visita_compromiso_distinto`, E-VIS-047) con la
+ *    visita base completa en el servidor → base confirmada y compromiso
+ *    resguardado; la visita base nunca se desconfirma.
+ *
  * The injected seams (defaulted to production) let unit tests drive the worker
  * without WorkManager, Firebase, or a real network.
  */
@@ -124,7 +150,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
     internal val modo: () -> ModoEnvioVisitas = { FirestoreModoEnvioVisitas.actual },
     /** Únicos escritores de `CONFIRMADA_EN`/`RESGUARDADA_EN` (Tarea 8). */
     @VisibleForTesting
-    internal val visitDao: VisitDao = AppDatabase.getInstance(appContext).visitDao()
+    internal val visitDao: VisitDao = AppDatabase.getInstance(appContext).visitDao(),
+    /**
+     * La capacidad negociada (E-APP-097), leída en cada corrida. Solo la lee:
+     * la refresca `VisitsReconcileWorker`.
+     */
+    @VisibleForTesting
+    internal val capacidades: () -> Capacidades = { CapacidadesDeVisitas.de(appContext).actual() }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -173,12 +205,23 @@ class PendingVisitsWorker @JvmOverloads constructor(
     }
 
     private suspend fun enviarV3(visit: VisitEntity): Result {
-        // Spec §4.2-1: lo ya probado no se vuelve a mandar.
+        val conCompromisos = capacidades().mandaCompromisos()
+        val compromiso = visit.compromisoLocal()
+        // Spec §4.2-1: lo ya probado no se vuelve a mandar. Con contrato 3, una
+        // visita confirmada cuyo compromiso no tiene prueba ni resguardo es
+        // relleno (spec §5.2.5): solo el compromiso viaja de nuevo.
         if (visit.CONFIRMADA_EN != null || visit.RESGUARDADA_EN != null) {
+            if (visit.CONFIRMADA_EN != null && conCompromisos && compromiso != null &&
+                visit.COMPROMISO_CONFIRMADO_EN == null && visit.COMPROMISO_RESGUARDADO_EN == null
+            ) {
+                return rellenarCompromiso(visit, compromiso)
+            }
             anotar(visit.ID, null)
             Log.i(TAG, "Visita ${visit.ID} ya confirmada o resguardada; no se vuelve a mandar")
             return Result.success()
         }
+        // El compromiso que viaja en ESTE envío: solo con contrato 3 (E-APP-097).
+        val enviado = compromiso.takeIf { conCompromisos }
         // Un fallo de LECTURA no se traga (ver `comprobantesDe`): no se manda nada.
         val pendientes = fotosPendientesDe(visit)
             ?: return Result.retry().also {
@@ -187,12 +230,141 @@ class PendingVisitsWorker @JvmOverloads constructor(
             }
         val comprobantes = partesDeComprobantesDeVisita(pendientes)
         val respuesta = try {
-            enviar(visit, comprobantes)
+            enviar(visit, comprobantes, conCompromisos)
         } catch (e: HttpException) {
-            val custodia = !e.response()?.headers()?.get(HEADER_INTENT_CAPTURED).isNullOrBlank()
-            return trasError(visit, pendientes, e.code(), custodia) { anotarHttp(visit.ID, e) }
+            return trasError(
+                visit,
+                pendientes,
+                e.code(),
+                custodiaDe(e),
+                enviado
+            ) { anotarHttp(visit.ID, e) }
         }
-        return tras2xx(visit, comprobantes, pendientes, respuesta.id)
+        return tras2xx(visit, comprobantes, pendientes, respuesta, enviado)
+    }
+
+    private fun custodiaDe(e: HttpException): Boolean =
+        !e.response()?.headers()?.get(HEADER_INTENT_CAPTURED).isNullOrBlank()
+
+    // ─── relleno del compromiso (spec visitas §5.2.5, E-APP-098) ───────────
+
+    /**
+     * La visita ya está confirmada y su [compromiso] no: se reenvía con el mismo
+     * id y el cuerpo de contrato 3, en JSON (las fotos ya viajaron con la visita
+     * base, o las devuelve a pendiente el barrido de E-APP-079). Solo escribe
+     * las marcas del compromiso.
+     */
+    private suspend fun rellenarCompromiso(
+        visit: VisitEntity,
+        compromiso: CompromisoLocal
+    ): Result {
+        val respuesta = try {
+            v2Api.crearVisita(
+                idempotencyKey = visit.ID,
+                body = visit.toCrearVisitaBody(conCompromisos = true)
+            )
+        } catch (e: HttpException) {
+            return trasErrorDelRelleno(
+                visit,
+                compromiso,
+                e.code(),
+                custodiaDe(e)
+            ) { anotarHttp(visit.ID, e) }
+        }
+        if (respuesta.id == visit.ID && compromisoProbado(compromiso, respuesta.compromiso())) {
+            return withContext(NonCancellable) {
+                if (visitDao.confirmarCompromiso(visit.ID, AppTime.toWireFormat(clock.now())) > 0) {
+                    anotar(visit.ID, null)
+                    Log.i(TAG, "COMPROMISO_CONFIRMADO: visita ${visit.ID}")
+                    Result.success()
+                } else {
+                    anotar(visit.ID, FALLO_COMPROMISO_SIN_MARCA)
+                    Result.retry()
+                }
+            }
+        }
+        // 2xx sin el eco del id o sin los bloques iguales: decide la existencia.
+        return trasErrorDelRelleno(visit, compromiso, HTTP_OK, custodia = false) {
+            anotar(visit.ID, FALLO_COMPROMISO_SIN_CONFIRMAR)
+        }
+    }
+
+    /**
+     * Error del relleno: la existencia con el compromiso y luego la tabla
+     * compartida, como [trasError], pero sin fotos y escribiendo solo las
+     * marcas del compromiso. Con custodia el compromiso queda resguardado y la
+     * visita base sigue confirmada.
+     */
+    private suspend fun trasErrorDelRelleno(
+        visit: VisitEntity,
+        compromiso: CompromisoLocal,
+        codigo: Int,
+        custodia: Boolean,
+        anotarFallo: () -> Unit
+    ): Result {
+        val get = consultarVisitaEnServidor(v2Api, visit.ID)
+        val existencia =
+            existenciaCompleta(visit.ID, get.visita, emptySet(), get.codigo, compromiso)
+        return when (salidaTrasError(existencia, codigo, custodia)) {
+            SalidaDeEnvio.CONFIRMADA -> withContext(NonCancellable) {
+                if (visitDao.confirmarCompromiso(visit.ID, AppTime.toWireFormat(clock.now())) > 0) {
+                    anotar(visit.ID, null)
+                    Log.i(
+                        TAG,
+                        "COMPROMISO_CONFIRMADO via GET: visita ${visit.ID} (HTTP original $codigo)"
+                    )
+                    Result.success()
+                } else {
+                    anotarFallo()
+                    Result.retry()
+                }
+            }
+            SalidaDeEnvio.RESGUARDADA -> withContext(NonCancellable) {
+                val marcadas = visitDao.resguardarCompromiso(
+                    visit.ID,
+                    AppTime.toWireFormat(clock.now())
+                )
+                anotarFallo()
+                if (marcadas > 0 || compromisoYaConfirmado(visit.ID)) {
+                    Log.w(
+                        TAG,
+                        "COMPROMISO_RESGUARDADO: visita ${visit.ID} (HTTP $codigo, X-Intent-Captured)"
+                    )
+                    Result.success()
+                } else {
+                    Log.w(TAG, "REINTENTA compromiso sin_marca: visita ${visit.ID} (HTTP $codigo)")
+                    Result.retry()
+                }
+            }
+            SalidaDeEnvio.REINTENTA -> Result.retry().also {
+                anotarFallo()
+                Log.w(
+                    TAG,
+                    "REINTENTA relleno: visita ${visit.ID} HTTP $codigo existencia=$existencia"
+                )
+            }
+        }
+    }
+
+    private suspend fun compromisoYaConfirmado(id: String): Boolean =
+        visitDao.findVisitById(id)?.COMPROMISO_CONFIRMADO_EN != null
+
+    /**
+     * Marca el compromiso [enviado] como confirmado si [enServidor] trae cada
+     * bloque igual. Sin compromiso enviado, o sin prueba, no hace nada: el
+     * compromiso queda por rellenar.
+     */
+    private suspend fun confirmarCompromisoSiProbado(
+        visit: VisitEntity,
+        enviado: CompromisoLocal?,
+        enServidor: CompromisoLocal?
+    ) {
+        if (enviado == null) return
+        if (compromisoProbado(enviado, enServidor)) {
+            visitDao.confirmarCompromiso(visit.ID, AppTime.toWireFormat(clock.now()))
+        } else {
+            Log.w(TAG, "Visita ${visit.ID} confirmada; su compromiso queda por rellenar")
+        }
     }
 
     /**
@@ -205,8 +377,10 @@ class PendingVisitsWorker @JvmOverloads constructor(
         visit: VisitEntity,
         comprobantes: PartesDeComprobantesDeVisita,
         pendientes: List<VisitImageEntity>,
-        eco: String?
+        respuesta: VisitaDTO,
+        enviado: CompromisoLocal?
     ): Result {
+        val eco = respuesta.id
         val viajaron = comprobantes.enviadas.map { it.ID }.toSet()
         val ecoCorrecto = eco == visit.ID
         val get = if (ecoCorrecto && viajaron.isNotEmpty()) {
@@ -229,10 +403,16 @@ class PendingVisitsWorker @JvmOverloads constructor(
                         "CONFIRMADA",
                         "fotos=${viajaron.size}",
                         conocidas = pendientes,
-                        fotosAEstampar = comprobantes.enviadas
-                    ) {
-                        anotar(visit.ID, FALLO_SIN_MARCA)
-                    }
+                        fotosAEstampar = comprobantes.enviadas,
+                        anotarFallo = { anotar(visit.ID, FALLO_SIN_MARCA) },
+                        trasConfirmar = {
+                            confirmarCompromisoSiProbado(
+                                visit,
+                                enviado,
+                                respuesta.compromiso()
+                            )
+                        }
+                    )
                 }
             }
             // Sin eco del mismo id: «HTTP 200 no es éxito». Decide la existencia.
@@ -241,7 +421,8 @@ class PendingVisitsWorker @JvmOverloads constructor(
                     visit,
                     pendientes,
                     HTTP_OK,
-                    custodia = false
+                    custodia = false,
+                    compromiso = enviado
                 ) { anotar(visit.ID, FALLO_SIN_ECO) }
             } else {
                 anotar(visit.ID, FALLO_FOTOS_SIN_CONFIRMAR)
@@ -264,12 +445,44 @@ class PendingVisitsWorker @JvmOverloads constructor(
         pendientes: List<VisitImageEntity>,
         codigo: Int,
         custodia: Boolean,
+        compromiso: CompromisoLocal?,
         anotarFallo: () -> Unit
     ): Result {
         val get = consultarVisitaEnServidor(v2Api, visit.ID)
-        val existencia =
-            existenciaCompleta(visit.ID, get.visita, pendientes.map { it.ID }.toSet(), get.codigo)
-        return when (salidaTrasError(existencia, codigo, custodia)) {
+        val fotos = pendientes.map { it.ID }.toSet()
+        // Con compromiso enviado, la existencia exige además sus bloques iguales
+        // (spec §4.2-3, E-APP-098): "existencia sin compromiso no suelta".
+        val existencia = existenciaCompleta(visit.ID, get.visita, fotos, get.codigo, compromiso)
+        val salida = salidaTrasError(existencia, codigo, custodia)
+        // Custodia con la visita base COMPLETA en el servidor y solo el
+        // compromiso distinto (E-VIS-047): la visita está en MSP_VISITAS, no
+        // en la bandeja. Se confirma la base y se resguarda el compromiso.
+        if (salida == SalidaDeEnvio.RESGUARDADA && compromiso != null &&
+            existenciaCompleta(visit.ID, get.visita, fotos, get.codigo) == Existencia.COMPLETA
+        ) {
+            return withContext(NonCancellable) {
+                if (apareceFotoNueva(visit, pendientes)) {
+                    Result.retry()
+                } else {
+                    confirmarConFotos(
+                        visit,
+                        "CONFIRMADA_COMPROMISO_RESGUARDADO",
+                        "HTTP original $codigo",
+                        conocidas = pendientes,
+                        fotosAEstampar = pendientes,
+                        anotarFallo = anotarFallo,
+                        anotarExito = anotarFallo,
+                        trasConfirmar = {
+                            visitDao.resguardarCompromiso(
+                                visit.ID,
+                                AppTime.toWireFormat(clock.now())
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        return when (salida) {
             // COMPLETA = el servidor lista CADA foto pendiente con fila y archivo
             // (E-VIS-022): se estampan y se confirma sin la retención por foto de
             // `VisitDao.confirmar`, que aquí marcaría 0 filas y atascaría la
@@ -284,7 +497,15 @@ class PendingVisitsWorker @JvmOverloads constructor(
                         "HTTP original $codigo",
                         conocidas = pendientes,
                         fotosAEstampar = pendientes,
-                        anotarFallo = anotarFallo
+                        anotarFallo = anotarFallo,
+                        // COMPLETA con compromiso = cada bloque está igual.
+                        trasConfirmar = {
+                            confirmarCompromisoSiProbado(
+                                visit,
+                                compromiso,
+                                compromiso
+                            )
+                        }
                     )
                 }
             }
@@ -318,13 +539,16 @@ class PendingVisitsWorker @JvmOverloads constructor(
      * cambió la fila. Éxito solo si la marca quedó escrita (o ya estaba); con
      * 0 filas no se suelta: se anota y se reintenta.
      */
+    @Suppress("LongParameterList")
     private suspend fun confirmarConFotos(
         visit: VisitEntity,
         log: String,
         detalle: String,
         conocidas: List<VisitImageEntity>,
         fotosAEstampar: List<VisitImageEntity>,
-        anotarFallo: () -> Unit
+        anotarFallo: () -> Unit,
+        anotarExito: () -> Unit = { anotar(visit.ID, null) },
+        trasConfirmar: suspend () -> Unit = {}
     ): Result {
         val marcadas = visitDao.confirmarTrasSubidaSiNoHayFotosNuevas(
             visit.ID,
@@ -336,7 +560,10 @@ class PendingVisitsWorker @JvmOverloads constructor(
         // pendiente y sus fotos conservan su archivo para reenviarse.
         if (marcadas > 0) marcarSubidas(fotosAEstampar)
         return if (marcadas > 0) {
-            anotar(visit.ID, null)
+            // El compromiso, DESPUÉS de la visita base: su marca nunca existe
+            // sin la de la base (E-APP-098).
+            trasConfirmar()
+            anotarExito()
             Log.i(TAG, "$log: visita ${visit.ID} ($detalle)")
             Result.success()
         } else if (yaConfirmada(visit.ID)) {
@@ -416,7 +643,8 @@ class PendingVisitsWorker @JvmOverloads constructor(
                             "NO se sube la visita para no quemar su id sin la evidencia"
                     )
                 }
-            val response = enviar(visit, comprobantes)
+            // Modo de reversa: el cuerpo de siempre, sin compromiso.
+            val response = enviar(visit, comprobantes, conCompromisos = false)
             markUploaded(comprobantes)
             markDone(visit.ID)
             anotar(visit.ID, null)
@@ -551,17 +779,20 @@ class PendingVisitsWorker @JvmOverloads constructor(
      * la foto no la bloquea, y las filas omitidas se quedan pendientes en vez de
      * estamparse.
      */
-    private suspend fun enviar(visit: VisitEntity, comprobantes: PartesDeComprobantesDeVisita) =
-        if (comprobantes.partes.isEmpty()) {
-            v2Api.crearVisita(idempotencyKey = visit.ID, body = visit.toCrearVisitaBody())
-        } else {
-            val json = Gson().toJson(visit.toCrearVisitaBody())
-            v2Api.crearVisitaConImagenes(
-                idempotencyKey = visit.ID,
-                datos = json.toRequestBody("application/json".toMediaTypeOrNull()),
-                imagenes = comprobantes.partes
-            )
-        }
+    private suspend fun enviar(
+        visit: VisitEntity,
+        comprobantes: PartesDeComprobantesDeVisita,
+        conCompromisos: Boolean
+    ) = if (comprobantes.partes.isEmpty()) {
+        v2Api.crearVisita(idempotencyKey = visit.ID, body = visit.toCrearVisitaBody(conCompromisos))
+    } else {
+        val json = Gson().toJson(visit.toCrearVisitaBody(conCompromisos))
+        v2Api.crearVisitaConImagenes(
+            idempotencyKey = visit.ID,
+            datos = json.toRequestBody("application/json".toMediaTypeOrNull()),
+            imagenes = comprobantes.partes
+        )
+    }
 
     /**
      * Los comprobantes pendientes de [visit], listos para viajar — o `null` si
@@ -710,6 +941,20 @@ class PendingVisitsWorker @JvmOverloads constructor(
             http = HTTP_OK
         )
 
+        /** Relleno (E-APP-098): el servidor no devolvió el compromiso igual al local. */
+        private val FALLO_COMPROMISO_SIN_CONFIRMAR = FalloDeEnvio(
+            codigo = "visita_compromiso_sin_confirmar",
+            mensaje = "El servidor no confirmó la promesa o la cita",
+            http = HTTP_OK
+        )
+
+        /** Relleno: se decidió confirmar el compromiso pero la marca no quedó escrita. */
+        private val FALLO_COMPROMISO_SIN_MARCA = FalloDeEnvio(
+            codigo = "visita_compromiso_sin_marca",
+            mensaje = "No se pudo marcar la promesa o la cita",
+            http = HTTP_OK
+        )
+
         /** v3: 2xx con eco, pero el GET no prueba que el servidor tenga las fotos (E-VIS-022). */
         private val FALLO_FOTOS_SIN_CONFIRMAR = FalloDeEnvio(
             codigo = "visita_fotos_sin_confirmar",
@@ -732,7 +977,18 @@ private const val GET_OK = 200
 @Suppress("TooGenericExceptionCaught", "SwallowedException")
 internal suspend fun consultarVisitaEnServidor(api: V2VisitsApi, id: String): ResultadoGet = try {
     val dto = api.obtenerVisita(id)
-    ResultadoGet(GET_OK, VisitaEnServidor(dto.id, dto.imagen_ids))
+    // Un compromiso todo nulo es "no lo dijo" (Gson no distingue clave ausente de
+    // null): queda nulo y nunca prueba un bloque local.
+    ResultadoGet(
+        GET_OK,
+        VisitaEnServidor(
+            dto.id,
+            dto.imagen_ids,
+            dto.compromiso().takeUnless {
+                it.vacio
+            }
+        )
+    )
 } catch (e: HttpException) {
     ResultadoGet(e.code(), null)
 } catch (e: CancellationException) {

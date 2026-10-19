@@ -5,9 +5,15 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.diagnosticoenvio.EstadoDeEnvioDeVisitas
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
+import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
+import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import com.example.msp_app.data.api.V2ApiProvider
+import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import kotlinx.coroutines.CancellationException
 
@@ -47,6 +53,32 @@ class VisitsReconcileWorker @JvmOverloads constructor(
         VisitsReconcileTriggerProvider.get(appContext).execute()
     },
     /**
+     * Negociación del contrato de visitas (E-APP-097, spec §5.2.1): pregunta
+     * `GET /v2/visitas/capacidades` si pasaron 6 h. El servicio se crea por
+     * corrida (kill-switch de baseURL: nada de `@Singleton`).
+     */
+    @VisibleForTesting
+    internal val refrescarCapacidades: suspend () -> Unit = {
+        CapacidadesDeVisitas.de(appContext).refrescarSiToca {
+            V2ApiProvider.create(V2VisitsApi::class.java)
+        }
+    },
+    /**
+     * Si el relleno del compromiso corre (spec §5.2.5): el envío v3 en uso y el
+     * servidor con `contrato >= 3 && compromisos`. En el modo de reversa
+     * (`v2_actual`) el worker reenviaría a ciegas cada visita confirmada.
+     */
+    @VisibleForTesting
+    internal val rellenoActivo: () -> Boolean = {
+        BuildConfig.VISITAS_USE_V2 &&
+            FirestoreModoEnvioVisitas.actual == ModoEnvioVisitas.V3 &&
+            CapacidadesDeVisitas.de(appContext).actual().mandaCompromisos()
+    },
+    @VisibleForTesting
+    internal val compromisosPorRellenar: suspend () -> List<String> = {
+        AppDatabase.getInstance(appContext).visitDao().compromisosPorRellenar()
+    },
+    /**
      * Telemetría `visitas_estado` (plan visitas P1, Tarea 14; H14): solo
      * conteos y antigüedades, lista blanca de `TelemetriaDeVisitas`. Solo
      * reporta: no devuelve nada y no cambia el resultado.
@@ -59,6 +91,8 @@ class VisitsReconcileWorker @JvmOverloads constructor(
 
     override suspend fun doWork(): Result {
         reencolarPendientes()
+        refrescarCapacidadesSinRiesgo()
+        encolarRelleno()
         reconciliar()
         reportarEstadoSinRiesgo()
         return Result.success()
@@ -112,6 +146,34 @@ class VisitsReconcileWorker @JvmOverloads constructor(
                 "reencolado de visitas pendientes falló; lo reintenta el siguiente periodo",
                 e
             )
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun refrescarCapacidadesSinRiesgo() {
+        try {
+            refrescarCapacidades()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "refresco de capacidades de visitas falló; se conserva la vigente", e)
+        }
+    }
+
+    /**
+     * Relleno del compromiso (plan visitas P2, Tarea 15; spec §5.2.5): con la
+     * capacidad recién refrescada, encola por id —mismo nombre único y `KEEP`
+     * que el reencolado— cada visita con promesa o cita sin prueba ni
+     * resguardo. El worker decide qué viaja. Aislado como el reencolado.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun encolarRelleno() {
+        try {
+            if (rellenoActivo()) compromisosPorRellenar().forEach(encolar)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "relleno de compromisos falló; lo reintenta el siguiente periodo", e)
         }
     }
 

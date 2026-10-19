@@ -39,7 +39,9 @@ class VisitsReconcileWorkerReencoladoTest : RoomTestBase() {
                 workerParameters,
                 pendientes = pendientes ?: { db.visitDao().pendientesOrdenadas() },
                 encolar = encolar,
-                trigger = trigger
+                trigger = trigger,
+                // Sin red en la prueba; el relleno lo prueba VisitsReconcileWorkerRellenoTest.
+                refrescarCapacidades = {}
             )
         })
         .build()

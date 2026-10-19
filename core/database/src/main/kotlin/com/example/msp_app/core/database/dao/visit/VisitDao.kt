@@ -345,10 +345,18 @@ interface VisitDao {
     )
     suspend fun resguardar(id: String, ahora: String): Int
 
-    /** La reconciliación inversa no la encontró en el servidor: vuelve a la cola. */
+    /**
+     * La reconciliación inversa no la encontró en el servidor: vuelve a la cola.
+     *
+     * Limpia también las marcas del compromiso (E-APP-099, observación A del
+     * revisor de la Tarea 14 de P2): si el servidor perdió la visita, perdió su
+     * compromiso, y si se reenvía por contrato 2 la marca seguiría afirmándolo
+     * y el relleno nunca lo volvería a mandar.
+     */
     @Query(
         """
-        UPDATE Visit SET GUARDADO_EN_MICROSIP = 0, CONFIRMADA_EN = NULL, RESGUARDADA_EN = NULL
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 0, CONFIRMADA_EN = NULL, RESGUARDADA_EN = NULL,
+            COMPROMISO_CONFIRMADO_EN = NULL, COMPROMISO_RESGUARDADO_EN = NULL
         WHERE ID IN (:ids)
         """
     )
@@ -356,7 +364,8 @@ interface VisitDao {
 
     // ─── Relleno del compromiso (spec visitas §5.2.5) ────────────────────────
     // Las dos ÚNICAS que escriben COMPROMISO_CONFIRMADO_EN/COMPROMISO_RESGUARDADO_EN
-    // con un valor. Ninguna toca la entrega de la visita base.
+    // con un valor (las limpia además devolverAPendiente, E-APP-099). Ninguna toca
+    // la entrega de la visita base.
 
     /**
      * El servidor devolvió el bloque de promesa/cita igual al local: deja la

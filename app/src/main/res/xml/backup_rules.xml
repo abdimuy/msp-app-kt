@@ -7,4 +7,6 @@
     <exclude domain="sharedpref" path="visitas_conciliacion_ultima.xml"/>
     <!-- Tarea 14 (visitas P1, E-VIS-029): ver data_extraction_rules.xml. -->
     <exclude domain="sharedpref" path="visitas_telemetria.xml"/>
+    <!-- P2 Tarea 15 (E-APP-097): ver data_extraction_rules.xml. -->
+    <exclude domain="sharedpref" path="visitas_capacidades.xml"/>
 </full-backup-content>

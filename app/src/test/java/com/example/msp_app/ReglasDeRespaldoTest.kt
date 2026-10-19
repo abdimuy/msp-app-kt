@@ -1,5 +1,6 @@
 package com.example.msp_app
 
+import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -80,6 +81,27 @@ class ReglasDeRespaldoTest {
         )
         for ((nombre, excluidas) in secciones) {
             assertTrue("<$nombre> no excluye ${marcas - excluidas}", excluidas.containsAll(marcas))
+        }
+    }
+
+    /**
+     * E-APP-097 (P2 Tarea 15): la capacidad negociada es del servidor al que habla
+     * ESTE aparato. Restaurada en otro con su marca de refresco, le mandaría
+     * hasta 6 h campos que su servidor quizá rechaza con 422.
+     */
+    @Test
+    fun `E-APP-097 la capacidad negociada de visitas no se restaura en otro aparato`() {
+        val marca = "sharedpref:${CapacidadesDeVisitas.PREFS}.xml"
+        val api31 = reglas("data_extraction_rules.xml")
+        listOf(
+            "cloud-backup" to exclusiones(seccionUnica(api31, "cloud-backup")),
+            "device-transfer" to exclusiones(seccionUnica(api31, "device-transfer")),
+            "full-backup-content" to exclusiones(seccionUnica(reglas("backup_rules.xml"), "full-backup-content"))
+        ).forEach { (nombre, excluidas) ->
+            assertTrue(
+                "<$nombre> no excluye $marca",
+                marca in excluidas
+            )
         }
     }
 

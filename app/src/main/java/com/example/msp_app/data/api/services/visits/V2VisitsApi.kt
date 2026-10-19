@@ -119,7 +119,58 @@ interface V2VisitsApi {
      */
     @GET("v2/visitas/{id}")
     suspend fun obtenerVisita(@Path("id") id: String): VisitaDetalleDTO
+
+    /**
+     * Negociación del contrato de visitas (spec visitas §5.2.1, msp-api
+     * `handlers_capacidades.go`). Un servidor sin la ruta responde 404 =
+     * contrato 2. Lo interpreta `CapacidadesDeVisitas.refrescar`.
+     */
+    @GET("v2/visitas/capacidades")
+    suspend fun capacidades(): CapacidadesDTO
+
+    /**
+     * `GET /v2/visitas/by-ids?ids=…&detalle=1` (contrato 3, spec visitas
+     * §5.2.4): por cada id que el servidor tiene, sus bloques de compromiso y
+     * sus `imagen_ids`. Mismo tope de 100 ids y misma unión por comas que
+     * [visitasExistentesPorIds]. [detalle] va siempre [DETALLE_SI]: sin él el
+     * servidor responde el arreglo de ids de siempre (E-VIS-048), que esta
+     * firma no sabría leer.
+     */
+    @GET("v2/visitas/by-ids")
+    suspend fun visitasExistentesPorIdsDetalle(
+        @Query("ids") ids: String,
+        @Query("detalle") detalle: Int
+    ): List<VisitaExistenteDTO>
+
+    companion object {
+        /** El único valor de `detalle` con el que se llama [visitasExistentesPorIdsDetalle]. */
+        const val DETALLE_SI = 1
+    }
 }
+
+/**
+ * Respuesta de `GET /v2/visitas/capacidades`. **Nulables**: Gson no aplica
+ * defaults de Kotlin; un cuerpo sin estas claves no prueba nada y se trata como
+ * error (se conserva la capacidad vigente).
+ */
+data class CapacidadesDTO(
+    val contrato: Int?,
+    val compromisos: Boolean?
+)
+
+/**
+ * Un elemento de `by-ids?detalle=1` (msp-api `VisitaExistenteDTO`). Todo
+ * nulable: Gson no aplica defaults de Kotlin.
+ */
+data class VisitaExistenteDTO(
+    val id: String?,
+    val promesa_venta_id: Int?,
+    val promesa_fecha: String?,
+    val promesa_monto_centavos: Long?,
+    val cita_fecha: String?,
+    val cita_hora: String?,
+    val imagen_ids: List<String>?
+)
 
 /**
  * Respuesta de `GET /v2/visitas/{id}`: los campos de [VisitaDTO] más
@@ -141,7 +192,17 @@ data class VisitaDetalleDTO(
     val impte_docto_cc_id: Int?,
     val fecha: String?,
     val created_at: String?,
-    val imagen_ids: List<String>?
+    val imagen_ids: List<String>?,
+    // Contrato de visitas 3 (spec visitas §5.2.4). Un servidor viejo los omite
+    // y Gson los deja nulos; el default de Kotlin solo sirve a quien construye
+    // el DTO a mano (pruebas), Gson no lo aplica.
+    val promesa_venta_id: Int? = null,
+    val promesa_fecha: String? = null,
+    val promesa_monto_centavos: Long? = null,
+    val cita_fecha: String? = null,
+    val cita_hora: String? = null,
+    /** RFC3339Nano UTC; nulo en filas viejas sin relleno. Solo informativo. */
+    val updated_at: String? = null
 )
 
 /**
@@ -171,7 +232,17 @@ data class CrearVisitaBody(
     val zona_cliente_id: Int,
     val impte_docto_cc_id: Int? = null,
     /** RFC3339 UTC with no fractional seconds (Go's time.RFC3339 rejects fractions). */
-    val fecha: String
+    val fecha: String,
+    // Contrato de visitas 3 (spec visitas §5.2.2): cinco campos opcionales y
+    // planos. Solo viajan si el servidor anunció `contrato >= 3 && compromisos`
+    // (`toCrearVisitaBody(conCompromisos)`); nulos, Gson los omite del JSON
+    // (`GsonConverterFactory.create()` no serializa nulos), y un servidor de
+    // contrato 2 —que rechaza toda clave desconocida— recibe el cuerpo de hoy.
+    val promesa_venta_id: Int? = null,
+    val promesa_fecha: String? = null,
+    val promesa_monto_centavos: Long? = null,
+    val cita_fecha: String? = null,
+    val cita_hora: String? = null
 )
 
 /**
@@ -192,5 +263,12 @@ data class VisitaDTO(
     val zona_cliente_id: Int? = null,
     val impte_docto_cc_id: Int? = null,
     val fecha: String? = null,
-    val created_at: String? = null
+    val created_at: String? = null,
+    // Contrato de visitas 3: el servidor responde la fila completa con sus
+    // bloques (tabla 5.2.3). Nulos si es un servidor viejo o si no hay bloque.
+    val promesa_venta_id: Int? = null,
+    val promesa_fecha: String? = null,
+    val promesa_monto_centavos: Long? = null,
+    val cita_fecha: String? = null,
+    val cita_hora: String? = null
 )

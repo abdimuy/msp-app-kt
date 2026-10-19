@@ -126,6 +126,9 @@ object TelemetriaDeVisitas {
         "visita_confirmada_por_otro_camino_con_foto_nueva",
         "visita_sin_marca",
         "visita_fotos_sin_confirmar",
+        // Worker de visitas, relleno del compromiso (P2 Tarea 15, E-APP-098).
+        "visita_compromiso_sin_confirmar",
+        "visita_compromiso_sin_marca",
         // Red (ClasificadorDeFalloDeEnvio).
         "cancelado",
         "timeout",
@@ -165,6 +168,21 @@ object TelemetriaDeVisitas {
         "visita_imagen_no_encontrada",
         "visita_imagen_descripcion_demasiado_larga",
         "visitas_imagenes_no_configurado",
+        // Servidor: contrato de visitas 3 (msp-api feat/visitas-p2-t10, spec §5.2.2,
+        // E-VIS-046, E-VIS-047, E-VIS-051).
+        "visita_promesa_fecha_invalida",
+        "visita_promesa_incompleta",
+        "visita_promesa_monto_invalido",
+        "visita_promesa_venta_invalida",
+        "visita_cita_incompleta",
+        "visita_cita_invalida",
+        "visita_compromiso_distinto",
+        "visita_cliente_id_out_of_range",
+        "visita_cobrador_id_out_of_range",
+        "visita_forma_cobro_id_out_of_range",
+        "visita_zona_cliente_id_out_of_range",
+        "visita_impte_docto_cc_id_out_of_range",
+        "visita_imagen_id_de_otra_visita",
         // Servidor: plataforma.
         "idempotency_key_mismatch",
         "validation_failed",

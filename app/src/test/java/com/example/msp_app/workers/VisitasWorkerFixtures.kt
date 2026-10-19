@@ -13,11 +13,14 @@ import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
+import com.example.msp_app.core.visitas.capacidades.Capacidades
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import com.example.msp_app.data.api.services.visits.CapacidadesDTO
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
 import com.example.msp_app.data.api.services.visits.VisitaDetalleDTO
+import com.example.msp_app.data.api.services.visits.VisitaExistenteDTO
 import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.visit.Visit
@@ -96,6 +99,17 @@ internal fun fakeV2Api(
     // sus pruebas pasan su propio fake. Aquí, un GET inesperado es un rojo.
     override suspend fun obtenerVisita(id: String): VisitaDetalleDTO =
         throw AssertionError("no se esperaba GET")
+
+    // Contrato de visitas 3 (P2 Tarea 15): el worker de subida no negocia ni usa
+    // by-ids con detalle. Si algún día lo hiciera, este fake lo grita.
+    override suspend fun capacidades(): CapacidadesDTO =
+        throw AssertionError("PendingVisitsWorker no debe consultar capacidades")
+
+    override suspend fun visitasExistentesPorIdsDetalle(
+        ids: String,
+        detalle: Int
+    ): List<VisitaExistenteDTO> =
+        throw AssertionError("PendingVisitsWorker no debe llamar by-ids con detalle")
 }
 
 internal fun happyApi(): V2VisitsApi = fakeV2Api { _, _ -> VisitaDTO(id = "visita-001") }
@@ -184,7 +198,8 @@ internal fun construirPendingVisitsWorker(
     maxAttempts: Int = 10,
     runAttemptCount: Int = 0,
     visitDao: VisitDao? = null,
-    diagnostico: EnvioDiagnosticoSink? = null
+    diagnostico: EnvioDiagnosticoSink? = null,
+    capacidades: Capacidades = Capacidades.CONTRATO_2
 ): PendingVisitsWorker {
     val inputBuilder = Data.Builder()
     if (visitId != null) inputBuilder.putString("visit_id", visitId)
@@ -211,7 +226,8 @@ internal fun construirPendingVisitsWorker(
                 clock = clock,
                 modo = { modo },
                 visitDao = visitDao ?: AppDatabase.getInstance(appContext).visitDao(),
-                diagnostico = diagnostico ?: EnvioDiagnostico.sink
+                diagnostico = diagnostico ?: EnvioDiagnostico.sink,
+                capacidades = { capacidades }
             )
         })
         .build() as PendingVisitsWorker
@@ -231,7 +247,8 @@ internal fun runPendingVisitsWorker(
     maxAttempts: Int = 10,
     runAttemptCount: Int = 0,
     visitDao: VisitDao? = null,
-    diagnostico: EnvioDiagnosticoSink? = null
+    diagnostico: EnvioDiagnosticoSink? = null,
+    capacidades: Capacidades = Capacidades.CONTRATO_2
 ): ListenableWorker.Result {
     val worker = construirPendingVisitsWorker(
         context,
@@ -245,7 +262,8 @@ internal fun runPendingVisitsWorker(
         maxAttempts,
         runAttemptCount,
         visitDao,
-        diagnostico
+        diagnostico,
+        capacidades
     )
     return runBlocking { worker.doWork() }
 }
