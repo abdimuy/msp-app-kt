@@ -63,6 +63,8 @@ class TelemetriaDeVisitasTest {
             "visitas.conciliacion.fotos_sin_enviar",
             "visitas.conciliacion.fotos_sin_enviar_viejas",
             "visitas.conciliacion.foto_sin_enviar_mas_vieja_min",
+            "visitas.conciliacion.barrido_pospuesto_por_dinero",
+            "visitas.conciliacion.visitas_con_foto_en_espera",
             "visitas.resguardadas_por_podar",
             "visitas.guardado_cancelado.escritas",
             "visitas.guardado_cancelado.cuentas",
@@ -153,7 +155,9 @@ class TelemetriaDeVisitasTest {
                 devueltasPorFoto = 8,
                 fotosSinEnviar = 9,
                 fotosSinEnviarViejas = 10,
-                fotoSinEnviarMasViejaMin = 11L
+                fotoSinEnviarMasViejaMin = 11L,
+                barridoPospuestoPorDinero = true,
+                visitasConFotoEnEspera = 12
             )
         )
         assertEquals(
@@ -172,7 +176,9 @@ class TelemetriaDeVisitasTest {
                 "visitas.conciliacion.devueltas_por_foto" to 8,
                 "visitas.conciliacion.fotos_sin_enviar" to 9,
                 "visitas.conciliacion.fotos_sin_enviar_viejas" to 10,
-                "visitas.conciliacion.foto_sin_enviar_mas_vieja_min" to 11L
+                "visitas.conciliacion.foto_sin_enviar_mas_vieja_min" to 11L,
+                "visitas.conciliacion.barrido_pospuesto_por_dinero" to 1,
+                "visitas.conciliacion.visitas_con_foto_en_espera" to 12
             ),
             d
         )

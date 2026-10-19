@@ -1,9 +1,12 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_BARRIDO_ILEGIBLE
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DEVUELTA_A_PENDIENTE
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DEVUELTA_POR_FOTO
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_DINERO_ILEGIBLE
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase.Companion.ERROR_CODE_FOTO_SIN_ENVIAR_VIEJA
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakeDeliveredVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakeVisitCustodyRegistry
@@ -41,11 +44,14 @@ class ReconcileDeliveredVisitsBarridoTest {
 
     private fun uc(
         store: FakeDeliveredVisitsStore,
-        rep: RecordingSyncErrorReporter = RecordingSyncErrorReporter()
+        rep: RecordingSyncErrorReporter = RecordingSyncErrorReporter(),
+        dinero: DineroPendiente = DineroPendiente.NINGUNO,
+        conocidas: Set<String> = setOf(a, b, c)
     ) = ReconcileDeliveredVisitsUseCase(
         store,
-        FakeVisitCustodyRegistry(known = setOf(a, b, c)),
-        rep
+        FakeVisitCustodyRegistry(known = conocidas),
+        rep,
+        dinero
     ) {
         ahora
     }
@@ -110,7 +116,11 @@ class ReconcileDeliveredVisitsBarridoTest {
             val rep = RecordingSyncErrorReporter()
             val r = uc(store, rep).execute()
 
-            assertEquals("ninguna se abandona", listOf(a, b, c), store.devueltas)
+            assertEquals(
+                "ninguna se abandona; la ilegible primero, luego de la más vieja a la más nueva",
+                listOf(c, a, b),
+                store.devueltas
+            )
             assertEquals(3, r.devueltasPorFoto)
             assertEquals(3, r.fotosSinEnviar)
             assertEquals("la vieja y la ilegible", 2, r.fotosSinEnviarViejas)
@@ -178,22 +188,82 @@ class ReconcileDeliveredVisitsBarridoTest {
     }
 
     /**
-     * Pregunta (1) del arreglo: al dejar de abandonar, el residuo viejo sale
-     * entero en una corrida. No hay tope por tanda en el use case (el
-     * adaptador trocea el `IN` en 999); el worker diario reencola todas las
-     * pendientes con `KEEP`.
+     * Tope por pasada (E-APP-079, adenda): a lo más
+     * [ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_PASADA] visitas, de la
+     * foto más vieja a la más nueva; el resto queda en espera para la
+     * siguiente pasada y ninguna se abandona.
      */
     @Test
-    fun `E-VIS-032 el residuo viejo se devuelve entero en una corrida sin tope`() = runTest {
+    fun `E-APP-079 el barrido reabre a lo mas el tope por pasada de la foto mas vieja a la mas nueva`() =
+        runTest {
+            val tope = ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_PASADA
+            val ids = (1..25).map { u(100 + it) }
+            // La visita i tiene una foto de hace (30 - i) días: la 1 es la más vieja.
+            val store = FakeDeliveredVisitsStore(
+                entregadas = ids,
+                fotosSinEnviar = ids.mapIndexed { i, id ->
+                    FotoSinEnviar(
+                        id,
+                        haceDias(30L - i)
+                    )
+                }.reversed()
+            )
+            // El servidor las tiene todas: la parte by-ids no devuelve ninguna como faltante.
+            val r = uc(store, conocidas = ids.toSet()).execute()
+            assertEquals("las más viejas primero", ids.take(tope), store.devueltas)
+            assertEquals(tope, r.devueltasPorFoto)
+            assertEquals(25 - tope, r.visitasConFotoEnEspera)
+        }
+
+    /** El residuo grande se vacía en varias pasadas, sin abandonar ninguna. */
+    @Test
+    fun `E-APP-079 un residuo de 1500 se vacia en 150 pasadas de a lo mas el tope`() = runTest {
+        val tope = ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_PASADA
         val ids = (1..1_500).map { u(100 + it) }
         val store = FakeDeliveredVisitsStore(
             entregadas = ids,
             fotosSinEnviar = ids.map { FotoSinEnviar(it, haceDias(30)) }
         )
-        val r = uc(store).execute()
-        assertEquals(ids, store.devueltas)
-        assertEquals(1_500, r.devueltasPorFoto)
-        assertEquals(1_500, r.fotosSinEnviarViejas)
+        val porPasada = mutableListOf<Int>()
+        while (store.fotosSinEnviar.isNotEmpty() && porPasada.size < 1_000) {
+            porPasada += uc(store, conocidas = ids.toSet()).execute().devueltasPorFoto
+        }
+        assertEquals(150, porPasada.size)
+        assertTrue(porPasada.all { it <= tope })
+        assertEquals(ids.toSet(), store.devueltas.toSet())
+        assertEquals(1_500, store.devueltas.size)
+    }
+
+    /** Prioridad del dinero: con pagos o ventas por subir no reabre nada. */
+    @Test
+    fun `E-APP-079 con pagos o ventas por subir el barrido no reabre nada`() = runTest {
+        val store = FakeDeliveredVisitsStore(
+            entregadas = listOf(a, b),
+            fotosSinEnviar = listOf(FotoSinEnviar(a, haceDias(1)), FotoSinEnviar(b, haceDias(9)))
+        )
+        val rep = RecordingSyncErrorReporter()
+        val r = uc(store, rep, dinero = DineroPendiente { true }).execute()
+        assertEquals(emptyList<String>(), store.devueltas)
+        assertEquals(0, r.devueltasPorFoto)
+        assertTrue(r.barridoPospuestoPorDinero)
+        assertEquals(2, r.visitasConFotoEnEspera)
+        assertEquals("la edad se cuenta igual", 1, r.fotosSinEnviarViejas)
+        assertTrue(ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO in rep.codes)
+        assertEquals("la parte by-ids sigue", listOf(a, b), store.confirmadas)
+    }
+
+    /** Si no se puede saber si hay dinero por subir, el barrido espera. */
+    @Test
+    fun `E-APP-079 si no se sabe si hay dinero por subir el barrido espera`() = runTest {
+        val store = FakeDeliveredVisitsStore(
+            entregadas = listOf(a),
+            fotosSinEnviar = listOf(FotoSinEnviar(a, haceDias(1)))
+        )
+        val rep = RecordingSyncErrorReporter()
+        val r = uc(store, rep, dinero = DineroPendiente { throw IOException("x") }).execute()
+        assertEquals(emptyList<String>(), store.devueltas)
+        assertTrue(r.barridoPospuestoPorDinero)
+        assertTrue(ERROR_CODE_DINERO_ILEGIBLE in rep.codes)
     }
 
     /**

@@ -106,6 +106,12 @@ object TelemetriaDeVisitas {
      */
     const val CONC_FOTOS_SIN_ENVIAR_VIEJAS = "visitas.conciliacion.fotos_sin_enviar_viejas"
 
+    /** Barrido: 1 si no reabrió nada porque había pagos o ventas por subir. */
+    const val CONC_BARRIDO_POSPUESTO = "visitas.conciliacion.barrido_pospuesto_por_dinero"
+
+    /** Barrido: visitas con foto sin enviar que esta pasada no reabrió (tope o dinero). */
+    const val CONC_VISITAS_FOTO_EN_ESPERA = "visitas.conciliacion.visitas_con_foto_en_espera"
+
     /** E-VIS-032: minutos desde la foto sin enviar más vieja (reloj del teléfono). Solo si hay. */
     const val CONC_FOTO_SIN_ENVIAR_MAS_VIEJA_MIN = "visitas.conciliacion.foto_sin_enviar_mas_vieja_min"
 
@@ -217,6 +223,8 @@ object TelemetriaDeVisitas {
         CONC_FOTOS_SIN_ENVIAR,
         CONC_FOTOS_SIN_ENVIAR_VIEJAS,
         CONC_FOTO_SIN_ENVIAR_MAS_VIEJA_MIN,
+        CONC_BARRIDO_POSPUESTO,
+        CONC_VISITAS_FOTO_EN_ESPERA,
         RESGUARDADAS_POR_PODAR,
         GC_ESCRITAS,
         GC_CUENTAS,
@@ -278,7 +286,9 @@ object TelemetriaDeVisitas {
         CONC_ILEGIBLES to if (r.entregadasIlegibles) 1 else 0,
         CONC_DEVUELTAS_POR_FOTO to r.devueltasPorFoto,
         CONC_FOTOS_SIN_ENVIAR to r.fotosSinEnviar,
-        CONC_FOTOS_SIN_ENVIAR_VIEJAS to r.fotosSinEnviarViejas
+        CONC_FOTOS_SIN_ENVIAR_VIEJAS to r.fotosSinEnviarViejas,
+        CONC_BARRIDO_POSPUESTO to if (r.barridoPospuestoPorDinero) 1 else 0,
+        CONC_VISITAS_FOTO_EN_ESPERA to r.visitasConFotoEnEspera
     )
 
     /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */

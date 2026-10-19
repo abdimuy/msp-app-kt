@@ -1,6 +1,7 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
@@ -69,7 +70,18 @@ data class ConciliacionInversa(
      * según el reloj del teléfono, nunca negativo. Nulo sin fotos legibles.
      * Solo telemetría: no decide nada.
      */
-    val fotoSinEnviarMasViejaMin: Long? = null
+    val fotoSinEnviarMasViejaMin: Long? = null,
+    /**
+     * Barrido: no reabrió nada porque había pagos o ventas por subir (o no se
+     * pudo saber). Lo que esperaba sigue en [visitasConFotoEnEspera].
+     */
+    val barridoPospuestoPorDinero: Boolean = false,
+    /**
+     * Barrido: visitas con una foto sin enviar que esta pasada NO reabrió (por
+     * el tope [ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_PASADA] o por
+     * el dinero). Pasan a la siguiente; ninguna se abandona.
+     */
+    val visitasConFotoEnEspera: Int = 0
 )
 
 /**
@@ -127,6 +139,8 @@ class ReconcileDeliveredVisitsUseCase(
     private val store: DeliveredVisitsStore,
     private val registry: VisitCustodyRegistry,
     private val errorReporter: SyncErrorReporter,
+    /** Prioridad del dinero: con pagos o ventas por subir, el barrido no reabre nada. */
+    private val dineroPendiente: DineroPendiente = DineroPendiente.NINGUNO,
     private val clock: () -> Instant
 ) {
 
@@ -151,7 +165,9 @@ class ReconcileDeliveredVisitsUseCase(
             devueltasPorFoto = cuenta.devueltasPorFoto,
             fotosSinEnviar = cuenta.fotosSinEnviar,
             fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
-            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin
+            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin,
+            barridoPospuestoPorDinero = cuenta.pospuesto,
+            visitasConFotoEnEspera = cuenta.enEspera
         )
 
         val (validos, invalidos) = separarInvalidos(ids)
@@ -184,7 +200,9 @@ class ReconcileDeliveredVisitsUseCase(
             devueltasPorFoto = cuenta.devueltasPorFoto,
             fotosSinEnviar = cuenta.fotosSinEnviar,
             fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
-            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin
+            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin,
+            barridoPospuestoPorDinero = cuenta.pospuesto,
+            visitasConFotoEnEspera = cuenta.enEspera
         )
     }
 
@@ -211,6 +229,12 @@ class ReconcileDeliveredVisitsUseCase(
      *   la telemetría: `fotos_sin_enviar_viejas` > 0 y la edad crece.
      * - **Un id que no es UUID canónico no se decide**, igual que en la parte
      *   by-ids: se queda como está.
+     * - **El dinero va primero.** Con pagos o ventas por subir
+     *   ([DineroPendiente]) no reabre nada: cada visita reabierta es un `POST`
+     *   multipart por la misma red. Si no se puede saber, tampoco.
+     * - **Tope por pasada:** a lo más [MAX_DEVUELTAS_POR_PASADA] visitas, de la
+     *   foto más vieja a la más nueva (por `CREADA_EN`; ilegible primero, luego
+     *   id). El resto espera a la siguiente pasada; ninguna se abandona.
      */
     private suspend fun barrerFotosSinEnviar(ahora: Instant, cuenta: Contadores) {
         val fotos = attempt(ERROR_CODE_BARRIDO_ILEGIBLE, CONTEXT_BARRIDO) {
@@ -218,8 +242,20 @@ class ReconcileDeliveredVisitsUseCase(
         }?.filter { UUID_CANONICO.matches(it.visitaId) } ?: return
         if (fotos.isEmpty()) return
         contarEdades(fotos, ahora, cuenta)
-        val ids = fotos.map { it.visitaId }.distinct()
-        val devueltas = devolver(ids, cuenta)
+        val ids = deLaMasViejaALaMasNueva(fotos)
+        if (hayDineroPendiente()) {
+            cuenta.pospuesto = true
+            cuenta.enEspera += ids.size
+            errorReporter.report(
+                code = ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO,
+                message = "$CONTEXT_BARRIDO: hay pagos o ventas por subir; no se reabre nada",
+                props = mapOf(PROP_VISITAS to ids.size.toString())
+            )
+            return
+        }
+        val tanda = ids.take(MAX_DEVUELTAS_POR_PASADA)
+        cuenta.enEspera += ids.size - tanda.size
+        val devueltas = devolver(tanda, cuenta)
         if (devueltas > 0) {
             cuenta.devueltasPorFoto += devueltas
             errorReporter.report(
@@ -229,6 +265,19 @@ class ReconcileDeliveredVisitsUseCase(
             )
         }
     }
+
+    /** Una visita por foto más vieja; sin fecha legible va primero. Desempate por id. */
+    private fun deLaMasViejaALaMasNueva(fotos: List<FotoSinEnviar>): List<String> =
+        fotos.groupBy { it.visitaId }
+            .map { (id, suyas) ->
+                id to (suyas.mapNotNull { AppTime.parseWireFormatOrNull(it.creadaEn) }.minOrNull() ?: Instant.MIN)
+            }
+            .sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
+            .map { it.first }
+
+    /** Si la lectura falla, se trata como "hay dinero": el barrido espera. */
+    private suspend fun hayDineroPendiente(): Boolean =
+        attempt(ERROR_CODE_DINERO_ILEGIBLE, CONTEXT_DINERO) { dineroPendiente.hayPendientes() } ?: true
 
     /** Solo telemetría (E-VIS-032): la edad de las fotos no decide nada. */
     private fun contarEdades(fotos: List<FotoSinEnviar>, ahora: Instant, cuenta: Contadores) {
@@ -300,6 +349,8 @@ class ReconcileDeliveredVisitsUseCase(
         var fotosSinEnviar = 0
         var fotosSinEnviarViejas = 0
         var fotoSinEnviarMasViejaMin: Long? = null
+        var pospuesto = false
+        var enEspera = 0
     }
 
     /** Ver el KDoc de clase: un id sin forma de UUID tumbaría su tanda entera con un 422. */
@@ -406,10 +457,26 @@ class ReconcileDeliveredVisitsUseCase(
          */
         const val ERROR_CODE_FOTO_SIN_ENVIAR_VIEJA: String = "visitas_reconcilia_foto_sin_enviar_vieja"
 
+        /**
+         * Tope de visitas que el barrido reabre por pasada. En la simulación
+         * de E-APP-079 (500 semillas × 200 acciones) ninguna pasada reabrió
+         * más de 2 (57 pasadas con 1, 2 con 2): 10 cubre ese caso en una sola
+         * pasada con 5× de margen, y acota a 10 `POST` multipart por pasada un
+         * residuo grande, que se vacía en varias pasadas.
+         */
+        const val MAX_DEVUELTAS_POR_PASADA: Int = 10
+
+        /** Barrido: hay pagos o ventas por subir; esta pasada no reabre nada. */
+        const val ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO: String = "visitas_reconcilia_barrido_pospuesto_por_dinero"
+
+        /** Barrido: no se pudo saber si hay dinero por subir; se pospone. */
+        const val ERROR_CODE_DINERO_ILEGIBLE: String = "visitas_reconcilia_dinero_ilegible"
+
         /** Barrido (E-APP-079): la lectura de fotos sin enviar falló; no se decidió nada. */
         const val ERROR_CODE_BARRIDO_ILEGIBLE: String = "visitas_reconcilia_barrido_ilegible"
 
         private const val CONTEXT_BARRIDO = "ReconcileDeliveredVisitsUseCase.fotosSinEnviarDeEntregadas"
+        private const val CONTEXT_DINERO = "ReconcileDeliveredVisitsUseCase.dineroPendiente"
         private const val CONTEXT_LEER = "ReconcileDeliveredVisitsUseCase.entregadasDesde"
         private const val CONTEXT_CONSULTA = "ReconcileDeliveredVisitsUseCase.findExisting"
         private const val CONTEXT_CONFIRMAR = "ReconcileDeliveredVisitsUseCase.confirmar"
@@ -421,5 +488,6 @@ class ReconcileDeliveredVisitsUseCase(
         private const val PROP_DEVUELTAS = "devueltas"
         private const val PROP_REVISADAS = "revisadas"
         private const val PROP_FOTOS = "fotos"
+        private const val PROP_VISITAS = "visitas"
     }
 }

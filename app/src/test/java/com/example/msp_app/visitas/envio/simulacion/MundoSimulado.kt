@@ -1,8 +1,10 @@
 package com.example.msp_app.visitas.envio.simulacion
 
 import android.content.Context
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
 import com.example.msp_app.core.common.time.AppTime
@@ -444,13 +446,24 @@ class MundoSimulado(
         observarTelefono()
     }
 
+    /** Prioridad del dinero en el barrido: true = hay pagos o ventas por subir. */
+    var dineroPendiente: Boolean = false
+
     /** La reconciliación inversa diaria, real (Tarea 13). */
-    suspend fun reconciliacionInversa() {
+    suspend fun reconciliacionInversa(): ConciliacionInversa {
         val r = ReconcileDeliveredVisitsUseCase(
             RoomDeliveredVisitsStore(db.visitDao(), db.visitImageDao()),
             V2VisitCustodyRegistry(api),
-            reporter
+            reporter,
+            DineroPendiente { dineroPendiente }
         ) { clock.now() }.execute()
+        if (r.barridoPospuestoPorDinero) {
+            evento(
+                TipoEvento.FALLA,
+                "",
+                "barrido_pospuesto_por_dinero n=${r.visitasConFotoEnEspera}"
+            )
+        }
         // Cobertura del barrido de E-APP-079 (no lo mira el verificador).
         if (r.devueltasPorFoto > 0) {
             evento(
@@ -468,6 +481,7 @@ class MundoSimulado(
             )
         }
         observarTelefono()
+        return r
     }
 
     /** Avanza el reloj falso y corre la poda real (Tarea 12). */
