@@ -68,6 +68,7 @@ class TelemetriaDeVisitasTest {
             "visitas.conciliacion.barrido_pospuesto_seguidas",
             "visitas.conciliacion.barrido_por_valvula",
             "visitas.resguardadas_por_podar",
+            "visitas.poda.fotos_con_archivo_que_no_viajan",
             "visitas.guardado_cancelado.escritas",
             "visitas.guardado_cancelado.cuentas",
             "visitas.guardado_cancelado.en_ubicacion"

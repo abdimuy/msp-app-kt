@@ -5,7 +5,7 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVi
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
-import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
+import com.example.msp_app.core.visitas.envio.FotoQueViaja
 import java.io.File
 import javax.inject.Inject
 
@@ -59,6 +59,6 @@ class RoomDeliveredVisitsStore @VisibleForTesting internal constructor(
      */
     override suspend fun fotosSinEnviarDeEntregadas(): List<FotoSinEnviar> =
         imagenes.pendientesDeEntregadas()
-            .filter { ComprobantesDeVisita.permitido(it.MIME) && archivoExiste(it.URI) }
+            .filter { FotoQueViaja.viaja(it.MIME, it.URI, archivoExiste) }
             .map { FotoSinEnviar(visitaId = it.VISITA_ID, creadaEn = it.CREADA_EN) }
 }

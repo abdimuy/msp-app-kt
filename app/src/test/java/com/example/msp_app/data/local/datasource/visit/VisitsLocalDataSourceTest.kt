@@ -758,6 +758,61 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             assertNull("sin foto: se poda", db.visitDao().findVisitById("sin-foto"))
         }
 
+    /**
+     * Adenda de E-APP-079: la poda y el barrido usan el MISMO predicado
+     * (`FotoQueViaja`: tipo permitido Y archivo en el disco). Una foto con
+     * archivo de un tipo que nunca viaja ya no protege su visita para siempre;
+     * se cuenta en la telemetría de la poda.
+     */
+    @Test
+    fun `E-APP-079 una foto con archivo de un tipo que no viaja no protege su visita y se cuenta`() =
+        runTest {
+            val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                telemetria = { evento, datos -> emitidos += evento to datos },
+                archivoExiste = { true }
+            )
+            listOf("con-jpeg", "con-bmp").forEach {
+                s.saveVisit(visit(id = it))
+                db.visitDao().confirmar(listOf(it), "2026-09-01T00:00:00Z")
+            }
+            fun foto(id: String, visita: String, mime: String) =
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = id,
+                    VISITA_ID = visita,
+                    URI = "/fotos/$id",
+                    MIME = mime,
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            db.visitImageDao().insertAll(
+                listOf(foto("j", "con-jpeg", "image/jpeg"), foto("b", "con-bmp", "image/bmp"))
+            )
+
+            s.deleteUploadedVisits()
+
+            assertNotNull("la que viaja sigue protegida", db.visitDao().findVisitById("con-jpeg"))
+            assertNull(
+                "la de tipo que no viaja ya no protege",
+                db.visitDao().findVisitById("con-bmp")
+            )
+            assertEquals(
+                listOf(
+                    "visitas_poda" to mapOf<String, Any>(
+                        "visitas.resguardadas_por_podar" to 0,
+                        "visitas.poda.fotos_con_archivo_que_no_viajan" to 1
+                    )
+                ),
+                emitidos
+            )
+        }
+
     /** Review Focus 2: la legada soltada sin prueba no se poda por la fuente real. */
     @Test
     fun `la poda real no borra la legada sin confirmar`() = runTest {

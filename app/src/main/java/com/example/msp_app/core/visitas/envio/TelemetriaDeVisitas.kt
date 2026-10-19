@@ -124,6 +124,12 @@ object TelemetriaDeVisitas {
     /** T12: resguardadas que rebasaron la retención; se reportan antes de podarlas (spec §4.2-8). */
     const val RESGUARDADAS_POR_PODAR = "visitas.resguardadas_por_podar"
 
+    /**
+     * Adenda de E-APP-079: fotos sin subir con archivo de un tipo que nunca
+     * viaja. No protegen su visita de la poda (mismo predicado que el barrido).
+     */
+    const val PODA_FOTOS_QUE_NO_VIAJAN = "visitas.poda.fotos_con_archivo_que_no_viajan"
+
     /** E-APP-078: cuentas escritas antes del corte, de [GC_CUENTAS]. */
     const val GC_ESCRITAS = "visitas.guardado_cancelado.escritas"
     const val GC_CUENTAS = "visitas.guardado_cancelado.cuentas"
@@ -234,6 +240,7 @@ object TelemetriaDeVisitas {
         CONC_BARRIDO_POSPUESTO_SEGUIDAS,
         CONC_BARRIDO_POR_VALVULA,
         RESGUARDADAS_POR_PODAR,
+        PODA_FOTOS_QUE_NO_VIAJAN,
         GC_ESCRITAS,
         GC_CUENTAS,
         GC_EN_UBICACION
@@ -302,8 +309,10 @@ object TelemetriaDeVisitas {
     )
 
     /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */
-    fun poda(resguardadasPorPodar: Int): Map<String, Any> =
-        mapOf(RESGUARDADAS_POR_PODAR to resguardadasPorPodar)
+    fun poda(resguardadasPorPodar: Int, fotosQueNoViajan: Int = 0): Map<String, Any> = buildMap {
+        put(RESGUARDADAS_POR_PODAR, resguardadasPorPodar)
+        if (fotosQueNoViajan > 0) put(PODA_FOTOS_QUE_NO_VIAJAN, fotosQueNoViajan)
+    }
 
     /** Guardado cancelado (E-APP-078): solo conteos. */
     fun guardadoCancelado(escritas: Int, cuentas: Int, enUbicacion: Boolean): Map<String, Any> =

@@ -12,9 +12,11 @@ import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import com.example.msp_app.core.utils.VisitScope
 import com.example.msp_app.core.utils.VisitScopeMapper
+import com.example.msp_app.core.visitas.envio.FotoQueViaja
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import java.io.File
 import java.time.Duration
@@ -226,10 +228,19 @@ class VisitsLocalDataSource @Inject constructor(
         // que rebasa hoy se reporta y se poda en la siguiente. `minOf` evita
         // podar más allá del límite de hoy si el reloj retrocedió.
         val porPodar = visitDao.resguardadasPorPodar(limiteResguardadas)
-        if (porPodar > 0) {
-            // Solo un conteo: ningún dato personal (Tarea 14, lista blanca de TelemetriaDeVisitas).
-            Log.w(TAG, "visitas.resguardadas_por_podar=$porPodar")
-            reportarPorPodar(porPodar)
+        val fotos = visitDao.fotosSinSubirDeNoResguardadas()
+        val protegidas = visitasConFotoPorSubir(fotos)
+        val queNoViajan = fotos.count {
+            FotoQueViaja.conArchivoQueNoViaja(
+                it.MIME,
+                it.URI,
+                archivoExiste
+            )
+        }
+        if (porPodar > 0 || queNoViajan > 0) {
+            // Solo conteos: ningún dato personal (Tarea 14, lista blanca de TelemetriaDeVisitas).
+            Log.w(TAG, "visitas.resguardadas_por_podar=$porPodar fotos_que_no_viajan=$queNoViajan")
+            reportarPoda(TelemetriaDeVisitas.poda(porPodar, queNoViajan))
         }
         val reportadas = memoriaDePoda.reportadasHasta()
         val resguardadasAntesDe = if (reportadas == null) {
@@ -241,7 +252,6 @@ class VisitsLocalDataSource @Inject constructor(
             )
         }
 
-        val protegidas = visitasConFotoPorSubir()
         if (protegidas.size > MAX_PROTEGIDAS) {
             // E-VIS-032 (R2): no cabe en un `NOT IN`; antes que arriesgar una
             // foto, esta corrida no poda nada. Solo un conteo.
@@ -265,18 +275,19 @@ class VisitsLocalDataSource @Inject constructor(
      * confirmación pasaba de 30 días y la foto de 7 según el reloj del
      * teléfono, y después el barrido de huérfanos se llevaba la fila y el
      * archivo: la foto se perdía sin haber viajado. La foto sin archivo
-     * sigue como antes (la ventana de [RETENCION_DE_COMPROBANTES]).
+     * sigue como antes (la ventana de [RETENCION_DE_COMPROBANTES]). Desde la
+     * adenda de E-APP-079 "conserva su archivo" es [FotoQueViaja.viaja], el
+     * mismo predicado del barrido: tipo permitido Y archivo en el disco.
      */
-    private suspend fun visitasConFotoPorSubir(): List<String> =
-        visitDao.fotosSinSubirDeNoResguardadas()
-            .filter { archivoExiste(it.URI) }
+    private fun visitasConFotoPorSubir(fotos: List<VisitImageEntity>): List<String> =
+        fotos.filter { FotoQueViaja.viaja(it.MIME, it.URI, archivoExiste) }
             .map { it.VISITA_ID }
             .distinct()
 
     @Suppress("TooGenericExceptionCaught")
-    private fun reportarPorPodar(porPodar: Int) {
+    private fun reportarPoda(datos: Map<String, Any>) {
         try {
-            telemetria(TelemetriaDeVisitas.EVENTO_PODA, TelemetriaDeVisitas.poda(porPodar))
+            telemetria(TelemetriaDeVisitas.EVENTO_PODA, datos)
         } catch (e: Exception) {
             Log.w(TAG, "telemetria de la poda fallo; la poda sigue", e)
         }
