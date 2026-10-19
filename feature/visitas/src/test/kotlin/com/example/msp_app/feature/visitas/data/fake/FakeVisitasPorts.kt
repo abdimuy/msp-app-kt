@@ -148,10 +148,18 @@ class FakeRegistroDeVisitaPort(
      */
     var fallaEn: Int? = null
 
+    /**
+     * Los índices de [registradas] cuya escritura NO quedó (E-VIS-055): la
+     * prueba que modela la llave primaria de las fotos solo cuenta las que sí.
+     */
+    val fallidas: MutableSet<Int> = mutableSetOf()
+
     override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro {
         val indice = registradas.size
         registradas += visita
-        return if (indice == fallaEn) ResultadoDelRegistro.FALLO_EL_GUARDADO else resultado
+        val desenlace = if (indice == fallaEn) ResultadoDelRegistro.FALLO_EL_GUARDADO else resultado
+        if (desenlace != ResultadoDelRegistro.REGISTRADA) fallidas += indice
+        return desenlace
     }
 }
 

@@ -95,6 +95,10 @@ class RegistrarVisita @Inject constructor(
      *   Viajan hasta el puerto **sin pasar por [ReglasDeLaVisita]**: ninguna
      *   regla las mira y ninguna las puede convertir en un bloqueo. Es la
      *   traducción literal de "la foto nunca bloquea el guardado".
+     * @param alEscribir se llama una vez por cada visita que QUEDÓ escrita, en
+     *   el momento en que quedó. Es lo único que deja a la pantalla distinguir un
+     *   fallo que no escribió nada de un parcial (E-VIS-055): el desenlace es el
+     *   mismo [ResultadoDelRegistro] en los dos casos.
      */
     @Suppress("LongParameterList") // los comprobantes son el septimo dato del hecho, no una opcion.
     suspend operator fun invoke(
@@ -104,7 +108,8 @@ class RegistrarVisita @Inject constructor(
         captura: CapturaDeVisita,
         hoy: LocalDate,
         recomendacionId: String? = null,
-        comprobantes: List<ComprobanteDeVisita> = emptyList()
+        comprobantes: List<ComprobanteDeVisita> = emptyList(),
+        alEscribir: () -> Unit = {}
     ): ResultadoDelRegistro {
         val bloqueos = ReglasDeLaVisita.bloqueosDe(captura, hoy)
         if (bloqueos.isNotEmpty()) {
@@ -134,7 +139,8 @@ class RegistrarVisita @Inject constructor(
                 resultado = resultado,
                 recomendacionId = recomendacionId,
                 comprobantes = comprobantes,
-                avance = avance
+                avance = avance,
+                alEscribir = alEscribir
             )
         } catch (cancelada: CancellationException) {
             reportarCancelado(avance)
@@ -152,7 +158,8 @@ class RegistrarVisita @Inject constructor(
         resultado: ResultadoDeVisita,
         recomendacionId: String?,
         comprobantes: List<ComprobanteDeVisita>,
-        avance: Avance
+        avance: Avance,
+        alEscribir: () -> Unit
     ): ResultadoDelRegistro {
         // UNA sola lectura de la ubicación para las N filas: son el mismo hecho,
         // en el mismo instante y en la misma puerta. Pedirla N veces daría N
@@ -175,9 +182,11 @@ class RegistrarVisita @Inject constructor(
             // El hecho es de la puerta entera y la base lo propaga sola a todas
             // las cuentas activas del cliente. Una fila, con la semilla de id
             // tal cual.
-            return registro.registrar(plantilla)
+            return registro.registrar(plantilla).also {
+                if (it == ResultadoDelRegistro.REGISTRADA) alEscribir()
+            }
         }
-        return registrarUnaPorCuenta(plantilla, resultado, captura, avance)
+        return registrarUnaPorCuenta(plantilla, resultado, captura, avance, alEscribir)
     }
 
     /**
@@ -232,6 +241,10 @@ class RegistrarVisita @Inject constructor(
      *   el cobrador" es UN hecho; `ligarConVisita` es un `UPDATE` sobre la fila
      *   de la recomendación, así que ligarla N veces solo dejaría la última y
      *   haría ilegible la evaluación.
+     *   Que el ancla no cambie entre un parcial y su reintento lo sostiene la
+     *   pantalla, que congela el desenlace y las cuentas (E-VIS-055): con otras
+     *   cuentas el ancla sería otra visita y el `REPLACE` sobre el id de la foto
+     *   la mudaría.
      * - **La promesa** solo puede existir sobre una cuenta, y por eso
      *   [ResultadoDeVisita.admiteVariasCuentas] la deja fuera de la selección
      *   múltiple: aquí su lista trae exactamente una.
@@ -241,7 +254,8 @@ class RegistrarVisita @Inject constructor(
         plantilla: VisitaARegistrar,
         resultado: ResultadoDeVisita,
         captura: CapturaDeVisita,
-        avance: Avance
+        avance: Avance,
+        alEscribir: () -> Unit
     ): ResultadoDelRegistro {
         val ids = IdsDeLaVisita.paraCuentas(plantilla.visitaId, captura.cuentas)
         avance.cuentas = ids.size
@@ -262,6 +276,7 @@ class RegistrarVisita @Inject constructor(
                 if (desenlace == ResultadoDelRegistro.REGISTRADA) {
                     escritas++
                     avance.escritas = escritas
+                    alEscribir()
                 } else if (primerFallo == null) {
                     primerFallo = desenlace
                 }

@@ -449,7 +449,7 @@ private fun CuerpoDeLaVisita(
                 OpcionDeResultado(
                     resultado = resultado,
                     seleccionado = false,
-                    habilitado = state.sePuedeCapturar,
+                    habilitado = state.sePuedeElegirLaSeleccion,
                     onElegir = { acciones.onResultado(resultado) }
                 )
             }
@@ -457,7 +457,7 @@ private fun CuerpoDeLaVisita(
             OpcionDeResultado(
                 resultado = elegido,
                 seleccionado = true,
-                habilitado = state.sePuedeCapturar,
+                habilitado = state.sePuedeElegirLaSeleccion,
                 onElegir = acciones.onCambiarResultado
             )
         }
@@ -535,10 +535,13 @@ private fun CuerpoDeLaVisita(
 private fun SeccionDeCuentas(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
     if (!state.pideCuentas) return
     val contexto = requireNotNull(state.contexto)
-    if (state.variasCuentas) {
+    if (state.variasCuentas && state.seleccionCongelada) {
+        // Sin el atajo: un "Ninguna" que se ve vivo y no responde mentiría.
+        TituloDeSeccion("¿De cuáles cuentas?")
+    } else if (state.variasCuentas) {
         EncabezadoDeCuentas(
             todasMarcadas = state.todasLasCuentasMarcadas,
-            habilitado = state.sePuedeCapturar,
+            habilitado = state.sePuedeElegirLaSeleccion,
             onTodas = acciones.onTodasLasCuentas
         )
         Text(
@@ -549,12 +552,20 @@ private fun SeccionDeCuentas(state: RegistrarVisitaUiState, acciones: AccionesDe
     } else {
         TituloDeSeccion("¿De cuál cuenta?")
     }
+    // E-VIS-055: la foto ya quedó atada a la visita de estas cuentas.
+    if (state.seleccionCongelada) {
+        Text(
+            text = "Ya se guardó en estas cuentas",
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted
+        )
+    }
     contexto.ventas.forEach { venta ->
         FilaDeCuenta(
             venta = venta,
             marcada = venta.ventaId in state.captura.cuentas,
             varias = state.variasCuentas,
-            habilitado = state.sePuedeCapturar,
+            habilitado = state.sePuedeElegirLaSeleccion,
             onTocar = { acciones.onCuenta(venta.ventaId) }
         )
     }

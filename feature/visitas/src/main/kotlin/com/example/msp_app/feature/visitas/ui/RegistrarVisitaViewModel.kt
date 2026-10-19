@@ -32,6 +32,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -68,6 +69,8 @@ import kotlinx.coroutines.withContext
  *    todavía está vacío. Leer el destino del estado ahí tira la foto en silencio
  *    y después repone el destino, con lo que la cámara **se vuelve a abrir**.
  *    Ver [tomarDestinoPendiente] y [conLoCapturado].
+ * 4. **La selección congelada** (E-VIS-055): el desenlace, su etiqueta y las
+ *    cuentas del guardado que pudo haber escrito algo. Ver [seleccionCongelada].
  *
  * ## La foto cuelga de la visita y no la puede detener
  *
@@ -175,6 +178,31 @@ class RegistrarVisitaViewModel @Inject constructor(
      * ya no va a publicar nada.
      */
     private var laEscrituraYaTomoLasFotos: Boolean = false
+
+    /**
+     * **El desenlace y las cuentas de un guardado que pudo haber escrito algo**
+     * (E-VIS-055). `null` = ninguna escritura pudo haber ocurrido todavía.
+     *
+     * Las fotos cuelgan del ANCLA —la visita de la cuenta más baja— y su fila se
+     * escribe con `REPLACE` sobre el id de la FOTO. Si entre un parcial y su
+     * reintento cambian las cuentas, cambia el ancla, y la misma foto se muda a
+     * otra visita: el servidor la recibe ya ligada a la primera y responde 422
+     * (E-VIS-051). La regla, la más simple que lo hace imposible: desde que un
+     * guardado arranca, el desenlace y las cuentas quedan fijos, y solo se
+     * sueltan si ese guardado **sabe** que no escribió nada.
+     *
+     * Se congela ANTES de escribir y en el `SavedStateHandle`, no al enterarse
+     * del parcial: si el proceso muere a media escritura, nadie llega a
+     * enterarse, y la pantalla restaurada tiene que volver con la misma
+     * selección. Congelar de más cuesta un reintento con las mismas cuentas;
+     * congelar de menos cuesta una foto en la visita equivocada.
+     */
+    private var seleccionCongelada: SeleccionCongelada?
+        get() = savedStateHandle.get<String>(CLAVE_SELECCION_CONGELADA)
+            ?.let { SeleccionCongelada.decodificar(it) }
+        set(valor) {
+            savedStateHandle[CLAVE_SELECCION_CONGELADA] = valor?.codificar()
+        }
 
     private val mutableState = MutableStateFlow(RegistrarVisitaUiState())
     val state: StateFlow<RegistrarVisitaUiState> = mutableState.asStateFlow()
@@ -957,7 +985,12 @@ class RegistrarVisitaViewModel @Inject constructor(
         if (!actual.sePuedeGuardar) return
         if (yaSeEncolo) return
         yaSeEncolo = true
-        mutableState.value = actual.copy(guardando = true, fallo = null)
+        // E-VIS-055: congelada ANTES de lanzar, sincrónicamente y en el handle.
+        // Lo que ya estaba congelado no se suelta aunque este intento falle sin
+        // escribir: lo escrito por el intento anterior sigue ahí.
+        val yaEstabaCongelada = seleccionCongelada != null
+        seleccionCongelada = SeleccionCongelada.de(actual.captura)
+        mutableState.value = actual.copy(guardando = true, fallo = null, seleccionCongelada = true)
         viewModelScope.launch {
             // Los comprobantes se leen ACÁ y no en el snapshot del toque: es lo
             // más tarde que se puede leerlos sin que la escritura ya haya
@@ -969,34 +1002,50 @@ class RegistrarVisitaViewModel @Inject constructor(
             // Y desde este instante la lista está tomada: lo que llegue después
             // no entra, y `adjuntar` lo reporta en vez de tragárselo.
             laEscrituraYaTomoLasFotos = true
-            aplicar(escribir(conLasFotosDeAhora), conLasFotosDeAhora.captura)
+            val escritas = AtomicInteger(0)
+            val resultado = escribir(conLasFotosDeAhora) { escritas.incrementAndGet() }
+            if (resultado != ResultadoDelRegistro.REGISTRADA &&
+                escritas.get() == 0 &&
+                !yaEstabaCongelada
+            ) {
+                // Este guardado SABE que no escribió nada: la selección vuelve
+                // a estar abierta.
+                seleccionCongelada = null
+            }
+            aplicar(resultado, conLasFotosDeAhora.captura)
         }
     }
 
-    private suspend fun escribir(actual: RegistrarVisitaUiState): ResultadoDelRegistro =
-        withContext(io) {
-            registrarVisita(
-                visitaId = visitaId,
-                clienteId = clienteId,
-                ventaId = ventaId,
-                captura = actual.captura,
-                hoy = actual.hoy,
-                recomendacionId = actual.recomendacion?.recomendacionId,
-                // Del ESTADO, no del campo: es el mismo estado que el guard ya
-                // congeló al empezar a guardar, así que lo que se escribe es
-                // exactamente lo que la pantalla enseñaba.
-                comprobantes = actual.comprobantes
-            )
-        }
+    private suspend fun escribir(
+        actual: RegistrarVisitaUiState,
+        alEscribir: () -> Unit
+    ): ResultadoDelRegistro = withContext(io) {
+        registrarVisita(
+            visitaId = visitaId,
+            clienteId = clienteId,
+            ventaId = ventaId,
+            captura = actual.captura,
+            hoy = actual.hoy,
+            recomendacionId = actual.recomendacion?.recomendacionId,
+            // Del ESTADO, no del campo: es el mismo estado que el guard ya
+            // congeló al empezar a guardar, así que lo que se escribe es
+            // exactamente lo que la pantalla enseñaba.
+            comprobantes = actual.comprobantes,
+            alEscribir = alEscribir
+        )
+    }
 
     /**
      * Cierra el registro.
      *
      * Un fallo **libera el guard**: a diferencia del abono, aquí nada de dinero
-     * se movió, la escritura es una transacción que no dejó nada, y el reintento
-     * va con el MISMO [visitaId] —así que ni siquiera un guardado que sí hubiera
-     * quedado podría convertirse en una segunda visita: el `INSERT` es
-     * `REPLACE` sobre la misma llave.
+     * se movió y el reintento va con el MISMO [visitaId] —así que ni siquiera un
+     * guardado que sí hubiera quedado podría convertirse en una segunda visita:
+     * el `INSERT` es `REPLACE` sobre la misma llave.
+     *
+     * Con varias cuentas el fallo puede ser **parcial**: unas quedaron y otras
+     * no. Por eso el guard se suelta pero la selección no (E-VIS-055): el
+     * reintento reescribe las mismas visitas, con la foto en la misma ancla.
      */
     private fun aplicar(resultado: ResultadoDelRegistro, captura: CapturaDeVisita) {
         if (resultado == ResultadoDelRegistro.REGISTRADA) {
@@ -1012,8 +1061,9 @@ class RegistrarVisitaViewModel @Inject constructor(
             return
         }
         yaSeEncolo = false
-        // Nada quedó escrito, así que la lista vuelve a estar abierta: el
-        // reintento tiene que poder llevarse las fotos que se sigan adjuntando.
+        // La lista vuelve a estar abierta: el reintento tiene que poder
+        // llevarse las fotos que se sigan adjuntando. Van a la MISMA ancla,
+        // porque la selección sigue congelada si algo se escribió (E-VIS-055).
         laEscrituraYaTomoLasFotos = false
         telemetry.error(
             code = VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO,
@@ -1022,7 +1072,8 @@ class RegistrarVisitaViewModel @Inject constructor(
         )
         mutableState.value = mutableState.value.copy(
             guardando = false,
-            fallo = falloDe(resultado)
+            fallo = falloDe(resultado),
+            seleccionCongelada = seleccionCongelada != null
         )
     }
 
@@ -1041,6 +1092,10 @@ class RegistrarVisitaViewModel @Inject constructor(
         val actual = mutableState.value
         if (!actual.sePuedeCapturar) return
         val captura = cambio(actual.captura)
+        // E-VIS-055: el único lugar que toca la captura es también el único que
+        // tiene que negarse. Ningún camino —de hoy o futuro— puede cambiar el
+        // desenlace ni las cuentas de una selección congelada.
+        if (seleccionCongelada?.sostiene(captura) == false) return
         mutableState.value = actual.copy(
             captura = captura,
             bloqueos = ReglasDeLaVisita.bloqueosDe(captura, actual.hoy),
@@ -1058,14 +1113,19 @@ class RegistrarVisitaViewModel @Inject constructor(
         if (contexto == null) {
             RegistrarVisitaUiState(cargando = false, error = ErrorDeLaVisita.CLIENTE_NO_ESTA)
         } else {
-            val captura = CapturaDeVisita()
+            // E-VIS-055: tras la muerte del proceso vuelve la selección
+            // congelada, no una captura en blanco donde se eligieran otras
+            // cuentas. Lo demás (nota, fecha, monto) no se persiste y vuelve vacío.
+            val congelada = seleccionCongelada
+            val captura = congelada?.comoCaptura() ?: CapturaDeVisita()
             RegistrarVisitaUiState(
                 cargando = false,
                 contexto = contexto,
                 recomendacion = apertura.recomendacion,
                 captura = captura,
                 hoy = hoy,
-                bloqueos = ReglasDeLaVisita.bloqueosDe(captura, hoy)
+                bloqueos = ReglasDeLaVisita.bloqueosDe(captura, hoy),
+                seleccionCongelada = congelada != null
             ).also {
                 // El guard se SUELTA al recargar, y esto no es un descuido.
                 //
@@ -1101,5 +1161,54 @@ class RegistrarVisitaViewModel @Inject constructor(
         const val CLAVE_YA_SE_ENCOLO = "visitas_ya_se_encolo"
         const val CLAVE_DESTINO = "visitas_destino_de_foto"
         const val CLAVE_COMPROBANTES = "visitas_comprobantes"
+        const val CLAVE_SELECCION_CONGELADA = "visitas_seleccion_congelada"
+    }
+}
+
+/**
+ * Lo que un guardado congela (E-VIS-055): el desenlace, su etiqueta y las
+ * cuentas. Juntos deciden qué visitas se escriben y cuál es el ancla.
+ *
+ * Viaja en el `SavedStateHandle` como un `String` de tres líneas —nombre del
+ * desenlace, etiqueta, cuentas separadas por coma—, que un `Bundle` guarda sin
+ * más. El formato solo lo lee el mismo APK que lo escribió.
+ */
+private data class SeleccionCongelada(
+    val resultado: ResultadoDeVisita,
+    val etiqueta: String?,
+    val cuentas: Set<Int>
+) {
+    /** ¿[captura] conserva el desenlace y las cuentas congelados? */
+    fun sostiene(captura: CapturaDeVisita): Boolean =
+        captura.resultado == resultado && captura.cuentas == cuentas
+
+    fun comoCaptura(): CapturaDeVisita =
+        CapturaDeVisita(resultado = resultado, etiqueta = etiqueta, cuentas = cuentas)
+
+    fun codificar(): String =
+        listOf(resultado.name, etiqueta.orEmpty(), cuentas.sorted().joinToString(","))
+            .joinToString("\n")
+
+    companion object {
+        fun de(captura: CapturaDeVisita): SeleccionCongelada = SeleccionCongelada(
+            resultado = requireNotNull(captura.resultado) {
+                "sePuedeGuardar exige un desenlace: ReglasDeLaVisita lo garantiza"
+            },
+            etiqueta = captura.etiqueta,
+            cuentas = captura.cuentas
+        )
+
+        fun decodificar(crudo: String): SeleccionCongelada? {
+            val partes = crudo.split("\n")
+            if (partes.size != PARTES) return null
+            val resultado = ResultadoDeVisita.entries.firstOrNull { it.name == partes[0] }
+                ?: return null
+            val cuentas = partes[2].split(",").filter { it.isNotBlank() }
+                .map { it.toIntOrNull() ?: return null }
+                .toSet()
+            return SeleccionCongelada(resultado, partes[1].ifEmpty { null }, cuentas)
+        }
+
+        private const val PARTES = 3
     }
 }

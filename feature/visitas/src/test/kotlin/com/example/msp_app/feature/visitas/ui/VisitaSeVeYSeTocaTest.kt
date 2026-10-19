@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -263,6 +264,38 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
+     * E-VIS-055: tras un guardado parcial la selección está congelada. Las
+     * cuentas y el desenlace se pintan apagados y no mandan nada, el atajo
+     * "todas / ninguna" no se pinta, y el texto dice por qué. La prueba de arriba es su control positivo.
+     */
+    @Test
+    fun `E-VIS-055 con la seleccion congelada las cuentas y el desenlace no responden`() {
+        val tocadas = mutableListOf<Int>()
+        var cambios = 0
+        pintaCon(VisitaFixtures.seNegoEnTodo().copy(seleccionCongelada = true)) {
+            it.copy(
+                onCuenta = { id -> tocadas += id },
+                onCambiarResultado = { cambios++ }
+            )
+        }
+
+        composeTestRule
+            .onNodeWithTag(CUENTA_TAG + VisitasFixtures.REFRIGERADOR)
+            .performScrollTo()
+            .assertIsNotEnabled()
+            .performClick()
+        composeTestRule.onAllNodesWithTag(TODAS_LAS_CUENTAS_TAG).assertCountEquals(0)
+        composeTestRule
+            .onNodeWithTag(OPCION_TAG + ResultadoDeVisita.SE_NEGO.name.lowercase())
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(emptyList<Int>(), tocadas)
+        assertEquals(0, cambios)
+        composeTestRule.onNode(hasText(TEXTO_CONGELADA)).performScrollTo().assertIsDisplayed()
+    }
+
+    /**
      * **Con un desenlace de toda la puerta la sección no existe.** Control
      * positivo de las pruebas de arriba: sin esto no distinguirían "se pinta
      * cuando toca" de "se pinta siempre".
@@ -510,5 +543,8 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
     private companion object {
         /** El piso del plan. El design system pide 56dp, que nunca lo viola. */
         val MINIMO_TOCABLE = 50.dp
+
+        /** E-VIS-055: el texto de la selección congelada. */
+        const val TEXTO_CONGELADA = "Ya se guardó en estas cuentas"
     }
 }

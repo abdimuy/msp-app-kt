@@ -171,7 +171,16 @@ data class RegistrarVisitaUiState(
      * `imagen_mime_no_permitido` **para la visita entera**, o sea que el audio
      * costaría el registro. Queda en el teléfono hasta que el API lo acepte.
      */
-    val audioDeLaNota: GrabacionDictada? = null
+    val audioDeLaNota: GrabacionDictada? = null,
+    /**
+     * **El desenlace y las cuentas ya no se pueden cambiar** (E-VIS-055).
+     *
+     * Un guardado que pudo haber escrito algo ató las fotos al ancla —la visita
+     * de la cuenta más baja— y su fila se escribe con `REPLACE` sobre el id de la
+     * foto. Cambiar las cuentas cambiaría el ancla y mudaría la misma foto a otra
+     * visita. El reintento va con exactamente las mismas.
+     */
+    val seleccionCongelada: Boolean = false
 ) {
     /**
      * ¿El CTA está vivo? Si esto es `false` el botón se pinta apagado **y** no
@@ -183,6 +192,13 @@ data class RegistrarVisitaUiState(
             bloqueos.isEmpty() &&
             !guardando &&
             registrada == null
+
+    /**
+     * ¿Se puede cambiar el desenlace o las cuentas? No con la selección
+     * congelada (E-VIS-055): lo demás de la captura sigue abierto.
+     */
+    val sePuedeElegirLaSeleccion: Boolean
+        get() = sePuedeCapturar && !seleccionCongelada
 
     /** ¿Se puede seguir capturando? Con la visita ya registrada, no. */
     val sePuedeCapturar: Boolean
