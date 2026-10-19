@@ -16,6 +16,7 @@ import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManage
 import com.example.msp_app.core.utils.VisitScope
 import com.example.msp_app.core.utils.VisitScopeMapper
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
+import java.io.File
 import java.time.Duration
 import javax.inject.Inject
 
@@ -26,7 +27,9 @@ class VisitsLocalDataSource @Inject constructor(
     private val clock: AppClock = AppClock.System,
     private val memoriaDePoda: MemoriaDePodaDeResguardadas = MemoriaDePodaDeResguardadas.Ninguna,
     /** Telemetría de la poda (plan visitas P1, Tarea 14): solo el conteo. Nunca lanza. */
-    private val telemetria: (String, Map<String, Any>) -> Unit = TelemetriaDeVisitas::emitir
+    private val telemetria: (String, Map<String, Any>) -> Unit = TelemetriaDeVisitas::emitir,
+    /** E-VIS-032 (R2): si el archivo de una foto sin subir sigue en el disco. */
+    private val archivoExiste: (String) -> Boolean = { File(it).exists() }
 ) {
     /**
      * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
@@ -238,14 +241,37 @@ class VisitsLocalDataSource @Inject constructor(
             )
         }
 
-        visitDao.deleteUploadedVisits(
-            confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(ahora),
-            resguardadasAntesDe = resguardadasAntesDe,
-            comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes),
-            conservarCompromisosDesde = AppTime.toWireDate(corte)
-        )
+        val protegidas = visitasConFotoPorSubir()
+        if (protegidas.size > MAX_PROTEGIDAS) {
+            // E-VIS-032 (R2): no cabe en un `NOT IN`; antes que arriesgar una
+            // foto, esta corrida no poda nada. Solo un conteo.
+            Log.w(TAG, "visitas.poda_pospuesta protegidas=${protegidas.size}")
+        } else {
+            visitDao.deleteUploadedVisits(
+                confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(ahora),
+                resguardadasAntesDe = resguardadasAntesDe,
+                comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes),
+                conservarCompromisosDesde = AppTime.toWireDate(corte),
+                protegidas = protegidas
+            )
+        }
         memoriaDePoda.anotarReportadasHasta(limiteResguardadas)
     }
+
+    /**
+     * E-VIS-032 (R2): la poda NUNCA borra una visita no resguardada que tenga
+     * una foto sin `SUBIDA_EN` cuyo archivo sigue en el disco, sin importar
+     * la edad de la foto ni la de la confirmación. Antes la borraba cuando la
+     * confirmación pasaba de 30 días y la foto de 7 según el reloj del
+     * teléfono, y después el barrido de huérfanos se llevaba la fila y el
+     * archivo: la foto se perdía sin haber viajado. La foto sin archivo
+     * sigue como antes (la ventana de [RETENCION_DE_COMPROBANTES]).
+     */
+    private suspend fun visitasConFotoPorSubir(): List<String> =
+        visitDao.fotosSinSubirDeNoResguardadas()
+            .filter { archivoExiste(it.URI) }
+            .map { it.VISITA_ID }
+            .distinct()
 
     @Suppress("TooGenericExceptionCaught")
     private fun reportarPorPodar(porPodar: Int) {
@@ -261,6 +287,9 @@ class VisitsLocalDataSource @Inject constructor(
 
         /** Ninguna marca de cable es menor que la cadena vacía: con esto no se poda ninguna resguardada. */
         const val NADA = ""
+
+        /** Tope de `protegidas` en el `NOT IN` de la poda, por debajo de los 999 parámetros de SQLite. */
+        const val MAX_PROTEGIDAS = 900
 
         /**
          * Cuánto sobrevive una visita subida DESPUÉS de la fecha de su

@@ -707,6 +707,57 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
     private fun storeCon(clock: FakeClock, memoria: MemoriaDePodaDeResguardadas) =
         VisitsLocalDataSource(db.visitDao(), db.saleDao(), enqueuer, clock, memoria)
 
+    /**
+     * E-VIS-032 (R2): la poda nunca borra una confirmada, por vieja que sea,
+     * mientras tenga una foto sin subir que conserva su archivo. Antes la
+     * borraba con la foto de más de 7 días según el reloj del teléfono y el
+     * barrido de huérfanos se llevaba después la fila y el archivo. La foto
+     * sin archivo sigue como antes: ya no bloquea pasada la semana.
+     */
+    @Test
+    fun `E-VIS-032 la poda no borra una confirmada vieja con una foto sin subir que conserva su archivo`() =
+        runTest {
+            val existen = setOf("/fotos/con-archivo.jpg")
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                archivoExiste = { it in existen }
+            )
+            listOf("con-foto", "sin-archivo", "sin-foto").forEach {
+                s.saveVisit(visit(id = it))
+                db.visitDao().confirmar(listOf(it), "2026-09-01T00:00:00Z")
+            }
+            fun foto(id: String, visita: String) =
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = id,
+                    VISITA_ID = visita,
+                    URI = "/fotos/$id.jpg",
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            // Tras confirmar: la retención por foto de `confirmar` ya no aplica.
+            db.visitImageDao().insertAll(
+                listOf(foto("con-archivo", "con-foto"), foto("sin-arch", "sin-archivo"))
+            )
+
+            s.deleteUploadedVisits()
+
+            assertNotNull(
+                "foto sin subir con archivo: no se poda",
+                db.visitDao().findVisitById("con-foto")
+            )
+            assertNull(
+                "foto sin archivo: como antes, se poda",
+                db.visitDao().findVisitById("sin-archivo")
+            )
+            assertNull("sin foto: se poda", db.visitDao().findVisitById("sin-foto"))
+        }
+
     /** Review Focus 2: la legada soltada sin prueba no se poda por la fuente real. */
     @Test
     fun `la poda real no borra la legada sin confirmar`() = runTest {

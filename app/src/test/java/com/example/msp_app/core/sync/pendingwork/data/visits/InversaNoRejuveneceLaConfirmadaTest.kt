@@ -49,7 +49,8 @@ class InversaNoRejuveneceLaConfirmadaTest : RoomTestBase() {
         confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(cuando),
         resguardadasAntesDe = ReglaDePoda.limiteResguardadas(cuando),
         comprobantesDesde = AppTime.toWireFormat(cuando),
-        conservarCompromisosDesde = "2000-01-01"
+        conservarCompromisosDesde = "2000-01-01",
+        protegidas = emptyList()
     )
 
     private suspend fun sembrarConfirmadaEnD() {

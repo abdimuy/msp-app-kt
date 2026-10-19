@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
 
 @Dao
 interface VisitDao {
@@ -437,6 +438,10 @@ interface VisitDao {
      * @param comprobantesDesde instante de corte en formato de cable de `AppTime`
      *   (`ISO_INSTANT`, UTC, ancho fijo — comparable como texto). Una visita con
      *   un comprobante pendiente creado en ese instante o después SOBREVIVE.
+     * @param protegidas visitas que NO se podan, sea cual sea su edad: las que
+     *   tienen una foto sin subir con archivo local y no están resguardadas
+     *   (E-VIS-032, R2; la calcula `VisitsLocalDataSource`). El llamador la
+     *   mantiene por debajo del tope de 999 parámetros; `IN ()` vacío es válido.
      */
     @Query(
         """
@@ -452,14 +457,30 @@ interface VisitDao {
               WHERE SUBIDA_EN IS NULL AND CREADA_EN >= :comprobantesDesde
           )
           AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarCompromisosDesde
+          AND ID NOT IN (:protegidas)
         """
     )
     suspend fun deleteUploadedVisits(
         confirmadasAntesDe: String,
         resguardadasAntesDe: String,
         comprobantesDesde: String,
-        conservarCompromisosDesde: String
+        conservarCompromisosDesde: String,
+        protegidas: List<String>
     )
+
+    /**
+     * Las fotos sin `SUBIDA_EN` de visitas soltadas que NO están resguardadas
+     * (confirmadas y legadas). `VisitsLocalDataSource.deleteUploadedVisits`
+     * mira cuáles conservan su archivo y protege sus visitas de la poda sin
+     * importar la edad (E-VIS-032, R2). Solo lectura.
+     */
+    @Query(
+        """
+        SELECT i.* FROM visita_imagenes i JOIN Visit v ON v.ID = i.VISITA_ID
+        WHERE v.GUARDADO_EN_MICROSIP = 1 AND v.RESGUARDADA_EN IS NULL AND i.SUBIDA_EN IS NULL
+        """
+    )
+    suspend fun fotosSinSubirDeNoResguardadas(): List<VisitImageEntity>
 
     /**
      * Cuántas resguardadas ya rebasaron [antesDe] (la segunda rama de
