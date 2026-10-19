@@ -22,6 +22,7 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
+import com.example.msp_app.core.database.dao.visit.VisitaZonaDao
 import com.example.msp_app.core.database.entities.ClientProfileEntity
 import com.example.msp_app.core.database.entities.ClientProfileSignalEntity
 import com.example.msp_app.core.database.entities.ClienteEntity
@@ -44,6 +45,8 @@ import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.database.entities.VisitRecommendationEntity
+import com.example.msp_app.core.database.entities.VisitaZonaEntity
+import com.example.msp_app.core.database.entities.VisitasSyncStateEntity
 import com.example.msp_app.core.database.migrations.MIGRATION_20_21
 import com.example.msp_app.core.database.migrations.MIGRATION_21_22
 import com.example.msp_app.core.database.migrations.MIGRATION_22_23
@@ -59,6 +62,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_31_32
 import com.example.msp_app.core.database.migrations.MIGRATION_32_33
 import com.example.msp_app.core.database.migrations.MIGRATION_33_34
 import com.example.msp_app.core.database.migrations.MIGRATION_34_35
+import com.example.msp_app.core.database.migrations.MIGRATION_35_36
 
 @Database(
     entities = [
@@ -82,10 +86,12 @@ import com.example.msp_app.core.database.migrations.MIGRATION_34_35
         VisitRecommendationEntity::class,
         ClientProfileEntity::class,
         ClientProfileSignalEntity::class,
-        EnvioDiagnosticoEntity::class
+        EnvioDiagnosticoEntity::class,
+        VisitaZonaEntity::class,
+        VisitasSyncStateEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 35,
+    version = 36,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -121,6 +127,9 @@ abstract class AppDatabase : RoomDatabase() {
 
     /** `envio_diagnostico` — motivo del último fallo de envío, solo diagnóstico (E-APP-063). */
     abstract fun envioDiagnosticoDao(): EnvioDiagnosticoDao
+
+    /** `visita_zona` + `visitas_sync_state` — la agenda bajada de la zona, nunca la tabla de salida (E-APP-080). */
+    abstract fun visitaZonaDao(): VisitaZonaDao
 
     companion object {
         @Volatile
@@ -172,7 +181,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_31_32,
                     MIGRATION_32_33,
                     MIGRATION_33_34,
-                    MIGRATION_34_35
+                    MIGRATION_34_35,
+                    MIGRATION_35_36
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

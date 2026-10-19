@@ -16,7 +16,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-33-34-test.db"
 private const val OLD_VERSION = 33
 private const val NEW_VERSION = 34
-private const val ULTIMA_VERSION = 35
+private const val ULTIMA_VERSION = 36
 
 /**
  * E-APP-063: la 33→34 solo crea `envio_diagnostico`. Lo que se prueba aquí, y
@@ -105,7 +105,7 @@ class Migration33to34Test : RobolectricTestBase() {
 
     /**
      * Camino real de producción: `buildDatabase` debe tener registrada la 33→34.
-     * La cadena sigue hasta la última versión (v35 agrega dos columnas a
+     * La cadena sigue hasta la última versión (v35 y v36 agregan columnas a
      * `Visit`), así que se comparan las columnas que la fila ya tenía en v33.
      */
     @Test

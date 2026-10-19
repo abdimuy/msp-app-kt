@@ -30,7 +30,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -72,7 +74,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -106,7 +110,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 0
         """
@@ -135,7 +141,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE FECHA >= :start AND FECHA < :end
         ORDER BY FECHA DESC
@@ -179,7 +187,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE CLIENTE_ID = :clienteId
         ORDER BY FECHA DESC
@@ -343,6 +353,54 @@ interface VisitDao {
         """
     )
     suspend fun devolverAPendiente(ids: List<String>): Int
+
+    // ─── Relleno del compromiso (spec visitas §5.2.5) ────────────────────────
+    // Las dos ÚNICAS que escriben COMPROMISO_CONFIRMADO_EN/COMPROMISO_RESGUARDADO_EN
+    // con un valor. Ninguna toca la entrega de la visita base.
+
+    /**
+     * El servidor devolvió el bloque de promesa/cita igual al local: deja la
+     * prueba y limpia un resguardo previo. Conserva la PRIMERA prueba
+     * (`COALESCE`), como [confirmar] (E-VIS-028).
+     *
+     * @return filas que tocó; 0 = el id no existe.
+     */
+    @Query(
+        """
+        UPDATE Visit SET COMPROMISO_CONFIRMADO_EN = COALESCE(COMPROMISO_CONFIRMADO_EN, :ahora),
+            COMPROMISO_RESGUARDADO_EN = NULL
+        WHERE ID = :id
+        """
+    )
+    suspend fun confirmarCompromiso(id: String, ahora: String): Int
+
+    /**
+     * El servidor resguardó el compromiso distinto en la bandeja. Nunca pisa un
+     * compromiso ya confirmado.
+     */
+    @Query(
+        """
+        UPDATE Visit SET COMPROMISO_RESGUARDADO_EN = :ahora
+        WHERE ID = :id AND COMPROMISO_CONFIRMADO_EN IS NULL
+        """
+    )
+    suspend fun resguardarCompromiso(id: String, ahora: String): Int
+
+    /**
+     * Las visitas con promesa o cita cuyo compromiso el servidor todavía no
+     * probó ni resguardó: lo que el relleno reenvía con el mismo id, de la más
+     * vieja a la más nueva. Incluye las de visita base ya confirmada.
+     */
+    @Query(
+        """
+        SELECT ID FROM Visit
+        WHERE (PROMESA_FECHA IS NOT NULL OR CITA_FECHA IS NOT NULL)
+          AND COMPROMISO_CONFIRMADO_EN IS NULL
+          AND COMPROMISO_RESGUARDADO_EN IS NULL
+        ORDER BY FECHA, ID
+        """
+    )
+    suspend fun compromisosPorRellenar(): List<String>
 
     /** Todas las pendientes, sin tope ni azar, de la más vieja a la más nueva. */
     @Query("SELECT ID FROM Visit WHERE GUARDADO_EN_MICROSIP = 0 ORDER BY FECHA ASC, ID ASC")

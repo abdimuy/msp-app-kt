@@ -110,5 +110,19 @@ data class VisitEntity(
      * fallidos (`X-Intent-Captured`): está en la oficina, no en `MSP_VISITAS`.
      * La escribe solo `VisitDao.resguardar`.
      */
-    @ColumnInfo(name = "RESGUARDADA_EN") val RESGUARDADA_EN: String? = null
+    @ColumnInfo(name = "RESGUARDADA_EN") val RESGUARDADA_EN: String? = null,
+    /**
+     * Instante en que el servidor CONFIRMÓ el bloque de promesa/cita de esta
+     * visita con contrato 3 (spec visitas §5.2.5, relleno). Independiente de
+     * [CONFIRMADA_EN]: una visita subida por el contrato 2 está confirmada y
+     * su compromiso no. `NULL` = sin prueba. Lo escribe solo
+     * `VisitDao.confirmarCompromiso`. La 35→36 la agrega nula.
+     */
+    @ColumnInfo(name = "COMPROMISO_CONFIRMADO_EN") val COMPROMISO_CONFIRMADO_EN: String? = null,
+    /**
+     * Instante en que el servidor RESGUARDÓ el compromiso (422
+     * `visita_compromiso_distinto` con custodia): está en la bandeja, la visita
+     * base sigue confirmada. Lo escribe solo `VisitDao.resguardarCompromiso`.
+     */
+    @ColumnInfo(name = "COMPROMISO_RESGUARDADO_EN") val COMPROMISO_RESGUARDADO_EN: String? = null
 )

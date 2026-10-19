@@ -84,8 +84,29 @@ class GuardadoDeVisitaFilasIdenticasTest : RoomTestBase() {
         }
     }
 
-    private fun foto() = filas("SELECT * FROM Visit ORDER BY ID") + "--\n" +
-        filas("SELECT * FROM sales ORDER BY DOCTO_CC_ACR_ID")
+    /**
+     * La foto es de v35. Las columnas que v36 agregó a `Visit` (las marcas del
+     * compromiso, E-APP-080) no están en ella: se comparan las de v35 y se
+     * exige aparte que el guardado deje las nuevas en nulo.
+     */
+    private fun foto() =
+        filas("SELECT ${columnasDeVisitEnLaFoto()} FROM Visit ORDER BY ID") + "--\n" +
+            filas("SELECT * FROM sales ORDER BY DOCTO_CC_ACR_ID")
+
+    private fun columnasDeVisitEnLaFoto(): String =
+        db.openHelper.readableDatabase.query("PRAGMA table_info(Visit)").use { c ->
+            buildList {
+                while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name")))
+            }
+        }.filterNot { it in COLUMNAS_POSTERIORES_A_LA_FOTO }.joinToString()
+
+    private fun columnasPosterioresNoNulas(): Int = db.openHelper.readableDatabase.query(
+        "SELECT COUNT(*) FROM Visit WHERE " +
+            COLUMNAS_POSTERIORES_A_LA_FOTO.joinToString(" OR ") { "$it IS NOT NULL" }
+    ).use { c ->
+        c.moveToFirst()
+        c.getInt(0)
+    }
 
     @Test
     fun `E-APP-078 sin cancelacion las filas de Visit y sales son identicas a las de la base`() =
@@ -128,6 +149,11 @@ class GuardadoDeVisitaFilasIdenticasTest : RoomTestBase() {
             val base = requireNotNull(javaClass.getResource(FOTO_DE_LA_BASE)) { FOTO_DE_LA_BASE }
                 .readText(Charsets.UTF_8)
             assertEquals(base, foto())
+            assertEquals(
+                "el guardado no escribe las marcas del compromiso",
+                0,
+                columnasPosterioresNoNulas()
+            )
         }
 
     private object SinEncolar : VisitsWorkEnqueuer {
@@ -184,5 +210,9 @@ class GuardadoDeVisitaFilasIdenticasTest : RoomTestBase() {
          * de E-APP-078); el archivo es la salida tal cual, sin editar.
          */
         const val FOTO_DE_LA_BASE = "/e_app_078/filas-base-3b8dea08.txt"
+
+        /** Agregadas por la 35→36, después de tomar la foto. */
+        val COLUMNAS_POSTERIORES_A_LA_FOTO =
+            listOf("COMPROMISO_CONFIRMADO_EN", "COMPROMISO_RESGUARDADO_EN")
     }
 }
