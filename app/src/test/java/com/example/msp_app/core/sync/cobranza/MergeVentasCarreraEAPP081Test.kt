@@ -290,6 +290,73 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         afirmar("R-control", obs, Observacion(null, correcto, correcto))
     }
 
+    // ─── S: rama "venta saldada" de mergeVentas ──────────────────────────────
+
+    /**
+     * El servidor manda la venta saldada (saldo 0) y el teléfono no tiene pagos
+     * en ventana: `mergeVentas` cuenta (`countPagosDesde` = 0) y la borra. El
+     * merge se detiene justo después de contar y, en la ventana, el cobrador
+     * condona.
+     *
+     * Lo que la transacción por venta garantiza en esta rama: la cuenta y el
+     * borrado ven el mismo estado. Un escritor que relee la venta DENTRO de su
+     * transacción (la condonación, `RegistroDeCondonacion.escribir`) queda
+     * entero antes o entero después; nunca resulta un pago en ventana sobre una
+     * venta que el merge ya decidió borrar.
+     *
+     * NO lo garantiza para el abono: `RegistroDeAbonoAdapter` valida la venta
+     * FUERA de su transacción y, con o sin este arreglo, queda el abono
+     * registrado con la venta borrada (compuerta DESPUÉS, 20/20). Ese hueco es
+     * E-APP-083 y sigue ABIERTO; esta prueba no lo cubre.
+     */
+    @Test
+    fun `EAPP081 S condonacion tras contar los pagos de una venta saldada no queda sobre la venta borrada`() {
+        val obs = repetirSaldada { carreraSaldada() }
+        imprimirSaldada("S", obs)
+        obs.forEachIndexed { i, o ->
+            assertEquals(
+                "S repetición ${i + 1}",
+                Saldada(
+                    ventanaCerrada = true,
+                    condonacion = ResultadoDeLaCondonacion.VENTA_NO_ESTA_EN_EL_TELEFONO,
+                    ventaPresente = false,
+                    pagosEnVentana = 0
+                ),
+                o
+            )
+        }
+    }
+
+    /**
+     * Control positivo de S: la condonación entera antes del merge (cuenta 1,
+     * la venta se conserva) o entera después (la venta ya no está, no se
+     * escribe nada). Las dos dejan venta y pagos de acuerdo.
+     */
+    @Test
+    fun `EAPP081 S control condonacion antes o despues del merge de la saldada`() {
+        val antes = repetirSaldada {
+            val r = condonarEnVentana()
+            managerSaldada(null).applyByIds(SseKind.SALDOS, listOf(VENTA))
+            observarSaldada(null, r)
+        }
+        imprimirSaldada("S-control-antes", antes)
+        val guardada = Saldada(null, ResultadoDeLaCondonacion.GUARDADA, true, 1)
+        antes.forEach { assertEquals(guardada, it) }
+
+        val despues = repetirSaldada {
+            managerSaldada(null).applyByIds(SseKind.SALDOS, listOf(VENTA))
+            observarSaldada(null, condonarEnVentana())
+        }
+        imprimirSaldada("S-control-despues", despues)
+        val rechazada = Saldada(
+            ventanaCerrada = null,
+            condonacion = ResultadoDeLaCondonacion.VENTA_NO_ESTA_EN_EL_TELEFONO,
+            ventaPresente = false,
+            pagosEnVentana = 0
+        )
+        despues.forEach { assertEquals(rechazada, it) }
+    }
+
     // ─── Espera del abono mientras el sync aplica una página de 1000 ventas ──
 
     /**
@@ -435,6 +502,78 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         manager().applyByIds(SseKind.SALDOS, listOf(VENTA))
         return Observacion(null, uno, leer())
     }
+
+    /** [ventanaCerrada]: la condonación seguía sin terminar con el merge detenido. */
+    private data class Saldada(
+        val ventanaCerrada: Boolean?,
+        val condonacion: ResultadoDeLaCondonacion,
+        val ventaPresente: Boolean,
+        val pagosEnVentana: Int
+    )
+
+    private fun repetirSaldada(cuerpo: suspend () -> Saldada): List<Saldada> =
+        (1..REPETICIONES).map {
+            abrirBaseNueva()
+            runBlocking(Dispatchers.IO) { withTimeout(TIEMPO_MAXIMO_MS) { cuerpo() } }
+        }
+
+    private fun imprimirSaldada(caso: String, obs: List<Saldada>) {
+        assertEquals(REPETICIONES, obs.size)
+        obs.groupingBy { it }.eachCount().forEach { (o, n) ->
+            println(
+                "EAPP081 $caso $n/${obs.size} ventana_cerrada=${o.ventanaCerrada} " +
+                    "condonacion=${o.condonacion} venta_presente=${o.ventaPresente} " +
+                    "pagos_en_ventana=${o.pagosEnVentana}"
+            )
+        }
+    }
+
+    private suspend fun observarSaldada(cerrada: Boolean?, r: ResultadoDeLaCondonacion) = Saldada(
+        cerrada,
+        r,
+        db.saleDao().findByDoctoCcId(VENTA) != null,
+        db.paymentDao().countPagosDesde(VENTA, DESDE_SALDADA)
+    )
+
+    /** Merge de la saldada detenido tras `countPagosDesde`; condonación en la ventana. */
+    private suspend fun carreraSaldada(): Saldada = coroutineScope {
+        val pausa = Pausa()
+        val p = async(Dispatchers.IO) {
+            managerSaldada(pausa).applyByIds(SseKind.SALDOS, listOf(VENTA))
+        }
+        pausa.llego.await()
+        val w = async(Dispatchers.IO) { condonarEnVentana() }
+        delay(ESPERA_MS)
+        val cerrada = !w.isCompleted
+        assertTrue("el merge sigue detenido mientras la condonación intenta", !p.isCompleted)
+        pausa.suelta.complete(Unit)
+        p.await()
+        observarSaldada(cerrada, w.await())
+    }
+
+    private fun managerSaldada(pausa: Pausa?) = CobranzaSyncManager(
+        api = ApiSaldada,
+        db = db,
+        saleDao = db.saleDao(),
+        paymentDao = PaymentDaoQuePausaTrasContar(db.paymentDao(), pausa),
+        productDao = db.productDao(),
+        syncStateDao = db.cobranzaSyncStateDao(),
+        connectivity = SiempreEnLinea(context),
+        userContextFlow = MutableStateFlow<UserContext?>(
+            UserContext(zona = ZONA, fechaCargaInicial = Instant.parse(DESDE_SALDADA))
+        ).asStateFlow(),
+        cobranzaWriteMutex = CobranzaWriteMutex()
+    )
+
+    /** La condonación de producción, con fecha dentro de la ventana del cobrador. */
+    private suspend fun condonarEnVentana(): ResultadoDeLaCondonacion =
+        RegistroDeCondonacion(db).condonar(
+            CondonacionFixtures.condonacion(
+                id = "cond-eapp081-saldada",
+                importe = CONDONADO,
+                venta = VENTA
+            ).copy(FECHA_HORA_PAGO = "2026-10-18T15:00:00Z")
+        )
 
     private suspend fun leer(): Fila {
         val v = checkNotNull(db.saleDao().findByDoctoCcId(VENTA)) { "la venta no está" }
@@ -591,6 +730,17 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         }
     }
 
+    private class PaymentDaoQuePausaTrasContar(
+        private val real: PaymentDao,
+        private val pausa: Pausa?
+    ) : PaymentDao by real {
+        override suspend fun countPagosDesde(doctoCcAcrId: Int, fechaIso: String): Int {
+            val n = real.countPagosDesde(doctoCcAcrId, fechaIso)
+            pausa?.aqui()
+            return n
+        }
+    }
+
     /**
      * La 1a llamada es el pre-check de digest de `reconcileNow`; la 2a es la
      * lista local de `reconcileSaldosViaIds`, ANTES de ir a la red. Ahí se detiene.
@@ -670,6 +820,12 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
 
     private object ApiQueDevuelveElDto : ApiFija()
 
+    /** El servidor ya la da por saldada. */
+    private object ApiSaldada : ApiFija() {
+        override suspend fun saldosByIds(zonaId: Int, ids: String): List<VentaDto> =
+            listOf(venta(VENTA, CLIENTE, "0.00", "Y00013662"))
+    }
+
     /** Digest de pagos igual al local (vacío); el de saldos distinto; `/ids` trae la venta. */
     private object ApiQueReconcilia : ApiFija() {
         override suspend fun pagosDigest(zonaId: Int, desde: String?) =
@@ -721,6 +877,7 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
         const val SALDO_SERVIDOR = 1450.0
         const val ABONO = 220.0
         const val CONDONADO = 300.0
+        const val DESDE_SALDADA = "2026-10-11T00:00:00Z"
         val PENDIENTE = EstadoCobranza.PENDIENTE.name
         val PAGADO = EstadoCobranza.PAGADO.name
 

@@ -689,6 +689,15 @@ class CobranzaSyncManager(
      *    no hay red ni otra suspensión: el mutex se toma ANTES (en `syncNow` /
      *    `applyByIds`), nunca dentro. Una transacción por venta, no por
      *    página, para que un escritor no espere la página entera.
+     *
+     *  - **Rama saldada: cubre sólo a quien relee la venta en su transacción.**
+     *    `countPagosDesde` y el borrado ven el mismo estado, así que la
+     *    condonación (que relee la venta dentro de su `withTransaction`) queda
+     *    entera antes o entera después del borrado. El abono NO: valida la venta
+     *    fuera de su transacción (`RegistroDeAbonoAdapter.registrar`) y, con o
+     *    sin esta transacción, queda REGISTRADO con la venta ya borrada y un
+     *    pago en ventana (20/20 medido; el Payment no se pierde, la venta sale
+     *    de la lista). Hueco ABIERTO: E-APP-083, espera decisión del dueño.
      */
     private suspend fun mergeVentas(items: List<VentaDto>, desdeIso: String?) {
         for (dto in items) {
