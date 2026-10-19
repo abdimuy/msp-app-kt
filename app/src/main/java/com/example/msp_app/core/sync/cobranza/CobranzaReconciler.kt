@@ -11,6 +11,8 @@ import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
 import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
+import com.example.msp_app.data.api.services.cobranza.VentaDto
+import com.example.msp_app.data.api.services.cobranza.conSaldoAjustadoPorPagosEnVuelo
 import com.example.msp_app.data.api.services.cobranza.toEntity
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.withLock
@@ -386,7 +388,7 @@ class CobranzaReconciler(
                 // Merge: solo activos (cargo_cancelado=false, saldo>0 ó sin ventana).
                 val alive = fetched.filter { !it.cargo_cancelado }
                 if (alive.isNotEmpty()) {
-                    saleDao.insertAll(alive.map { it.toEntity() })
+                    insertarLasQueSiguenFaltando(zona, alive)
                 }
             } else {
                 Log.i(
@@ -398,6 +400,41 @@ class CobranzaReconciler(
         }
 
         return Pair(saldoPhantoms.size, saldosMissing.size)
+    }
+
+    /**
+     * Inserta las ventas de [alive] que **siguen** faltando en la zona, en UNA
+     * transacción y con el saldo menos lo que sigue en vuelo (E-APP-081).
+     *
+     * `localSaldoIds` se leyó ANTES de ir a la red, fuera de transacción, y los
+     * escritores de captura no toman [cobranzaWriteMutex]. Entre esa lectura y
+     * el insert la venta pudo volver (p.ej. el "inicio de semana" reescribe
+     * `sales`) y recibir un abono: un REPLACE a ciegas lo pisaba con la foto del
+     * servidor (1450/PENDIENTE en vez de 1230/PAGADO, 20/20 medido). Por eso se
+     * re-lee aquí, dentro de la transacción, con el MISMO criterio de "falta"
+     * (`getActiveIdsByZona`), y la que ya está no se toca: el sync es quien la
+     * actualiza.
+     *
+     * El saldo usa la misma fórmula que `CobranzaSyncManager.mergeVentas`
+     * ([conSaldoAjustadoPorPagosEnVuelo] con
+     * [PaymentDao.sumImporteNoReconocidoPorElServidor], una consulta por venta
+     * para no topar el límite de 999 parámetros): una venta reinsertada con un
+     * abono capturado y sin documento del servidor ya no reaparece con el saldo
+     * sin descontar. Sin red dentro de la transacción.
+     */
+    private suspend fun insertarLasQueSiguenFaltando(zona: Int, alive: List<VentaDto>) {
+        db.withTransaction {
+            val presentes = saleDao.getActiveIdsByZona(zona).toSet()
+            val faltantes = alive.filter { it.docto_cc_id !in presentes }
+            if (faltantes.isEmpty()) return@withTransaction
+            saleDao.insertAll(
+                faltantes.map { venta ->
+                    venta.toEntity().conSaldoAjustadoPorPagosEnVuelo(
+                        paymentDao.sumImporteNoReconocidoPorElServidor(venta.docto_cc_id)
+                    )
+                }
+            )
+        }
     }
 
     /**
