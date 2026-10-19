@@ -157,13 +157,13 @@ class RegistrarVisitaAdversarioR4Test {
     // ─── H-r4-3: quitar una foto ya escrita ──────────────────────────────────
 
     /**
-     * **H-r4-3 (lado VM).** Quitar la foto con la selección congelada borra su
-     * archivo y el reintento va sin ella, pero su fila sigue atada al ancla: el
-     * reintento no tiene forma de decirle a la base que la quite. La mitad Room
-     * la mide `AdversarioSeleccionCongeladaR4Test` en `:app`.
+     * **E-VIS-072** (era H-r4-3). Con la selección congelada, una foto que el
+     * guardado se pudo llevar ya no se quita: ni se borra su archivo ni sale
+     * del reintento. Su fila sigue en el ancla y ahora tiene archivo. La mitad
+     * Room del defecto la fija `AdversarioSeleccionCongeladaR4Test` en `:app`.
      */
     @Test
-    fun `H-r4-3 quitar una foto ya escrita borra el archivo y su fila se queda en el ancla`() =
+    fun `E-VIS-072 con la seleccion congelada una foto ya escrita no se puede quitar`() =
         runTest(testDispatcher) {
             val vm = viewModel()
             advanceUntilIdle()
@@ -173,14 +173,49 @@ class RegistrarVisitaAdversarioR4Test {
 
             vm.quitarFoto(comprobante.id)
             advanceUntilIdle()
-            reintentar(vm)
 
-            assertTrue(comprobante.archivo in camaraPort.descartados)
-            assertTrue(
-                "el reintento ya no lleva la foto",
-                puerto.llamadas.drop(2).all { it.comprobantes.isEmpty() }
-            )
+            assertEquals(listOf(comprobante), vm.state.value.comprobantes)
+            assertFalse("el archivo no se borra", comprobante.archivo in camaraPort.descartados)
+            assertEquals(setOf(comprobante.id), vm.state.value.fotosFijas)
+            reintentar(vm)
+            assertEquals(listOf(comprobante.id), puerto.llamadas[2].comprobantes.map { it.id })
             assertEquals("la fila sigue en el ancla", anclaEscrita, puerto.tabla[comprobante.id])
+        }
+
+    /** **E-VIS-072, control.** Una foto agregada DESPUÉS del parcial sí se quita. */
+    @Test
+    fun `E-VIS-072 control una foto agregada tras el parcial si se puede quitar`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+            parcialSobreLasDos(vm)
+            tomarFoto(vm)
+            val nueva = vm.state.value.comprobantes.last()
+
+            vm.quitarFoto(nueva.id)
+            advanceUntilIdle()
+
+            assertEquals(1, vm.state.value.comprobantes.size)
+            assertTrue(nueva.archivo in camaraPort.descartados)
+        }
+
+    /** **E-VIS-072** tras la muerte del proceso: la foto sigue fija. */
+    @Test
+    fun `E-VIS-072 tras restaurar el proceso la foto ya escrita sigue sin poder quitarse`() =
+        runTest(testDispatcher) {
+            val handle = handle()
+            val muerto = viewModel(handle)
+            advanceUntilIdle()
+            parcialSobreLasDos(muerto)
+            val comprobante = muerto.state.value.comprobantes.single()
+
+            val vm = viewModel(handle)
+            advanceUntilIdle()
+            vm.quitarFoto(comprobante.id)
+            advanceUntilIdle()
+
+            assertEquals(setOf(comprobante.id), vm.state.value.fotosFijas)
+            assertEquals(listOf(comprobante.id), vm.state.value.comprobantes.map { it.id })
         }
 
     // ─── H-r4-4: "ya se guardó" sin haber guardado nada ──────────────────────

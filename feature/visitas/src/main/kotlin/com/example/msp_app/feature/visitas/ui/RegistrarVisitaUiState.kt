@@ -180,7 +180,13 @@ data class RegistrarVisitaUiState(
      * foto. Cambiar las cuentas cambiaría el ancla y mudaría la misma foto a otra
      * visita. El reintento va con exactamente las mismas.
      */
-    val seleccionCongelada: Boolean = false
+    val seleccionCongelada: Boolean = false,
+    /**
+     * Las fotos que un guardado se pudo llevar (E-VIS-072): su fila puede estar
+     * ya en `visita_imagenes`, así que ya no se quitan. Las que se agreguen
+     * después sí.
+     */
+    val fotosFijas: Set<String> = emptySet()
 ) {
     /**
      * ¿El CTA está vivo? Si esto es `false` el botón se pinta apagado **y** no

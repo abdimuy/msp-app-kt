@@ -468,6 +468,18 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
         )
     }
 
+    /**
+     * E-VIS-072: una foto fija se pinta sin tache; la de al lado conserva el
+     * suyo. La prueba de abajo es el control de que el tache existe.
+     */
+    @Test
+    fun `E-VIS-072 una foto fija no tiene tache`() {
+        pintaCon(VisitaFixtures.conComprobantes().copy(fotosFijas = setOf("IMG-1"))) { it }
+
+        composeTestRule.onAllNodesWithTag(QUITAR_FOTO_TAG + "IMG-1").assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag(QUITAR_FOTO_TAG + "IMG-2").assertCountEquals(1)
+    }
+
     /** Quitar una foto avisa **con el id de esa foto**, no con el de la de al lado. */
     @Test
     fun `quitar una foto manda el id de esa foto`() {

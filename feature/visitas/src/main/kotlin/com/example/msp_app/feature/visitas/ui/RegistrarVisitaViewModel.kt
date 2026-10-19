@@ -802,6 +802,10 @@ class RegistrarVisitaViewModel @Inject constructor(
             mutableState.value = actual.copy(intentos = actual.intentos.filterNot { it.id == id })
             return
         }
+        // E-VIS-072: una foto que un guardado se pudo llevar ya no se quita.
+        // Su fila puede estar en `visita_imagenes`; borrar el archivo la dejaría
+        // pendiente para siempre y el reintento no tiene cómo borrarla.
+        if (id in seleccionCongelada?.fotos.orEmpty()) return
         val quitado = actual.comprobantes.firstOrNull { it.id == id } ?: return
         comprobantes = actual.comprobantes.filterNot { it.id == id }
         mutableState.value = actual.copy(
@@ -988,9 +992,17 @@ class RegistrarVisitaViewModel @Inject constructor(
         // E-VIS-055: congelada ANTES de lanzar, sincrónicamente y en el handle.
         // Lo que ya estaba congelado no se suelta aunque este intento falle sin
         // escribir: lo escrito por el intento anterior sigue ahí.
-        val yaEstabaCongelada = seleccionCongelada != null
-        seleccionCongelada = SeleccionCongelada.de(actual.captura)
-        mutableState.value = actual.copy(guardando = true, fallo = null, seleccionCongelada = true)
+        val previa = seleccionCongelada
+        val yaEstabaCongelada = previa != null
+        // E-VIS-072: las fotos que este intento se puede llevar quedan fijas.
+        val fijas = previa?.fotos.orEmpty() + actual.comprobantes.map { it.id }
+        seleccionCongelada = SeleccionCongelada.de(actual.captura, fijas)
+        mutableState.value = actual.copy(
+            guardando = true,
+            fallo = null,
+            seleccionCongelada = true,
+            fotosFijas = fijas
+        )
         viewModelScope.launch {
             // Los comprobantes se leen ACÁ y no en el snapshot del toque: es lo
             // más tarde que se puede leerlos sin que la escritura ya haya
@@ -1002,6 +1014,10 @@ class RegistrarVisitaViewModel @Inject constructor(
             // Y desde este instante la lista está tomada: lo que llegue después
             // no entra, y `adjuntar` lo reporta en vez de tragárselo.
             laEscrituraYaTomoLasFotos = true
+            // E-VIS-072: y también las que llegaron entre el toque y este punto.
+            seleccionCongelada = seleccionCongelada?.conFotos(
+                conLasFotosDeAhora.comprobantes.map { it.id }
+            )
             val escritas = AtomicInteger(0)
             val resultado = escribir(conLasFotosDeAhora) { escritas.incrementAndGet() }
             if (resultado in RESULTADOS_ANTES_DE_ESCRIBIR &&
@@ -1071,10 +1087,12 @@ class RegistrarVisitaViewModel @Inject constructor(
             message = "la visita no quedo registrada",
             props = mapOf(VisitasTelemetria.PROP_RESULTADO to resultado.name)
         )
+        val congelada = seleccionCongelada
         mutableState.value = mutableState.value.copy(
             guardando = false,
             fallo = falloDe(resultado),
-            seleccionCongelada = seleccionCongelada != null
+            seleccionCongelada = congelada != null,
+            fotosFijas = congelada?.fotos.orEmpty()
         )
     }
 
@@ -1126,7 +1144,8 @@ class RegistrarVisitaViewModel @Inject constructor(
                 captura = captura,
                 hoy = hoy,
                 bloqueos = ReglasDeLaVisita.bloqueosDe(captura, hoy),
-                seleccionCongelada = congelada != null
+                seleccionCongelada = congelada != null,
+                fotosFijas = congelada?.fotos.orEmpty()
             ).also {
                 // El guard se SUELTA al recargar, y esto no es un descuido.
                 //
@@ -1181,17 +1200,22 @@ class RegistrarVisitaViewModel @Inject constructor(
 
 /**
  * Lo que un guardado congela (E-VIS-055): el desenlace, su etiqueta y las
- * cuentas. Juntos deciden qué visitas se escriben y cuál es el ancla.
+ * cuentas —juntos deciden qué visitas se escriben y cuál es el ancla— y las
+ * fotos que ese guardado se pudo llevar, que ya no se quitan (E-VIS-072).
  *
- * Viaja en el `SavedStateHandle` como un `String` de tres líneas —nombre del
- * desenlace, etiqueta, cuentas separadas por coma—, que un `Bundle` guarda sin
- * más. El formato solo lo lee el mismo APK que lo escribió.
+ * Viaja en el `SavedStateHandle` como un `String` de cuatro líneas —nombre del
+ * desenlace, etiqueta, cuentas y fotos separadas por coma—, que un `Bundle`
+ * guarda sin más. El formato solo lo lee el mismo APK que lo escribió. Los ids
+ * de foto los acuña el teléfono (UUID o `IMG-n`): no llevan coma ni salto.
  */
 private data class SeleccionCongelada(
     val resultado: ResultadoDeVisita,
     val etiqueta: String?,
-    val cuentas: Set<Int>
+    val cuentas: Set<Int>,
+    val fotos: Set<String> = emptySet()
 ) {
+    fun conFotos(nuevas: Collection<String>): SeleccionCongelada = copy(fotos = fotos + nuevas)
+
     /**
      * ¿[captura] conserva el desenlace, la etiqueta y las cuentas congelados?
      * La etiqueta entra (H-r4-2): es el `TIPO_VISITA` de las filas ya escritas.
@@ -1202,18 +1226,23 @@ private data class SeleccionCongelada(
     fun comoCaptura(): CapturaDeVisita =
         CapturaDeVisita(resultado = resultado, etiqueta = etiqueta, cuentas = cuentas)
 
-    fun codificar(): String =
-        listOf(resultado.name, etiqueta.orEmpty(), cuentas.sorted().joinToString(","))
-            .joinToString("\n")
+    fun codificar(): String = listOf(
+        resultado.name,
+        etiqueta.orEmpty(),
+        cuentas.sorted().joinToString(","),
+        fotos.sorted().joinToString(",")
+    ).joinToString("\n")
 
     companion object {
-        fun de(captura: CapturaDeVisita): SeleccionCongelada = SeleccionCongelada(
-            resultado = requireNotNull(captura.resultado) {
-                "sePuedeGuardar exige un desenlace: ReglasDeLaVisita lo garantiza"
-            },
-            etiqueta = captura.etiqueta,
-            cuentas = captura.cuentas
-        )
+        fun de(captura: CapturaDeVisita, fotos: Set<String>): SeleccionCongelada =
+            SeleccionCongelada(
+                resultado = requireNotNull(captura.resultado) {
+                    "sePuedeGuardar exige un desenlace: ReglasDeLaVisita lo garantiza"
+                },
+                etiqueta = captura.etiqueta,
+                cuentas = captura.cuentas,
+                fotos = fotos
+            )
 
         fun decodificar(crudo: String): SeleccionCongelada? {
             val partes = crudo.split("\n")
@@ -1223,9 +1252,10 @@ private data class SeleccionCongelada(
             val cuentas = partes[2].split(",").filter { it.isNotBlank() }
                 .map { it.toIntOrNull() ?: return null }
                 .toSet()
-            return SeleccionCongelada(resultado, partes[1].ifEmpty { null }, cuentas)
+            val fotos = partes[3].split(",").filter { it.isNotBlank() }.toSet()
+            return SeleccionCongelada(resultado, partes[1].ifEmpty { null }, cuentas, fotos)
         }
 
-        private const val PARTES = 3
+        private const val PARTES = 4
     }
 }

@@ -510,6 +510,7 @@ private fun CuerpoDeLaVisita(
             miniaturas = state.miniaturas,
             intentos = state.intentos,
             puedeAgregar = state.sePuedeAgregarFoto,
+            fijas = state.fotosFijas,
             onAgregar = acciones.onAgregarFoto,
             onQuitar = acciones.onQuitarFoto
         )
