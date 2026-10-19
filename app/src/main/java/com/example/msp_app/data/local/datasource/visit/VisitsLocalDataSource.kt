@@ -237,10 +237,15 @@ class VisitsLocalDataSource @Inject constructor(
                 archivoExiste
             )
         }
-        if (porPodar > 0 || queNoViajan > 0) {
+        val pospuesta = if (protegidas.size > MAX_PROTEGIDAS) protegidas.size else 0
+        if (porPodar > 0 || queNoViajan > 0 || pospuesta > 0) {
             // Solo conteos: ningún dato personal (Tarea 14, lista blanca de TelemetriaDeVisitas).
-            Log.w(TAG, "visitas.resguardadas_por_podar=$porPodar fotos_que_no_viajan=$queNoViajan")
-            reportarPoda(TelemetriaDeVisitas.poda(porPodar, queNoViajan))
+            Log.w(
+                TAG,
+                "visitas.resguardadas_por_podar=$porPodar fotos_que_no_viajan=$queNoViajan " +
+                    "poda_pospuesta_protegidas=$pospuesta"
+            )
+            reportarPoda(TelemetriaDeVisitas.poda(porPodar, queNoViajan, pospuesta))
         }
         val reportadas = memoriaDePoda.reportadasHasta()
         val resguardadasAntesDe = if (reportadas == null) {
@@ -252,11 +257,10 @@ class VisitsLocalDataSource @Inject constructor(
             )
         }
 
-        if (protegidas.size > MAX_PROTEGIDAS) {
-            // E-VIS-032 (R2): no cabe en un `NOT IN`; antes que arriesgar una
-            // foto, esta corrida no poda nada. Solo un conteo.
-            Log.w(TAG, "visitas.poda_pospuesta protegidas=${protegidas.size}")
-        } else {
+        // E-VIS-032 (R2): si las protegidas no caben en un `NOT IN`, antes que
+        // arriesgar una foto esta corrida no poda nada; se reportó arriba
+        // (visitas.poda.pospuesta_protegidas).
+        if (pospuesta == 0) {
             visitDao.deleteUploadedVisits(
                 confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(ahora),
                 resguardadasAntesDe = resguardadasAntesDe,

@@ -813,6 +813,57 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             )
         }
 
+    /**
+     * Adenda de E-APP-079: si las visitas protegidas no caben en el `NOT IN`
+     * (más de 900), esa corrida no poda nada (ni lo que sí podría) y lo cuenta
+     * en la telemetría con una clave de la lista blanca; antes solo era un
+     * `Log.w` que no sale del teléfono.
+     */
+    @Test
+    fun `E-APP-079 si las protegidas no caben la poda no corre y se cuenta`() = runTest {
+        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+        val s = VisitsLocalDataSource(
+            db.visitDao(),
+            db.saleDao(),
+            enqueuer,
+            FakeClock(ahora),
+            MemoriaEnPrueba(),
+            telemetria = { evento, datos -> emitidos += evento to datos },
+            archivoExiste = { true }
+        )
+        val protegidas = (1..PROTEGIDAS_DE_MAS).map { "p-$it" }
+        (protegidas + "sin-foto").forEach { s.saveVisit(visit(id = it)) }
+        (protegidas + "sin-foto").chunked(500).forEach {
+            db.visitDao().confirmar(it, "2026-09-01T00:00:00Z")
+        }
+        db.visitImageDao().insertAll(
+            protegidas.map {
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = "f-$it",
+                    VISITA_ID = it,
+                    URI = "/fotos/$it.jpg",
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            }
+        )
+
+        s.deleteUploadedVisits()
+
+        assertNotNull("esta corrida no poda nada", db.visitDao().findVisitById("sin-foto"))
+        assertEquals(
+            listOf(
+                "visitas_poda" to mapOf<String, Any>(
+                    "visitas.resguardadas_por_podar" to 0,
+                    "visitas.poda.pospuesta_protegidas" to PROTEGIDAS_DE_MAS
+                )
+            ),
+            emitidos
+        )
+    }
+
     /** Review Focus 2: la legada soltada sin prueba no se poda por la fuente real. */
     @Test
     fun `la poda real no borra la legada sin confirmar`() = runTest {
@@ -969,5 +1020,10 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             contextForm.getPendingVisits().map { it.ID }
         )
         assertEquals(store.getVisitById("eq-sync"), contextForm.getVisitById("eq-sync"))
+    }
+
+    private companion object {
+        /** Una más que `VisitsLocalDataSource.MAX_PROTEGIDAS` (900). */
+        const val PROTEGIDAS_DE_MAS = 901
     }
 }

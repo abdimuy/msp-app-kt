@@ -130,6 +130,13 @@ object TelemetriaDeVisitas {
      */
     const val PODA_FOTOS_QUE_NO_VIAJAN = "visitas.poda.fotos_con_archivo_que_no_viajan"
 
+    /**
+     * Visitas protegidas por una foto sin subir cuando no caben en el `NOT IN`
+     * de la poda (más de `VisitsLocalDataSource.MAX_PROTEGIDAS`): esa corrida
+     * no poda nada. Solo aparece si pasa.
+     */
+    const val PODA_POSPUESTA_PROTEGIDAS = "visitas.poda.pospuesta_protegidas"
+
     /** E-APP-078: cuentas escritas antes del corte, de [GC_CUENTAS]. */
     const val GC_ESCRITAS = "visitas.guardado_cancelado.escritas"
     const val GC_CUENTAS = "visitas.guardado_cancelado.cuentas"
@@ -241,6 +248,7 @@ object TelemetriaDeVisitas {
         CONC_BARRIDO_POR_VALVULA,
         RESGUARDADAS_POR_PODAR,
         PODA_FOTOS_QUE_NO_VIAJAN,
+        PODA_POSPUESTA_PROTEGIDAS,
         GC_ESCRITAS,
         GC_CUENTAS,
         GC_EN_UBICACION
@@ -309,9 +317,14 @@ object TelemetriaDeVisitas {
     )
 
     /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */
-    fun poda(resguardadasPorPodar: Int, fotosQueNoViajan: Int = 0): Map<String, Any> = buildMap {
+    fun poda(
+        resguardadasPorPodar: Int,
+        fotosQueNoViajan: Int = 0,
+        pospuestaProtegidas: Int = 0
+    ): Map<String, Any> = buildMap {
         put(RESGUARDADAS_POR_PODAR, resguardadasPorPodar)
         if (fotosQueNoViajan > 0) put(PODA_FOTOS_QUE_NO_VIAJAN, fotosQueNoViajan)
+        if (pospuestaProtegidas > 0) put(PODA_POSPUESTA_PROTEGIDAS, pospuestaProtegidas)
     }
 
     /** Guardado cancelado (E-APP-078): solo conteos. */
