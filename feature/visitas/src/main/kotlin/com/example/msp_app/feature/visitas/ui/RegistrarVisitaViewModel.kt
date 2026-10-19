@@ -373,7 +373,7 @@ class RegistrarVisitaViewModel @Inject constructor(
         leidos.forEach(::pedirMiniatura)
         val ilegibles = crudos.size - leidos.size
         if (ilegibles > 0) {
-            telemetry.error(
+            reportarSinLanzar(
                 code = VisitasTelemetria.CODE_VISITA_FOTO_ILEGIBLE,
                 message = "una entrada de comprobante guardada no se pudo leer; se descarto",
                 props = mapOf(VisitasTelemetria.PROP_OCURRENCIAS to ilegibles.toString())
@@ -785,7 +785,7 @@ class RegistrarVisitaViewModel @Inject constructor(
      * silencio es justo lo que la norma de errores prohíbe.
      */
     private fun reportarFotoSinDestino() {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_FOTO_SIN_DESTINO,
             message = "la camara devolvio una foto y ya no habia destino que la reclamara",
             props = emptyMap()
@@ -868,7 +868,7 @@ class RegistrarVisitaViewModel @Inject constructor(
             } catch (cancelada: CancellationException) {
                 throw cancelada
             } catch (fallo: Throwable) {
-                telemetry.error(
+                reportarSinLanzar(
                     code = VisitasTelemetria.CODE_VISITA_FOTO_SIN_MINIATURA,
                     message = "no se pudo decodificar la miniatura; el comprobante sigue adjunto",
                     props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
@@ -883,7 +883,7 @@ class RegistrarVisitaViewModel @Inject constructor(
      * existe en ningún lado.
      */
     private suspend fun rechazarTardia(comprobante: ComprobanteDeVisita) {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_FOTO_TARDE,
             message = "la foto termino de procesarse cuando la escritura ya se llevo la lista",
             props = emptyMap()
@@ -893,7 +893,7 @@ class RegistrarVisitaViewModel @Inject constructor(
     }
 
     private suspend fun rechazarPorTipo(comprobante: ComprobanteDeVisita) {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_FOTO_TIPO_NO_PERMITIDO,
             message = "el archivo elegido tiene un tipo que el servidor no acepta; no se adjunta",
             // Anti-PII: el MIME es un valor tecnico cerrado, no dato del cliente.
@@ -971,7 +971,7 @@ class RegistrarVisitaViewModel @Inject constructor(
      * **Nunca toca la visita**: no cambia `fallo`, ni `guardando`, ni el guard.
      */
     private fun reportarFalloDeFoto(fallo: Throwable, porque: String, conCuadro: Boolean = true) {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_FOTO_FALLO,
             message = "$porque; la visita no se ve afectada",
             props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
@@ -1112,7 +1112,9 @@ class RegistrarVisitaViewModel @Inject constructor(
         // llevarse las fotos que se sigan adjuntando. Van a la MISMA ancla,
         // porque la selección sigue congelada si algo se escribió (E-VIS-055).
         laEscrituraYaTomoLasFotos = false
-        telemetry.error(
+        // E-VIS-074: sin lanzar. Si este reporte lanzara, el estado de abajo
+        // nunca se publicaría y la pantalla se quedaría en "guardando".
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO,
             message = "la visita no quedo registrada",
             props = mapOf(VisitasTelemetria.PROP_RESULTADO to resultado.name)
@@ -1124,6 +1126,23 @@ class RegistrarVisitaViewModel @Inject constructor(
             seleccionCongelada = congelada != null,
             fotosFijas = congelada?.fotos.orEmpty()
         )
+    }
+
+    /**
+     * E-VIS-074: la salida a `telemetry.error` de esta pantalla. **Total: no
+     * lanza.** `DurableTelemetry.error` inserta en Room de forma síncrona y
+     * puede fallar; aquí todo reporte corre en el `viewModelScope` (o en el
+     * `init`), donde una excepción sin manejador es un crash. En [aplicar],
+     * además, dejaba la pantalla en "guardando" con la visita ya escrita. El
+     * reporte se pierde; la pantalla sigue.
+     */
+    @Suppress("TooGenericExceptionCaught") // la telemetria caida no tumba la pantalla.
+    private fun reportarSinLanzar(code: String, message: String, props: Map<String, String>) {
+        try {
+            telemetry.error(code = code, message = message, props = props)
+        } catch (_: Throwable) {
+            // Sin reporte: la pantalla sigue.
+        }
     }
 
     private fun falloDe(resultado: ResultadoDelRegistro): FalloDeLaVisita = when (resultado) {
@@ -1195,7 +1214,7 @@ class RegistrarVisitaViewModel @Inject constructor(
     } catch (cancelada: CancellationException) {
         throw cancelada
     } catch (fallo: Throwable) {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_CONTEXTO_FALLO,
             message = "no se pudo cargar el cliente de la pantalla de visita",
             props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)

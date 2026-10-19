@@ -115,7 +115,7 @@ class RegistrarVisita @Inject constructor(
         if (bloqueos.isNotEmpty()) {
             // Anti-PII: viajan los NOMBRES de los bloqueos, nunca la fecha, el
             // monto ni la nota.
-            telemetry.error(
+            reportarSinLanzar(
                 code = VisitasTelemetria.CODE_CAPTURA_BLOQUEADA_EN_APLICACION,
                 message = "una captura bloqueada llego al caso de uso; la pantalla dejo pasar algo",
                 props = mapOf(
@@ -314,7 +314,7 @@ class RegistrarVisita @Inject constructor(
      * ni nombres, ni montos.
      */
     private fun reportarParcial(escritas: Int, total: Int, fallo: String) {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA,
             message = "unas cuentas de la captura quedaron escritas y otras no",
             props = mapOf(
@@ -397,7 +397,7 @@ class RegistrarVisita @Inject constructor(
     }
 
     private fun reportarSinUbicacion(causa: String, excepcion: String? = null) {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_UBICACION_NO_DISPONIBLE,
             message = "no se pudo obtener la ubicacion; la visita se registra igual",
             props = buildMap {
@@ -405,5 +405,22 @@ class RegistrarVisita @Inject constructor(
                 excepcion?.let { put(VisitasTelemetria.PROP_EXCEPCION, it) }
             }
         )
+    }
+
+    /**
+     * E-VIS-074: la salida a `telemetry.error` de los reportes del registro.
+     * **Total: no lanza.** `DurableTelemetry.error` inserta en Room de forma
+     * síncrona y puede fallar. Si su excepción saliera del caso de uso (el
+     * parcial corre con el ancla YA escrita), la pantalla nunca llegaría a
+     * `aplicar`: se quedaría en "guardando" y la corrutina del `viewModelScope`
+     * moriría sin manejador. El desenlace del registro es lo que se contesta.
+     */
+    @Suppress("TooGenericExceptionCaught") // la telemetria caida no cambia el desenlace.
+    private fun reportarSinLanzar(code: String, message: String, props: Map<String, String>) {
+        try {
+            telemetry.error(code = code, message = message, props = props)
+        } catch (_: Throwable) {
+            // Sin reporte: el desenlace sigue su camino.
+        }
     }
 }

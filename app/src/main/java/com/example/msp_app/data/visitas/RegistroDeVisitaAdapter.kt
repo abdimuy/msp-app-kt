@@ -99,7 +99,10 @@ class RegistroDeVisitaAdapter(
     } catch (fallo: Throwable) {
         // Anti-PII: viaja el nombre de la clase de la excepción, nunca su texto
         // (que puede arrastrar la nota o el nombre del cliente) ni el monto.
-        telemetry.error(
+        // E-VIS-074: sin lanzar. Con varias cuentas el ancla ya pudo quedar
+        // escrita en otra llamada; si este reporte lanzara, el puerto "total"
+        // lanzaría y la pantalla se quedaría en "guardando".
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO,
             message = "la escritura de la visita fallo; la transaccion no dejo nada escrito",
             props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
@@ -217,7 +220,7 @@ class RegistroDeVisitaAdapter(
             throw cancelada
         } catch (fallo: Throwable) {
             // Anti-PII: el nombre de la clase de la excepción, nunca su texto.
-            reportarTrasElCommit(
+            reportarSinLanzar(
                 code = VisitasTelemetria.CODE_VISITA_SIN_ENCOLAR,
                 message = "la visita quedo escrita pero no se pudo encolar su envio",
                 props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
@@ -277,7 +280,7 @@ class RegistroDeVisitaAdapter(
         } catch (fallo: Throwable) {
             // Anti-PII: el nombre de la clase de la excepción, nunca su texto ni
             // la ruta del archivo.
-            reportarTrasElCommit(
+            reportarSinLanzar(
                 code = VisitasTelemetria.CODE_VISITA_COMPROBANTES_NO_SE_GUARDARON,
                 message = "la visita quedo escrita y encolada pero sus fotos no se guardaron",
                 props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
@@ -286,22 +289,29 @@ class RegistroDeVisitaAdapter(
     }
 
     /**
-     * Reporta un fallo de un paso POSTERIOR al commit. **Total: no lanza.**
+     * Reporta un fallo. **Total: no lanza.** Es la ÚNICA salida a
+     * `telemetry.error` de este adaptador.
      *
      * E-VIS-071: la telemetría también puede fallar (`DurableTelemetry.error`
-     * inserta en Room de forma síncrona). Si su excepción saliera de aquí,
-     * llegaría al `catch` externo de [registrar], que contesta
+     * inserta en Room de forma síncrona). Tras el commit, si su excepción
+     * saliera de aquí, llegaría al `catch` externo de [registrar], que contesta
      * [ResultadoDelRegistro.FALLO_EL_GUARDADO] con la visita y la foto ya
      * escritas. La pantalla leería "nada se escribió", soltaría la selección
      * congelada y un cambio de cuentas mudaría la foto a otra visita. Tras el
      * commit la respuesta es REGISTRADA, pase lo que pase con el reporte.
+     *
+     * E-VIS-074: lo mismo vale para los otros dos reportes. El del `catch`
+     * externo, porque si lanzara el puerto dejaría de ser total (con varias
+     * cuentas el ancla ya está escrita). El de la recomendación no ligada,
+     * porque corre DENTRO de la transacción: si lanzara, la revertiría y la
+     * visita se perdería por un reporte.
      */
-    @Suppress("TooGenericExceptionCaught") // la telemetria caida no deshace una visita escrita.
-    private fun reportarTrasElCommit(code: String, message: String, props: Map<String, String>) {
+    @Suppress("TooGenericExceptionCaught") // la telemetria caida no cambia lo que se escribio.
+    private fun reportarSinLanzar(code: String, message: String, props: Map<String, String>) {
         try {
             telemetry.error(code = code, message = message, props = props)
         } catch (_: Throwable) {
-            // Sin reporte: la visita ya está escrita y eso es lo que se contesta.
+            // Sin reporte: el desenlace de la escritura es lo que se contesta.
         }
     }
 
@@ -428,7 +438,8 @@ class RegistroDeVisitaAdapter(
         val recomendacionId = visita.recomendacionId ?: return
         val ligadas = recomendaciones.ligarConVisita(recomendacionId, visita.visitaId)
         if (ligadas == 0) {
-            telemetry.error(
+            // E-VIS-074: sin lanzar; estamos dentro de la transacción.
+            reportarSinLanzar(
                 code = VisitasTelemetria.CODE_RECOMENDACION_NO_LIGADA,
                 message = "la recomendacion mostrada ya no estaba al guardar la visita",
                 props = emptyMap()
