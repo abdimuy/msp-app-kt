@@ -15,4 +15,8 @@
          quizá ya capturada en el teléfono viejo; aquí se ofrecería "continuar". -->
     <exclude domain="file" path="datastore/sale_draft.preferences_pb"/>
     <exclude domain="file" path="draft_images"/>
+    <!-- Autorización local del dispositivo (adenda E-APP-073): vale sólo para el
+         aparato que la ganó. Exclusión conservadora: el salto del bloqueo no se
+         midió; un teléfono nuevo se vuelve a autorizar. -->
+    <exclude domain="sharedpref" path="device_protection.xml"/>
 </full-backup-content>

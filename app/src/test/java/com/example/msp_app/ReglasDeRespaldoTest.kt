@@ -102,6 +102,17 @@ class ReglasDeRespaldoTest {
         )
     }
 
+    /**
+     * Adenda E-APP-073: `DeviceProtectionManager` guarda `authorized_<uid>` en
+     * `device_protection.xml`; medido que se restaura en cloud y en d2d. Con la
+     * marca restaurada, `AppNavigation` deja pasar sin `AUTHORIZED_DEVICES` (LEÍDO;
+     * el salto no se midió). Se excluye de forma conservadora.
+     */
+    @Test
+    fun `E-APP-073 la autorizacion local del dispositivo no se restaura`() {
+        exigeEnLasTresSecciones(setOf("sharedpref:device_protection.xml"))
+    }
+
     private fun sesionesDeFirebaseAuth(): Set<String> {
         val b64 = Base64.getUrlEncoder().withoutPadding()
         fun clave(texto: String) = b64.encodeToString(texto.toByteArray(Charsets.UTF_8))
