@@ -130,37 +130,29 @@ class RegistrarVisitaAdversarioR4Test {
     // ─── H-r4-2: la etiqueta no está congelada ───────────────────────────────
 
     /**
-     * **H-r4-2, ESPERADA ROJA contra lo dicho.** El commit dice que la etiqueta
-     * queda congelada; `SeleccionCongelada.sostiene` solo compara desenlace y
-     * cuentas, y la pantalla no apaga las etiquetas. Sin efecto sobre la foto:
-     * el reintento reescribe TODAS las filas con la etiqueta nueva y el ancla no
-     * se mueve (se afirma también).
+     * **H-r4-2** (era ESPERADA ROJA contra lo dicho). La etiqueta queda
+     * congelada con el desenlace y las cuentas: el reintento reescribe las
+     * filas con la MISMA etiqueta y el ancla no se mueve.
      */
     @Test
-    fun `H-r4-2 ESPERADA ROJA tras un parcial la etiqueta si se puede cambiar`() =
-        runTest(testDispatcher) {
-            val vm = viewModel()
-            advanceUntilIdle()
-            parcialSobreLasDos(vm)
-            val foto = vm.state.value.comprobantes.single().id
-            val anclaEscrita = IdsDeLaVisita.idDe(vm.visitaId, VisitasFixtures.SALA)
+    fun `H-r4-2 tras un parcial la etiqueta no se puede cambiar`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        parcialSobreLasDos(vm)
+        val foto = vm.state.value.comprobantes.single().id
+        val anclaEscrita = IdsDeLaVisita.idDe(vm.visitaId, VisitasFixtures.SALA)
+        val original = vm.state.value.captura.etiqueta
 
-            vm.onEtiqueta(TipoVisitaCatalogo.SE_ESCUCHAN_RUIDOS)
+        vm.onEtiqueta(TipoVisitaCatalogo.SE_ESCUCHAN_RUIDOS)
 
-            assertEquals(
-                "HOY la etiqueta cambió estando congelada",
-                TipoVisitaCatalogo.SE_ESCUCHAN_RUIDOS,
-                vm.state.value.captura.etiqueta
-            )
-            reintentar(vm)
-            assertEquals(anclaEscrita, puerto.tabla[foto])
-            assertTrue(
-                "el reintento reescribe las dos con la etiqueta nueva",
-                puerto.llamadas.drop(2).all {
-                    it.tipoVisita == TipoVisitaCatalogo.SE_ESCUCHAN_RUIDOS
-                }
-            )
-        }
+        assertEquals(original, vm.state.value.captura.etiqueta)
+        reintentar(vm)
+        assertEquals(anclaEscrita, puerto.tabla[foto])
+        assertTrue(
+            "el reintento reescribe las dos con la etiqueta original",
+            puerto.llamadas.drop(2).all { it.tipoVisita == original }
+        )
+    }
 
     // ─── H-r4-3: quitar una foto ya escrita ──────────────────────────────────
 

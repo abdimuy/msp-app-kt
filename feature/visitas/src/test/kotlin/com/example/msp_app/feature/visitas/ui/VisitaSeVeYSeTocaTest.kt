@@ -27,6 +27,7 @@ import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.ui.components.AGREGAR_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.CHIP_TAG
 import com.example.msp_app.feature.visitas.ui.components.CUENTA_TAG
+import com.example.msp_app.feature.visitas.ui.components.ETIQUETA_TAG
 import com.example.msp_app.feature.visitas.ui.components.FALLO_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.GUARDAR_TAG
 import com.example.msp_app.feature.visitas.ui.components.HOJA_DE_ORIGEN_TAG
@@ -271,13 +272,22 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `E-VIS-055 con la seleccion congelada las cuentas y el desenlace no responden`() {
         val tocadas = mutableListOf<Int>()
+        val etiquetas = mutableListOf<String>()
         var cambios = 0
         pintaCon(VisitaFixtures.seNegoEnTodo().copy(seleccionCongelada = true)) {
             it.copy(
                 onCuenta = { id -> tocadas += id },
+                onEtiqueta = { etiqueta -> etiquetas += etiqueta },
                 onCambiarResultado = { cambios++ }
             )
         }
+
+        composeTestRule
+            .onNodeWithTag(ETIQUETA_TAG + 1)
+            .performScrollTo()
+            .assertIsNotEnabled()
+            .performClick()
+        assertEquals("H-r4-2: la etiqueta tampoco responde", emptyList<String>(), etiquetas)
 
         composeTestRule
             .onNodeWithTag(CUENTA_TAG + VisitasFixtures.REFRIGERADOR)

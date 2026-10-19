@@ -587,7 +587,7 @@ private fun FilaDeEtiquetas(
             ChipDeOpcion(
                 texto = etiqueta,
                 activo = state.captura.etiqueta == etiqueta,
-                habilitado = state.sePuedeCapturar,
+                habilitado = state.sePuedeElegirLaSeleccion,
                 onElegir = { acciones.onEtiqueta(etiqueta) },
                 modifier = Modifier.testTag(ETIQUETA_TAG + indice)
             )

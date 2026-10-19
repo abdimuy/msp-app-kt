@@ -1192,9 +1192,12 @@ private data class SeleccionCongelada(
     val etiqueta: String?,
     val cuentas: Set<Int>
 ) {
-    /** ¿[captura] conserva el desenlace y las cuentas congelados? */
+    /**
+     * ¿[captura] conserva el desenlace, la etiqueta y las cuentas congelados?
+     * La etiqueta entra (H-r4-2): es el `TIPO_VISITA` de las filas ya escritas.
+     */
     fun sostiene(captura: CapturaDeVisita): Boolean =
-        captura.resultado == resultado && captura.cuentas == cuentas
+        captura.resultado == resultado && captura.etiqueta == etiqueta && captura.cuentas == cuentas
 
     fun comoCaptura(): CapturaDeVisita =
         CapturaDeVisita(resultado = resultado, etiqueta = etiqueta, cuentas = cuentas)

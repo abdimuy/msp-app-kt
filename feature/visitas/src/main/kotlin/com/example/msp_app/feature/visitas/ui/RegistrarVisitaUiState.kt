@@ -194,8 +194,8 @@ data class RegistrarVisitaUiState(
             registrada == null
 
     /**
-     * ¿Se puede cambiar el desenlace o las cuentas? No con la selección
-     * congelada (E-VIS-055): lo demás de la captura sigue abierto.
+     * ¿Se puede cambiar el desenlace, la etiqueta o las cuentas? No con la
+     * selección congelada (E-VIS-055): lo demás de la captura sigue abierto.
      */
     val sePuedeElegirLaSeleccion: Boolean
         get() = sePuedeCapturar && !seleccionCongelada
