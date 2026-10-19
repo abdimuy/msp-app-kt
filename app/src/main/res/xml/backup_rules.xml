@@ -1,15 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
--->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spec visitas §4.2-9 (H15, E-APP-073): reglas para API 24-30 (minSdk 24).
+     Mismas exclusiones que `data_extraction_rules.xml`, que rige en API 31+. -->
 <full-backup-content>
-    <!-- Tarea 14 (visitas P1): ver data_extraction_rules.xml. -->
+    <exclude domain="database" path="."/>
+    <exclude domain="sharedpref" path="visitas_poda.xml"/>
+    <exclude domain="sharedpref" path="visitas_conciliacion_ultima.xml"/>
+    <!-- Tarea 14 (visitas P1, E-VIS-029): ver data_extraction_rules.xml. -->
     <exclude domain="sharedpref" path="visitas_telemetria.xml"/>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
 </full-backup-content>
