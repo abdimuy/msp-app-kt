@@ -217,7 +217,7 @@ class RegistroDeVisitaAdapter(
             throw cancelada
         } catch (fallo: Throwable) {
             // Anti-PII: el nombre de la clase de la excepción, nunca su texto.
-            telemetry.error(
+            reportarTrasElCommit(
                 code = VisitasTelemetria.CODE_VISITA_SIN_ENCOLAR,
                 message = "la visita quedo escrita pero no se pudo encolar su envio",
                 props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
@@ -277,11 +277,31 @@ class RegistroDeVisitaAdapter(
         } catch (fallo: Throwable) {
             // Anti-PII: el nombre de la clase de la excepción, nunca su texto ni
             // la ruta del archivo.
-            telemetry.error(
+            reportarTrasElCommit(
                 code = VisitasTelemetria.CODE_VISITA_COMPROBANTES_NO_SE_GUARDARON,
                 message = "la visita quedo escrita y encolada pero sus fotos no se guardaron",
                 props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
             )
+        }
+    }
+
+    /**
+     * Reporta un fallo de un paso POSTERIOR al commit. **Total: no lanza.**
+     *
+     * E-VIS-071: la telemetría también puede fallar (`DurableTelemetry.error`
+     * inserta en Room de forma síncrona). Si su excepción saliera de aquí,
+     * llegaría al `catch` externo de [registrar], que contesta
+     * [ResultadoDelRegistro.FALLO_EL_GUARDADO] con la visita y la foto ya
+     * escritas. La pantalla leería "nada se escribió", soltaría la selección
+     * congelada y un cambio de cuentas mudaría la foto a otra visita. Tras el
+     * commit la respuesta es REGISTRADA, pase lo que pase con el reporte.
+     */
+    @Suppress("TooGenericExceptionCaught") // la telemetria caida no deshace una visita escrita.
+    private fun reportarTrasElCommit(code: String, message: String, props: Map<String, String>) {
+        try {
+            telemetry.error(code = code, message = message, props = props)
+        } catch (_: Throwable) {
+            // Sin reporte: la visita ya está escrita y eso es lo que se contesta.
         }
     }
 

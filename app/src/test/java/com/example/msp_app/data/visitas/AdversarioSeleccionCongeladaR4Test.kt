@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -56,24 +57,22 @@ class AdversarioSeleccionCongeladaR4Test : RoomTestBase() {
     }
 
     /**
-     * **H-r4-1, ESPERADA ROJA.** Una ruta que escribe sin avisar `alEscribir`.
+     * **E-VIS-071** (era H-r4-1, ESPERADA ROJA). Una ruta que escribía sin
+     * avisar `alEscribir`.
      *
      * `RegistroDeVisitaAdapter.guardar` confirma la transacción de la visita,
-     * escribe la foto y DESPUÉS encola. Si encolar falla y la telemetría de ese
-     * fallo también lanza (`DurableTelemetry.error` hace `runBlocking` sobre un
-     * insert de Room), la excepción sale de los `catch` internos al `catch`
-     * externo, que contesta [ResultadoDelRegistro.FALLO_EL_GUARDADO] —"la
-     * transaccion no dejo nada escrito"— con la visita y la foto YA en Room.
+     * escribe la foto y DESPUÉS encola. Si encolar fallaba y la telemetría de
+     * ese fallo también lanzaba (`DurableTelemetry.error` hace `runBlocking`
+     * sobre un insert de Room), la excepción salía al `catch` externo, que
+     * contestaba [ResultadoDelRegistro.FALLO_EL_GUARDADO] con la visita y la
+     * foto YA en Room: la pantalla contaba 0 escrituras, descongelaba, y un
+     * cambio de desenlace mudaba la foto.
      *
-     * `RegistrarVisita` solo llama `alEscribir` con REGISTRADA, así que la
-     * pantalla cuenta 0 escrituras y DESCONGELA (ver la prueba de la VM en
-     * `RegistrarVisitaAdversarioR4Test`). Con la selección abierta el cobrador
-     * elige otro desenlace con cuentas, el ancla pasa a ser otra visita, y el
-     * `REPLACE` de `visita_imagenes` muda la foto: exactamente lo que E-VIS-055
-     * debía hacer imposible.
+     * Con el arreglo, tras el commit el adaptador contesta siempre REGISTRADA:
+     * la telemetría de los pasos posteriores al commit no puede lanzar.
      */
     @Test
-    fun `H-r4-1 ESPERADA ROJA un guardado que escribio y responde fallo no avisa y la foto se muda`() =
+    fun `E-VIS-071 un guardado ya comiteado responde REGISTRADA aunque encolar y su telemetria fallen`() =
         runTest {
             val encolador = EncoladorQueFallaUnaVez()
             val telemetriaRota = TelemetriaQueFallaUnaVez(RecordingTelemetry(clock))
@@ -84,7 +83,7 @@ class AdversarioSeleccionCongeladaR4Test : RoomTestBase() {
             )
             val avisos = AtomicInteger(0)
 
-            val primero = caso(
+            val resultado = caso(
                 visitaId = SEMILLA,
                 clienteId = CLIENTE_ID,
                 ventaId = null,
@@ -94,34 +93,15 @@ class AdversarioSeleccionCongeladaR4Test : RoomTestBase() {
                 alEscribir = { avisos.incrementAndGet() }
             )
 
-            assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, primero)
-            assertEquals("hoy nadie avisa la escritura", 0, avisos.get())
-            assertNotNull("la visita SÍ quedó escrita", db.visitDao().findVisitById(SEMILLA))
+            assertEquals(ResultadoDelRegistro.REGISTRADA, resultado)
+            assertEquals("la escritura se avisa", 1, avisos.get())
+            assertNotNull("la visita quedó escrita", db.visitDao().findVisitById(SEMILLA))
             assertEquals(
-                "la foto SÍ quedó escrita, atada a la semilla",
+                "la foto quedó escrita, atada a la semilla",
                 SEMILLA,
                 db.visitImageDao().getByVisitaId(SEMILLA).single().VISITA_ID
             )
-
-            // Con 0 avisos la pantalla descongela; el cobrador cambia el desenlace.
-            val segundo = caso(
-                visitaId = SEMILLA,
-                clienteId = CLIENTE_ID,
-                ventaId = null,
-                captura = captura(ResultadoDeVisita.VISITE_VUELVO, setOf(VENTA_A, VENTA_B)),
-                hoy = hoy,
-                comprobantes = listOf(foto())
-            )
-
-            assertEquals(ResultadoDelRegistro.REGISTRADA, segundo)
-            val anclaNueva = IdsDeLaVisita.ancla(SEMILLA, setOf(VENTA_A, VENTA_B))
-            assertEquals(
-                "HOY la foto se mudó de visita (debería seguir en la semilla)",
-                listOf(FOTO),
-                db.visitImageDao().getByVisitaId(anclaNueva).map { it.ID }
-            )
-            val enLaSemilla = db.visitImageDao().getByVisitaId(SEMILLA).map { it.ID }
-            assertEquals(emptyList<String>(), enLaSemilla)
+            assertTrue("el fallo de encolar sí se intentó reportar", telemetriaRota.yaFallo)
         }
 
     /**
@@ -257,7 +237,8 @@ class AdversarioSeleccionCongeladaR4Test : RoomTestBase() {
     private class TelemetriaQueFallaUnaVez(
         private val real: RecordingTelemetry
     ) : Telemetry by real {
-        private var yaFallo = false
+        var yaFallo = false
+            private set
 
         override fun error(code: String, message: String, props: Map<String, String>) {
             if (!yaFallo) {
