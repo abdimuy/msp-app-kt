@@ -7,4 +7,12 @@
     <exclude domain="sharedpref" path="visitas_conciliacion_ultima.xml"/>
     <!-- Tarea 14 (visitas P1, E-VIS-029): ver data_extraction_rules.xml. -->
     <exclude domain="sharedpref" path="visitas_telemetria.xml"/>
+    <!-- Sesión de Firebase Auth (adenda E-APP-073): un nombre por proyecto,
+         prod y dev. Sin esto el teléfono restaurado abre con el usuario anterior. -->
+    <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTo1MTkxMDM0NzU0MTc6YW5kcm9pZDoxOGY5NjRlYWY5MDljNmJiZDg5OGM4.xml"/>
+    <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTozMDU3MzQ0MzIxNDk6YW5kcm9pZDpjNTk1Nzk0YjJjMDJhMjA1NTQzMjlj.xml"/>
+    <!-- Borrador de venta (adenda E-APP-073): foto vieja de una venta a medias,
+         quizá ya capturada en el teléfono viejo; aquí se ofrecería "continuar". -->
+    <exclude domain="file" path="datastore/sale_draft.preferences_pb"/>
+    <exclude domain="file" path="draft_images"/>
 </full-backup-content>
