@@ -125,7 +125,9 @@ class RegistrarVisitaSeleccionCongeladaTest {
             advanceUntilIdle()
             parcialSobreLasDos(vm)
             registroPort.fallaEn = null
-            registroPort.resultado = ResultadoDelRegistro.FALLO_EL_GUARDADO
+            // Un desenlace de la lista blanca (E-VIS-071): solo así el reintento
+            // podría soltar la selección, y no debe, porque el primero escribió.
+            registroPort.resultado = ResultadoDelRegistro.SIN_COBRADOR
             vm.guardar()
             advanceUntilIdle()
 
@@ -269,7 +271,8 @@ class RegistrarVisitaSeleccionCongeladaTest {
         val vm = viewModel(handle)
         advanceUntilIdle()
         vm.onResultado(ResultadoDeVisita.VISITE_VUELVO)
-        registroPort.resultado = ResultadoDelRegistro.FALLO_EL_GUARDADO
+        // E-VIS-071: un desenlace que el adaptador contesta antes de escribir.
+        registroPort.resultado = ResultadoDelRegistro.SIN_COBRADOR
         vm.guardar()
         advanceUntilIdle()
 

@@ -78,13 +78,13 @@ class RegistrarVisitaAdversarioR4Test {
     // ─── H-r4-1: escribió, contestó fallo, se descongela ─────────────────────
 
     /**
-     * **H-r4-1, ESPERADA ROJA.** Toda la puerta: UNA fila, con la semilla de id.
-     * La fila (y su foto) quedan, el puerto contesta fallo —el `catch` externo
-     * de `RegistroDeVisitaAdapter`—, `alEscribir` nunca se llama y la VM suelta
-     * la selección. Con otro desenlace el ancla es otra visita y la foto se muda.
+     * **E-VIS-071** (era H-r4-1, ESPERADA ROJA). Toda la puerta: UNA fila, con
+     * la semilla de id. La fila y su foto quedan, el puerto contesta fallo y
+     * `alEscribir` nunca se llama. Antes la VM soltaba la selección y, con otro
+     * desenlace, la foto se mudaba. Ahora FALLO_EL_GUARDADO no descongela.
      */
     @Test
-    fun `H-r4-1 ESPERADA ROJA toda la puerta escrita con respuesta de fallo descongela y la foto se muda`() =
+    fun `E-VIS-071 toda la puerta escrita con respuesta de fallo sigue congelada y la foto no se muda`() =
         runTest(testDispatcher) {
             val vm = viewModel()
             advanceUntilIdle()
@@ -96,20 +96,17 @@ class RegistrarVisitaAdversarioR4Test {
             advanceUntilIdle()
             assertEquals("la semilla quedó con la foto", vm.visitaId, puerto.tabla[foto])
 
-            assertFalse("HOY se descongela tras escribir", vm.state.value.seleccionCongelada)
+            assertTrue(vm.state.value.seleccionCongelada)
             vm.onResultado(ResultadoDeVisita.VISITE_VUELVO)
+            assertEquals(ResultadoDeVisita.NO_ESTABA, vm.state.value.captura.resultado)
             reintentar(vm)
 
-            assertEquals(
-                "HOY la foto se mudó al ancla nueva (debería seguir en la semilla)",
-                IdsDeLaVisita.ancla(vm.visitaId, LAS_DOS),
-                puerto.tabla[foto]
-            )
+            assertEquals("la foto sigue en la semilla", vm.visitaId, puerto.tabla[foto])
         }
 
-    /** **H-r4-1, ESPERADA ROJA**, varias cuentas: el ancla escribe y contesta fallo, la otra falla. */
+    /** **E-VIS-071**, varias cuentas: el ancla escribe y contesta fallo, la otra falla. */
     @Test
-    fun `H-r4-1 ESPERADA ROJA varias cuentas con el ancla escrita y respuesta de fallo descongela y la foto se muda`() =
+    fun `E-VIS-071 varias cuentas con el ancla escrita y respuesta de fallo siguen congeladas`() =
         runTest(testDispatcher) {
             val vm = viewModel()
             advanceUntilIdle()
@@ -123,15 +120,11 @@ class RegistrarVisitaAdversarioR4Test {
             val anclaEscrita = IdsDeLaVisita.idDe(vm.visitaId, VisitasFixtures.SALA)
             assertEquals(anclaEscrita, puerto.tabla[foto])
 
-            vm.onCuenta(VisitasFixtures.SALA) // se desmarca el ancla: hoy se deja
-            assertEquals(setOf(VisitasFixtures.REFRIGERADOR), vm.state.value.captura.cuentas)
+            vm.onCuenta(VisitasFixtures.SALA)
+            assertEquals(LAS_DOS, vm.state.value.captura.cuentas)
             reintentar(vm)
 
-            assertEquals(
-                "HOY la foto se mudó a la visita del refrigerador",
-                IdsDeLaVisita.idDe(vm.visitaId, VisitasFixtures.REFRIGERADOR),
-                puerto.tabla[foto]
-            )
+            assertEquals("la foto sigue en el ancla", anclaEscrita, puerto.tabla[foto])
         }
 
     // ─── H-r4-2: la etiqueta no está congelada ───────────────────────────────

@@ -1004,12 +1004,13 @@ class RegistrarVisitaViewModel @Inject constructor(
             laEscrituraYaTomoLasFotos = true
             val escritas = AtomicInteger(0)
             val resultado = escribir(conLasFotosDeAhora) { escritas.incrementAndGet() }
-            if (resultado != ResultadoDelRegistro.REGISTRADA &&
+            if (resultado in RESULTADOS_ANTES_DE_ESCRIBIR &&
                 escritas.get() == 0 &&
                 !yaEstabaCongelada
             ) {
                 // Este guardado SABE que no escribió nada: la selección vuelve
-                // a estar abierta.
+                // a estar abierta. Solo con un desenlace de la lista blanca
+                // (E-VIS-071): un FALLO_EL_GUARDADO no prueba que nada quedó.
                 seleccionCongelada = null
             }
             aplicar(resultado, conLasFotosDeAhora.captura)
@@ -1162,6 +1163,19 @@ class RegistrarVisitaViewModel @Inject constructor(
         const val CLAVE_DESTINO = "visitas_destino_de_foto"
         const val CLAVE_COMPROBANTES = "visitas_comprobantes"
         const val CLAVE_SELECCION_CONGELADA = "visitas_seleccion_congelada"
+
+        /**
+         * E-VIS-071: los ÚNICOS desenlaces que sueltan la selección congelada.
+         * Lista de permitidos, no de prohibidos: el adaptador los contesta
+         * antes de tocar la base (`RegistroDeVisitaAdapter.registrar`), así que
+         * con ellos nada pudo quedar escrito. [ResultadoDelRegistro.FALLO_EL_GUARDADO]
+         * no está: hubo un camino que lo contestaba con la visita y la foto ya
+         * en Room, y un desenlace nuevo tampoco entra hasta que alguien lo pruebe.
+         */
+        val RESULTADOS_ANTES_DE_ESCRIBIR: Set<ResultadoDelRegistro> = setOf(
+            ResultadoDelRegistro.CLIENTE_NO_ESTA_EN_EL_TELEFONO,
+            ResultadoDelRegistro.SIN_COBRADOR
+        )
     }
 }
 
