@@ -225,12 +225,13 @@ class PendingPaymentsWorkerCondonacionRechazadaTest : RoomTestBase() {
     }
 
     /**
-     * **El abono con el mismo 422 NO cambia.** Fuera de alcance a propósito: su
-     * rechazo no está medido. Se suelta como siempre y el saldo se queda como
-     * estaba.
+     * **El abono con el mismo 422** no se marca rechazado (fuera de alcance: su
+     * rechazo no está medido) y, desde E-APP-088, tampoco se da por enviado: el
+     * GET por UUID dice 404, así que queda PENDIENTE con discrepancia y sin
+     * reenvío. El saldo se queda como estaba.
      */
     @Test
-    fun `un abono con el mismo 422 conserva el comportamiento de siempre`() = runTest {
+    fun `E-APP-088 un abono con el mismo 422 y GET 404 queda pendiente con aviso`() = runTest {
         db.saleDao().insertAll(listOf(venta(saldo = 2000.0)))
         db.paymentDao().savePayment(condonacion(ID_ABONO, 300.0, formaCobro = EFECTIVO))
 
@@ -238,21 +239,28 @@ class PendingPaymentsWorkerCondonacionRechazadaTest : RoomTestBase() {
 
         assertEquals(ListenableWorker.Result.success(), result)
         val fila = db.paymentDao().getPaymentById(ID_ABONO)!!
-        assertTrue(fila.GUARDADO_EN_MICROSIP)
+        assertFalse("sin prueba de existencia no se da por enviado", fila.GUARDADO_EN_MICROSIP)
         assertEquals(0, fila.DOCTO_CC_ID)
+        assertEquals(
+            "no_existe_en_servidor",
+            db.capturaEnCursoDao().obtener(ID_ABONO)!!.DISCREPANCIA
+        )
         assertEquals("el saldo del abono no se toca", 2000.0, saldoDe(db), 1e-9)
     }
 
-    /** Otro código de 422 sobre una condonación: no está medido, no cambia. */
+    /**
+     * Otro código de 422 sobre una condonación: no se marca rechazada; con GET
+     * 404 queda pendiente con aviso (E-APP-088), no enviada.
+     */
     @Test
-    fun `una condonacion rechazada por otro motivo conserva el comportamiento de siempre`() =
+    fun `E-APP-088 una condonacion rechazada por otro motivo y GET 404 queda pendiente`() =
         runTest {
             sembrarCondonacionEscrita(ID_COND, 2300.0)
 
             correrWorker(ID_COND, rechazo(code = "pago_cargo_cancelado"))
 
             val fila = db.paymentDao().getPaymentById(ID_COND)!!
-            assertTrue(fila.GUARDADO_EN_MICROSIP)
+            assertFalse(fila.GUARDADO_EN_MICROSIP)
             assertEquals(0, fila.DOCTO_CC_ID)
             assertEquals(0.0, saldoDe(db), 1e-9)
         }

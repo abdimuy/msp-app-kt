@@ -9,8 +9,11 @@ import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
+import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.upload.ExistenceVerifier
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.upload.UploadDecision
@@ -22,6 +25,7 @@ import com.example.msp_app.data.api.services.payment.PaymentRequest
 import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.api.services.payment.V2PaymentsApi
 import com.example.msp_app.data.api.services.payment.toCrearPagoBody
+import com.example.msp_app.data.auth.emailDeLaSesion
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.pagos.PartesDeComprobantes
@@ -86,6 +90,22 @@ class PendingPaymentsWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val encolarRefrescoDeSaldo: (zona: Int, cargo: Int) -> Unit = { zona, cargo ->
         enqueueRefrescoDeSaldo(appContext, zona, cargo)
+    },
+    /** El marcador del pago (E-APP-088): ahí queda la discrepancia que frena el reenvío. */
+    @VisibleForTesting
+    internal val capturas: CapturaEnCursoDao =
+        AppDatabase.getInstance(appContext).capturaEnCursoDao(),
+    @VisibleForTesting
+    internal val emailEnSesion: () -> String? = ::emailDeLaSesion,
+    /** El aviso `captura_contenido_no_coincide` (tipo, motivo, http; sin PII). */
+    @VisibleForTesting
+    internal val avisarDiscrepancia: (Map<String, Any?>) -> Unit = { datos ->
+        RemoteLogger.getInstance(appContext).warning(
+            module = MODULO_CAPTURA,
+            action = CODE_CONTENIDO_NO_COINCIDE,
+            message = "un envio no coincide con la oficina; queda pendiente sin reenvio",
+            data = datos
+        )
     }
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -111,6 +131,14 @@ class PendingPaymentsWorker @JvmOverloads constructor(
             Log.i(TAG, "Pago $id ya soltado; no se vuelve a mandar")
             return Result.success()
         }
+        // E-APP-088: un envío marcado con discrepancia (otro cliente en la
+        // oficina, o resguardado pero inexistente por GET) NO se vuelve a mandar:
+        // queda pendiente, con aviso, hasta que la oficina lo resuelva. Ni se
+        // borra ni se da por enviado.
+        if (capturas.obtener(id)?.DISCREPANCIA != null) {
+            Log.w(TAG, "Pago $id con discrepancia; no se vuelve a mandar")
+            return Result.success()
+        }
 
         return if (useV2) uploadV2(payment) else uploadLegacy(payment)
     }
@@ -124,14 +152,29 @@ class PendingPaymentsWorker @JvmOverloads constructor(
      */
     @VisibleForTesting
     internal val existenceVerifier: ExistenceVerifier = ExistenceVerifier { id ->
-        try {
-            v2Api.obtenerPago(id)
-            true
-        } catch (verifyErr: HttpException) {
-            if (verifyErr.code() == 404) false else null
-        } catch (_: Exception) {
-            null
+        when (consultar(id)) {
+            is EnServidor.Existe -> true
+            EnServidor.NoExiste -> false
+            EnServidor.NoSeSabe -> null
         }
+    }
+
+    /** `GET /v2/cobranza/pagos/{id}` con el cliente que trae (E-APP-088). */
+    @Suppress("TooGenericExceptionCaught") // cualquier fallo del GET es un "no se sabe".
+    private suspend fun consultar(id: String): EnServidor = try {
+        EnServidor.Existe(v2Api.obtenerPago(id).cliente_id)
+    } catch (verifyErr: HttpException) {
+        if (verifyErr.code() == HTTP_NOT_FOUND) EnServidor.NoExiste else EnServidor.NoSeSabe
+    } catch (cancelada: CancellationException) {
+        throw cancelada
+    } catch (_: Exception) {
+        EnServidor.NoSeSabe
+    }
+
+    private sealed interface EnServidor {
+        data class Existe(val clienteId: Int?) : EnServidor
+        data object NoExiste : EnServidor
+        data object NoSeSabe : EnServidor
     }
 
     /**
@@ -187,9 +230,14 @@ class PendingPaymentsWorker @JvmOverloads constructor(
      * tiene el pago, y sólo si no lo resuelve consulta la tabla de decisión.
      */
     private suspend fun handleHttpError(payment: PaymentEntity, e: HttpException): Result {
-        // Prueba de EXISTENCIA. El pago pudo haberse creado por una corrida
-        // anterior cuyo 2xx no nos llegó, o por un replay desde la oficina.
-        if (existenceVerifier.exists(payment.ID) == true) {
+        // E-APP-088 (decisión 4 del dueño 2026-10-20): se busca por UUID. Si
+        // EXISTE es nuestro y llegó, aunque la oficina lo haya editado; el único
+        // seguro extra es el CLIENTE. Si NO existe, nunca se da por llegado.
+        val enServidor = consultar(payment.ID)
+        if (enServidor is EnServidor.Existe) {
+            if (clienteNoCoincide(enServidor.clienteId, payment.CLIENTE_ID)) {
+                return marcarDiscrepancia(payment, MOTIVO_CONTENIDO_NO_COINCIDE, e.code())
+            }
             markDone(payment.ID)
             Log.i(
                 TAG,
@@ -212,13 +260,28 @@ class PendingPaymentsWorker @JvmOverloads constructor(
                 if (esCondonacionRechazadaPorSaldo(payment, e, captureConfirmed)) {
                     return soltarCondonacionRechazada(payment, e.code())
                 }
-                markDone(payment.ID)
+                // `> 0` y no `!= 0`: -1 es la marca de condonación rechazada.
+                val documento: Int = payment.DOCTO_CC_ID
+                if (documento > 0) {
+                    // El documento de Microsip ya anotado ES la prueba de que el
+                    // servidor lo aplicó: se suelta como siempre.
+                    markDone(payment.ID)
+                    return Result.success()
+                }
+                if (enServidor == EnServidor.NoExiste) {
+                    // E-APP-088: resguardado pero el GET dice que no existe. NO
+                    // se da por enviado (antes: markDone); queda pendiente con
+                    // aviso y sin reenvío.
+                    return marcarDiscrepancia(payment, MOTIVO_NO_EXISTE_EN_SERVIDOR, e.code())
+                }
+                // E-APP-088: el GET no contestó. Sin prueba no se suelta: se
+                // reintenta con la misma clave.
                 Log.w(
                     TAG,
-                    "Pago ${payment.ID} rechazado (${e.code()}); resguardado server-side " +
-                        "(X-Intent-Captured), lo corrige la oficina"
+                    "Pago ${payment.ID} rechazado (${e.code()}) con custodia pero sin prueba " +
+                        "de existencia; reintentando"
                 )
-                Result.success()
+                Result.retry()
             }
 
             UploadDecision.RETRY -> {
@@ -231,6 +294,63 @@ class PendingPaymentsWorker @JvmOverloads constructor(
             }
         }
     }
+
+    /**
+     * El seguro extra de la decisión 4: sólo el cliente. `null` del servidor
+     * (campo ausente) no es discrepancia — no hay con qué comparar.
+     */
+    private fun clienteNoCoincide(delServidor: Int?, local: Int): Boolean =
+        delServidor != null && delServidor != local
+
+    /**
+     * Deja el pago PENDIENTE (`GUARDADO_EN_MICROSIP` sigue en 0), anota la
+     * discrepancia en su marcador ("Un envío no coincide con la oficina") y
+     * frena el reenvío. Sin PII: tipo y motivo.
+     */
+    @Suppress("TooGenericExceptionCaught") // Room puede fallar; se reintenta sin marcar nada.
+    private suspend fun marcarDiscrepancia(
+        payment: PaymentEntity,
+        motivo: String,
+        code: Int
+    ): Result {
+        val ahora = AppTime.toWireFormat(clock.now())
+        try {
+            withContext(NonCancellable) {
+                capturas.capturar(
+                    CapturaEnCursoEntity(
+                        ID = payment.ID,
+                        TIPO = tipoDe(payment),
+                        LLAVE = payment.DOCTO_CC_ACR_ID.toString(),
+                        USUARIO = emailEnSesion().orEmpty(),
+                        ESTADO = CapturaEnCursoEntity.ESCRITA,
+                        RESUMEN = "{}",
+                        CREADA_EN = ahora,
+                        ACTUALIZADA_EN = ahora
+                    )
+                )
+                capturas.marcarDiscrepancia(payment.ID, motivo, ahora)
+            }
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Exception) {
+            Log.e(TAG, "Pago ${payment.ID}: no se pudo anotar la discrepancia; reintentando", fallo)
+            return Result.retry()
+        }
+        try {
+            avisarDiscrepancia(mapOf("tipo" to tipoDe(payment), "motivo" to motivo, "http" to code))
+        } catch (_: Exception) {
+            // La telemetría caída no cambia la decisión.
+        }
+        Log.w(TAG, "Pago ${payment.ID}: $motivo (HTTP $code); pendiente, sin reenvío")
+        return Result.success()
+    }
+
+    private fun tipoDe(payment: PaymentEntity): String =
+        if (payment.FORMA_COBRO_ID == Constants.CONDONACION_ID) {
+            CapturaEnCursoEntity.TIPO_CONDONACION
+        } else {
+            CapturaEnCursoEntity.TIPO_ABONO
+        }
 
     /**
      * ¿Es una CONDONACIÓN que el servidor rechazó por saldo y resguardó?
@@ -448,5 +568,10 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         private const val HTTP_UNPROCESSABLE = 422
 
         private const val CODIGO_SALDO_INSUFICIENTE = "pago_saldo_insuficiente"
+        private const val HTTP_NOT_FOUND = 404
+
+        /** E-APP-088: resguardado (X-Intent-Captured) pero el GET por UUID da 404. */
+        const val MOTIVO_NO_EXISTE_EN_SERVIDOR = "no_existe_en_servidor"
+        private const val MODULO_CAPTURA = "CAPTURA"
     }
 }

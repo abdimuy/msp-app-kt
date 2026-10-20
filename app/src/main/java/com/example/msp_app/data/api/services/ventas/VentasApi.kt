@@ -110,8 +110,17 @@ data class VentaDTO(
     val tipo_venta: String,
     val fecha_venta: String,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    /**
+     * El cliente de la venta en el servidor (`venthttp/dto.go`
+     * `ClienteSnapshotDTO.cliente_id`). Lo ÚNICO que se compara al
+     * reconciliar por GET (E-APP-088, decisión 4 del dueño 2026-10-20).
+     */
+    val cliente: ClienteDeLaVentaDTO? = null
 )
+
+/** Sólo lo que la reconciliación lee del cliente de la venta (E-APP-088). */
+data class ClienteDeLaVentaDTO(val cliente_id: Int? = null)
 
 /**
  * Retrofit interface for the v2 Go backend's ventas endpoints.

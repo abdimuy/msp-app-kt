@@ -7,6 +7,7 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.data.api.services.ventas.ActualizarClienteRequest
 import com.example.msp_app.data.api.services.ventas.ActualizarHeaderRequest
+import com.example.msp_app.data.api.services.ventas.ClienteDeLaVentaDTO
 import com.example.msp_app.data.api.services.ventas.ReemplazarLineasRequest
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentaDTO
@@ -421,6 +422,78 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
 
         val sale = saleDataSource.getSaleById(saleId)
         assert(sale!!.ENVIADO) { "ENVIADO must flip to true after reconcile via GET" }
+    }
+
+    private suspend fun seedSaleDelCliente(saleId: String, clienteId: Int): String {
+        saleDataSource.insertSale(
+            TestDataFactory.createLocalSaleEntity(saleId = saleId, clienteId = clienteId)
+        )
+        productDataSource.insertSaleProduct(
+            TestDataFactory.createLocalSaleProductEntity(saleId = saleId, articuloId = 100)
+        )
+        saleDataSource.insertSaleImage(
+            TestDataFactory.createLocalSaleImageEntity(
+                imageId = "img-$saleId",
+                saleId = saleId,
+                imageUri = fakeImageFile.absolutePath
+            )
+        )
+        return saleId
+    }
+
+    private fun conflicto409(obtener: suspend (String) -> VentaDTO) = fakeApi(
+        crear = { _, _, _ ->
+            throw HttpException(
+                retrofit2.Response.error<VentaDTO>(
+                    409,
+                    "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                )
+            )
+        },
+        obtener = obtener
+    )
+
+    /**
+     * E-APP-088 (decisión 4 del dueño 2026-10-20): el GET por UUID trae OTRO
+     * cliente. No se da por llegada, queda "Un envío no coincide con la
+     * oficina" y no se reintenta.
+     */
+    @Test
+    fun `E-APP-088 409 y GET con otro cliente no se da por llegada y no se reintenta`() = runTest {
+        val saleId = seedSaleDelCliente("sale-otro", clienteId = 5021)
+        val api = conflicto409 {
+            fakeVentaDTO.copy(id = saleId, cliente = ClienteDeLaVentaDTO(cliente_id = 9999))
+        }
+
+        val result = buildAndRunWorker(saleId = saleId, api = api)
+
+        assertEquals(ListenableWorker.Result.failure(), result)
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertEquals("sin prueba de que es la nuestra no se marca enviada", false, sale.ENVIADO)
+        assertEquals("contenido_no_coincide", sale.LAST_UPLOAD_ERROR_CODE)
+        assertEquals("Un envío no coincide con la oficina", sale.LAST_UPLOAD_ERROR_MESSAGE)
+    }
+
+    /**
+     * E-APP-088: el GET por UUID la encuentra con el MISMO cliente, aunque la
+     * oficina la haya editado (otra situación): es nuestra y llegó.
+     */
+    @Test
+    fun `E-APP-088 409 y GET con el mismo cliente aunque editada se da por llegada`() = runTest {
+        val saleId = seedSaleDelCliente("sale-editada", clienteId = 5021)
+        val api = conflicto409 {
+            fakeVentaDTO.copy(
+                id = saleId,
+                situacion = "aprobada",
+                cliente = ClienteDeLaVentaDTO(cliente_id = 5021)
+            )
+        }
+
+        assertEquals(
+            ListenableWorker.Result.success(),
+            buildAndRunWorker(saleId = saleId, api = api)
+        )
+        assertEquals(true, saleDataSource.getSaleById(saleId)!!.ENVIADO)
     }
 
     @Test
