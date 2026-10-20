@@ -64,8 +64,16 @@ object TelemetriaDeVisitas {
 
     /** E-APP-078: un guardado de visita se canceló al salir de la pantalla. */
     const val EVENTO_GUARDADO_CANCELADO = "visitas_guardado_cancelado"
-    val EVENTOS: Set<String> =
-        setOf(EVENTO_ESTADO, EVENTO_CONCILIACION, EVENTO_PODA, EVENTO_GUARDADO_CANCELADO)
+
+    /** H-r4-5: un reintento congelado escribe cuentas que ya no están en el teléfono. */
+    const val EVENTO_CUENTA_AUSENTE = "visitas_cuenta_ausente_al_reintentar"
+    val EVENTOS: Set<String> = setOf(
+        EVENTO_ESTADO,
+        EVENTO_CONCILIACION,
+        EVENTO_PODA,
+        EVENTO_GUARDADO_CANCELADO,
+        EVENTO_CUENTA_AUSENTE
+    )
 
     const val APP_VERSION = "app.version"
     const val PENDIENTES = "visitas.pendientes"
@@ -143,6 +151,9 @@ object TelemetriaDeVisitas {
 
     /** 1 si se canceló esperando la ubicación (nada se intentó escribir), 0 si escribiendo. */
     const val GC_EN_UBICACION = "visitas.guardado_cancelado.en_ubicacion"
+
+    /** H-r4-5: cuántas cuentas ausentes escribió el reintento. Nunca cuáles. */
+    const val CA_AUSENTES = "visitas.guardado.cuenta_ausente_al_reintentar"
 
     private val HTTP_CONOCIDOS = listOf(
         400, 401, 403, 404, 405, 408, 409, 410, 413, 415, 422, 425, 429, 500, 502, 503, 504
@@ -251,7 +262,8 @@ object TelemetriaDeVisitas {
         PODA_POSPUESTA_PROTEGIDAS,
         GC_ESCRITAS,
         GC_CUENTAS,
-        GC_EN_UBICACION
+        GC_EN_UBICACION,
+        CA_AUSENTES
     ) + CODIGOS_DE_FALLO.map { PREFIJO_FALLOS + it }
 
     private val FORMA_DE_VERSION = Regex("^[0-9][0-9A-Za-z._+-]{0,39}$")
@@ -334,6 +346,9 @@ object TelemetriaDeVisitas {
             GC_CUENTAS to cuentas,
             GC_EN_UBICACION to if (enUbicacion) 1 else 0
         )
+
+    /** Cuenta ausente al reintentar (H-r4-5): solo el conteo. */
+    fun cuentaAusente(ausentes: Int): Map<String, Any> = mapOf(CA_AUSENTES to ausentes)
 
     /** Solo pruebas: reemplaza el envío a `RemoteLogger`. */
     @VisibleForTesting

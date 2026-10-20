@@ -51,11 +51,19 @@ class AbrirRegistroDeVisita @Inject constructor(
     } catch (cancelada: CancellationException) {
         throw cancelada
     } catch (fallo: Throwable) {
-        telemetry.error(
-            code = VisitasTelemetria.CODE_RECOMENDACION_FALLO,
-            message = "no se pudo leer la recomendacion del cliente; la pantalla sigue sin ella",
-            props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
-        )
+        // E-VIS-074: el reporte tampoco puede tumbar la pantalla.
+        // `DurableTelemetry.error` inserta en Room y puede lanzar; sin esta
+        // guarda, su excepción convertía "abre sin recomendación" en "no se
+        // pudo cargar".
+        try {
+            telemetry.error(
+                code = VisitasTelemetria.CODE_RECOMENDACION_FALLO,
+                message = "no se pudo leer la recomendacion del cliente; la pantalla sigue sin ella",
+                props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+            )
+        } catch (_: Throwable) {
+            // Sin reporte: la pantalla sigue sin la recomendación.
+        }
         null
     }
 }

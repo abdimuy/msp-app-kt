@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -26,6 +27,7 @@ import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.ui.components.AGREGAR_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.CHIP_TAG
 import com.example.msp_app.feature.visitas.ui.components.CUENTA_TAG
+import com.example.msp_app.feature.visitas.ui.components.ETIQUETA_TAG
 import com.example.msp_app.feature.visitas.ui.components.FALLO_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.GUARDAR_TAG
 import com.example.msp_app.feature.visitas.ui.components.HOJA_DE_ORIGEN_TAG
@@ -263,6 +265,53 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
+     * E-VIS-055: tras un guardado parcial la selección está congelada. Las
+     * cuentas y el desenlace se pintan apagados y no mandan nada, el atajo
+     * "todas / ninguna" no se pinta, y el texto dice por qué. La prueba de arriba es su control positivo.
+     */
+    @Test
+    fun `E-VIS-055 con la seleccion congelada las cuentas y el desenlace no responden`() {
+        val tocadas = mutableListOf<Int>()
+        val etiquetas = mutableListOf<String>()
+        var cambios = 0
+        pintaCon(VisitaFixtures.seNegoEnTodo().copy(seleccionCongelada = true)) {
+            it.copy(
+                onCuenta = { id -> tocadas += id },
+                onEtiqueta = { etiqueta -> etiquetas += etiqueta },
+                onCambiarResultado = { cambios++ }
+            )
+        }
+
+        composeTestRule
+            .onNodeWithTag(ETIQUETA_TAG + 1)
+            .performScrollTo()
+            .assertIsNotEnabled()
+            .performClick()
+        assertEquals("H-r4-2: la etiqueta tampoco responde", emptyList<String>(), etiquetas)
+
+        composeTestRule
+            .onNodeWithTag(CUENTA_TAG + VisitasFixtures.REFRIGERADOR)
+            .performScrollTo()
+            .assertIsNotEnabled()
+            .performClick()
+        composeTestRule.onAllNodesWithTag(TODAS_LAS_CUENTAS_TAG).assertCountEquals(0)
+        composeTestRule
+            .onNodeWithTag(OPCION_TAG + ResultadoDeVisita.SE_NEGO.name.lowercase())
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(emptyList<Int>(), tocadas)
+        assertEquals(0, cambios)
+        composeTestRule.onNode(hasText(TEXTO_CONGELADA)).performScrollTo().assertIsDisplayed()
+        assertEquals(
+            "E-VIS-073: nada en la pantalla afirma que ya se guardó",
+            0,
+            composeTestRule.onAllNodes(hasText("guardó", substring = true))
+                .fetchSemanticsNodes().size
+        )
+    }
+
+    /**
      * **Con un desenlace de toda la puerta la sección no existe.** Control
      * positivo de las pruebas de arriba: sin esto no distinguirían "se pinta
      * cuando toca" de "se pinta siempre".
@@ -425,6 +474,18 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
         )
     }
 
+    /**
+     * E-VIS-072: una foto fija se pinta sin tache; la de al lado conserva el
+     * suyo. La prueba de abajo es el control de que el tache existe.
+     */
+    @Test
+    fun `E-VIS-072 una foto fija no tiene tache`() {
+        pintaCon(VisitaFixtures.conComprobantes().copy(fotosFijas = setOf("IMG-1"))) { it }
+
+        composeTestRule.onAllNodesWithTag(QUITAR_FOTO_TAG + "IMG-1").assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag(QUITAR_FOTO_TAG + "IMG-2").assertCountEquals(1)
+    }
+
     /** Quitar una foto avisa **con el id de esa foto**, no con el de la de al lado. */
     @Test
     fun `quitar una foto manda el id de esa foto`() {
@@ -510,5 +571,8 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
     private companion object {
         /** El piso del plan. El design system pide 56dp, que nunca lo viola. */
         val MINIMO_TOCABLE = 50.dp
+
+        /** E-VIS-055 / E-VIS-073: el texto de la selección congelada. */
+        const val TEXTO_CONGELADA = "Estas cuentas ya no se pueden cambiar"
     }
 }

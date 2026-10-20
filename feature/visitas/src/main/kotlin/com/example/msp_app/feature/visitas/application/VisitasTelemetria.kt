@@ -196,6 +196,13 @@ object VisitasTelemetria {
      */
     const val CODE_VISITA_PARCIAL_POR_CUENTA: String = "visita_parcial_por_cuenta"
 
+    /**
+     * H-r4-5: un reintento con la selección congelada escribe cuentas que ya
+     * no están en el teléfono. [PROP_OCURRENCIAS] lleva cuántas, nunca cuáles.
+     */
+    const val CODE_VISITA_CUENTA_AUSENTE_AL_REINTENTAR: String =
+        "visita_cuenta_ausente_al_reintentar"
+
     /** Prop con CUÁNTAS cuentas llevaba la captura. Un conteo, nunca un id. */
     const val PROP_CUENTAS: String = "cuentas"
 

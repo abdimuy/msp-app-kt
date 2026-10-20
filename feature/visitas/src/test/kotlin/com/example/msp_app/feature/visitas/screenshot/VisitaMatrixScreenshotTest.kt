@@ -3,10 +3,12 @@ package com.example.msp_app.feature.visitas.screenshot
 import androidx.compose.runtime.Composable
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.feature.visitas.ui.AccionesDeLaVisita
+import com.example.msp_app.feature.visitas.ui.FalloDeLaVisita
 import com.example.msp_app.feature.visitas.ui.RegistrarVisitaContent
 import com.example.msp_app.feature.visitas.ui.RegistrarVisitaUiState
 import com.example.msp_app.feature.visitas.ui.VisitaFixtures
 import org.junit.Test
+import org.robolectric.annotation.Config
 
 /**
  * Los **tres estados del mock** `registrar-visita.html` —elegir, prometió y no
@@ -164,6 +166,24 @@ class VisitaMatrixScreenshotTest : VisitasScreenshotTest() {
     fun `recomendacion dark`() =
         estado("recomendacion", VisitaFixtures.conRecomendacion(), dark = true)
 
+    /**
+     * E-VIS-055: tras un guardado parcial el desenlace y las cuentas se pintan
+     * apagados, con el texto que dice por qué. La foto ya está atada al ancla.
+     * Más alto que el resto: las filas de las cuentas son lo que hay que ver.
+     */
+    @Test
+    @Config(qualifiers = ALTO_PARA_LAS_CUENTAS)
+    fun `seleccion congelada light`() = estado("seleccion_congelada", congelada(), dark = false)
+
+    @Test
+    @Config(qualifiers = ALTO_PARA_LAS_CUENTAS)
+    fun `seleccion congelada dark`() = estado("seleccion_congelada", congelada(), dark = true)
+
+    private fun congelada() = VisitaFixtures.seNegoEnTodo().copy(
+        seleccionCongelada = true,
+        fallo = FalloDeLaVisita.NO_SE_PUDO_GUARDAR
+    )
+
     private fun matriz(
         nombre: String,
         state: RegistrarVisitaUiState,
@@ -189,3 +209,6 @@ class VisitaMatrixScreenshotTest : VisitasScreenshotTest() {
 private fun Visita(state: RegistrarVisitaUiState) {
     RegistrarVisitaContent(state = state, acciones = AccionesDeLaVisita.NINGUNA)
 }
+
+/** 1200dp de alto: con 800 las filas de las cuentas quedan bajo el pliegue. */
+private const val ALTO_PARA_LAS_CUENTAS = "w360dp-h1200dp-xhdpi"
