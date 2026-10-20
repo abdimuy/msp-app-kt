@@ -77,7 +77,8 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         encolador = encolador,
         clock = clock,
         traerUsuario = { usuario },
-        pedirUbicacion = { alPedirUbicacion(it) }
+        pedirUbicacion = { alPedirUbicacion(it) },
+        emailEnSesion = { "rosa@example.com" }
     )
 
     @Test
@@ -145,7 +146,8 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             encolador = encolador,
             clock = clock,
             traerUsuario = { error("firestore caido cobrando a Victoria Flores") },
-            pedirUbicacion = { ubicacionesPedidas += it }
+            pedirUbicacion = { ubicacionesPedidas += it },
+            emailEnSesion = { "rosa@example.com" }
         )
 
         assertEquals(ResultadoDelAbono.FALLO_EL_GUARDADO, roto.registrar(abono(dinero("220"))))
@@ -192,7 +194,8 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
                 encolador = encolador,
                 clock = clock,
                 traerUsuario = { usuario },
-                pedirUbicacion = { ubicacionesPedidas += it }
+                pedirUbicacion = { ubicacionesPedidas += it },
+                emailEnSesion = { "rosa@example.com" }
             )
 
             assertEquals(
@@ -252,29 +255,25 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     }
 
     /**
-     * **Caracterización — la razón de ser del guard anti-duplicado del
-     * ViewModel.** `PaymentDao.savePayment` inserta con `REPLACE`, así que dos
-     * registros con la misma clave dejan UNA fila... pero `SaleDao.updateTotal`
-     * **resta otra vez**. La idempotencia de la fila NO es idempotencia del
-     * dinero: el saldo se lleva el golpe dos veces.
+     * **E-APP-084: el exactamente-una-vez vive ahora en la escritura.** Antes
+     * (caracterización retirada): `savePayment` es REPLACE y `updateTotal` es un
+     * decremento, así que dos registros con la misma clave dejaban una fila y
+     * restaban DOS veces. El marcador ESCRITA y la búsqueda por `Payment.ID`
+     * dentro de la misma transacción hacen que el segundo sea `YA_ESTABA`.
      *
-     * Este test no pide arreglar `updateTotal` —es Room inmutable de
-     * producción— sino fijar por escrito que el "exactamente una vez" tiene que
-     * vivir arriba, en `RegistrarAbonoViewModel`, donde sí se prueba.
+     * Rojo al revertir: quitar la guarda `yaEscrito || pagosConUuid` de
+     * `escribirEnLaTransaccion` deja el saldo en 1010.
      */
     @Test
-    fun `dos registros con la MISMA clave dejan una fila pero restan dos veces`() = runTest {
-        val adaptador = adaptador()
-        adaptador.registrar(abono(dinero("220")))
-        adaptador.registrar(abono(dinero("220")))
+    fun `E-APP-084 dos registros con la MISMA clave dejan una fila y restan una sola vez`() =
+        runTest {
+            val adaptador = adaptador()
+            assertEquals(ResultadoDelAbono.REGISTRADO, adaptador.registrar(abono(dinero("220"))))
+            assertEquals(ResultadoDelAbono.REGISTRADO, adaptador.registrar(abono(dinero("220"))))
 
-        assertEquals("una sola fila: el REPLACE de la llave primaria", 1, pagosDeLaVenta())
-        assertEquals("y aun asi el saldo bajo dos veces", 1010.0, saldo(), 1e-9)
-        assertTrue(
-            "por eso el exactamente-una-vez vive en el ViewModel",
-            saldo() < 1230.0
-        )
-    }
+            assertEquals(1, pagosDeLaVenta())
+            assertEquals("descontado UNA sola vez", 1230.0, saldo(), 1e-9)
+        }
 
     // --- La ubicación: se pide, y jamás decide -------------------------------
 
@@ -387,7 +386,8 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             encolador = encolador,
             clock = clock,
             traerUsuario = { usuario },
-            pedirUbicacion = { ubicacionesPedidas += it }
+            pedirUbicacion = { ubicacionesPedidas += it },
+            emailEnSesion = { "rosa@example.com" }
         )
 
         assertEquals(ResultadoDelAbono.FALLO_EL_GUARDADO, fragil.registrar(abono(dinero("220"))))

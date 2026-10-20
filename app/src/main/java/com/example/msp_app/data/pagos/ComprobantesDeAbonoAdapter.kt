@@ -62,7 +62,14 @@ class ComprobantesDeAbonoAdapter(
     private val context: Context,
     private val imagenes: PaymentImageDao,
     private val telemetry: Telemetry,
-    private val clock: AppClock = AppClock.System
+    private val clock: AppClock = AppClock.System,
+    /**
+     * Los archivos que cita un marcador abierto (CAPTURADA o ESCRITA) de
+     * `capturas_en_curso` (E-APP-086): todavía no tienen fila en
+     * `pago_imagenes` —las fotos van después del commit— y el abono sin guardar
+     * los necesita para guardarse tal cual. El barrido nunca los borra.
+     */
+    private val rutasCitadas: suspend () -> Set<String> = { emptySet() }
 ) : ComprobantesPort {
 
     override suspend fun nuevoDestino(): DestinoDeFoto {
@@ -285,7 +292,7 @@ class ComprobantesDeAbonoAdapter(
             reportarLoQueNuncaSubio(huerfanas.count { it.SUBIDA_EN == null })
             // 2. Los archivos que ninguna fila referencia — la foto que se
             //    capturó y cuyo abono nunca llegó a registrarse.
-            val vivas = imagenes.rutasVivas().toSet()
+            val vivas = imagenes.rutasVivas().toSet() + rutasCitadas()
             comprobantesHuerfanos(context.filesDir, vivas, corte.toEpochMilli())
                 .forEach { it.delete() }
         } catch (cancelada: CancellationException) {

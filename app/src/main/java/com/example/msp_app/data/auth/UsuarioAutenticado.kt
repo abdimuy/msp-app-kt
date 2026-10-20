@@ -36,3 +36,14 @@ internal suspend fun usuarioAutenticado(): User? {
     val doc = snapshot.documents.firstOrNull() ?: return null
     return doc.toObject(User::class.java)?.copy(ID = doc.id)
 }
+
+/**
+ * El correo de la sesión, sin red y sin lanzar (E-APP-084): es el `USUARIO` del
+ * marcador de captura. `null` si no hay sesión o Firebase no está listo.
+ */
+@Suppress("TooGenericExceptionCaught") // FirebaseApp sin inicializar lanza IllegalStateException.
+internal fun emailDeLaSesion(): String? = try {
+    FirebaseAuth.getInstance().currentUser?.email
+} catch (_: Exception) {
+    null
+}

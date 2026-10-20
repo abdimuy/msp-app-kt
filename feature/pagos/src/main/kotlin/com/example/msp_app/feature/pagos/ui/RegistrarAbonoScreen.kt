@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -175,6 +176,9 @@ fun RegistrarAbonoScreen(
             onConfirmar = viewModel::confirmar,
             onEditar = viewModel::descartarConfirmacion,
             onRevisar = viewModel::cargar,
+            onGuardarSinGuardar = viewModel::guardarSinGuardar,
+            onVerTicket = onRegistrado,
+            onCapturarOtro = viewModel::capturarOtro,
             onAgregarFoto = viewModel::abrirOrigenes,
             onOrigen = viewModel::onOrigen,
             onCerrarOrigenes = viewModel::cerrarOrigenes,
@@ -269,7 +273,10 @@ fun RegistrarAbonoContent(
     onOrigen: (OrigenDeLaFoto) -> Unit,
     onCerrarOrigenes: () -> Unit,
     onQuitarFoto: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onGuardarSinGuardar: () -> Unit = {},
+    onVerTicket: (String) -> Unit = {},
+    onCapturarOtro: () -> Unit = {}
 ) {
     var fotosAbiertas by rememberSaveable { mutableStateOf(false) }
     var desplegado by rememberSaveable { mutableStateOf(false) }
@@ -308,7 +315,8 @@ fun RegistrarAbonoContent(
                 onSugerido = onSugerido,
                 onRegistrar = onRegistrar,
                 onRevisar = onRevisar,
-                onAgregarFoto = onAgregarFoto
+                onAgregarFoto = onAgregarFoto,
+                reanudacion = Reanudacion(onGuardarSinGuardar, onVerTicket, onCapturarOtro)
             )
         }
         if (fotosAbiertas && venta != null) {
@@ -368,7 +376,8 @@ private fun CapturaDelAbono(
     onSugerido: (Money) -> Unit,
     onRegistrar: () -> Unit,
     onRevisar: () -> Unit,
-    onAgregarFoto: () -> Unit
+    onAgregarFoto: () -> Unit,
+    reanudacion: Reanudacion = Reanudacion()
 ) {
     val densidad = LocalDensity.current
     var origen by remember { mutableFloatStateOf(0f) }
@@ -441,7 +450,12 @@ private fun CapturaDelAbono(
                 modifier = Modifier.onGloballyPositioned { tecladoArriba = it.boundsInRoot().top }
             )
             Spacer(Modifier.height(MspTheme.spacing.md))
-            BotonDelAbono(state = state, onRegistrar = onRegistrar, onRevisar = onRevisar)
+            BotonDelAbono(
+                state = state,
+                onRegistrar = onRegistrar,
+                onRevisar = onRevisar,
+                reanudacion = reanudacion
+            )
             Spacer(Modifier.height(MspTheme.spacing.sm))
         }
         if (desplegado) {
@@ -584,10 +598,16 @@ private fun mensajeDeLaFranja(
             FALLO_DEL_ABONO_TAG
         )
 
-        state.registrado != null -> MensajeDeLaFranja(
+        state.registrado != null || state.yaRegistrado != null -> MensajeDeLaFranja(
             TonoDeLaFranja.VERDE,
-            listOf(AnnotatedString("Abono registrado")),
+            listOf(AnnotatedString(TEXTO_ABONO_REGISTRADO)),
             REGISTRADO_DEL_ABONO_TAG
+        )
+
+        state.sinGuardar != null -> MensajeDeLaFranja(
+            TonoDeLaFranja.AMBAR,
+            listOf(AnnotatedString(textoAbonoSinGuardar(state.sinGuardar.importe))),
+            SIN_GUARDAR_DEL_ABONO_TAG
         )
 
         bloqueo != null -> MensajeDeLaFranja(
@@ -670,10 +690,25 @@ private fun textoDelFallo(fallo: FalloDelAbono): String = when (fallo) {
 private fun BotonDelAbono(
     state: RegistrarAbonoUiState,
     onRegistrar: () -> Unit,
-    onRevisar: () -> Unit
+    onRevisar: () -> Unit,
+    reanudacion: Reanudacion = Reanudacion()
 ) {
+    val escrito = state.yaRegistrado
     ConTopeDeLetra(TOPE_DEL_BOTON) {
-        if (state.sePuedeRevisar) {
+        if (escrito != null) {
+            BotonesDelAbonoRegistrado(escrito, reanudacion)
+        } else if (state.sinGuardar != null && !state.sePuedeRevisar) {
+            MspPrimaryFieldButton(
+                text = TEXTO_GUARDAR,
+                onClick = reanudacion.onGuardar,
+                enabled = !state.guardando,
+                maxLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = TOQUE_DEL_ABONO)
+                    .testTag(GUARDAR_SIN_GUARDAR_TAG)
+            )
+        } else if (state.sePuedeRevisar) {
             MspPrimaryFieldButton(
                 text = "Volver a revisar",
                 onClick = onRevisar,
@@ -698,6 +733,60 @@ private fun BotonDelAbono(
         }
     }
 }
+
+/**
+ * "Abono registrado": el marcador dice que el dinero ya está escrito
+ * (E-APP-084). Dos salidas y ninguna para descartar (E-APP-090).
+ */
+@Composable
+private fun BotonesDelAbonoRegistrado(abonoId: String, reanudacion: Reanudacion) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        MspPrimaryFieldButton(
+            text = TEXTO_VER_TICKET,
+            onClick = { reanudacion.onVerTicket(abonoId) },
+            maxLines = 1,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = TOQUE_DEL_ABONO)
+                .testTag(VER_TICKET_TAG)
+        )
+        MspPrimaryFieldButton(
+            text = TEXTO_CAPTURAR_OTRO,
+            onClick = reanudacion.onCapturarOtro,
+            variant = PrimaryFieldButtonVariant.Ghost,
+            maxLines = 1,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = TOQUE_DEL_ABONO)
+                .testTag(CAPTURAR_OTRO_TAG)
+        )
+    }
+}
+
+/** Las salidas de la pantalla cuando el marcador manda (E-APP-084). */
+class Reanudacion(
+    val onGuardar: () -> Unit = {},
+    val onVerTicket: (String) -> Unit = {},
+    val onCapturarOtro: () -> Unit = {}
+)
+
+/** Textos aprobados por el dueño 2026-10-20 (E-APP-089): mayúscula inicial, sin punto. */
+internal const val TEXTO_ABONO_REGISTRADO = "Abono registrado"
+internal const val TEXTO_GUARDAR = "Guardar"
+internal const val TEXTO_VER_TICKET = "Ver ticket"
+internal const val TEXTO_CAPTURAR_OTRO = "Capturar otro"
+
+/** "Abono de $X sin guardar" (texto aprobado, E-APP-089). */
+internal fun textoAbonoSinGuardar(importe: Money): String =
+    "Abono de ${formatMoneyMxn(importe.amount)} sin guardar"
+
+const val SIN_GUARDAR_DEL_ABONO_TAG: String = "pagos_abono_sin_guardar"
+const val GUARDAR_SIN_GUARDAR_TAG: String = "pagos_abono_guardar_sin_guardar"
+const val VER_TICKET_TAG: String = "pagos_abono_ver_ticket"
+const val CAPTURAR_OTRO_TAG: String = "pagos_abono_capturar_otro"
 
 @Composable
 private fun CargandoElAbono() {
