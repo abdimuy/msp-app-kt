@@ -73,6 +73,7 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
     private fun construir(
         registro: Registro,
         modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
+        useV2: Boolean = true,
         conciliar: suspend () -> ConciliacionInversa
     ): VisitsDailyReconcileWorker = TestListenableWorkerBuilder<VisitsDailyReconcileWorker>(context)
         .setWorkerFactory(object : WorkerFactory() {
@@ -84,6 +85,7 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
                 appContext,
                 workerParameters,
                 modo = { modo },
+                useV2 = useV2,
                 conciliar = conciliar,
                 pendientes = { db.visitDao().pendientesOrdenadas() },
                 encolar = { registro.encoladas += it },
@@ -92,6 +94,40 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
             )
         })
         .build()
+
+    /**
+     * E-VIS-031 con `VISITAS_USE_V2 = false` (flavor devserver): el envío legacy
+     * nunca estampa `SUBIDA_EN`, así que si el barrido devolviera una legada
+     * con foto, el worker legacy la reenviaría sin la foto y la siguiente
+     * corrida la devolvería otra vez, para siempre. Ni el barrido ni la
+     * inversa corren; la marca de corrida tampoco se anota.
+     */
+    @Test
+    fun `E-VIS-031 sin VISITAS_USE_V2 ni el barrido ni la inversa corren`() = runBlocking {
+        val dao = db.visitDao()
+        dao.insertVisit(pendingVisit(id = LEGADA, guardado = 1))
+        var corridas = 0
+        val conciliar: suspend () -> ConciliacionInversa = {
+            corridas++
+            casoDeUso(Servidor()).execute()
+        }
+
+        val apagado = Registro()
+        assertEquals(
+            ListenableWorker.Result.success(),
+            construir(apagado, useV2 = false, conciliar = conciliar).doWork()
+        )
+        assertEquals("no corre", 0, corridas)
+        assertEquals(1, dao.findVisitById(LEGADA)!!.GUARDADO_EN_MICROSIP)
+        assertEquals(emptyList<String>(), apagado.encoladas)
+        assertEquals(emptyList<Instant>(), apagado.corridas)
+
+        // Control positivo: con v2 la misma legada sí se revisa (y vuelve a pendiente).
+        val prendido = Registro()
+        construir(prendido, useV2 = true, conciliar = conciliar).doWork()
+        assertEquals(1, corridas)
+        assertEquals(0, dao.findVisitById(LEGADA)!!.GUARDADO_EN_MICROSIP)
+    }
 
     @Test
     fun inversaDevuelveAPendienteLaLegadaQueElServidorNoTiene() = runBlocking {

@@ -392,7 +392,8 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
             confirmadasAntesDe = "2027-01-01T00:00:00Z",
             resguardadasAntesDe = "2027-01-01T00:00:00Z",
             comprobantesDesde = "2027-01-01T00:00:00Z",
-            conservarCompromisosDesde = "2027-01-01"
+            conservarCompromisosDesde = "2027-01-01",
+            protegidas = emptyList()
         )
         // Control positivo: la visita sí se podó.
         assertNull(db.visitDao().findVisitById(VISITA_ID))
@@ -805,7 +806,7 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
 
         override suspend fun marcarSubida(imagenId: String, subidaEn: String) = Unit
 
-        override suspend fun pendientesDeConfirmadas(): List<VisitImageEntity> = emptyList()
+        override suspend fun pendientesDeEntregadas(): List<VisitImageEntity> = emptyList()
 
         override suspend fun rutasVivas(): List<String> = emptyList()
 

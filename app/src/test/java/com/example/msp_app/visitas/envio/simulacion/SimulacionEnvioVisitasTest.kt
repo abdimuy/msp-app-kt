@@ -2,6 +2,7 @@ package com.example.msp_app.visitas.envio.simulacion
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import java.io.File
@@ -246,6 +247,56 @@ class SimulacionEnvioVisitasTest : RoomTestBase() {
             assertNull(m.violaciones())
         }
 
+    /**
+     * Adenda de E-APP-079 (tope y prioridad del dinero) sobre el worker real.
+     * 25 visitas confirmadas con una foto tardía con archivo. Con pagos por
+     * subir el barrido no reabre ninguna; sin pagos, reabre a lo más el tope
+     * por pasada y en varias pasadas todas las fotos viajan.
+     */
+    @Test
+    fun `E-APP-079 con dinero por subir el barrido espera y sin dinero vacia todo de a lo mas el tope`() =
+        runBlocking {
+            val tope = ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_PASADA
+            val m = mundo(79, prob = sinFallas)
+            val ids = (1..VISITAS_CON_FOTO_TARDIA).map {
+                val id = m.capturar(fotos = 0, sinArchivo = 0, rechazable = false)
+                m.armarOtroCamino(fotoConArchivo = true)
+                m.intentarId(id)
+                id
+            }
+            fun sinEnviar() = runBlocking { ids.count { fotosDe(it).single().SUBIDA_EN == null } }
+            assertEquals(
+                "control: todas con la foto sin enviar",
+                VISITAS_CON_FOTO_TARDIA,
+                sinEnviar()
+            )
+
+            m.dineroPendiente = true
+            repeat(3) {
+                val r = m.reconciliacionInversa()
+                assertEquals("con dinero no reabre nada", 0, r.devueltasPorFoto)
+                assertTrue(r.barridoPospuestoPorDinero)
+            }
+            assertTrue(db.visitDao().pendientesOrdenadas().isEmpty())
+            assertEquals(VISITAS_CON_FOTO_TARDIA, sinEnviar())
+
+            m.dineroPendiente = false
+            val porPasada = mutableListOf<Int>()
+            while (sinEnviar() > 0 && porPasada.size < VISITAS_CON_FOTO_TARDIA) {
+                val r = m.reconciliacionInversa()
+                porPasada += r.devueltasPorFoto
+                db.visitDao().pendientesOrdenadas().forEach { m.intentarId(it) }
+            }
+            println(
+                "SIM E-APP-079 tope=$tope visitas=$VISITAS_CON_FOTO_TARDIA pasadas=${porPasada.size} por_pasada=$porPasada"
+            )
+            assertTrue("a lo más el tope por pasada", porPasada.all { it <= tope })
+            assertEquals("todas reabiertas una vez", VISITAS_CON_FOTO_TARDIA, porPasada.sum())
+            assertEquals(0, sinEnviar())
+            m.verificarFinal()
+            assertNull(m.violaciones())
+        }
+
     @Test
     fun `E-APP-076 matar entre el 2xx y la marca sin fotos confirma dentro de NonCancellable`() =
         runBlocking {
@@ -377,6 +428,7 @@ class SimulacionEnvioVisitasTest : RoomTestBase() {
 
     private companion object {
         const val SEMILLAS = 500L
+        const val VISITAS_CON_FOTO_TARDIA = 25
         const val PASOS = 200
         const val SEMILLAS_CONTROL = 200L
         const val PASOS_CONTROL = 80

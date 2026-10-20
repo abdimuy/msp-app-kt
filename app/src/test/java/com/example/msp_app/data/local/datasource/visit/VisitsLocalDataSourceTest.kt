@@ -707,6 +707,163 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
     private fun storeCon(clock: FakeClock, memoria: MemoriaDePodaDeResguardadas) =
         VisitsLocalDataSource(db.visitDao(), db.saleDao(), enqueuer, clock, memoria)
 
+    /**
+     * E-VIS-032 (R2): la poda nunca borra una confirmada, por vieja que sea,
+     * mientras tenga una foto sin subir que conserva su archivo. Antes la
+     * borraba con la foto de más de 7 días según el reloj del teléfono y el
+     * barrido de huérfanos se llevaba después la fila y el archivo. La foto
+     * sin archivo sigue como antes: ya no bloquea pasada la semana.
+     */
+    @Test
+    fun `E-VIS-032 la poda no borra una confirmada vieja con una foto sin subir que conserva su archivo`() =
+        runTest {
+            val existen = setOf("/fotos/con-archivo.jpg")
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                archivoExiste = { it in existen }
+            )
+            listOf("con-foto", "sin-archivo", "sin-foto").forEach {
+                s.saveVisit(visit(id = it))
+                db.visitDao().confirmar(listOf(it), "2026-09-01T00:00:00Z")
+            }
+            fun foto(id: String, visita: String) =
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = id,
+                    VISITA_ID = visita,
+                    URI = "/fotos/$id.jpg",
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            // Tras confirmar: la retención por foto de `confirmar` ya no aplica.
+            db.visitImageDao().insertAll(
+                listOf(foto("con-archivo", "con-foto"), foto("sin-arch", "sin-archivo"))
+            )
+
+            s.deleteUploadedVisits()
+
+            assertNotNull(
+                "foto sin subir con archivo: no se poda",
+                db.visitDao().findVisitById("con-foto")
+            )
+            assertNull(
+                "foto sin archivo: como antes, se poda",
+                db.visitDao().findVisitById("sin-archivo")
+            )
+            assertNull("sin foto: se poda", db.visitDao().findVisitById("sin-foto"))
+        }
+
+    /**
+     * Adenda de E-APP-079: la poda y el barrido usan el MISMO predicado
+     * (`FotoQueViaja`: tipo permitido Y archivo en el disco). Una foto con
+     * archivo de un tipo que nunca viaja ya no protege su visita para siempre;
+     * se cuenta en la telemetría de la poda.
+     */
+    @Test
+    fun `E-APP-079 una foto con archivo de un tipo que no viaja no protege su visita y se cuenta`() =
+        runTest {
+            val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                telemetria = { evento, datos -> emitidos += evento to datos },
+                archivoExiste = { true }
+            )
+            listOf("con-jpeg", "con-bmp").forEach {
+                s.saveVisit(visit(id = it))
+                db.visitDao().confirmar(listOf(it), "2026-09-01T00:00:00Z")
+            }
+            fun foto(id: String, visita: String, mime: String) =
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = id,
+                    VISITA_ID = visita,
+                    URI = "/fotos/$id",
+                    MIME = mime,
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            db.visitImageDao().insertAll(
+                listOf(foto("j", "con-jpeg", "image/jpeg"), foto("b", "con-bmp", "image/bmp"))
+            )
+
+            s.deleteUploadedVisits()
+
+            assertNotNull("la que viaja sigue protegida", db.visitDao().findVisitById("con-jpeg"))
+            assertNull(
+                "la de tipo que no viaja ya no protege",
+                db.visitDao().findVisitById("con-bmp")
+            )
+            assertEquals(
+                listOf(
+                    "visitas_poda" to mapOf<String, Any>(
+                        "visitas.resguardadas_por_podar" to 0,
+                        "visitas.poda.fotos_con_archivo_que_no_viajan" to 1
+                    )
+                ),
+                emitidos
+            )
+        }
+
+    /**
+     * Adenda de E-APP-079: si las visitas protegidas no caben en el `NOT IN`
+     * (más de 900), esa corrida no poda nada (ni lo que sí podría) y lo cuenta
+     * en la telemetría con una clave de la lista blanca; antes solo era un
+     * `Log.w` que no sale del teléfono.
+     */
+    @Test
+    fun `E-APP-079 si las protegidas no caben la poda no corre y se cuenta`() = runTest {
+        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+        val s = VisitsLocalDataSource(
+            db.visitDao(),
+            db.saleDao(),
+            enqueuer,
+            FakeClock(ahora),
+            MemoriaEnPrueba(),
+            telemetria = { evento, datos -> emitidos += evento to datos },
+            archivoExiste = { true }
+        )
+        val protegidas = (1..PROTEGIDAS_DE_MAS).map { "p-$it" }
+        (protegidas + "sin-foto").forEach { s.saveVisit(visit(id = it)) }
+        (protegidas + "sin-foto").chunked(500).forEach {
+            db.visitDao().confirmar(it, "2026-09-01T00:00:00Z")
+        }
+        db.visitImageDao().insertAll(
+            protegidas.map {
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = "f-$it",
+                    VISITA_ID = it,
+                    URI = "/fotos/$it.jpg",
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            }
+        )
+
+        s.deleteUploadedVisits()
+
+        assertNotNull("esta corrida no poda nada", db.visitDao().findVisitById("sin-foto"))
+        assertEquals(
+            listOf(
+                "visitas_poda" to mapOf<String, Any>(
+                    "visitas.resguardadas_por_podar" to 0,
+                    "visitas.poda.pospuesta_protegidas" to PROTEGIDAS_DE_MAS
+                )
+            ),
+            emitidos
+        )
+    }
+
     /** Review Focus 2: la legada soltada sin prueba no se poda por la fuente real. */
     @Test
     fun `la poda real no borra la legada sin confirmar`() = runTest {
@@ -863,5 +1020,10 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             contextForm.getPendingVisits().map { it.ID }
         )
         assertEquals(store.getVisitById("eq-sync"), contextForm.getVisitById("eq-sync"))
+    }
+
+    private companion object {
+        /** Una más que `VisitsLocalDataSource.MAX_PROTEGIDAS` (900). */
+        const val PROTEGIDAS_DE_MAS = 901
     }
 }

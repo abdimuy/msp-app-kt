@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
@@ -37,6 +38,13 @@ import kotlinx.coroutines.CancellationException
  * nada. Ese modo devuelve el envío a la conducta de antes de P1, y antes de P1
  * nada devolvía visitas soltadas a la cola.
  *
+ * **Envío legacy** (`BuildConfig.VISITAS_USE_V2 = false`, flavor devserver):
+ * tampoco corre, ni el barrido ni la parte by-ids (E-VIS-031). El envío legacy
+ * nunca estampa `SUBIDA_EN`, así que el barrido devolvería la misma legada con
+ * foto en cada corrida y al abrir la app, y el worker legacy la reenviaría sin
+ * la foto. La marca de corrida no se anota: la corrida al abrir la app se
+ * encola y no hace nada.
+ *
  * La marca de [UltimaConciliacionDeVisitas] se anota solo si la corrida decidió
  * todo lo que leyó; si no, la siguiente apertura de la app la reintenta.
  */
@@ -45,6 +53,9 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
     workerParams: WorkerParameters,
     @VisibleForTesting
     internal val modo: () -> ModoEnvioVisitas = { FirestoreModoEnvioVisitas.actual },
+    /** E-VIS-031: con el envío legacy (`VISITAS_USE_V2 = false`) no corre. */
+    @VisibleForTesting
+    internal val useV2: Boolean = BuildConfig.VISITAS_USE_V2,
     @VisibleForTesting
     internal val conciliar: suspend () -> ConciliacionInversa = {
         EntryPointAccessors.fromApplication(
@@ -74,6 +85,12 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        if (!useV2) {
+            // E-VIS-031: el envío legacy nunca estampa SUBIDA_EN; el barrido
+            // devolvería la misma legada con foto en cada corrida, para siempre.
+            Log.i(TAG, "envio legacy: la reconciliacion inversa no corre")
+            return Result.success()
+        }
         if (modo() == ModoEnvioVisitas.V2_ACTUAL) {
             Log.i(TAG, "modo v2_actual: la reconciliacion inversa no corre")
             return Result.success()

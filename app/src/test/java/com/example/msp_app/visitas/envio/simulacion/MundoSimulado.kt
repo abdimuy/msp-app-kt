@@ -1,8 +1,10 @@
 package com.example.msp_app.visitas.envio.simulacion
 
 import android.content.Context
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
 import com.example.msp_app.core.common.time.AppTime
@@ -104,7 +106,8 @@ class MundoSimulado(
     private val db: AppDatabase,
     private val context: Context,
     private val carpeta: File,
-    private val modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
+    /** Kill-switch `config/visitas_envio`; mutable para el ida y vuelta del adversario (Tarea 19). */
+    var modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
     probabilidades: Map<Falla, Double> = PROBABILIDADES_POR_OMISION,
     /** Fracción de las visitas rechazables cuya captura del 422 falla SIEMPRE (sin fila ni cabecera). */
     private val capturaFalla: Double = 0.2
@@ -350,6 +353,20 @@ class MundoSimulado(
         evento(TipoEvento.FOTO_AGREGADA, v.id, "foto=$f archivo=${if (conArchivo) 1 else 0}")
     }
 
+    /**
+     * Inserta una foto en la visita [id], sea cual sea su estado (agente
+     * adversario, Tarea 19: una legada con foto sin enviar, E-VIS-031).
+     * [agregarFoto] solo elige entre pendientes no legadas.
+     */
+    suspend fun agregarFotoA(id: String, conArchivo: Boolean): String {
+        val f = insertarFoto(id, conArchivo, ORDEN_TARDIA)
+        evento(TipoEvento.FOTO_AGREGADA, id, "foto=$f archivo=${if (conArchivo) 1 else 0}")
+        return f
+    }
+
+    /** Las fotos que el servidor tiene de [id] (fila y archivo), para las pruebas del adversario. */
+    fun fotosEnServidor(id: String): Set<String> = servidor[id].orEmpty().toSet()
+
     /** INYECTOR de `foto_sin_archivo_local`: borra el archivo y lo anota en el mismo paso. */
     suspend fun perderFotoLocal(cual: Int) {
         val cs = locales.values.filter { !it.podada }.flatMap { l ->
@@ -429,13 +446,24 @@ class MundoSimulado(
         observarTelefono()
     }
 
+    /** Prioridad del dinero en el barrido: true = hay pagos o ventas por subir. */
+    var dineroPendiente: Boolean = false
+
     /** La reconciliación inversa diaria, real (Tarea 13). */
-    suspend fun reconciliacionInversa() {
+    suspend fun reconciliacionInversa(): ConciliacionInversa {
         val r = ReconcileDeliveredVisitsUseCase(
             RoomDeliveredVisitsStore(db.visitDao(), db.visitImageDao()),
             V2VisitCustodyRegistry(api),
-            reporter
+            reporter,
+            DineroPendiente { dineroPendiente }
         ) { clock.now() }.execute()
+        if (r.barridoPospuestoPorDinero) {
+            evento(
+                TipoEvento.FALLA,
+                "",
+                "barrido_pospuesto_por_dinero n=${r.visitasConFotoEnEspera}"
+            )
+        }
         // Cobertura del barrido de E-APP-079 (no lo mira el verificador).
         if (r.devueltasPorFoto > 0) {
             evento(
@@ -444,14 +472,16 @@ class MundoSimulado(
                 "barrido_devuelve n=${r.devueltasPorFoto}"
             )
         }
-        if (r.fotosAbandonadas > 0) {
+        // E-VIS-032: ya nada se abandona; la edad solo es telemetría.
+        if (r.fotosSinEnviarViejas > 0) {
             evento(
                 TipoEvento.FALLA,
                 "",
-                "barrido_abandona n=${r.fotosAbandonadas}"
+                "barrido_foto_vieja n=${r.fotosSinEnviarViejas}"
             )
         }
         observarTelefono()
+        return r
     }
 
     /** Avanza el reloj falso y corre la poda real (Tarea 12). */
@@ -459,8 +489,10 @@ class MundoSimulado(
      * Avanza el reloj falso [dias] días, en saltos de a lo más
      * [DIAS_POR_SALTO]: en cada salto corre la reconciliación inversa (el
      * trabajo diario de un teléfono que se usa) y la poda real (Tarea 12).
-     * Sin la inversa en el camino, una foto sin enviar envejecería más allá
-     * de la ventana del barrido sin que nadie la mirara (E-APP-079).
+     * Es el trabajo diario de un teléfono en uso; el barrido ya no tiene
+     * ventana (E-VIS-032), pero la poda sí deja de proteger una foto sin
+     * enviar pasada la semana, así que la inversa en el camino sigue
+     * importando.
      */
     suspend fun avanzarYPodar(dias: Long, conInversa: Boolean = true) {
         var resta = dias

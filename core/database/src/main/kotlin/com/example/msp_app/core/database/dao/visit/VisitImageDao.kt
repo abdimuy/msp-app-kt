@@ -61,17 +61,19 @@ interface VisitImageDao {
     suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity>
 
     /**
-     * Fotos sin `SUBIDA_EN` de visitas que ya tienen `CONFIRMADA_EN`: el
-     * barrido de la reconciliación inversa (E-APP-079) las revisa, porque una
-     * foto que entró después de confirmar no la vuelve a mandar nadie. Solo
-     * lectura.
+     * Fotos sin `SUBIDA_EN` de visitas ENTREGADAS: `GUARDADO_EN_MICROSIP = 1`
+     * y sin `RESGUARDADA_EN`, o sea confirmadas y también legadas sin marcas
+     * (E-VIS-031). El barrido de la reconciliación inversa (E-APP-079) las
+     * revisa, porque una foto de una visita ya soltada no la vuelve a mandar
+     * nadie. Las resguardadas no: están en la bandeja, no en `MSP_VISITAS`.
+     * Solo lectura.
      */
     @Query(
         "SELECT i.* FROM visita_imagenes i JOIN Visit v ON v.ID = i.VISITA_ID " +
-            "WHERE v.CONFIRMADA_EN IS NOT NULL AND i.SUBIDA_EN IS NULL " +
+            "WHERE v.GUARDADO_EN_MICROSIP = 1 AND v.RESGUARDADA_EN IS NULL AND i.SUBIDA_EN IS NULL " +
             "ORDER BY i.VISITA_ID ASC, i.ORDEN ASC, i.ID ASC"
     )
-    suspend fun pendientesDeConfirmadas(): List<VisitImageEntity>
+    suspend fun pendientesDeEntregadas(): List<VisitImageEntity>
 
     /**
      * Marca UNA imagen como subida. Filtra por `ID` —el de la imagen— y no por
