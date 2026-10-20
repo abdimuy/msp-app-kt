@@ -9,6 +9,7 @@ import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.diagnosticoenvio.EstadoDeEnvioDeVisitas
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
+import com.example.msp_app.core.sync.visitas.VisitasZonaSyncProvider
 import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
@@ -86,6 +87,15 @@ class VisitsReconcileWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val reportarEstado: suspend () -> Unit = {
         EstadoDeEnvioDeVisitas.de(appContext).emitir()
+    },
+    /**
+     * Bajada de la agenda de la zona a `visita_zona` (plan visitas P2, Tarea
+     * 16; E-APP-101). Apagada por omisión (`config/visitas_compromisos`); nunca
+     * escribe `Visit` (I8). El manager se arma por corrida.
+     */
+    @VisibleForTesting
+    internal val bajarAgenda: suspend () -> Unit = {
+        VisitasZonaSyncProvider.sincronizar(appContext)
     }
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -93,6 +103,7 @@ class VisitsReconcileWorker @JvmOverloads constructor(
         reencolarPendientes()
         refrescarCapacidadesSinRiesgo()
         encolarRelleno()
+        bajarAgendaSinRiesgo()
         reconciliar()
         reportarEstadoSinRiesgo()
         return Result.success()
@@ -174,6 +185,22 @@ class VisitsReconcileWorker @JvmOverloads constructor(
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "relleno de compromisos falló; lo reintenta el siguiente periodo", e)
+        }
+    }
+
+    /**
+     * Después del reencolado: lo propio pendiente ya va camino al servidor
+     * antes de bajar la agenda. Aislado: una bajada que falle no impide
+     * reconciliar; la siguiente corrida retoma desde la última página aplicada.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun bajarAgendaSinRiesgo() {
+        try {
+            bajarAgenda()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "bajada de la agenda de visitas falló; la corrida sigue", e)
         }
     }
 

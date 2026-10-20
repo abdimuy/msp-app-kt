@@ -94,6 +94,21 @@ abstract class VisitaZonaDao {
     @Query("SELECT * FROM visitas_sync_state WHERE ZONA = :zona")
     abstract suspend fun estado(zona: Int): VisitasSyncStateEntity?
 
+    /**
+     * Restos de una zona distinta de [zona]: filas bajadas de otra zona más
+     * posiciones de otra zona que todavía tienen cursor. Mayor que 0 = el
+     * teléfono cambió de zona y toca [reiniciarZona] (Tarea 16, E-APP-103).
+     * Solo lectura: decide un reinicio, nunca reconstruye una posición
+     * (E-VIS-070).
+     */
+    @Query(
+        """
+        SELECT (SELECT COUNT(*) FROM visita_zona WHERE ZONA_CLIENTE_ID <> :zona)
+             + (SELECT COUNT(*) FROM visitas_sync_state WHERE ZONA <> :zona AND CURSOR IS NOT NULL)
+        """
+    )
+    abstract suspend fun restosDeOtraZona(zona: Int): Int
+
     /** Lo bajado de [zona], ordenado por id. Solo lectura. */
     @Query("SELECT * FROM visita_zona WHERE ZONA_CLIENTE_ID = :zona ORDER BY ID")
     abstract suspend fun deZona(zona: Int): List<VisitaZonaEntity>
