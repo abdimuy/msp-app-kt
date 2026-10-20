@@ -515,9 +515,17 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
      * El fake cancela el job como ÚLTIMA escritura de la transacción, que es
      * justo el instante en que la ventana se abre. Se afirman las DOS mitades:
      * la visita quedó escrita **y** quedó encolada.
+     *
+     * E-APP-078: esta es la ÚNICA guarda del `withContext(NonCancellable)` de
+     * `RegistroDeVisitaAdapter.guardar`. Las de `GuardadoDeVisitaCanceladoTest`
+     * guardan otra cosa (la cancelación tardía y su telemetría) y siguen verdes
+     * sin el `NonCancellable`. MEDIDO 2026-10-19 en dev (Robolectric): con
+     * `run {` en lugar del `NonCancellable`, esta prueba sale roja (encoladas
+     * `[]`) y las 6 de ese archivo verdes. Por eso lleva el ID en el nombre:
+     * filtrar por `*E-APP-078*` tiene que encontrarla.
      */
     @Test
-    fun `una cancelacion no deja la visita escrita y sin encolar`() = runTest {
+    fun `E-APP-078 una cancelacion no deja la visita escrita y sin encolar`() = runTest {
         db.visitRecommendationDao().guardar(recomendacion())
         val propio = Job()
         val conCancelacion = adaptadorCon(
