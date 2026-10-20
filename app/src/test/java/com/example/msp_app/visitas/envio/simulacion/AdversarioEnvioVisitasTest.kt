@@ -140,7 +140,7 @@ class AdversarioEnvioVisitasTest : RoomTestBase() {
         }
 
     /**
-     * E-VIS-033. Ida y vuelta del kill-switch `config/visitas_envio`: en
+     * E-VIS-042. Ida y vuelta del kill-switch `config/visitas_envio`: en
      * `v2_actual` el envío de hoy suelta sin prueba (un 422 sin custodia, un
      * 422 con custodia y un 2xx quedan todos `GUARDADO_EN_MICROSIP = 1` sin
      * marca). Al volver a `v3`, la inversa —que trata esas filas como
@@ -149,7 +149,7 @@ class AdversarioEnvioVisitasTest : RoomTestBase() {
      * soltado sin marca. El código resiste.
      */
     @Test
-    fun `E-VIS-033 volver de v2_actual a v3 recupera lo que v2_actual solto sin prueba`() =
+    fun `E-VIS-042 volver de v2_actual a v3 recupera lo que v2_actual solto sin prueba`() =
         runBlocking {
             // 422 sin custodia (capturaFalla = 1) y un 2xx con foto.
             val m = mundo(33, modo = ModoEnvioVisitas.V2_ACTUAL, capturaFalla = 1.0)
