@@ -37,8 +37,9 @@ import com.example.msp_app.data.models.sale.SaleWithProducts
  *
  * Los cuatro escritores de `sales`: `CobranzaSyncManager.mergeVentas` y
  * `CobranzaReconciler.reconcileSaldosViaIds` escriben por `VentaDto.toEntity()`, que llena las
- * dos columnas **con el mismo campo del DTO**; `AuthViewModel` y `SalesLocalDataSource.replaceAll`
- * reescriben filas que ya estaban, preservando las dos.
+ * dos columnas **con el mismo campo del DTO**; `InicioDeSemanaDeVentas` (el "inicio de semana"
+ * que llama `AuthViewModel`) y `SalesLocalDataSource.replaceAll` reescriben filas que ya estaban,
+ * preservando las dos.
  *
  * ```kotlin
  * // app/.../data/api/services/cobranza/VentaDto.kt

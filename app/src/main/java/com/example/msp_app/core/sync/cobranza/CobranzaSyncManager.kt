@@ -64,6 +64,8 @@ class CobranzaSyncManager(
      * Mutex compartido con [CobranzaReconciler] para serializar escrituras a
      * Room. Inyectado para que el reconciler y el sync nunca solapen sus
      * operaciones de escritura y evitar la race condition SSE vs phantom-delete.
+     * Los escritores de captura (abono, condonación, visita) NO lo toman: contra
+     * ellos el orden lo da la transacción por venta de [mergeVentas] (E-APP-081).
      * Default: mutex de proceso gestionado por [CobranzaWriteMutexProvider].
      */
     private val cobranzaWriteMutex: CobranzaWriteMutex = CobranzaWriteMutexProvider.get(),
@@ -672,50 +674,79 @@ class CobranzaSyncManager(
      *    productos por folio (`productDao.deleteByFolio` + `saveAll`), así
      *    el backend Go queda como única fuente — ya no se descargan por el
      *    endpoint Node legacy.
+     *
+     *  - **Atomicidad por venta (E-APP-081).** Cada venta se aplica en UNA
+     *    `db.withTransaction` ([mergeUnaVenta]) que contiene todo lo que decide
+     *    su escritura —`countPagosDesde`, la lectura de `existing`,
+     *    `sumImporteNoReconocidoPorElServidor`— y sus escrituras (borrados,
+     *    REPLACE y productos). Los escritores de captura (abono, condonación,
+     *    visita) NO toman [cobranzaWriteMutex] —el sync lo sostiene durante el
+     *    HTTP—, así que lo único que los ordena contra este merge es la
+     *    transacción: esperan a que la venta termine y se aplican después.
+     *    Antes, un abono o una visita que confirmaban entre la lectura y el
+     *    REPLACE perdían el descuento (hasta el siguiente merge) y el
+     *    ESTADO_COBRANZA (sin plazo), 20/20 medido. Dentro de la transacción
+     *    no hay red ni otra suspensión: el mutex se toma ANTES (en `syncNow` /
+     *    `applyByIds`), nunca dentro. Una transacción por venta, no por
+     *    página, para que un escritor no espere la página entera.
+     *
+     *  - **Rama saldada: cubre sólo a quien relee la venta en su transacción.**
+     *    `countPagosDesde` y el borrado ven el mismo estado, así que la
+     *    condonación (que relee la venta dentro de su `withTransaction`) queda
+     *    entera antes o entera después del borrado. El abono NO: valida la venta
+     *    fuera de su transacción (`RegistroDeAbonoAdapter.registrar`) y, con o
+     *    sin esta transacción, queda REGISTRADO con la venta ya borrada y un
+     *    pago en ventana (20/20 medido; el Payment no se pierde, la venta sale
+     *    de la lista). Hueco ABIERTO: E-APP-083, espera decisión del dueño.
      */
     private suspend fun mergeVentas(items: List<VentaDto>, desdeIso: String?) {
         for (dto in items) {
-            if (dto.cargo_cancelado) {
-                saleDao.deleteByDoctoCcId(dto.docto_cc_id)
-                paymentDao.deleteByDoctoCcAcrId(dto.docto_cc_id)
-                productDao.deleteByFolio(dto.folio)
-                continue
-            }
-            val saldo = dto.saldo.toDoubleOrNull() ?: 0.0
-            if (saldo <= 0.0 && desdeIso != null) {
-                val pagosEnVentana = paymentDao.countPagosDesde(dto.docto_cc_id, desdeIso)
-                if (pagosEnVentana <= 0) {
-                    // Saldada fuera de la ventana del cobrador — la quito
-                    // de la lista visible. Los Payment quedan intactos.
-                    saleDao.deleteByDoctoCcId(dto.docto_cc_id)
-                    productDao.deleteByFolio(dto.folio)
-                    continue
-                }
-                // Saldada con pagos en ventana → cae al upsert normal.
-            }
-            val existing = saleDao.findByDoctoCcId(dto.docto_cc_id)
-            // El saldo del servidor menos lo que el servidor todavía no ha
-            // visto. NO es preservar el valor local: se parte SIEMPRE del que
-            // llega, así que una cancelación de oficina, el pago de otro
-            // cobrador o una condonación entran en el mismo tick. Ver
-            // [PaymentDao.sumImporteNoReconocidoPorElServidor].
-            val incoming = dto.toEntity().conSaldoAjustadoPorPagosEnVuelo(
-                paymentDao.sumImporteNoReconocidoPorElServidor(dto.docto_cc_id)
-            )
-            val merged = if (existing == null) {
-                incoming
-            } else {
-                incoming.copy(
-                    // ESTADO_COBRANZA y DIA_TEMPORAL_COBRANZA sí se preservan
-                    // tal cual: son del cobrador, el servidor no los posee.
-                    ESTADO_COBRANZA = existing.ESTADO_COBRANZA,
-                    DIA_TEMPORAL_COBRANZA = existing.DIA_TEMPORAL_COBRANZA
-                )
-            }
-            saleDao.insertAll(listOf(merged))
-            productDao.deleteByFolio(dto.folio)
-            productDao.saveAll(dto.productos.map { it.toEntity() })
+            db.withTransaction { mergeUnaVenta(dto, desdeIso) }
         }
+    }
+
+    /** Una venta de [mergeVentas]; corre SIEMPRE dentro de su transacción (E-APP-081). */
+    private suspend fun mergeUnaVenta(dto: VentaDto, desdeIso: String?) {
+        if (dto.cargo_cancelado) {
+            saleDao.deleteByDoctoCcId(dto.docto_cc_id)
+            paymentDao.deleteByDoctoCcAcrId(dto.docto_cc_id)
+            productDao.deleteByFolio(dto.folio)
+            return
+        }
+        val saldo = dto.saldo.toDoubleOrNull() ?: 0.0
+        if (saldo <= 0.0 && desdeIso != null) {
+            val pagosEnVentana = paymentDao.countPagosDesde(dto.docto_cc_id, desdeIso)
+            if (pagosEnVentana <= 0) {
+                // Saldada fuera de la ventana del cobrador — la quito
+                // de la lista visible. Los Payment quedan intactos.
+                saleDao.deleteByDoctoCcId(dto.docto_cc_id)
+                productDao.deleteByFolio(dto.folio)
+                return
+            }
+            // Saldada con pagos en ventana → cae al upsert normal.
+        }
+        val existing = saleDao.findByDoctoCcId(dto.docto_cc_id)
+        // El saldo del servidor menos lo que el servidor todavía no ha
+        // visto. NO es preservar el valor local: se parte SIEMPRE del que
+        // llega, así que una cancelación de oficina, el pago de otro
+        // cobrador o una condonación entran en el mismo tick. Ver
+        // [PaymentDao.sumImporteNoReconocidoPorElServidor].
+        val incoming = dto.toEntity().conSaldoAjustadoPorPagosEnVuelo(
+            paymentDao.sumImporteNoReconocidoPorElServidor(dto.docto_cc_id)
+        )
+        val merged = if (existing == null) {
+            incoming
+        } else {
+            incoming.copy(
+                // ESTADO_COBRANZA y DIA_TEMPORAL_COBRANZA sí se preservan
+                // tal cual: son del cobrador, el servidor no los posee.
+                ESTADO_COBRANZA = existing.ESTADO_COBRANZA,
+                DIA_TEMPORAL_COBRANZA = existing.DIA_TEMPORAL_COBRANZA
+            )
+        }
+        saleDao.insertAll(listOf(merged))
+        productDao.deleteByFolio(dto.folio)
+        productDao.saveAll(dto.productos.map { it.toEntity() })
     }
 
     /**
