@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
@@ -147,6 +148,47 @@ class ComprobantesDeVisitaAdapterTest : RoomTestBase() {
                 it.name == VisitasTelemetria.CODE_VISITA_FOTO_BARRIDA_SIN_SUBIR
             }
         )
+    }
+
+    /**
+     * **E-VIS-074.** El barrido promete que su fallo no impide tomar una foto,
+     * pero sus dos reportes iban sin guarda: si `DurableTelemetry.error`
+     * lanzaba (inserta en Room de forma síncrona), la excepción salía de
+     * `nuevoDestino` y la cámara de la visita no abría. Con la telemetría
+     * lanzando en TODO, el barrido termina igual y la huérfana se va.
+     */
+    @Test
+    fun `E-VIS-074 la telemetria que lanza no saca la excepcion del barrido`() = runTest {
+        val lanza = TelemetriaQueSiempreLanza(telemetry)
+        val conTelemetriaRota = ComprobantesDeVisitaAdapter(
+            context = context,
+            imagenes = db.visitImageDao(),
+            telemetry = lanza,
+            clock = clock
+        )
+        val archivo = sembrarImagen(
+            id = "IMG-PERDIDA",
+            visitaId = "visita-podada",
+            creadaEn = "2026-08-01T10:00:00Z"
+        )
+
+        conTelemetriaRota.barrerHuerfanos()
+
+        assertTrue("la telemetría sí se pidió (y lanzó)", lanza.lanzadas >= 1)
+        assertEquals(emptyList<Any>(), db.visitImageDao().getByVisitaId("visita-podada"))
+        assertFalse(archivo.exists())
+    }
+
+    /** `DurableTelemetry.error` cuyo insert de Room falla siempre. */
+    private class TelemetriaQueSiempreLanza(
+        private val real: RecordingTelemetry
+    ) : Telemetry by real {
+        var lanzadas = 0
+
+        override fun error(code: String, message: String, props: Map<String, String>) {
+            lanzadas++
+            throw IllegalStateException("la cola de telemetria no pudo insertar")
+        }
     }
 
     private suspend fun sembrarVisita(id: String) = db.visitDao().insertVisit(

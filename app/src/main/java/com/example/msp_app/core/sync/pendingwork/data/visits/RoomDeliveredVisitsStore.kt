@@ -5,7 +5,7 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVi
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
-import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
+import com.example.msp_app.core.visitas.envio.FotoQueViaja
 import java.io.File
 import javax.inject.Inject
 
@@ -51,14 +51,14 @@ class RoomDeliveredVisitsStore @VisibleForTesting internal constructor(
         ids.chunked(RoomPendingVisitsStore.SQLITE_MAX_IN_PARAMS).sumOf { devolverLote(it) }
 
     /**
-     * Barrido (E-APP-079): solo las fotos que el envío de verdad mandaría, con
+     * Barrido (E-APP-079; legadas incluidas, E-VIS-031): solo las fotos que el envío de verdad mandaría, con
      * el MISMO criterio que `partesDeComprobantesDeVisita` (archivo presente y
      * tipo permitido). Una foto sin archivo o de un tipo que nunca viaja no
      * puede llegar al servidor: devolver su visita solo la reenviaría sin
      * ella, cada día.
      */
-    override suspend fun fotosSinEnviarDeConfirmadas(): List<FotoSinEnviar> =
-        imagenes.pendientesDeConfirmadas()
-            .filter { ComprobantesDeVisita.permitido(it.MIME) && archivoExiste(it.URI) }
+    override suspend fun fotosSinEnviarDeEntregadas(): List<FotoSinEnviar> =
+        imagenes.pendientesDeEntregadas()
+            .filter { FotoQueViaja.viaja(it.MIME, it.URI, archivoExiste) }
             .map { FotoSinEnviar(visitaId = it.VISITA_ID, creadaEn = it.CREADA_EN) }
 }

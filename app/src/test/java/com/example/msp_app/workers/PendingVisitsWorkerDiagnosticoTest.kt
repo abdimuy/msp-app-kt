@@ -33,6 +33,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -545,12 +546,13 @@ class PendingVisitsWorkerDiagnosticoTest : RoomTestBase() {
             throw IllegalStateException("no se pudo leer visita_imagenes")
         override suspend fun marcarSubida(imagenId: String, subidaEn: String) =
             db.visitImageDao().marcarSubida(imagenId, subidaEn)
-        override suspend fun pendientesDeConfirmadas(): List<VisitImageEntity> =
-            db.visitImageDao().pendientesDeConfirmadas()
+        override suspend fun pendientesDeEntregadas(): List<VisitImageEntity> =
+            db.visitImageDao().pendientesDeEntregadas()
 
         override suspend fun rutasVivas(): List<String> = db.visitImageDao().rutasVivas()
         override suspend fun huerfanasAnterioresA(limite: String) =
             db.visitImageDao().huerfanasAnterioresA(limite)
         override suspend fun eliminar(imagenId: String) = db.visitImageDao().eliminar(imagenId)
+        override fun observarSinSubir(): Flow<Int> = db.visitImageDao().observarSinSubir()
     }
 }

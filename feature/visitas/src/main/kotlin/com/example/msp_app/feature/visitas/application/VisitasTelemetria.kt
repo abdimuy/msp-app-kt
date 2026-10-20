@@ -45,6 +45,12 @@ object VisitasTelemetria {
     /** No se pudo leer la recomendación del cliente. La pantalla sigue sin ella. */
     const val CODE_RECOMENDACION_FALLO: String = "visita_recomendacion_fallo"
 
+    /**
+     * No se pudieron contar los pendientes del aviso de Inicio (E-APP-096). El
+     * aviso conserva su último conteo; viaja solo el nombre de la clase.
+     */
+    const val CODE_AVISO_PENDIENTES_FALLO: String = "visita_aviso_pendientes_fallo"
+
     /** Id de pantalla del ticket de visita (Task 20). */
     const val PANTALLA_TICKET: String = "visitas_ticket"
 
@@ -195,6 +201,13 @@ object VisitasTelemetria {
      * nadie podría reconstruir después.
      */
     const val CODE_VISITA_PARCIAL_POR_CUENTA: String = "visita_parcial_por_cuenta"
+
+    /**
+     * H-r4-5: un reintento con la selección congelada escribe cuentas que ya
+     * no están en el teléfono. [PROP_OCURRENCIAS] lleva cuántas, nunca cuáles.
+     */
+    const val CODE_VISITA_CUENTA_AUSENTE_AL_REINTENTAR: String =
+        "visita_cuenta_ausente_al_reintentar"
 
     /** Prop con CUÁNTAS cuentas llevaba la captura. Un conteo, nunca un id. */
     const val PROP_CUENTAS: String = "cuentas"

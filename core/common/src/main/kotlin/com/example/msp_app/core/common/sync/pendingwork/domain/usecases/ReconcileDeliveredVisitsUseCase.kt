@@ -1,6 +1,9 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.MemoriaDeBarridoPospuesto
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
 import com.example.msp_app.core.common.time.AppTime
@@ -47,10 +50,52 @@ data class ConciliacionInversa(
     val retenidasPorComprobante: Int = 0,
     val confirmacionesFallidas: Int = 0,
     val devolucionesFallidas: Int = 0,
-    /** Barrido (E-APP-079): confirmadas devueltas a pendiente por una foto sin enviar. */
+    /** Barrido (E-APP-079, E-VIS-031): entregadas devueltas a pendiente por una foto sin enviar. */
     val devueltasPorFoto: Int = 0,
-    /** Barrido (E-APP-079): fotos sin enviar más viejas que la ventana; ya no devuelven. */
-    val fotosAbandonadas: Int = 0
+    /**
+     * Barrido (E-VIS-032): cuántas fotos sin enviar vio la corrida. TODAS
+     * devuelven su visita; ninguna se abandona.
+     */
+    val fotosSinEnviar: Int = 0,
+    /**
+     * Barrido (E-VIS-032): de [fotosSinEnviar], las que según el reloj del
+     * teléfono llevan más de [ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS] días, o cuya
+     * `CREADA_EN` no se puede leer. Reemplaza al antiguo conteo de
+     * "abandonadas": antes esas fotos dejaban de viajar; ahora viajan igual y
+     * esto es solo la alerta (> 0) de que una foto lleva más de una semana sin
+     * llegar.
+     */
+    val fotosSinEnviarViejas: Int = 0,
+    /**
+     * Barrido (E-VIS-032): minutos desde la `CREADA_EN` legible más vieja,
+     * según el reloj del teléfono, nunca negativo. Nulo sin fotos legibles.
+     * Solo telemetría: no decide nada.
+     */
+    val fotoSinEnviarMasViejaMin: Long? = null,
+    /**
+     * Barrido: no reabrió nada porque había pagos o ventas por subir (o no se
+     * pudo saber). Lo que esperaba sigue en [visitasConFotoEnEspera].
+     */
+    val barridoPospuestoPorDinero: Boolean = false,
+    /**
+     * Barrido: visitas con una foto sin enviar que esta pasada NO reabrió (por
+     * el tope [ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_PASADA] o por
+     * el dinero). Pasan a la siguiente; ninguna se abandona.
+     */
+    val visitasConFotoEnEspera: Int = 0,
+    /**
+     * Válvula: corridas seguidas con el barrido pospuesto por dinero, contando
+     * esta. Vuelve a 0 cuando el barrido corre (normal o por la válvula) o no
+     * hay fotos que esperen.
+     */
+    val barridoPospuestoSeguidas: Int = 0,
+    /**
+     * Válvula: el barrido corrió aunque había dinero por subir, porque ya
+     * llevaba [ReconcileDeliveredVisitsUseCase.POSPUESTAS_ANTES_DE_LA_VALVULA]
+     * corridas pospuestas, con tope
+     * [ReconcileDeliveredVisitsUseCase.MAX_DEVUELTAS_POR_VALVULA].
+     */
+    val barridoPorValvula: Boolean = false
 )
 
 /**
@@ -104,10 +149,20 @@ data class ConciliacionInversa(
  * correrla. No hay tope de reintentos: lo que no se decidió hoy se pregunta en
  * la siguiente corrida.
  */
+@Suppress(
+    // Cada decision del barrido (tanda, confirmar, devolver, valvula, dinero
+    // pendiente) es su propia funcion con su propio reporte; juntarlas para
+    // detekt mezclaria caminos que deciden que visita se reabre.
+    "TooManyFunctions"
+)
 class ReconcileDeliveredVisitsUseCase(
     private val store: DeliveredVisitsStore,
     private val registry: VisitCustodyRegistry,
     private val errorReporter: SyncErrorReporter,
+    /** Prioridad del dinero: con pagos o ventas por subir, el barrido no reabre nada. */
+    private val dineroPendiente: DineroPendiente = DineroPendiente.NINGUNO,
+    /** Válvula: corridas seguidas pospuestas por dinero, entre corridas. */
+    private val memoriaDePospuesto: MemoriaDeBarridoPospuesto = MemoriaDeBarridoPospuesto.NINGUNA,
     private val clock: () -> Instant
 ) {
 
@@ -130,7 +185,13 @@ class ReconcileDeliveredVisitsUseCase(
             entregadasIlegibles = true,
             devolucionesFallidas = cuenta.devolverFallido,
             devueltasPorFoto = cuenta.devueltasPorFoto,
-            fotosAbandonadas = cuenta.fotosAbandonadas
+            fotosSinEnviar = cuenta.fotosSinEnviar,
+            fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
+            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin,
+            barridoPospuestoPorDinero = cuenta.pospuesto,
+            visitasConFotoEnEspera = cuenta.enEspera,
+            barridoPospuestoSeguidas = cuenta.seguidas,
+            barridoPorValvula = cuenta.porValvula
         )
 
         val (validos, invalidos) = separarInvalidos(ids)
@@ -161,51 +222,148 @@ class ReconcileDeliveredVisitsUseCase(
             confirmacionesFallidas = cuenta.confirmarFallido,
             devolucionesFallidas = cuenta.devolverFallido,
             devueltasPorFoto = cuenta.devueltasPorFoto,
-            fotosAbandonadas = cuenta.fotosAbandonadas
+            fotosSinEnviar = cuenta.fotosSinEnviar,
+            fotosSinEnviarViejas = cuenta.fotosSinEnviarViejas,
+            fotoSinEnviarMasViejaMin = cuenta.fotoSinEnviarMasViejaMin,
+            barridoPospuestoPorDinero = cuenta.pospuesto,
+            visitasConFotoEnEspera = cuenta.enEspera,
+            barridoPospuestoSeguidas = cuenta.seguidas,
+            barridoPorValvula = cuenta.porValvula
         )
     }
 
     /**
-     * Barrido del HALLAZGO de E-APP-076 (E-APP-079). Una visita CONFIRMADA con
-     * una foto sin `SUBIDA_EN` cuyo archivo existe no la manda nadie: el
-     * worker no la vuelve a tomar y `confirmar` solo la retiene. Se devuelve a
-     * pendiente; el reenvío es idempotente por UUID y el servidor guarda la
-     * foto que le falta (`planImagenes`, E-VIS-004). No pregunta al servidor:
-     * es un hecho local.
+     * Barrido del HALLAZGO de E-APP-076 (E-APP-079). Una visita ENTREGADA
+     * (confirmada, o legada sin marcas) con una foto sin `SUBIDA_EN` cuyo
+     * archivo existe no la manda nadie: el worker solo toma pendientes y
+     * `confirmar` solo la retiene. Se devuelve a pendiente; el reenvío es
+     * idempotente por UUID y el servidor guarda la foto que le falta
+     * (`planImagenes`, E-VIS-004). No pregunta al servidor: es un hecho local.
      *
-     * Acotado por la edad de la foto ([ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS]):
-     * con una corrida diaria, una foto que nunca se estampa devuelve su visita
-     * a lo sumo una vez por día durante esa ventana; después se cuenta como
-     * abandonada y se reporta. Una `CREADA_EN` ilegible también se abandona:
-     * sin fecha no hay tope.
+     * - **Incluye las legadas (E-VIS-031).** Una legada con foto la nombraba el
+     *   servidor, `confirmar` la retenía por la foto y el barrido no la veía
+     *   (solo miraba confirmadas): retenida para siempre, la foto sin viajar.
+     * - **Nunca abandona (E-VIS-032).** Antes una foto con más de 7 días
+     *   según `CREADA_EN` dejaba de devolver su visita. Esa edad sale del reloj
+     *   de pared del teléfono: con la fecha atrasada y luego corregida, la foto
+     *   se abandonaba sin que pasara un día real. Ahora toda foto que podría
+     *   viajar devuelve su visita, en cada corrida. La edad solo se cuenta
+     *   para la telemetría ([ConciliacionInversa.fotosSinEnviarViejas] y
+     *   [ConciliacionInversa.fotoSinEnviarMasViejaMin]).
+     * - **El precio:** una foto que el reenvío nunca logra estampar reabre su
+     *   visita en cada corrida (un `POST` idempotente por corrida). Se ve en
+     *   la telemetría: `fotos_sin_enviar_viejas` > 0 y la edad crece.
+     * - **Un id que no es UUID canónico no se decide**, igual que en la parte
+     *   by-ids: se queda como está.
+     * - **El dinero va primero.** Con pagos o ventas por subir
+     *   ([DineroPendiente]) no reabre nada: cada visita reabierta es un `POST`
+     *   multipart por la misma red. Si no se puede saber, tampoco.
+     * - **Válvula:** si ya lleva [POSPUESTAS_ANTES_DE_LA_VALVULA] corridas
+     *   seguidas pospuestas por dinero, la siguiente corre igual con tope
+     *   [MAX_DEVUELTAS_POR_VALVULA] y el contador vuelve a 0: un pago atorado
+     *   no pospone el barrido para siempre (con dinero atorado, 2 visitas cada
+     *   4 corridas).
+     * - **Tope por pasada:** a lo más [MAX_DEVUELTAS_POR_PASADA] visitas, de la
+     *   foto más vieja a la más nueva (por `CREADA_EN`; ilegible primero, luego
+     *   id). El resto espera a la siguiente pasada; ninguna se abandona.
      */
     private suspend fun barrerFotosSinEnviar(ahora: Instant, cuenta: Contadores) {
         val fotos = attempt(ERROR_CODE_BARRIDO_ILEGIBLE, CONTEXT_BARRIDO) {
-            store.fotosSinEnviarDeConfirmadas()
-        } ?: return
-        if (fotos.isEmpty()) return
-        val limite = ReglaDePoda.limiteFotosSinEnviar(ahora)
-        val (vigentes, abandonadas) = fotos.partition { foto ->
-            val creada = AppTime.parseWireFormatOrNull(foto.creadaEn)
-            creada != null && !creada.isBefore(limite)
+            store.fotosSinEnviarDeEntregadas()
+        }?.filter { UUID_CANONICO.matches(it.visitaId) } ?: return
+        if (fotos.isEmpty()) {
+            anotarSeguidas(0)
+            return
         }
-        if (abandonadas.isNotEmpty()) {
-            cuenta.fotosAbandonadas += abandonadas.size
-            errorReporter.report(
-                code = ERROR_CODE_FOTO_ABANDONADA,
-                message = "$CONTEXT_BARRIDO: fotos sin enviar fuera de la ventana; ya no devuelven su visita",
-                props = mapOf(PROP_FOTOS to abandonadas.size.toString())
-            )
+        contarEdades(fotos, ahora, cuenta)
+        val ids = deLaMasViejaALaMasNueva(fotos)
+        var tope = MAX_DEVUELTAS_POR_PASADA
+        if (hayDineroPendiente()) {
+            val previas = leerSeguidas()
+            if (previas < POSPUESTAS_ANTES_DE_LA_VALVULA) {
+                cuenta.pospuesto = true
+                cuenta.enEspera += ids.size
+                cuenta.seguidas = previas + 1
+                anotarSeguidas(cuenta.seguidas)
+                errorReporter.report(
+                    code = ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO,
+                    message = "$CONTEXT_BARRIDO: hay pagos o ventas por subir; no se reabre nada",
+                    props = mapOf(PROP_VISITAS to ids.size.toString())
+                )
+                return
+            }
+            // Válvula: un pago atorado no pospone el barrido para siempre.
+            cuenta.porValvula = true
+            tope = MAX_DEVUELTAS_POR_VALVULA
         }
-        val ids = vigentes.map { it.visitaId }.distinct()
-        if (ids.isEmpty()) return
-        val devueltas = devolver(ids, cuenta)
+        anotarSeguidas(0)
+        val tanda = ids.take(tope)
+        cuenta.enEspera += ids.size - tanda.size
+        val devueltas = devolver(tanda, cuenta)
         if (devueltas > 0) {
             cuenta.devueltasPorFoto += devueltas
             errorReporter.report(
                 code = ERROR_CODE_DEVUELTA_POR_FOTO,
-                message = "$CONTEXT_BARRIDO: confirmadas con una foto sin enviar vuelven a pendiente",
+                message = "$CONTEXT_BARRIDO: entregadas con una foto sin enviar vuelven a pendiente",
                 props = mapOf(PROP_DEVUELTAS to devueltas.toString())
+            )
+        }
+    }
+
+    /** Una visita por foto más vieja; sin fecha legible va primero. Desempate por id. */
+    private fun deLaMasViejaALaMasNueva(fotos: List<FotoSinEnviar>): List<String> =
+        fotos.groupBy { it.visitaId }
+            .map { (id, suyas) ->
+                id to (suyas.mapNotNull { AppTime.parseWireFormatOrNull(it.creadaEn) }.minOrNull() ?: Instant.MIN)
+            }
+            .sortedWith(compareBy<Pair<String, Instant>> { it.second }.thenBy { it.first })
+            .map { it.first }
+
+    /** Válvula: una memoria ilegible cuenta como 0 (no abre la válvula a ciegas) y se reporta. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun leerSeguidas(): Int = try {
+        memoriaDePospuesto.seguidas()
+    } catch (e: Exception) {
+        errorReporter.report(
+            ERROR_CODE_MEMORIA_DE_POSPUESTO,
+            "$CONTEXT_BARRIDO: ${e::class.simpleName}",
+            emptyMap()
+        )
+        0
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun anotarSeguidas(n: Int) {
+        try {
+            memoriaDePospuesto.anotar(n)
+        } catch (e: Exception) {
+            errorReporter.report(
+                ERROR_CODE_MEMORIA_DE_POSPUESTO,
+                "$CONTEXT_BARRIDO: ${e::class.simpleName}",
+                emptyMap()
+            )
+        }
+    }
+
+    /** Si la lectura falla, se trata como "hay dinero": el barrido espera. */
+    private suspend fun hayDineroPendiente(): Boolean =
+        attempt(ERROR_CODE_DINERO_ILEGIBLE, CONTEXT_DINERO) { dineroPendiente.hayPendientes() } ?: true
+
+    /** Solo telemetría (E-VIS-032): la edad de las fotos no decide nada. */
+    private fun contarEdades(fotos: List<FotoSinEnviar>, ahora: Instant, cuenta: Contadores) {
+        val limite = ReglaDePoda.limiteFotosSinEnviar(ahora)
+        val creadas = fotos.map { AppTime.parseWireFormatOrNull(it.creadaEn) }
+        val viejas = creadas.count { it == null || it.isBefore(limite) }
+        cuenta.fotosSinEnviar += fotos.size
+        cuenta.fotosSinEnviarViejas += viejas
+        cuenta.fotoSinEnviarMasViejaMin = creadas.filterNotNull().minOrNull()?.let {
+            Duration.between(it, ahora).toMinutes().coerceAtLeast(0L)
+        }
+        if (viejas > 0) {
+            errorReporter.report(
+                code = ERROR_CODE_FOTO_SIN_ENVIAR_VIEJA,
+                message = "$CONTEXT_BARRIDO: fotos sin enviar con mas de una semana; se reenvian igual",
+                props = mapOf(PROP_FOTOS to viejas.toString())
             )
         }
     }
@@ -258,7 +416,13 @@ class ReconcileDeliveredVisitsUseCase(
         var confirmarFallido = 0
         var devolverFallido = 0
         var devueltasPorFoto = 0
-        var fotosAbandonadas = 0
+        var fotosSinEnviar = 0
+        var fotosSinEnviarViejas = 0
+        var fotoSinEnviarMasViejaMin: Long? = null
+        var pospuesto = false
+        var enEspera = 0
+        var seguidas = 0
+        var porValvula = false
     }
 
     /** Ver el KDoc de clase: un id sin forma de UUID tumbaría su tanda entera con un 422. */
@@ -355,16 +519,48 @@ class ReconcileDeliveredVisitsUseCase(
         /** Alerta del spec §12-1 (`visitas.reconcilia.devuelta_a_pendiente` > 0). */
         const val ERROR_CODE_DEVUELTA_A_PENDIENTE: String = "visitas_reconcilia_devuelta_a_pendiente"
 
-        /** Barrido (E-APP-079): confirmadas devueltas a pendiente por una foto sin enviar. */
+        /** Barrido (E-APP-079, E-VIS-031): entregadas devueltas a pendiente por una foto sin enviar. */
         const val ERROR_CODE_DEVUELTA_POR_FOTO: String = "visitas_reconcilia_devuelta_por_foto"
 
-        /** Barrido (E-APP-079): fotos sin enviar fuera de la ventana; no devuelven más. */
-        const val ERROR_CODE_FOTO_ABANDONADA: String = "visitas_reconcilia_foto_abandonada"
+        /**
+         * Barrido (E-VIS-032): fotos sin enviar con más de una semana según el
+         * reloj del teléfono. Solo alerta: se reenvían igual. Reemplaza a
+         * `visitas_reconcilia_foto_abandonada` (ya nada se abandona).
+         */
+        const val ERROR_CODE_FOTO_SIN_ENVIAR_VIEJA: String = "visitas_reconcilia_foto_sin_enviar_vieja"
+
+        /**
+         * Tope de visitas que el barrido reabre por pasada. En la simulación
+         * de E-APP-079 (500 semillas × 200 acciones) ninguna pasada reabrió
+         * más de 2 (57 pasadas con 1, 2 con 2): 10 cubre ese caso en una sola
+         * pasada con 5× de margen, y acota a 10 `POST` multipart por pasada un
+         * residuo grande, que se vacía en varias pasadas.
+         */
+        const val MAX_DEVUELTAS_POR_PASADA: Int = 10
+
+        /**
+         * Válvula: con esta cantidad de corridas seguidas ya pospuestas por
+         * dinero, la siguiente corre igual, con tope [MAX_DEVUELTAS_POR_VALVULA].
+         */
+        const val POSPUESTAS_ANTES_DE_LA_VALVULA: Int = 3
+
+        /** Válvula: visitas que reabre la corrida que pasa por encima del dinero. */
+        const val MAX_DEVUELTAS_POR_VALVULA: Int = 2
+
+        /** Válvula: no se pudo leer o anotar la memoria de corridas pospuestas. */
+        const val ERROR_CODE_MEMORIA_DE_POSPUESTO: String = "visitas_reconcilia_memoria_de_pospuesto"
+
+        /** Barrido: hay pagos o ventas por subir; esta pasada no reabre nada. */
+        const val ERROR_CODE_BARRIDO_POSPUESTO_POR_DINERO: String = "visitas_reconcilia_barrido_pospuesto_por_dinero"
+
+        /** Barrido: no se pudo saber si hay dinero por subir; se pospone. */
+        const val ERROR_CODE_DINERO_ILEGIBLE: String = "visitas_reconcilia_dinero_ilegible"
 
         /** Barrido (E-APP-079): la lectura de fotos sin enviar falló; no se decidió nada. */
         const val ERROR_CODE_BARRIDO_ILEGIBLE: String = "visitas_reconcilia_barrido_ilegible"
 
-        private const val CONTEXT_BARRIDO = "ReconcileDeliveredVisitsUseCase.fotosSinEnviarDeConfirmadas"
+        private const val CONTEXT_BARRIDO = "ReconcileDeliveredVisitsUseCase.fotosSinEnviarDeEntregadas"
+        private const val CONTEXT_DINERO = "ReconcileDeliveredVisitsUseCase.dineroPendiente"
         private const val CONTEXT_LEER = "ReconcileDeliveredVisitsUseCase.entregadasDesde"
         private const val CONTEXT_CONSULTA = "ReconcileDeliveredVisitsUseCase.findExisting"
         private const val CONTEXT_CONFIRMAR = "ReconcileDeliveredVisitsUseCase.confirmar"
@@ -376,5 +572,6 @@ class ReconcileDeliveredVisitsUseCase(
         private const val PROP_DEVUELTAS = "devueltas"
         private const val PROP_REVISADAS = "revisadas"
         private const val PROP_FOTOS = "fotos"
+        private const val PROP_VISITAS = "visitas"
     }
 }

@@ -48,7 +48,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2099-01-01T00:00:00Z",
             "2099-01-01T00:00:00Z",
             "2099-01-01T00:00:00Z",
-            "2099-01-01"
+            "2099-01-01",
+            emptyList()
         )
 
         assertNotNull(
@@ -65,7 +66,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2026-09-16T00:00:00Z",
             "2026-07-18T00:00:00Z",
             "2026-10-01T00:00:00Z",
-            "2026-07-18"
+            "2026-07-18",
+            emptyList()
         )
         assertNull(dao.findVisitById("vieja"))
     }
@@ -78,7 +80,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2026-09-16T00:00:00Z",
             "2026-07-18T00:00:00Z",
             "2026-10-01T00:00:00Z",
-            "2026-07-18"
+            "2026-07-18",
+            emptyList()
         )
         assertNotNull(dao.findVisitById("reciente"))
         assertNotNull(dao.findVisitById("pendiente"))
@@ -91,7 +94,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2026-09-16T00:00:00Z",
             "2026-07-18T00:00:00Z",
             "2026-10-01T00:00:00Z",
-            "2026-07-18"
+            "2026-07-18",
+            emptyList()
         )
         assertNotNull("`<`, no `<=`", dao.findVisitById("borde"))
     }
@@ -103,7 +107,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2026-09-16T00:00:00Z",
             "2026-07-18T00:00:00Z",
             "2026-10-01T00:00:00Z",
-            "2026-07-18"
+            "2026-07-18",
+            emptyList()
         )
         assertNotNull(dao.findVisitById("r"))
         assertEquals(1, dao.resguardadasPorPodar("2026-10-31T00:00:00Z"))
@@ -117,7 +122,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2026-09-16T00:00:00Z",
             "2026-07-18T00:00:00Z",
             "2026-10-01T00:00:00Z",
-            "2026-07-18"
+            "2026-07-18",
+            emptyList()
         )
         assertNull(dao.findVisitById("r"))
         assertEquals(0, dao.resguardadasPorPodar("2026-07-18T00:00:00Z"))
@@ -131,7 +137,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2099-01-01T00:00:00Z",
             "2026-07-18T00:00:00Z",
             "2026-10-01T00:00:00Z",
-            "2026-07-18"
+            "2026-07-18",
+            emptyList()
         )
         assertNotNull(dao.findVisitById("r"))
     }
@@ -153,7 +160,8 @@ class VisitDaoPodaTest : RoomTestBase() {
             "2026-09-16T00:00:00Z",
             "2026-07-18T00:00:00Z",
             "2026-10-01T00:00:00Z",
-            "2026-07-18"
+            "2026-07-18",
+            emptyList()
         )
         assertNotNull(dao.findVisitById("promesa"))
     }

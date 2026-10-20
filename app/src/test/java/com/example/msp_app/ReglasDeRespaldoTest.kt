@@ -1,6 +1,7 @@
 package com.example.msp_app
 
 import java.io.File
+import java.util.Base64
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -70,16 +71,77 @@ class ReglasDeRespaldoTest {
             // MemoriaDePodaDeResguardadas.kt (P1 Tarea 12)
             "sharedpref:visitas_poda.xml",
             // UltimaConciliacionDeVisitas.kt (P1 Tarea 13)
-            "sharedpref:visitas_conciliacion_ultima.xml"
+            "sharedpref:visitas_conciliacion_ultima.xml",
+            // LimitadorDeEstadoDeVisitas.kt (P1 Tarea 14, E-VIS-029)
+            "sharedpref:visitas_telemetria.xml"
         )
+        exigeEnLasTresSecciones(marcas)
+    }
+
+    /**
+     * Adenda E-APP-073 (medida con LocalTransport): sin estas exclusiones el
+     * teléfono restaurado abre con la sesión del usuario anterior y ofrece
+     * "continuar" un borrador de venta viejo.
+     *
+     * El archivo de la sesión lleva la clave de persistencia de Firebase:
+     * `base64url("[DEFAULT]") + "+" + base64url(google_app_id)`, sin relleno. Se
+     * calcula desde cada `google-services.json` del repo, así que un proyecto o
+     * un sabor nuevo pone esta prueba en rojo hasta que las reglas lo excluyan.
+     */
+    @Test
+    fun `E-APP-073 la sesion de Firebase Auth y el borrador de venta no se restauran`() {
+        val sesiones = sesionesDeFirebaseAuth()
+        assertTrue("no se encontró ningún google-services.json", sesiones.isNotEmpty())
+        exigeEnLasTresSecciones(
+            sesiones + setOf(
+                // SaleDraftManager.kt: `preferencesDataStore(name = "sale_draft")`
+                "file:datastore/sale_draft.preferences_pb",
+                // SaleDraftManager.copyImageToPersistentStorage
+                "file:draft_images"
+            )
+        )
+    }
+
+    /**
+     * Adenda E-APP-073: `DeviceProtectionManager` guarda `authorized_<uid>` en
+     * `device_protection.xml`; medido que se restaura en cloud y en d2d. Con la
+     * marca restaurada, `AppNavigation` deja pasar sin `AUTHORIZED_DEVICES` (LEÍDO;
+     * el salto no se midió). Se excluye de forma conservadora.
+     */
+    @Test
+    fun `E-APP-073 la autorizacion local del dispositivo no se restaura`() {
+        exigeEnLasTresSecciones(setOf("sharedpref:device_protection.xml"))
+    }
+
+    private fun sesionesDeFirebaseAuth(): Set<String> {
+        val b64 = Base64.getUrlEncoder().withoutPadding()
+        fun clave(texto: String) = b64.encodeToString(texto.toByteArray(Charsets.UTF_8))
+        val cliente = Regex(
+            """"mobilesdk_app_id"\s*:\s*"([^"]+)"[\s\S]*?"package_name"\s*:\s*"([^"]+)""""
+        )
+        return (File("src").listFiles() ?: emptyArray())
+            .map { File(it, "google-services.json") }
+            .filter { it.isFile }
+            .flatMap { json -> cliente.findAll(json.readText()).map { it.groupValues } }
+            .filter { (_, _, paquete) -> paquete.startsWith("com.example.msp_app") }
+            .map { (_, appId, _) ->
+                val persistencia = clave("[DEFAULT]") + "+" + clave(appId)
+                "sharedpref:com.google.firebase.auth.api.Store.$persistencia.xml"
+            }
+            .toSet()
+    }
+
+    private fun exigeEnLasTresSecciones(requeridas: Set<String>) {
         val api31 = reglas("data_extraction_rules.xml")
+        val api24 = reglas("backup_rules.xml")
         val secciones = listOf(
             "cloud-backup" to exclusiones(seccionUnica(api31, "cloud-backup")),
             "device-transfer" to exclusiones(seccionUnica(api31, "device-transfer")),
-            "full-backup-content" to exclusiones(seccionUnica(reglas("backup_rules.xml"), "full-backup-content"))
+            "full-backup-content" to exclusiones(seccionUnica(api24, "full-backup-content"))
         )
         for ((nombre, excluidas) in secciones) {
-            assertTrue("<$nombre> no excluye ${marcas - excluidas}", excluidas.containsAll(marcas))
+            val faltan = requeridas - excluidas
+            assertTrue("<$nombre> no excluye $faltan", faltan.isEmpty())
         }
     }
 

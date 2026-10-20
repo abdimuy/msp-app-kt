@@ -1,6 +1,8 @@
 package com.example.msp_app.core.sync.pendingwork.di
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.MemoriaDeBarridoPospuesto
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
@@ -8,9 +10,11 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.Reconcil
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
+import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDineroPendiente
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomPendingVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.TelemetrySyncErrorReporter
 import com.example.msp_app.core.sync.pendingwork.data.visits.V2VisitCustodyRegistry
+import com.example.msp_app.core.visitas.envio.PreferenciasDeBarridoPospuesto
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -48,6 +52,14 @@ abstract class VisitsReconcileModule {
     abstract fun bindDeliveredVisitsStore(impl: RoomDeliveredVisitsStore): DeliveredVisitsStore
 
     @Binds
+    abstract fun bindDineroPendiente(impl: RoomDineroPendiente): DineroPendiente
+
+    @Binds
+    abstract fun bindMemoriaDeBarridoPospuesto(
+        impl: PreferenciasDeBarridoPospuesto
+    ): MemoriaDeBarridoPospuesto
+
+    @Binds
     abstract fun bindVisitCustodyRegistry(impl: V2VisitCustodyRegistry): VisitCustodyRegistry
 
     @Binds
@@ -71,11 +83,15 @@ abstract class VisitsReconcileModule {
         fun provideReconcileDeliveredVisitsUseCase(
             store: DeliveredVisitsStore,
             registry: VisitCustodyRegistry,
-            errorReporter: SyncErrorReporter
+            errorReporter: SyncErrorReporter,
+            dineroPendiente: DineroPendiente,
+            memoriaDePospuesto: MemoriaDeBarridoPospuesto
         ): ReconcileDeliveredVisitsUseCase = ReconcileDeliveredVisitsUseCase(
             store = store,
             registry = registry,
             errorReporter = errorReporter,
+            dineroPendiente = dineroPendiente,
+            memoriaDePospuesto = memoriaDePospuesto,
             clock = { AppClock.System.now() }
         )
     }

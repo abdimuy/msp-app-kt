@@ -20,6 +20,7 @@ import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
 import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
@@ -27,9 +28,11 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -210,6 +213,79 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
                 evento(
                     VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
                 ).props[VisitasTelemetria.PROP_OCURRENCIAS]
+            )
+        }
+
+    /**
+     * La carrera que hacía intermitente a la prueba anterior (1 de 2855), forzada.
+     * `withTransaction` de Room 2.6.1 corre en un `runBlocking` HIJO del bloque
+     * `NonCancellable` y reanuda al llamador antes de que ese hijo termine. Si el
+     * resto del bloque acaba primero, el bloque espera al hijo y su resultado
+     * vuelve por `resumeCancellableWith`: con el job ya cancelado, `withContext`
+     * lanzaba la cancelación y la cuenta escrita se reportaba como 0. Con un
+     * despachador sin despacho el resto del bloque corre dentro del
+     * `runBlocking`, así que el orden malo ocurre siempre.
+     */
+    @Test
+    fun `E-APP-078 cancelada dentro del bloque protegido con la transaccion aun abierta cuenta esa cuenta como escrita`() =
+        runTest {
+            lateinit var job: Job
+            alEncolar = { if (encoladas.size == 1) job.cancel() }
+
+            job = launch(UnconfinedTestDispatcher(testScheduler)) {
+                casoDeUso(ubicacionInmediata).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+            }
+            job.join()
+
+            assertEquals(1, visitas())
+            assertEquals(1, encoladas.size)
+            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
+            assertEquals(
+                "1",
+                evento(
+                    VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
+                ).props[VisitasTelemetria.PROP_OCURRENCIAS]
+            )
+        }
+
+    /**
+     * El otro lado del arreglo anterior: una cancelación que nace DENTRO del
+     * bloque, antes de su última línea, no es tardía. Se propaga la misma
+     * instancia y la cuenta no se da por escrita (0 de 2), aunque la fila de
+     * `Visit` ya exista. Mata a "tragar toda cancelación" y a "marcar el bloque
+     * como terminado al empezar".
+     */
+    @Test
+    fun `E-APP-078 cancelacion lanzada dentro del bloque antes de terminar se propaga y no cuenta la cuenta`() =
+        runTest {
+            val propia = CancellationException("cancelada al encolar")
+            alEncolar = { if (encoladas.size == 1) throw propia }
+            var recibida: Throwable? = null
+
+            val job = launch {
+                val caso = casoDeUso(ubicacionInmediata)
+                try {
+                    caso.invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+                } catch (e: CancellationException) {
+                    recibida = e
+                    throw e
+                }
+            }
+            job.join()
+
+            // La recuperación de stack traces de kotlinx-coroutines (modo debug de
+            // las pruebas) entrega una copia cuya causa es la original.
+            assertSame(
+                "la cancelacion del bloque sale de invoke",
+                propia,
+                recibida.takeIf { it === propia } ?: recibida?.cause
+            )
+            assertEquals("la segunda cuenta no se intenta", 1, visitas())
+            assertEquals(1, encoladas.size)
+            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 0, 2)), avisos)
+            assertTrue(
+                "sin parcial: ninguna cuenta se dio por escrita",
+                telemetry.recorded.none { it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA }
             )
         }
 

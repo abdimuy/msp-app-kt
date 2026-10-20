@@ -85,7 +85,8 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
             confirmadasAntesDe = CORTE_DE_CONFIRMADAS,
             resguardadasAntesDe = CORTE_DE_CONFIRMADAS,
             comprobantesDesde = comprobantesDesde,
-            conservarCompromisosDesde = conservarDesde
+            conservarCompromisosDesde = conservarDesde,
+            protegidas = emptyList()
         )
 
     @Test

@@ -60,11 +60,20 @@ class TelemetriaDeVisitasTest {
             "visitas.conciliacion.devolver_fallido",
             "visitas.conciliacion.entregadas_ilegibles",
             "visitas.conciliacion.devueltas_por_foto",
-            "visitas.conciliacion.fotos_abandonadas",
+            "visitas.conciliacion.fotos_sin_enviar",
+            "visitas.conciliacion.fotos_sin_enviar_viejas",
+            "visitas.conciliacion.foto_sin_enviar_mas_vieja_min",
+            "visitas.conciliacion.barrido_pospuesto_por_dinero",
+            "visitas.conciliacion.visitas_con_foto_en_espera",
+            "visitas.conciliacion.barrido_pospuesto_seguidas",
+            "visitas.conciliacion.barrido_por_valvula",
             "visitas.resguardadas_por_podar",
+            "visitas.poda.fotos_con_archivo_que_no_viajan",
+            "visitas.poda.pospuesta_protegidas",
             "visitas.guardado_cancelado.escritas",
             "visitas.guardado_cancelado.cuentas",
-            "visitas.guardado_cancelado.en_ubicacion"
+            "visitas.guardado_cancelado.en_ubicacion",
+            "visitas.guardado.cuenta_ausente_al_reintentar"
         )
         val fallos = TelemetriaDeVisitas.CODIGOS_DE_FALLO.map { "visitas.fallos.$it" }.toSet()
         assertEquals(base + fallos, TelemetriaDeVisitas.CLAVES)
@@ -73,7 +82,8 @@ class TelemetriaDeVisitasTest {
                 "visitas_estado",
                 "visitas_conciliacion",
                 "visitas_poda",
-                "visitas_guardado_cancelado"
+                "visitas_guardado_cancelado",
+                "visitas_cuenta_ausente_al_reintentar"
             ),
             TelemetriaDeVisitas.EVENTOS
         )
@@ -149,7 +159,13 @@ class TelemetriaDeVisitasTest {
                 confirmacionesFallidas = 6,
                 devolucionesFallidas = 7,
                 devueltasPorFoto = 8,
-                fotosAbandonadas = 9
+                fotosSinEnviar = 9,
+                fotosSinEnviarViejas = 10,
+                fotoSinEnviarMasViejaMin = 11L,
+                barridoPospuestoPorDinero = true,
+                visitasConFotoEnEspera = 12,
+                barridoPospuestoSeguidas = 3,
+                barridoPorValvula = true
             )
         )
         assertEquals(
@@ -166,7 +182,13 @@ class TelemetriaDeVisitasTest {
                 "visitas.conciliacion.devolver_fallido" to 7,
                 "visitas.conciliacion.entregadas_ilegibles" to 0,
                 "visitas.conciliacion.devueltas_por_foto" to 8,
-                "visitas.conciliacion.fotos_abandonadas" to 9
+                "visitas.conciliacion.fotos_sin_enviar" to 9,
+                "visitas.conciliacion.fotos_sin_enviar_viejas" to 10,
+                "visitas.conciliacion.foto_sin_enviar_mas_vieja_min" to 11L,
+                "visitas.conciliacion.barrido_pospuesto_por_dinero" to 1,
+                "visitas.conciliacion.visitas_con_foto_en_espera" to 12,
+                "visitas.conciliacion.barrido_pospuesto_seguidas" to 3,
+                "visitas.conciliacion.barrido_por_valvula" to 1
             ),
             d
         )
