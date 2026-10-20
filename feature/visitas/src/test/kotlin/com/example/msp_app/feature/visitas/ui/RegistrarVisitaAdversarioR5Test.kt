@@ -400,9 +400,7 @@ class RegistrarVisitaAdversarioR5Test {
         override fun error(code: String, message: String, props: Map<String, String>) {
             if (code == codigo) {
                 lanzadas++
-                throw IllegalStateException(
-                    "la cola de telemetria no pudo insertar"
-                )
+                kotlin.error("la cola de telemetria no pudo insertar")
             }
             real.error(code, message, props)
         }

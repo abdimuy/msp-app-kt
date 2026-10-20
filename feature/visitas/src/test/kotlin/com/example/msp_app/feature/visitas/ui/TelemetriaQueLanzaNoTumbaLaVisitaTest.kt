@@ -336,7 +336,7 @@ class TelemetriaQueLanzaNoTumbaLaVisitaTest {
 
         override fun error(code: String, message: String, props: Map<String, String>) {
             lanzadas++
-            throw IllegalStateException("la cola de telemetria no pudo insertar")
+            kotlin.error("la cola de telemetria no pudo insertar")
         }
     }
 

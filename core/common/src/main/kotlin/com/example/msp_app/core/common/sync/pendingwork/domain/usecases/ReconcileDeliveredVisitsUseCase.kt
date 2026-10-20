@@ -149,6 +149,12 @@ data class ConciliacionInversa(
  * correrla. No hay tope de reintentos: lo que no se decidió hoy se pregunta en
  * la siguiente corrida.
  */
+@Suppress(
+    // Cada decision del barrido (tanda, confirmar, devolver, valvula, dinero
+    // pendiente) es su propia funcion con su propio reporte; juntarlas para
+    // detekt mezclaria caminos que deciden que visita se reabre.
+    "TooManyFunctions"
+)
 class ReconcileDeliveredVisitsUseCase(
     private val store: DeliveredVisitsStore,
     private val registry: VisitCustodyRegistry,

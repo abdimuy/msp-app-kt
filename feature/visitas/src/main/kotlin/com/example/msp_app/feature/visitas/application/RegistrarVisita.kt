@@ -72,6 +72,11 @@ import kotlinx.coroutines.CancellationException
  * [avisoDeCancelacion] (lo que llega a la oficina). El arreglo de fondo es otra
  * tarea.
  */
+@Suppress(
+    // Cada paso del guardado (cancelacion, parcial, telemetria total) es su
+    // propia funcion; juntarlos para detekt mezclaria caminos de guardado.
+    "TooManyFunctions"
+)
 class RegistrarVisita @Inject constructor(
     private val registro: RegistroDeVisitaPort,
     private val ubicacion: UbicacionPort,

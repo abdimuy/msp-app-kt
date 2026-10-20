@@ -90,6 +90,11 @@ import kotlinx.coroutines.withContext
 @HiltViewModel
 @Suppress(
     "TooManyFunctions",
+    // Clase grande a proposito: el guardado (selección congelada E-VIS-055,
+    // descongelado por lista de permitidos E-VIS-071, fotos fijas E-VIS-072)
+    // comparte estado con la captura. Partirla para detekt moveria esa logica
+    // de guardado sin una prueba que lo pida; se deja junta.
+    "LargeClass",
     // Septima dependencia: el puerto de camara (Task 23). Octava: el puerto del
     // tema global, que pide `MspThemeRevealHost` y no un boton de la pantalla.
     // Precedente: RegistrarAbonoViewModel y CollectionReportViewModel.
@@ -1301,10 +1306,11 @@ private data class SeleccionCongelada(
             val cuentas = partes[2].split(",").filter { it.isNotBlank() }
                 .map { it.toIntOrNull() ?: return null }
                 .toSet()
-            val fotos = partes[3].split(",").filter { it.isNotBlank() }.toSet()
+            val fotos = partes[PARTE_FOTOS].split(",").filter { it.isNotBlank() }.toSet()
             return SeleccionCongelada(resultado, partes[1].ifEmpty { null }, cuentas, fotos)
         }
 
         private const val PARTES = 4
+        private const val PARTE_FOTOS = 3
     }
 }
