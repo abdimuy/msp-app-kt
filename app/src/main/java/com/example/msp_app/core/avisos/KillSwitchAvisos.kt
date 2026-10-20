@@ -65,6 +65,8 @@ object KillSwitchAvisos {
 
     val alarmas: Boolean get() = vigente.alarmas
 
+    val fcm: Boolean get() = vigente.fcm
+
     fun instalar() = vigente.instalar()
 
     @VisibleForTesting

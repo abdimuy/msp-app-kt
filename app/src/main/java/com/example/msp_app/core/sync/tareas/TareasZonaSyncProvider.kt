@@ -6,6 +6,7 @@ import com.example.msp_app.core.avisos.AvisoInmediato
 import com.example.msp_app.core.avisos.NotificadorDeVisitaAsignada
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.TareaZonaEntity
+import com.example.msp_app.core.fcm.SuscripcionDeZonaProvider
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.visitas.ResultadoSync
 import com.example.msp_app.core.visitas.agenda.AgendaLocal
@@ -74,6 +75,11 @@ object TareasZonaSyncProvider {
      */
     suspend fun sincronizar(context: Context): ResultadoSync {
         if (!KillSwitchAgenda.bajada) return ResultadoSync.Apagado
+        // Respaldo de la suscripción al tema de zona (T14): si el interruptor fcm
+        // se encendió después de fijar la zona, el periódico la completa.
+        CobranzaSyncProvider.userContextFlow.value?.zona?.let {
+            SuscripcionDeZonaProvider.de(context.applicationContext).alCambiarZona(it)
+        }
         return crear(context).sincronizar()
     }
 

@@ -329,6 +329,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.messaging)
     implementation(libs.firebase.storage.ktx)
     implementation(libs.androidx.navigation.compose)
 

@@ -8,8 +8,10 @@ import com.example.msp_app.core.avisos.KillSwitchAvisos
 import com.example.msp_app.core.avisos.encolarReprogramacionDeAvisos
 import com.example.msp_app.core.debug.RemoteDbDebugger
 import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
+import com.example.msp_app.core.fcm.SuscripcionDeZonaProvider
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.visitas.agenda.KillSwitchAgenda
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
@@ -18,6 +20,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class MspApplication : Application(), Configuration.Provider {
@@ -77,8 +82,21 @@ class MspApplication : Application(), Configuration.Provider {
         // Las alarmas se reconstruyen al abrir la app (plan visitas P3, Tarea 13)
         encolarReprogramacionDeAvisos(this)
 
+        // Tema FCM de la zona: se suscribe al fijarse y se cambia si cambia (T14)
+        suscribirTemaDeZona()
+
         // Inicializar sincronización periódica de clientes
         enqueueClienteSyncWorker(this)
+    }
+
+    private fun suscribirTemaDeZona() {
+        val suscripcion = SuscripcionDeZonaProvider.de(this)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            CobranzaSyncProvider.userContextFlow
+                .map { it?.zona }
+                .distinctUntilChanged()
+                .collect { zona -> if (zona != null) suscripcion.alCambiarZona(zona) }
+        }
     }
 
     private fun initializeRemoteDbDebugger() {

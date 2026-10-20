@@ -13,6 +13,7 @@ import android.os.Build
 object CanalesDeNotificacion {
     const val VISITAS_ASIGNADAS = "visitas_asignadas"
     const val AVISOS_COMPROMISOS = "avisos_compromisos"
+    const val SINCRONIZACION = "sincronizacion"
 
     fun crear(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -29,6 +30,13 @@ object CanalesDeNotificacion {
                 AVISOS_COMPROMISOS,
                 "Avisos de compromisos",
                 NotificationManager.IMPORTANCE_HIGH
+            )
+        )
+        mgr.createNotificationChannel(
+            NotificationChannel(
+                SINCRONIZACION,
+                "Sincronización",
+                NotificationManager.IMPORTANCE_LOW
             )
         )
     }
