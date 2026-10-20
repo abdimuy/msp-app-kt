@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.msp_app.core.database.entities.VisitImageEntity
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Los comprobantes de una visita (`visita_imagenes`, Task 26 / consumida por la
@@ -74,6 +75,18 @@ interface VisitImageDao {
             "ORDER BY i.VISITA_ID ASC, i.ORDEN ASC, i.ID ASC"
     )
     suspend fun pendientesDeEntregadas(): List<VisitImageEntity>
+
+    /**
+     * Cuántas fotos siguen sin `SUBIDA_EN` y tienen su visita en el teléfono,
+     * observadas. La huérfana (su visita ya no existe) no cuenta: nadie la va a
+     * mandar y el aviso se quedaría prendido para siempre. La lee el aviso de
+     * Inicio "N sin enviar · no cambies de teléfono" (E-APP-096). Solo lectura.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM visita_imagenes i JOIN Visit v ON v.ID = i.VISITA_ID " +
+            "WHERE i.SUBIDA_EN IS NULL"
+    )
+    fun observarSinSubir(): Flow<Int>
 
     /**
      * Marca UNA imagen como subida. Filtra por `ID` —el de la imagen— y no por

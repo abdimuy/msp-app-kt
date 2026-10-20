@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface VisitDao {
@@ -113,6 +114,14 @@ interface VisitDao {
         """
     )
     suspend fun getPendingVisits(): List<VisitEntity>
+
+    /**
+     * Cuántas visitas siguen sin enviar —el mismo filtro que [getPendingVisits]—,
+     * observadas. La lee el aviso de Inicio "N sin enviar · no cambies de
+     * teléfono" (E-APP-096). Solo lectura.
+     */
+    @Query("SELECT COUNT(*) FROM Visit WHERE GUARDADO_EN_MICROSIP = 0")
+    fun observarSinEnviar(): Flow<Int>
 
     @Query(
         """

@@ -19,6 +19,7 @@ import com.example.msp_app.data.models.visit.Visit
 import java.io.File
 import java.io.IOException
 import java.time.Instant
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.runTest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -717,5 +718,7 @@ class PendingVisitsWorkerModoV2ActualTest : RoomTestBase() {
             db.visitImageDao().huerfanasAnterioresA(limite)
 
         override suspend fun eliminar(imagenId: String) = db.visitImageDao().eliminar(imagenId)
+
+        override fun observarSinSubir(): Flow<Int> = db.visitImageDao().observarSinSubir()
     }
 }

@@ -27,6 +27,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -814,6 +816,8 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
             emptyList()
 
         override suspend fun eliminar(imagenId: String) = Unit
+
+        override fun observarSinSubir(): Flow<Int> = flowOf(0)
     }
 
     /** Fake a mano (sin MockK): lista pública de llamadas. */

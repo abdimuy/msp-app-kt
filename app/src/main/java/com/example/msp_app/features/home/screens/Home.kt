@@ -30,6 +30,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -62,6 +63,9 @@ import com.example.msp_app.feature.pagos.ui.CercanosViewModel
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.TarjetaDeCercano
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
+import com.example.msp_app.feature.visitas.ui.AvisoDePendientesViewModel
+import com.example.msp_app.feature.visitas.ui.components.AvisoDePendientes
+import com.example.msp_app.feature.visitas.ui.components.irAPendientes
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
@@ -87,6 +91,7 @@ import java.util.Locale
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -114,6 +119,12 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
     val enviosDeVisitas by visitsViewModel.enviosDeVisitas.collectAsState()
+
+    // E-APP-096: "N sin enviar · no cambies de teléfono" (visitas, fotos, pagos
+    // y ventas sin enviar; solo lecturas). Tocarlo baja a los pendientes.
+    val avisoDePendientesViewModel: AvisoDePendientesViewModel = hiltViewModel()
+    val pendientesDelTelefono by avisoDePendientesViewModel.pendientes.collectAsState()
+    val alcanceDelAviso = rememberCoroutineScope()
 
     // Solo diagnóstico (E-APP-063): el motivo del último fallo de los pendientes.
     val lectorDeDiagnostico = remember {
@@ -360,6 +371,13 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                             onMenuClick = openDrawer,
                             onToggleTheme = { ThemeController.toggle() },
                             backgroundColor = primary
+                        )
+                    }
+
+                    item {
+                        AvisoDePendientes(
+                            pendientes = pendientesDelTelefono,
+                            onClick = { alcanceDelAviso.launch { listState.irAPendientes() } }
                         )
                     }
 
