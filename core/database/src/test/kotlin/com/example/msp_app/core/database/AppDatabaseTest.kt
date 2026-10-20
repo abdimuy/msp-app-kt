@@ -32,7 +32,7 @@ import org.junit.Test
 class AppDatabaseTest : RobolectricTestBase() {
 
     @Test
-    fun `AppDatabase se instancia in-memory y reporta version 35`() {
+    fun `AppDatabase se instancia in-memory y reporta version 36`() {
         val db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
@@ -41,7 +41,7 @@ class AppDatabaseTest : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(35, db.openHelper.readableDatabase.version)
+            assertEquals(36, db.openHelper.readableDatabase.version)
         } finally {
             db.close()
         }
