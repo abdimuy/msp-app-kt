@@ -407,28 +407,27 @@ class RegistrarVisitaTest {
     }
 
     /**
-     * Una cuenta que falla **no tira a las demás**, y el desenlace a medias no se
-     * calla: nadie podría reconstruir después "se guardaron 2 de 3".
+     * E-APP-087 (decisión 3 del dueño 2026-10-20, todo o nada): las N cuentas
+     * viajan al puerto en UNA llamada y el desenlace es el del lote. Ya no
+     * existe el evento de parcial k de N.
      */
     @Test
-    fun `si una cuenta falla se intentan las demas y el parcial se reporta`() = runTest {
-        val registroParcial = FakeRegistroDeVisitaPort()
-        registroParcial.fallaEn = 1
-        RegistrarVisita(registroParcial, FakeUbicacionPort(), telemetry).invoke(
-            visitaId = "visita-1",
-            clienteId = VisitasFixtures.VICTORIA,
-            ventaId = null,
-            captura = seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)),
-            hoy = hoy
-        ).let { assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, it) }
+    fun `E-APP-087 si una cuenta falla el desenlace es el fallo del lote y no hay parcial`() =
+        runTest {
+            val registroParcial = FakeRegistroDeVisitaPort()
+            registroParcial.fallaEn = 1
+            RegistrarVisita(registroParcial, FakeUbicacionPort(), telemetry).invoke(
+                visitaId = "visita-1",
+                clienteId = VisitasFixtures.VICTORIA,
+                ventaId = null,
+                captura = seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)),
+                hoy = hoy
+            ).let { assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, it) }
 
-        assertEquals("las dos cuentas se intentaron", 2, registroParcial.registradas.size)
-        val evento = telemetry.recorded.single {
-            it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
+            assertTrue(
+                telemetry.recorded.none { it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA }
+            )
         }
-        assertEquals("1", evento.props[VisitasTelemetria.PROP_OCURRENCIAS])
-        assertEquals("2", evento.props[VisitasTelemetria.PROP_CUENTAS])
-    }
 
     /**
      * Control positivo del silencio: cuando las N cuentas se escriben, el evento
@@ -528,11 +527,11 @@ class RegistrarVisitaTest {
         }
 
     /**
-     * Cancelada entre cuentas: la primera quedó escrita y la segunda no. Se
-     * emiten los dos eventos con k/N, y la cancelación sale intacta.
+     * Cancelada a media escritura del lote (E-APP-087): la cancelación sale
+     * intacta, ninguna cuenta se da por escrita (0 de 2) y no hay parcial.
      */
     @Test
-    fun `E-APP-078 cancelada entre cuentas emite el parcial con k de N`() = runTest {
+    fun `E-APP-087 cancelada a media escritura del lote reporta 0 de N sin parcial`() = runTest {
         val cancelacion = CancellationException("el cobrador salio de la pantalla")
         val registroQueSeCancela = object : RegistroDeVisitaPort {
             val escritas = mutableListOf<VisitaARegistrar>()
@@ -550,23 +549,16 @@ class RegistrarVisitaTest {
         )
 
         assertSame(cancelacion, atrapada)
-        assertEquals(1, registroQueSeCancela.escritas.size)
-        val parcial = telemetry.recorded.single {
-            it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
-        }
-        assertEquals("1", parcial.props[VisitasTelemetria.PROP_OCURRENCIAS])
-        assertEquals("2", parcial.props[VisitasTelemetria.PROP_CUENTAS])
-        assertEquals(
-            VisitasTelemetria.RESULTADO_CANCELADO,
-            parcial.props[VisitasTelemetria.PROP_RESULTADO]
+        assertTrue(
+            telemetry.recorded.none { it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA }
         )
         val cancelado = telemetry.recorded.single {
             it.name == VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO
         }
-        assertEquals("1", cancelado.props[VisitasTelemetria.PROP_ESCRITAS])
+        assertEquals("0", cancelado.props[VisitasTelemetria.PROP_ESCRITAS])
         assertEquals("2", cancelado.props[VisitasTelemetria.PROP_CUENTAS])
         assertEquals(VisitasTelemetria.FASE_CUENTAS, cancelado.props[VisitasTelemetria.PROP_FASE])
-        assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
+        assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 0, 2)), avisos)
     }
 
     /** Telemetría que revienta en `error` (p. ej. el insert síncrono de `DurableTelemetry`). */
@@ -585,7 +577,7 @@ class RegistrarVisitaTest {
      * el aviso. Sale la MISMA instancia y el aviso a la oficina llega igual.
      */
     @Test
-    fun `E-APP-078 telemetria rota con parcial entre cuentas relanza la misma instancia`() =
+    fun `E-APP-078 telemetria rota con cancelacion a media escritura relanza la misma instancia`() =
         runTest {
             val cancelacion = CancellationException("el cobrador salio de la pantalla")
             val registroQueSeCancela = object : RegistroDeVisitaPort {
@@ -604,7 +596,7 @@ class RegistrarVisitaTest {
             )
 
             assertSame(cancelacion, atrapada)
-            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
+            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 0, 2)), avisos)
         }
 
     /** Idem en la ubicación, con la telemetría Y el aviso rotos. */

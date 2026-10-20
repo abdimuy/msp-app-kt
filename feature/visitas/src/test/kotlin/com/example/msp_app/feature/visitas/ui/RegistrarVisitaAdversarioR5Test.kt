@@ -95,7 +95,11 @@ class RegistrarVisitaAdversarioR5Test {
             vm.guardar()
             advanceUntilIdle()
 
-            assertEquals("la telemetría sí se pidió (y lanzó)", 1, lanza.lanzadas)
+            assertEquals(
+                "E-APP-087: ya no existe el parcial k de N, nadie lo pide",
+                0,
+                lanza.lanzadas
+            )
             assertEquals(
                 "el ancla quedó escrita con la foto",
                 IdsDeLaVisita.idDe(vm.visitaId, VisitasFixtures.SALA),
