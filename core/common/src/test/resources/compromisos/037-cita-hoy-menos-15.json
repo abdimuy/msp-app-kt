@@ -1,0 +1,39 @@
+{
+  "nombre": "cita de hace 15 días: cerrada_sin_cumplir",
+  "hoy": "2026-10-16",
+  "ahora": "2026-10-16T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 100,
+      "tipo_visita": "Pidió que regrese otro día",
+      "instante": "2026-09-28T17:00:00Z",
+      "promesa": null,
+      "cita": {
+        "fecha": "2026-10-01",
+        "hora": null
+      }
+    }
+  ],
+  "pagos": [],
+  "esperado": [
+    {
+      "venta_id": 100,
+      "visita_id": "00000000-0000-3000-8000-000000000001",
+      "tipo": "cita",
+      "estado": "cerrada_sin_cumplir",
+      "dia": "2026-10-01",
+      "hora": null,
+      "monto_centavos": null,
+      "columna": ""
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "nombre": "cita futura y pago posterior a su visita: cita_cumplida",
+  "hoy": "2026-10-16",
+  "ahora": "2026-10-16T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 100,
+      "tipo_visita": "Pidió que regrese otro día",
+      "instante": "2026-10-15T17:00:00Z",
+      "promesa": null,
+      "cita": {
+        "fecha": "2026-10-19",
+        "hora": null
+      }
+    }
+  ],
+  "pagos": [
+    {
+      "venta_id": 100,
+      "instante": "2026-10-16T15:00:00Z",
+      "fecha": "2026-10-16",
+      "rechazado": false,
+      "local_pendiente": false
+    }
+  ],
+  "esperado": [
+    {
+      "venta_id": 100,
+      "visita_id": "00000000-0000-3000-8000-000000000001",
+      "tipo": "cita",
+      "estado": "cita_cumplida",
+      "dia": "2026-10-19",
+      "hora": null,
+      "monto_centavos": null,
+      "columna": ""
+    }
+  ]
+}

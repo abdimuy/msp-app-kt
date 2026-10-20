@@ -1,0 +1,39 @@
+{
+  "nombre": "cita hoy a las 16:30: vigente_hoy",
+  "hoy": "2026-10-16",
+  "ahora": "2026-10-16T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 100,
+      "tipo_visita": "Pidió que regrese otro día",
+      "instante": "2026-10-15T17:00:00Z",
+      "promesa": null,
+      "cita": {
+        "fecha": "2026-10-16",
+        "hora": "16:30"
+      }
+    }
+  ],
+  "pagos": [],
+  "esperado": [
+    {
+      "venta_id": 100,
+      "visita_id": "00000000-0000-3000-8000-000000000001",
+      "tipo": "cita",
+      "estado": "vigente_hoy",
+      "dia": "2026-10-16",
+      "hora": "16:30",
+      "monto_centavos": null,
+      "columna": "por_visitar"
+    }
+  ]
+}

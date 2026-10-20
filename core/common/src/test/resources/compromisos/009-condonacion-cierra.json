@@ -1,0 +1,48 @@
+{
+  "nombre": "una condonación (forma 137026) es un pago más: cierra la promesa; el caso no lleva forma porque la regla no la mira",
+  "hoy": "2026-10-16",
+  "ahora": "2026-10-16T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 100,
+      "tipo_visita": "Pidió que regrese otro día",
+      "instante": "2026-10-15T17:00:00Z",
+      "promesa": {
+        "venta_id": 100,
+        "fecha": "2026-10-20",
+        "monto_centavos": null
+      },
+      "cita": null
+    }
+  ],
+  "pagos": [
+    {
+      "venta_id": 100,
+      "instante": "2026-10-16T15:00:00Z",
+      "fecha": "2026-10-16",
+      "rechazado": false,
+      "local_pendiente": false
+    }
+  ],
+  "esperado": [
+    {
+      "venta_id": 100,
+      "visita_id": "00000000-0000-3000-8000-000000000001",
+      "tipo": "promesa",
+      "estado": "cumplida",
+      "dia": "2026-10-20",
+      "hora": null,
+      "monto_centavos": null,
+      "columna": ""
+    }
+  ]
+}
