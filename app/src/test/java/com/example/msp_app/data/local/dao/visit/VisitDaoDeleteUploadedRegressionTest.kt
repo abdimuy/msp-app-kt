@@ -163,12 +163,27 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
      */
     @Test
     fun `un compromiso anterior al corte si se poda`() = runTest {
-        dao.insertVisit(visit(id = "promesa-vieja", guardado = 1, promesa = "2026-06-14"))
-        dao.insertVisit(visit(id = "promesa-del-corte", guardado = 1, promesa = corte))
+        // E-APP-100: solo se poda si el servidor ya probó el compromiso; sin
+        // prueba la fila es la única copia (VisitDaoPodaCompromisoTest).
+        dao.insertVisit(
+            visit(id = "promesa-vieja", guardado = 1, promesa = "2026-06-14")
+                .copy(COMPROMISO_CONFIRMADO_EN = CONFIRMADA_HACE_MUCHO)
+        )
+        dao.insertVisit(
+            visit(id = "promesa-del-corte", guardado = 1, promesa = corte)
+                .copy(COMPROMISO_CONFIRMADO_EN = CONFIRMADA_HACE_MUCHO)
+        )
+        dao.insertVisit(
+            visit(id = "promesa-vieja-sin-probar", guardado = 1, promesa = "2026-06-14")
+        )
 
         podar(conservarDesde = corte, comprobantesDesde = sinComprobantes)
 
         assertNoLongerExists(dao, "promesa-vieja")
+        assertNotNull(
+            "E-APP-100: el compromiso sin probar no se poda",
+            dao.getVisitById("promesa-vieja-sin-probar")
+        )
         // El borde exacto: el día del corte SOBREVIVE (`<`, no `<=`).
         assertNotNull("el dia del corte sobrevive", dao.getVisitById("promesa-del-corte"))
     }

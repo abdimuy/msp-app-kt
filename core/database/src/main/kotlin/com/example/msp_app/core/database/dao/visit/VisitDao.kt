@@ -495,6 +495,17 @@ interface VisitDao {
      * nadie la reintenta— clavaría su visita en la tabla para siempre, que es un
      * defecto peor que el que se está cerrando.
      *
+     * ## Por qué la CUARTA condición (plan visitas P2, Tarea 15b; E-APP-100)
+     *
+     * Con contrato 3 la promesa y la cita sí viajan al servidor (lo de arriba
+     * sobre Ruling V describe el contrato 2), pero solo están a salvo cuando el
+     * servidor las PROBÓ (`COMPROMISO_CONFIRMADO_EN`) o las RESGUARDÓ
+     * (`COMPROMISO_RESGUARDADO_EN`). Mientras no, esta fila es la única copia y
+     * no se poda, pase la ventana que pase. El predicado de "tiene compromiso"
+     * es el mismo de [compromisosPorRellenar]. Lo que esta condición retiene lo
+     * cuenta [compromisosRetenidosPorPoda] para la telemetría: con un servidor
+     * sin contrato 3 no se libera nunca, y eso tiene que verse.
+     *
      * @param confirmadasAntesDe instante de corte (`AppTime.toWireFormat`): una
      *   confirmada en ese instante o después SOBREVIVE.
      * @param resguardadasAntesDe instante de corte: una resguardada en ese
@@ -519,6 +530,10 @@ interface VisitDao {
               WHERE SUBIDA_EN IS NULL AND CREADA_EN >= :comprobantesDesde
           )
           AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarCompromisosDesde
+          AND NOT (
+                (PROMESA_FECHA IS NOT NULL OR CITA_FECHA IS NOT NULL)
+            AND COMPROMISO_CONFIRMADO_EN IS NULL AND COMPROMISO_RESGUARDADO_EN IS NULL
+          )
         """
     )
     suspend fun deleteUploadedVisits(
@@ -527,6 +542,38 @@ interface VisitDao {
         comprobantesDesde: String,
         conservarCompromisosDesde: String
     )
+
+    /**
+     * E-APP-100: cuántas visitas borraría [deleteUploadedVisits] con estos
+     * mismos cortes si no fuera por un compromiso local sin probar ni
+     * resguardar. Con un servidor sin contrato 3 esas filas no se podan nunca;
+     * este conteo es la clave de telemetría que lo hace visible. Mismo `WHERE`
+     * que la poda salvo la última condición, que va invertida.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND (
+                (CONFIRMADA_EN IS NOT NULL AND CONFIRMADA_EN < :confirmadasAntesDe)
+             OR (RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL
+                 AND RESGUARDADA_EN < :resguardadasAntesDe)
+          )
+          AND ID NOT IN (
+              SELECT VISITA_ID FROM visita_imagenes
+              WHERE SUBIDA_EN IS NULL AND CREADA_EN >= :comprobantesDesde
+          )
+          AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarCompromisosDesde
+          AND (PROMESA_FECHA IS NOT NULL OR CITA_FECHA IS NOT NULL)
+          AND COMPROMISO_CONFIRMADO_EN IS NULL AND COMPROMISO_RESGUARDADO_EN IS NULL
+        """
+    )
+    suspend fun compromisosRetenidosPorPoda(
+        confirmadasAntesDe: String,
+        resguardadasAntesDe: String,
+        comprobantesDesde: String,
+        conservarCompromisosDesde: String
+    ): Int
 
     /**
      * Cuántas resguardadas ya rebasaron [antesDe] (la segunda rama de

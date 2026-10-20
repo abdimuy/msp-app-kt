@@ -98,6 +98,13 @@ object TelemetriaDeVisitas {
     /** T12: resguardadas que rebasaron la retención; se reportan antes de podarlas (spec §4.2-8). */
     const val RESGUARDADAS_POR_PODAR = "visitas.resguardadas_por_podar"
 
+    /**
+     * E-APP-100 (P2 Tarea 15b): visitas que la poda borraría si no fuera por un
+     * compromiso local sin probar ni resguardar en el servidor. Con un servidor
+     * sin contrato 3 no bajan nunca: este conteo hace visible esa retención.
+     */
+    const val COMPROMISOS_RETENIDOS_EN_PODA = "visitas.compromisos_retenidos_en_poda"
+
     /** E-APP-078: cuentas escritas antes del corte, de [GC_CUENTAS]. */
     const val GC_ESCRITAS = "visitas.guardado_cancelado.escritas"
     const val GC_CUENTAS = "visitas.guardado_cancelado.cuentas"
@@ -220,6 +227,7 @@ object TelemetriaDeVisitas {
         CONC_DEVUELTAS_POR_FOTO,
         CONC_FOTOS_ABANDONADAS,
         RESGUARDADAS_POR_PODAR,
+        COMPROMISOS_RETENIDOS_EN_PODA,
         GC_ESCRITAS,
         GC_CUENTAS,
         GC_EN_UBICACION
@@ -277,9 +285,14 @@ object TelemetriaDeVisitas {
         CONC_FOTOS_ABANDONADAS to r.fotosAbandonadas
     )
 
-    /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */
-    fun poda(resguardadasPorPodar: Int): Map<String, Any> =
-        mapOf(RESGUARDADAS_POR_PODAR to resguardadasPorPodar)
+    /**
+     * Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas y,
+     * desde E-APP-100, cuántas retiene un compromiso sin probar. Solo conteos.
+     */
+    fun poda(resguardadasPorPodar: Int, compromisosRetenidos: Int): Map<String, Any> = mapOf(
+        RESGUARDADAS_POR_PODAR to resguardadasPorPodar,
+        COMPROMISOS_RETENIDOS_EN_PODA to compromisosRetenidos
+    )
 
     /** Guardado cancelado (E-APP-078): solo conteos. */
     fun guardadoCancelado(escritas: Int, cuentas: Int, enUbicacion: Boolean): Map<String, Any> =

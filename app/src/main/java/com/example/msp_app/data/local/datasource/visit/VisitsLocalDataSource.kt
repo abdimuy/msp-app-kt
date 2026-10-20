@@ -211,6 +211,13 @@ class VisitsLocalDataSource @Inject constructor(
      * reportada en una corrida anterior ([MemoriaDePodaDeResguardadas]). Una
      * legada con `GUARDADO_EN_MICROSIP = 1` y sin marca no se poda: espera a la
      * reconciliación inversa.
+     *
+     * **Plan visitas P2, Tarea 15b (E-APP-100).** Con contrato 3 el compromiso sí
+     * viaja al servidor, pero mientras `COMPROMISO_CONFIRMADO_EN` o
+     * `COMPROMISO_RESGUARDADO_EN` no lo prueben, esta fila sigue siendo la única
+     * copia: no se poda. Lo que esa regla retiene sale contado por telemetría
+     * (`visitas.compromisos_retenidos_en_poda`), porque con un servidor sin
+     * contrato 3 no se libera nunca.
      */
     suspend fun deleteUploadedVisits() {
         val ahora = clock.now()
@@ -223,11 +230,6 @@ class VisitsLocalDataSource @Inject constructor(
         // que rebasa hoy se reporta y se poda en la siguiente. `minOf` evita
         // podar más allá del límite de hoy si el reloj retrocedió.
         val porPodar = visitDao.resguardadasPorPodar(limiteResguardadas)
-        if (porPodar > 0) {
-            // Solo un conteo: ningún dato personal (Tarea 14, lista blanca de TelemetriaDeVisitas).
-            Log.w(TAG, "visitas.resguardadas_por_podar=$porPodar")
-            reportarPorPodar(porPodar)
-        }
         val reportadas = memoriaDePoda.reportadasHasta()
         val resguardadasAntesDe = if (reportadas == null) {
             NADA
@@ -237,20 +239,41 @@ class VisitsLocalDataSource @Inject constructor(
                 limiteResguardadas
             )
         }
+        val confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(ahora)
+        val comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes)
+        val conservarCompromisosDesde = AppTime.toWireDate(corte)
+        // E-APP-100: lo que la poda deja por un compromiso sin probar en el servidor.
+        val compromisosRetenidos = visitDao.compromisosRetenidosPorPoda(
+            confirmadasAntesDe,
+            resguardadasAntesDe,
+            comprobantesDesde,
+            conservarCompromisosDesde
+        )
+        if (porPodar > 0 || compromisosRetenidos > 0) {
+            // Solo conteos: ningún dato personal (Tarea 14, lista blanca de TelemetriaDeVisitas).
+            Log.w(
+                TAG,
+                "visitas.resguardadas_por_podar=$porPodar compromisos_retenidos=$compromisosRetenidos"
+            )
+            reportarPoda(porPodar, compromisosRetenidos)
+        }
 
         visitDao.deleteUploadedVisits(
-            confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(ahora),
+            confirmadasAntesDe = confirmadasAntesDe,
             resguardadasAntesDe = resguardadasAntesDe,
-            comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes),
-            conservarCompromisosDesde = AppTime.toWireDate(corte)
+            comprobantesDesde = comprobantesDesde,
+            conservarCompromisosDesde = conservarCompromisosDesde
         )
         memoriaDePoda.anotarReportadasHasta(limiteResguardadas)
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private fun reportarPorPodar(porPodar: Int) {
+    private fun reportarPoda(porPodar: Int, compromisosRetenidos: Int) {
         try {
-            telemetria(TelemetriaDeVisitas.EVENTO_PODA, TelemetriaDeVisitas.poda(porPodar))
+            telemetria(
+                TelemetriaDeVisitas.EVENTO_PODA,
+                TelemetriaDeVisitas.poda(porPodar, compromisosRetenidos)
+            )
         } catch (e: Exception) {
             Log.w(TAG, "telemetria de la poda fallo; la poda sigue", e)
         }
