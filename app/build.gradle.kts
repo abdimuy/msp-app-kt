@@ -370,3 +370,46 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.androidx.biometric)
 }
+
+// E-APP-111: las pruebas de `navigation.*` corren en su propia tarea, una JVM
+// por clase, y la tarea de siempre (`testDevlocalDebugUnitTest`) las excluye y
+// la arrastra con `finalizedBy` — así el pre-commit y `prePushCheck`, que
+// invocan la de siempre, corren las dos sin tocar ningún hook.
+//
+// Por qué (medido 2026-10-19 con una sonda en cada clase Robolectric, ver
+// docs/evidencia/app-android.md E-APP-111): Robolectric comparte el sandbox —y
+// con él los estáticos de Compose y de Play Services— entre todas las clases
+// del proceso, y entre prueba y prueba vacía la cola del Looper principal.
+//   1. Si una prueba termina con un despacho pendiente de
+//      `AndroidUiDispatcher.Main` (un `mutableStateOf` escrito después de que
+//      otra prueba Compose arrancó `GlobalSnapshotManager`), el vaciado se lo
+//      come: el despachador queda con `scheduledTrampolineDispatch = true`
+//      para siempre, nadie vuelve a llamar `Snapshot.sendApplyNotifications()`
+//      y toda prueba Compose posterior de ese sandbox muere en AppNotIdle.
+//   2. `zzah` de play-services-basement lee UNA vez por sandbox el meta-data
+//      `com.google.android.gms.version`; si la primera lectura la hace una
+//      prueba con `manifest = Config.NONE` (Firebase en `integration.*`), queda
+//      0 y el mapa de `ubicacion/…` revienta con
+//      GooglePlayServicesMissingManifestValueException.
+// Ninguna de las dos es del código de la app: depende de qué clases corrieron
+// antes en el mismo proceso. Una JVM por clase de navegación le da a cada una
+// un sandbox limpio.
+val pruebasDeNavegacion = "com/example/msp_app/navigation/**"
+val pruebasDeNavegacionAisladas = tasks.register<Test>("testDevlocalDebugNavegacionUnitTest") {
+    description = "Pruebas de navigation.* de :app, una JVM por clase (E-APP-111)."
+    group = "verification"
+    val base = tasks.named<Test>("testDevlocalDebugUnitTest").get()
+    testClassesDirs = base.testClassesDirs
+    classpath = base.classpath
+    javaLauncher.set(base.javaLauncher)
+    maxHeapSize = base.maxHeapSize
+    jvmArgs(base.jvmArgs.orEmpty())
+    systemProperties(base.systemProperties)
+    workingDir = base.workingDir
+    include(pruebasDeNavegacion)
+    forkEvery = 1
+}
+tasks.withType<Test>().matching { it.name == "testDevlocalDebugUnitTest" }.configureEach {
+    exclude(pruebasDeNavegacion)
+    finalizedBy(pruebasDeNavegacionAisladas)
+}
