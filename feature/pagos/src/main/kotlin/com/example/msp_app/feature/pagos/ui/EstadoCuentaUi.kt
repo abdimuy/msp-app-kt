@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
@@ -342,7 +343,10 @@ object BadgeSolido {
      * promesa, que también es roja; "Falta pasar" queda neutro: `surface` con
      * borde (ver [bordeDelSolido]), porque no hay nada que celebrar ni que alarmar.
      */
-    fun solidoDe(trato: TratoDelEstado, colors: MspColors): Color = when (trato) {
+    fun solidoDe(trato: TratoDelEstado, colors: MspColors): Color =
+        if (esOscuro(colors)) solidoOscuroDe(trato, colors) else solidoClaroDe(trato, colors)
+
+    private fun solidoClaroDe(trato: TratoDelEstado, colors: MspColors): Color = when (trato) {
         TratoDelEstado.PAGADO -> colors.statusPaid
         TratoDelEstado.PARCIAL -> colors.statusTeal
         TratoDelEstado.REGRESAS -> colors.statusPartial
@@ -354,11 +358,52 @@ object BadgeSolido {
     }
 
     /**
-     * El color del ícono y del texto sobre [solidoDe]: `surface` —blanco en claro,
-     * casi negro en oscuro—, que contrasta con los colores plenos de los dos temas.
+     * **Los fondos del badge en oscuro** (decisión del dueño del 2026-10-16,
+     * opción B): el mismo tono que el token del tema, apenas más oscuro, hasta
+     * que el texto blanco alcance **3:1** (WCAG, texto grande o negrita). Los
+     * tokens pastel del tema oscuro daban 2.0–2.7:1 con blanco.
+     *
+     * Viven aquí y no en [MspColors] a propósito: el resto de la app sigue
+     * usando los tokens del tema; sólo el badge sólido se oscurece.
+     */
+    private fun solidoOscuroDe(trato: TratoDelEstado, colors: MspColors): Color = when (trato) {
+        TratoDelEstado.PAGADO -> PAGADO_OSCURO
+        TratoDelEstado.PARCIAL -> PARCIAL_OSCURO
+        TratoDelEstado.REGRESAS -> REGRESAS_OSCURO
+        TratoDelEstado.DIFERIDO -> DIFERIDO_OSCURO
+        TratoDelEstado.ESCALAR -> ESCALAR_OSCURO
+        TratoDelEstado.CITA -> CITA_OSCURO
+        TratoDelEstado.NADIE -> NADIE_OSCURO
+        TratoDelEstado.SIN_TRABAJAR -> colors.surface
+    }
+
+    /**
+     * ¿La paleta es la oscura? Se lee de la luminancia de `surface` porque
+     * [MspColors] no trae el modo: `MspTheme` interpola los colores campo a
+     * campo al cambiar de tema, así que a media animación el badge cambia de
+     * juego en el punto medio, igual que el resto del tema.
+     */
+    private fun esOscuro(colors: MspColors): Boolean = colors.surface.luminance() < UMBRAL_DE_OSCURO
+
+    private const val UMBRAL_DE_OSCURO = 0.5f
+
+    // Los fondos de [solidoOscuroDe]: 3:1 con blanco (opción B, 2026-10-16).
+    private val PAGADO_OSCURO = Color(0xFF2EA869)
+    private val PARCIAL_OSCURO = Color(0xFF2DA2B3)
+    private val REGRESAS_OSCURO = Color(0xFFC5881F)
+    private val DIFERIDO_OSCURO = Color(0xFFF2685A)
+    private val ESCALAR_OSCURO = Color(0xFFFA5D74)
+    private val CITA_OSCURO = Color(0xFF9982FA)
+    private val NADIE_OSCURO = Color(0xFF8B9790)
+
+    /**
+     * El color del ícono y del texto sobre [solidoDe]: **blanco siempre, en los
+     * dos temas** (decisión del dueño del 2026-10-16). Antes era `surface`, que en
+     * oscuro es casi negro y apagaba el badge. "Falta pasar" no es sólido —es
+     * `surface` con borde— y conserva `onSurfaceMuted`.
      */
     fun sobreSolidoDe(trato: TratoDelEstado, colors: MspColors): Color =
-        if (trato == TratoDelEstado.SIN_TRABAJAR) colors.onSurfaceMuted else colors.surface
+        if (trato == TratoDelEstado.SIN_TRABAJAR) colors.onSurfaceMuted else Color.White
 
     /** Sólo el estado neutro lleva borde: sin él, se perdería en la tarjeta. */
     fun bordeDelSolido(trato: TratoDelEstado, colors: MspColors): Color? =

@@ -23,32 +23,32 @@ class MontosSugeridosTest {
     private val hoy = PagosFixtures.HOY
 
     @Test
-    fun `los tres del mock, con las cifras del mock`() {
-        val sugeridos = MontosSugeridos.de(AbonoFixtures.detalle(), hoy)
+    fun `los de la deuda, con las cifras del mock y sin al corriente`() {
+        // "Al corriente" ($440 en este fixture) salió de la fila el 2026-10-16.
+        val sugeridos = MontosSugeridos.de(AbonoFixtures.detalle())
         assertEquals(
             listOf(
                 MontosSugeridos.Sugerencia.ESPERADO_HOY,
-                MontosSugeridos.Sugerencia.AL_CORRIENTE,
                 MontosSugeridos.Sugerencia.LIQUIDAR
             ),
-            sugeridos.take(3).map { it.cual }
+            sugeridos.take(2).map { it.cual }
         )
         assertEquals(dinero("220"), sugeridos[0].importe)
-        assertEquals(dinero("440"), sugeridos[1].importe)
-        assertEquals(dinero("1290"), sugeridos[2].importe)
+        assertEquals(dinero("1290"), sugeridos[1].importe)
+        assertTrue(sugeridos.none { it.importe == dinero("440") })
     }
 
     // --- Las dos fuentes nuevas ----------------------------------------------
 
     @Test
     fun `los redondos van despues de la deuda y en orden de frecuencia`() {
-        // Sin historial no hay "lo de siempre", así que detrás de los tres de la
+        // Sin historial no hay "lo de siempre", así que detrás de los dos de la
         // deuda quedan los redondos: $100 (37.5 %), $200 (24.9 %), $150
-        // (18.4 %) — y el tope de cinco corta el último.
-        val sugeridos = MontosSugeridos.de(AbonoFixtures.detalle(), hoy)
+        // (18.4 %) — y caben los tres dentro del tope de cinco.
+        val sugeridos = MontosSugeridos.de(AbonoFixtures.detalle())
         assertEquals(MontosSugeridos.MAXIMO_DE_CHIPS, sugeridos.size)
         assertEquals(
-            listOf(dinero("220"), dinero("440"), dinero("1290"), dinero("100"), dinero("200")),
+            listOf(dinero("220"), dinero("1290"), dinero("100"), dinero("200"), dinero("150")),
             sugeridos.map { it.importe }
         )
     }
@@ -57,27 +57,25 @@ class MontosSugeridosTest {
     fun `lo de siempre sale del historial del cliente y va antes que los redondos`() {
         val sugeridos = MontosSugeridos.de(
             venta = AbonoFixtures.detalle(),
-            hoy = hoy,
             historial = listOf(abono("300", 1), abono("300", 2), abono("500", 3))
         )
         assertEquals(
             listOf(
                 MontosSugeridos.Sugerencia.ESPERADO_HOY,
-                MontosSugeridos.Sugerencia.AL_CORRIENTE,
                 MontosSugeridos.Sugerencia.LIQUIDAR,
                 MontosSugeridos.Sugerencia.LO_DE_SIEMPRE,
+                MontosSugeridos.Sugerencia.REDONDO,
                 MontosSugeridos.Sugerencia.REDONDO
             ),
             sugeridos.map { it.cual }
         )
-        assertEquals(dinero("300"), sugeridos[3].importe)
+        assertEquals(dinero("300"), sugeridos[2].importe)
     }
 
     @Test
     fun `sin costumbre medida no se pinta lo de siempre`() {
         val sugeridos = MontosSugeridos.de(
             venta = AbonoFixtures.detalle(),
-            hoy = hoy,
             historial = listOf(abono("300", 1), abono("300", 2))
         )
         assertTrue(
@@ -93,7 +91,6 @@ class MontosSugeridosTest {
         val venta = AbonoFixtures.detalle().copy(saldo = dinero("120"), liquidacion = null)
         val sugeridos = MontosSugeridos.de(
             venta = venta,
-            hoy = hoy,
             historial = listOf(abono("300", 1), abono("300", 2), abono("300", 3))
         )
         assertTrue(sugeridos.isNotEmpty())
@@ -119,7 +116,7 @@ class MontosSugeridosTest {
             parcialidad = dinero("200"),
             cuota = CuotaDeLaVenta(dinero("200"), OrigenDeLaCuota.PARCIALIDAD)
         )
-        val sugeridos = MontosSugeridos.de(venta, hoy)
+        val sugeridos = MontosSugeridos.de(venta)
         assertEquals(1, sugeridos.count { it.importe == dinero("200") })
         assertEquals(
             MontosSugeridos.Sugerencia.ESPERADO_HOY,
@@ -131,7 +128,6 @@ class MontosSugeridosTest {
     fun `nunca se pintan mas chips que el tope`() {
         val sugeridos = MontosSugeridos.de(
             venta = AbonoFixtures.detalle(),
-            hoy = hoy,
             historial = listOf(abono("777", 1), abono("777", 2), abono("777", 3))
         )
         assertEquals(MontosSugeridos.MAXIMO_DE_CHIPS, sugeridos.size)
@@ -141,10 +137,10 @@ class MontosSugeridosTest {
     fun `cada chip tiene su propia clave, aunque dos compartan tipo`() {
         // Tres chips REDONDO con el mismo `name` compartirían `testTag`, y dos
         // nodos con el mismo tag no son dos chips que se puedan tocar aparte.
-        val sugeridos = MontosSugeridos.de(AbonoFixtures.detalle(), hoy)
+        val sugeridos = MontosSugeridos.de(AbonoFixtures.detalle())
         assertEquals(sugeridos.size, sugeridos.map { it.clave }.toSet().size)
         assertEquals("esperado_hoy", sugeridos[0].clave)
-        assertEquals("redondo_100", sugeridos[3].clave)
+        assertEquals("redondo_100", sugeridos[2].clave)
     }
 
     @Test
@@ -158,7 +154,7 @@ class MontosSugeridosTest {
                 categoria = "rota"
             )
         )
-        val sugeridos = MontosSugeridos.de(venta, hoy)
+        val sugeridos = MontosSugeridos.de(venta)
         assertTrue(sugeridos.isNotEmpty())
         sugeridos.forEach {
             assertTrue("${it.cual} = ${it.importe.amount}", it.importe <= venta.saldo)
@@ -184,52 +180,43 @@ class MontosSugeridosTest {
         )
         assertEquals(Money.ZERO, MontosSugeridos.esperadoHoy(venta))
         assertTrue(
-            MontosSugeridos.de(venta, hoy).none {
+            MontosSugeridos.de(venta).none {
                 it.cual == MontosSugeridos.Sugerencia.ESPERADO_HOY
             }
         )
     }
 
     @Test
-    fun `una venta al dia no ofrece ponerse al corriente`() {
+    fun `una venta al dia no trae atraso`() {
         // Vendida hace una semana: una cuota transcurrida, y ya abono de sobra.
+        // `alCorriente` ya no es un chip, pero alimenta `pideleHoy`.
         val venta = AbonoFixtures.detalle().copy(fechaVenta = hoy.minusDays(7))
         assertEquals(Money.ZERO, MontosSugeridos.alCorriente(venta, hoy))
-        assertTrue(
-            MontosSugeridos.de(venta, hoy).none {
-                it.cual == MontosSugeridos.Sugerencia.AL_CORRIENTE
-            }
-        )
     }
 
     @Test
     fun `sin saldo no hay nada que sugerir`() {
         val venta = AbonoFixtures.detalle().copy(saldo = Money.ZERO)
-        assertEquals(emptyList<MontosSugeridos.Sugerido>(), MontosSugeridos.de(venta, hoy))
+        assertEquals(emptyList<MontosSugeridos.Sugerido>(), MontosSugeridos.de(venta))
     }
 
     @Test
     fun `dos sugeridos con el mismo importe se colapsan al mas significativo`() {
-        // Sin liquidacion, "liquidar" es el saldo; con un atraso igual al saldo,
-        // "al corriente" valdria lo mismo y solo debe quedar el primero.
+        // Sin liquidacion, "liquidar" es el saldo; un saldo de $200 hace que el
+        // redondo de $200 valga lo mismo y sólo debe quedar el primero. La
+        // cuota dudosa apaga el esperado, que si no también se toparía en $200.
+        // (El caso viejo —al corriente igual al saldo— vive ahora en
+        // `MontosSugeridosSinAlCorrienteTest`: el chip que queda dice Liquidar.)
         val venta = AbonoFixtures.detalle().copy(
             liquidacion = null,
-            enganche = Money.ZERO,
-            abonado = Money.ZERO,
-            fechaVenta = hoy.minusDays(700)
+            saldo = dinero("200"),
+            cuota = CuotaDeLaVenta(Money.ZERO, OrigenDeLaCuota.DUDOSA)
         )
-        val sugeridos = MontosSugeridos.de(venta, hoy)
+        val sugeridos = MontosSugeridos.de(venta)
+        assertEquals(1, sugeridos.count { it.importe == dinero("200") })
         assertEquals(
-            listOf(
-                MontosSugeridos.Sugerencia.ESPERADO_HOY,
-                MontosSugeridos.Sugerencia.AL_CORRIENTE
-            ),
-            sugeridos.take(2).map { it.cual }
-        )
-        assertEquals(venta.saldo, sugeridos[1].importe)
-        assertTrue(
-            "liquidar valía lo mismo que al corriente y no se repite",
-            sugeridos.none { it.cual == MontosSugeridos.Sugerencia.LIQUIDAR }
+            MontosSugeridos.Sugerencia.LIQUIDAR,
+            sugeridos.single { it.importe == dinero("200") }.cual
         )
     }
 

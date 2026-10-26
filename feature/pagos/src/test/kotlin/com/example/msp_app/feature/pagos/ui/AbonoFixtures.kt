@@ -192,7 +192,7 @@ object AbonoFixtures {
             cargando = false,
             venta = venta,
             monto = MontoCapturado(),
-            sugeridos = MontosSugeridos.de(venta, PagosFixtures.HOY),
+            sugeridos = MontosSugeridos.de(venta),
             veredicto = SeguridadDelAbono.evaluar(
                 monto = Money.ZERO,
                 saldo = venta.saldo,
@@ -241,11 +241,15 @@ object AbonoFixtures {
         }
 
     /**
-     * El paso dos de un **abono corto**: $150 sobre una venta que espera $220
+     * El paso dos de un **abono corto**: $50 sobre una venta que espera $220
      * (Ruling AL, ronda 2 de arreglo). Repone el caso que `NewPaymentDialog`
      * avisaba en rojo y que se perdió al retirarlo.
      *
-     * $150 termina en 50 y no llega a 5x lo esperado, así que **la única**
+     * Era $150 hasta el 2026-10-16: al salir "al corriente" de la fila, el
+     * redondo de $150 cabe en el tope de cinco chips, y un monto que la
+     * pantalla propuso ya no enciende el abono corto. $50 no es un chip.
+     *
+     * $50 termina en 50 y no llega a 5x lo esperado, así que **la única**
      * rareza encendida es [com.example.msp_app.feature.pagos.domain.RarezaDelAbono.ABAJO_DE_LO_ESPERADO]
      * — lo que hace que la banda que se pinta sea inequívocamente la suya.
      *
@@ -254,7 +258,7 @@ object AbonoFixtures {
      * mayores a lo esperado, así que la rareza nueva no mueve ninguna imagen.
      */
     fun enAbonoCorto(): RegistrarAbonoUiState =
-        conMonto(MontoCapturado(crudo = "150"), estadoSinTocar()).let { base ->
+        conMonto(MontoCapturado(crudo = "50"), estadoSinTocar()).let { base ->
             base.copy(
                 confirmacion = ConfirmacionPendiente(
                     importe = base.monto.importe,
@@ -471,7 +475,7 @@ object AbonoFixtures {
 
     private fun conMonto(monto: MontoCapturado, estado: EstadoDelPeriodo): RegistrarAbonoUiState {
         val venta = detalle(estado)
-        val sugeridos = MontosSugeridos.de(venta, PagosFixtures.HOY)
+        val sugeridos = MontosSugeridos.de(venta)
         return RegistrarAbonoUiState(
             cargando = false,
             venta = venta,

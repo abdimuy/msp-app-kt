@@ -107,8 +107,9 @@ class AvisosDelAbonoTest {
     @Test
     fun `un chip exacto no enciende nada, ni siquiera siendo 20 cuotas`() {
         // $5,000 sobre una cuota de $250 son 20 cuotas: sin la regla sería el
-        // nivel 3 más grave que hay. Con la regla, es el chip de "al corriente"
-        // que la pantalla acaba de ofrecer, y tocarlo no puede abrir un
+        // nivel 3 más grave que hay. Con la regla, es un chip de la deuda
+        // ("liquidar", desde que "al corriente" salió de la fila) que la
+        // pantalla acaba de ofrecer, y tocarlo no puede abrir un
         // interrogatorio.
         val aviso = AvisosDelAbono.evaluar(
             monto = dinero("5000"),
