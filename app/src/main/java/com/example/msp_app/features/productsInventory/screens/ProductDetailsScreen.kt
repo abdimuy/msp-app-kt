@@ -80,7 +80,7 @@ import com.example.msp_app.R
 import com.example.msp_app.components.stock.ProductStock
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.core.utils.parsePriceJsonToMap
+import com.example.msp_app.core.utils.preciosParaMostrar
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.features.productsInventory.viewmodels.ProductDetailsViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
@@ -467,11 +467,8 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                         }
                     }
 
-                    val priceMap = try {
-                        parsePriceJsonToMap(currentProduct.PRECIOS)
-                    } catch (e: Exception) {
-                        emptyMap()
-                    }
+                    // E-APP-059: contado → corto plazo → lista, sin importar el orden de llegada.
+                    val precios = preciosParaMostrar(currentProduct)
                     Card(
                         elevation = CardDefaults.cardElevation(
                             defaultElevation = if (!isDark) 8.dp else 0.dp
@@ -498,7 +495,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
-                            priceMap.forEach { (label, value) ->
+                            precios.forEach { (label, value) ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()

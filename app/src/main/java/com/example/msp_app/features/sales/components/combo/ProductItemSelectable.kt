@@ -34,6 +34,7 @@ import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Minus
 import com.composables.icons.lucide.Plus
+import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.features.sales.viewmodels.SaleItem
 import com.example.msp_app.utils.PriceParser
 import java.text.NumberFormat
@@ -48,7 +49,8 @@ fun ProductItemSelectable(
     onQuantityChange: (Int) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
-    isEnabled: Boolean = true
+    isEnabled: Boolean = true,
+    tipoVenta: String = "CREDITO"
 ) {
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
     val prices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
@@ -142,7 +144,10 @@ fun ProductItemSelectable(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = currencyFormat.format(prices.precioLista),
+                    // E-APP-061: en CONTADO se muestra sólo el contado.
+                    text = currencyFormat.format(
+                        LineasDeVenta.precioDeReferencia(prices, tipoVenta)
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )

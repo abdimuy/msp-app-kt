@@ -95,7 +95,7 @@ dependencies {
     // (coroutines-test, turbine, junit) vía `api`.
     testImplementation(project(":core:testing"))
 
-    // El juego de casos compartido con msp-api (estado por venta) es JSON.
+    // Los juegos de casos compartidos con msp-api (estado por venta y orden de precios) son JSON.
     // Solo pruebas: el dominio de :core:common no parsea JSON.
     testImplementation(libs.gson)
 

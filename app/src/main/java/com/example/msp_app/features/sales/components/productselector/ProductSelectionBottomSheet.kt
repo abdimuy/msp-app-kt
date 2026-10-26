@@ -59,6 +59,7 @@ import com.composables.icons.lucide.X
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.sales.components.combo.ComboCard
 import com.example.msp_app.features.sales.components.combo.ProductItemSelectable
+import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.utils.PriceParser
 import java.text.NumberFormat
@@ -170,6 +171,7 @@ fun ProductSelectionBottomSheet(
                         quantityInCart = quantityInCart,
                         availableStock = availableStock,
                         isOutOfStock = isOutOfStock,
+                        tipoVenta = saleProductsViewModel.tipoVenta,
                         onClick = {
                             if (!isOutOfStock) {
                                 saleProductsViewModel.addProductToSale(product, 1)
@@ -312,6 +314,7 @@ fun ProductSelectionBottomSheet(
                             )
                             individualProducts.forEach { item ->
                                 ProductItemSelectable(
+                                    tipoVenta = saleProductsViewModel.tipoVenta,
                                     saleItem = item,
                                     isSelected = selectedProductIds.contains(
                                         item.product.ARTICULO_ID
@@ -359,7 +362,8 @@ private fun ProductCatalogItem(
     quantityInCart: Int,
     availableStock: Int,
     isOutOfStock: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    tipoVenta: String = "CREDITO"
 ) {
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
     val prices = PriceParser.parsePricesFromString(product.PRECIOS)
@@ -400,7 +404,10 @@ private fun ProductCatalogItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = currencyFormat.format(prices.precioLista),
+                        // E-APP-061: en CONTADO se muestra sólo el contado.
+                        text = currencyFormat.format(
+                            LineasDeVenta.precioDeReferencia(prices, tipoVenta)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isOutOfStock) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)

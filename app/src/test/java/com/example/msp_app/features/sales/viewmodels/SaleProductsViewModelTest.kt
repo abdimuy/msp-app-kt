@@ -637,22 +637,50 @@ class SaleProductsViewModelTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `CONTADO updateProductPrices then switch to CREDITO prices stay zeroed in product`() {
+    fun `E-APP-067 CONTADO updateProductPrices then switch to CREDITO restores catalog prices`() {
+        // Antes esta prueba EXIGÍA que lista y corto se quedaran en 0 al volver a crédito.
+        // Eso es justo el hueco medido: el servidor aplicaba la línea a $0 de anual.
         val product = TestDataFactory.createProductInventory()
         viewModel.addProductToSale(product, 1)
         viewModel.setTipoVenta("CONTADO")
         viewModel.updateProductPrices(product, 2000.0, 1800.0, 1500.0)
 
-        // Prices were stored as 0 for lista/cortoplazo
         val parsed = PriceParser.parsePricesFromString(viewModel.saleItems[0].product.PRECIOS)
         assertEquals(0.0, parsed.precioLista, epsilon)
         assertEquals(0.0, parsed.precioCortoplazo, epsilon)
 
-        // Switching back doesn't magically restore stored prices - they're already 0 in the product
+        val restaurados = viewModel.setTipoVenta("CREDITO")
+        assertEquals(listOf(product.ARTICULO), restaurados)
+        assertEquals(product.PRECIOS, viewModel.saleItems[0].product.PRECIOS)
+        val catalogo = PriceParser.parsePricesFromString(product.PRECIOS)
+        assertTrue(catalogo.precioLista > 0)
+        assertEquals(catalogo.precioLista, viewModel.getTotalPrecioLista(), epsilon)
+    }
+
+    @Test
+    fun `E-APP-067 un precio editado en CREDITO no se pisa al ir y volver de CONTADO`() {
+        val product = TestDataFactory.createProductInventory()
+        viewModel.addProductToSale(product, 1)
+        viewModel.updateProductPrices(product, 2000.0, 1800.0, 1500.0)
+        val editado = viewModel.saleItems[0].product.PRECIOS
+
+        viewModel.setTipoVenta("CONTADO")
+        assertEquals(emptyList<String>(), viewModel.setTipoVenta("CREDITO"))
+        assertEquals(editado, viewModel.saleItems[0].product.PRECIOS)
+    }
+
+    @Test
+    fun `E-APP-067 combos creados en CONTADO se reportan sin anual`() {
+        val p1 = TestDataFactory.createProductInventory(id = 1)
+        val p2 = TestDataFactory.createProductInventory(id = 2)
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.setTipoVenta("CONTADO")
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        viewModel.createCombo("Recamara", 2800.0, 2300.0, 1900.0)
         viewModel.setTipoVenta("CREDITO")
-        val parsedAfter = PriceParser.parsePricesFromString(viewModel.saleItems[0].product.PRECIOS)
-        assertEquals(0.0, parsedAfter.precioLista, epsilon)
-        assertEquals(1500.0, parsedAfter.precioContado, epsilon)
+        assertEquals(listOf("Recamara"), viewModel.combosSinAnual())
     }
 
     @Test

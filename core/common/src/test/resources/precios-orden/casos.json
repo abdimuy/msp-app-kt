@@ -1,0 +1,1269 @@
+{
+  "version": 3,
+  "descripcion": "Reglas de precio de la captura de ventas (fuente: msp-api internal/ventas/domain). (1) Orden por línea: contado <= corto plazo <= anual, un escalón en 0 se salta (montoTierOrderOK, newProducto/newCombo); aplica también a los productos dentro de combo. (2) Precio del tipo en cada producto suelto y cada combo: en CREDITO anual > 0 (precio_anual_credito_requerido, E-VEN-007), en CONTADO contado > 0 (precio_contado_requerido, E-VEN-008); los productos dentro de combo no se revisan. (3) Orden de los totales: suma de productos sueltos y combos (los de dentro de combo no suman) por cantidad (monto_tier_order_invalid). Se revisa en ese orden: (1), luego (2), luego (3). Con varias líneas malas en (2), Go reporta primero los productos y luego los combos (la app reporta primero los combos; el código es el mismo, sólo cambia qué línea se nombra). Formato: cada línea trae dentro_de_combo; una línea con dentro_de_combo=true es hija del combo inmediatamente anterior en el arreglo. Montos en texto decimal; cantidad multiplica la línea en los totales. msp-app-kt guarda copia byte a byte en core/common/src/test/resources/precios-orden/casos.json y comprueba la misma version.",
+  "casos": [
+    {
+      "nombre": "001-contado-producto-tres-precios",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "002-contado-producto-solo-contado",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "003-contado-producto-contado-mayor-que-anual",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1600.00",
+          "precio_corto": "0.00",
+          "precio_anual": "1000.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      }
+    },
+    {
+      "nombre": "004-credito-producto-tres-precios",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "005-credito-producto-tres-iguales",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1400.00",
+          "precio_corto": "1400.00",
+          "precio_anual": "1400.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "006-credito-producto-corto-mayor-que-anual",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "900.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1000.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      }
+    },
+    {
+      "nombre": "007-credito-producto-contado-mayor-que-corto",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1200.00",
+          "precio_corto": "1000.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      }
+    },
+    {
+      "nombre": "008-credito-corto-ausente-contado-mayor-que-anual",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "7700.00",
+          "precio_corto": "0.00",
+          "precio_anual": "1400.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      },
+      "nota": "ocho sillas: con el corto vacío el contado se compara contra el anual"
+    },
+    {
+      "nombre": "009-credito-anual-ausente-ordenado",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "500.00",
+          "precio_corto": "600.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007: en crédito el anual es obligatorio (hasta version 1 se aceptaba)"
+    },
+    {
+      "nombre": "010-credito-anual-ausente-contado-mayor-que-corto",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "600.00",
+          "precio_corto": "500.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      },
+      "nota": "el orden por línea se revisa antes que el anual en crédito"
+    },
+    {
+      "nombre": "011-credito-producto-solo-contado",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "500.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007: en crédito el anual es obligatorio (hasta version 1 se aceptaba)"
+    },
+    {
+      "nombre": "012-credito-producto-solo-anual",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "1400.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "013-contado-combo-solo-contado",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "5000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "014-credito-combo-tres-precios",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "2000.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "3000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "015-credito-combo-orden-invertido",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "3000.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "2000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      }
+    },
+    {
+      "nombre": "016-contado-combo-mas-producto-defecto-medido",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "5000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "monto_tier_order_invalid"
+      },
+      "nota": "E-VEN-005: totales contado 6000 > corto 1200; hoy el servidor la rechaza. Pendiente de decisión del dueño; si cambia la regla, este caso cambia y sube version"
+    },
+    {
+      "nombre": "017-contado-combo-chico-mas-producto-control",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "150.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "control positivo de 016: totales 1150 <= 1200 <= 1600"
+    },
+    {
+      "nombre": "018-contado-combo-mas-producto-solo-contado",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "5000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "019-credito-combo-solo-contado-mas-producto",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "5000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007: el combo sin anual se rechaza antes que los totales (en version 1: monto_tier_order_invalid)"
+    },
+    {
+      "nombre": "020-contado-cantidad-tres-mas-combo-rompe-totales",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "3",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        },
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "700.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "monto_tier_order_invalid"
+      },
+      "nota": "totales contado 3700 > corto 3600"
+    },
+    {
+      "nombre": "021-contado-cantidad-tres-mas-combo-frontera-igual",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "3",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        },
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "600.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "totales contado 3600 = corto 3600: la regla no es estricta"
+    },
+    {
+      "nombre": "022-credito-centavos-ordenados",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.01",
+          "precio_corto": "1200.50",
+          "precio_anual": "1599.99"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "023-credito-centavo-de-mas-en-contado",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.01",
+          "precio_corto": "1000.00",
+          "precio_anual": "1000.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      },
+      "nota": "un centavo basta para romper el orden"
+    },
+    {
+      "nombre": "024-credito-dos-productos-validos",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "500.00",
+          "precio_corto": "600.00",
+          "precio_anual": "800.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "025-contado-producto-solo-contado-mas-producto-tres-precios",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "2000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "monto_tier_order_invalid"
+      },
+      "nota": "E-VEN-005: misma causa que 016 sin combo: totales contado 3000 > corto 1200"
+    },
+    {
+      "nombre": "026-credito-centavos-cantidad-dos",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "2",
+          "precio_contado": "100.00",
+          "precio_corto": "100.05",
+          "precio_anual": "100.10"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "027-credito-combo-sin-anual-mas-producto",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "800.00",
+          "precio_corto": "900.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007: el combo sin anual se rechaza antes que los totales (en version 1: monto_tier_order_invalid)"
+    },
+    {
+      "nombre": "028-credito-cantidad-dos-combo-orden-invertido",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "2",
+          "precio_contado": "50.00",
+          "precio_corto": "200.00",
+          "precio_anual": "100.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      },
+      "nota": "la línea se valida por precio unitario, no por total"
+    },
+    {
+      "nombre": "029-contado-dos-combos-solo-contado",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "5000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "2",
+          "precio_contado": "3000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "030-credito-producto-corto-igual-anual-contado-menor",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "999.99",
+          "precio_corto": "1200.00",
+          "precio_anual": "1200.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    },
+    {
+      "nombre": "031-credito-producto-mas-linea-sin-anual-d4",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "100.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007 D4 medido en dev: se aceptaba y se aplicaba la línea a $0"
+    },
+    {
+      "nombre": "032-credito-combo-sin-anual-mas-producto-d5",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "50.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007 D5 medido en dev: se aceptaba y el combo salía a $0"
+    },
+    {
+      "nombre": "033-credito-unica-linea-sin-anual",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007 medido en dev: se aceptaba al crear y fallaba al aplicar (DOCTOS_PV_COBROS.IMPORTE 0.00)"
+    },
+    {
+      "nombre": "034-contado-producto-mas-linea-sin-anual-control",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "100.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "control de 031: en contado no cambia nada (totales 1100 <= 1200 <= 1600)"
+    },
+    {
+      "nombre": "035-contado-combo-solo-contado-mas-producto-chico-control",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "50.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "control de 032 en contado"
+    },
+    {
+      "nombre": "036-credito-anual-un-centavo",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.01"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "frontera: anual 0.01 basta"
+    },
+    {
+      "nombre": "037-credito-combo-con-anual-y-hijos-en-cero",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "2",
+          "precio_contado": "2000.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "3000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "los hijos del combo (0/0/0) no se revisan"
+    },
+    {
+      "nombre": "038-credito-segundo-combo-sin-anual",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "2000.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "3000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "500.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      }
+    },
+    {
+      "nombre": "039-credito-linea-sin-anual-con-cantidad",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "3",
+          "precio_contado": "250.00",
+          "precio_corto": "300.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "3500.00",
+          "precio_corto": "4000.00",
+          "precio_anual": "5000.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      }
+    },
+    {
+      "nombre": "040-credito-hijo-cero-bajo-combo-con-precio",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "2000.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "3000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "el hijo 0/0/0 de un combo con precio es válido"
+    },
+    {
+      "nombre": "041-contado-hijo-cero-bajo-combo-con-contado",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "2000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "el hijo 0/0/0 de un combo con contado es válido"
+    },
+    {
+      "nombre": "042-contado-producto-suelto-gratis",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_contado_requerido"
+      },
+      "nota": "E-VEN-008 medido por el revisor en dev: se aceptaba; 102 artículos con existencia tienen catálogo 0/0/0"
+    },
+    {
+      "nombre": "043-credito-producto-suelto-gratis",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_anual_credito_requerido"
+      },
+      "nota": "E-VEN-007"
+    },
+    {
+      "nombre": "044-contado-combo-sin-contado",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "3000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_contado_requerido"
+      },
+      "nota": "E-VEN-008"
+    },
+    {
+      "nombre": "045-contado-producto-sin-contado-con-credito",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_contado_requerido"
+      },
+      "nota": "E-VEN-008: el orden por línea pasa (el 0 se salta), el contado falta"
+    },
+    {
+      "nombre": "046-contado-hijo-con-precios-de-catalogo",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "2000.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "1000.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1600.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      },
+      "nota": "los precios del hijo no suman a los totales"
+    },
+    {
+      "nombre": "047-contado-dos-lineas-malas-producto-y-combo",
+      "tipo_venta": "CONTADO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "3000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_contado_requerido"
+      },
+      "nota": "Go nombra el producto suelto (productos antes que combos); la app nombraría el combo. Mismo código"
+    },
+    {
+      "nombre": "048-credito-hijo-con-orden-invertido",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "1",
+          "precio_contado": "2000.00",
+          "precio_corto": "2500.00",
+          "precio_anual": "3000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "900.00",
+          "precio_corto": "1200.00",
+          "precio_anual": "1000.00"
+        }
+      ],
+      "esperado": {
+        "ok": false,
+        "codigo": "precio_tier_order_invalid"
+      },
+      "nota": "el orden por línea también aplica a los hijos de combo"
+    },
+    {
+      "nombre": "049-credito-dos-hijos-bajo-mismo-combo",
+      "tipo_venta": "CREDITO",
+      "lineas": [
+        {
+          "tipo": "combo",
+          "dentro_de_combo": false,
+          "cantidad": "2",
+          "precio_contado": "4000.00",
+          "precio_corto": "4500.00",
+          "precio_anual": "5000.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "1",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        },
+        {
+          "tipo": "producto",
+          "dentro_de_combo": true,
+          "cantidad": "2",
+          "precio_contado": "0.00",
+          "precio_corto": "0.00",
+          "precio_anual": "0.00"
+        }
+      ],
+      "esperado": {
+        "ok": true,
+        "codigo": null
+      }
+    }
+  ]
+}

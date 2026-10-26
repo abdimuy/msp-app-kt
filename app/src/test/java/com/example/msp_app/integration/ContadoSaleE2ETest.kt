@@ -2,11 +2,11 @@ package com.example.msp_app.integration
 
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
-import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
+import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import com.example.msp_app.utils.PriceParser
@@ -55,33 +55,24 @@ class ContadoSaleE2ETest : RoomTestBase() {
         )
         saleDataSource.insertSale(saleEntity)
 
-        // Mirror createSaleWithImages product mapping (line 317-331)
-        val productEntities = saleProductsVM.saleItems.map { saleItem ->
-            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-            LocalSaleProductEntity(
-                LOCAL_SALE_ID = saleId,
-                ARTICULO_ID = saleItem.product.ARTICULO_ID,
-                ARTICULO = saleItem.product.ARTICULO,
-                CANTIDAD = saleItem.quantity,
-                PRECIO_LISTA = parsedPrices.precioLista,
-                PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
-                PRECIO_CONTADO = parsedPrices.precioContado,
-                COMBO_ID = saleItem.comboId
-            )
-        }
+        // Mismo código de producción que createSaleWithImages (E-APP-061), no una copia.
+        val productEntities = LineasDeVenta.productos(saleId, saleProductsVM.saleItems, tipoVenta)
         productDataSource.insertSaleProducts(productEntities)
 
-        // Mirror combo mapping from NewSaleScreen (line 234-248)
-        val comboEntities = saleProductsVM.getCombosList().map { combo ->
-            LocalSaleComboEntity(
-                COMBO_ID = combo.comboId,
-                LOCAL_SALE_ID = saleId,
-                NOMBRE_COMBO = combo.nombreCombo,
-                PRECIO_LISTA = combo.precioLista,
-                PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
-                PRECIO_CONTADO = combo.precioContado
-            )
-        }
+        // Combo mapping de NewSaleScreen + la proyección por tipo de venta del ViewModel.
+        val comboEntities = LineasDeVenta.combos(
+            saleProductsVM.getCombosList().map { combo ->
+                LocalSaleComboEntity(
+                    COMBO_ID = combo.comboId,
+                    LOCAL_SALE_ID = saleId,
+                    NOMBRE_COMBO = combo.nombreCombo,
+                    PRECIO_LISTA = combo.precioLista,
+                    PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
+                    PRECIO_CONTADO = combo.precioContado
+                )
+            },
+            tipoVenta
+        )
         if (comboEntities.isNotEmpty()) {
             comboDataSource.insertCombos(comboEntities)
         }
@@ -90,6 +81,26 @@ class ContadoSaleE2ETest : RoomTestBase() {
     // ========================
     // CONTADO individual products
     // ========================
+
+    @Test
+    fun `E-APP-061 CONTADO sin editar precios - el producto persiste solo con contado`() = runTest {
+        saleProductsVM.setTipoVenta("CONTADO")
+        saleProductsVM.addProductToSale(
+            TestDataFactory.createProductInventory(
+                id = 7,
+                prices = TestDataFactory.VALID_PRICES_STRING
+            ),
+            1
+        )
+
+        persistSale("e2e-contado-sin-editar")
+
+        val p = productDataSource.getProductsForSale("e2e-contado-sin-editar").single()
+        val catalogo = PriceParser.parsePricesFromString(TestDataFactory.VALID_PRICES_STRING)
+        assertEquals(0.0, p.PRECIO_LISTA, epsilon)
+        assertEquals(0.0, p.PRECIO_CORTO_PLAZO, epsilon)
+        assertEquals(catalogo.precioContado, p.PRECIO_CONTADO, epsilon)
+    }
 
     @Test
     fun `CONTADO sale - individual products persist with zeroed lista and cortoplazo`() = runTest {
