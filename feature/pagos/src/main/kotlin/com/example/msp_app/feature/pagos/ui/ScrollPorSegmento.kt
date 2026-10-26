@@ -14,7 +14,7 @@ import androidx.compose.runtime.saveable.listSaver
  * pierde al navegar a registrar un abono y regresar, o cuando Android recrea
  * la actividad. Al volver, sólo se restauraba el `listState` hospedado —el del
  * PRIMER segmento mostrado— y el mapa nuevo se lo asignaba al segmento
- * VISIBLE: "Después" aparecía con el scroll de "Sin visitar". Medido con
+ * VISIBLE: "No paga" aparecía con el scroll de "Por visitar". Medido con
  * `StateRestorationTester` (`ScrollDeLaListaPorOrdenYSegmentoTest`).
  *
  * Se guarda con [Saver] en `rememberSaveable` — el mismo mecanismo que usa

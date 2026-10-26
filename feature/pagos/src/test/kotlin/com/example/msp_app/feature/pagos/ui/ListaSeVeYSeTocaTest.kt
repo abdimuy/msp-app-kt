@@ -79,7 +79,7 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     private fun Lista(clientes: List<ClienteEnLista>) {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
@@ -113,20 +113,16 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **Los cuatro chips se pintan, y el conteo que cambia sale del dato.**
+     * **Las tres pastillas se pintan, y el conteo sale del dato** (E-APP-070).
      *
-     * La partición sólo sirve si las cuatro respuestas están a la vista: con
-     * `TODOS` retirado, un chip que no se pinte se lleva consigo las cuentas que
-     * sólo él enseña.
-     *
-     * La ruta de prueba trae la promesa de Esperanza, que cae **hoy** y por lo
-     * tanto es trabajo pendiente: *volver* marca **1**. Su control positivo vive
-     * en el test de abajo — la misma ruta sin esa puerta marca **0**—, así que
-     * este 1 lo produce el dato y no una cuenta que siempre da uno.
+     * La ruta de prueba trae la promesa de Esperanza (hoy: trabajo pendiente) y
+     * la de Ofelia (dentro de tres días: No paga). Por visitar marca **4**, No
+     * paga **1** y Pagados **1** (la otra venta de Victoria). El control positivo
+     * está en el test de abajo: la misma ruta sin esas dos puertas marca 3, 0 y 1.
      */
     @Test
-    fun `los cuatro chips se pintan, y volver cuenta el compromiso de hoy`() {
-        pinta(clientes = ListaFixtures.rutaConPromesaDeHoy())
+    fun `E-APP-070 las tres pastillas se pintan, y cada una cuenta lo suyo`() {
+        pinta(clientes = ListaFixtures.rutaConTresPastillas())
 
         SegmentoDeCobranza.entries.forEach {
             composeTestRule
@@ -135,50 +131,57 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
         }
         // El conteo va DENTRO del chip: la semántica del `selectable` fusiona sus
         // textos, así que se afirma sobre el nodo del chip.
-        composeTestRule
-            .onNodeWithTag(
-                CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.VOLVER_A_VISITAR.name.lowercase()
-            )
-            .assertTextContains("1")
+        mapOf(
+            SegmentoDeCobranza.POR_VISITAR to "4",
+            SegmentoDeCobranza.NO_PAGA to "1",
+            SegmentoDeCobranza.PAGADOS to "1"
+        ).forEach { (segmento, conteo) ->
+            composeTestRule
+                .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
+                .assertTextContains(segmento.etiqueta)
+                .assertTextContains(conteo)
+        }
     }
 
     /**
-     * **Control positivo del conteo.** Sin ningún compromiso el mismo chip se
-     * pinta con **0**: la cifra del test de arriba sale del dato. Si este test
-     * viera un 1, el de arriba no probaría nada.
+     * **Control positivo del conteo.** Sin las dos promesas el mismo control marca
+     * otras cifras: los números del test de arriba salen del dato.
      */
     @Test
-    fun `sin compromisos el chip de volver marca cero`() {
+    fun `E-APP-070 sin promesas No paga marca cero y Por visitar una menos`() {
         pinta(clientes = ListaFixtures.ruta())
         composeTestRule
-            .onNodeWithTag(
-                CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.VOLVER_A_VISITAR.name.lowercase()
-            )
+            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.NO_PAGA.name.lowercase())
             .assertTextContains("0")
+        composeTestRule
+            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.POR_VISITAR.name.lowercase())
+            .assertTextContains("3")
     }
 
     /**
      * El mismo par, una capa más abajo: sobre la proyección pura, sin Compose.
-     * Es donde se ve que el 1 y el 0 los decide la ruta y no la pantalla.
+     * La promesa de hoy suma a Por visitar; la de mañana en adelante, a No paga.
      */
     @Test
-    fun `el segmento de volver cuenta la promesa que cae hoy`() {
-        val proyeccion = CarteraEnPantalla.proyectar(
-            clientes = ListaFixtures.rutaConPromesaDeHoy(),
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+    fun `E-APP-070 la promesa de hoy cuenta en Por visitar y la futura en No paga`() {
+        val conPromesas = CarteraEnPantalla.proyectar(
+            clientes = ListaFixtures.rutaConTresPastillas(),
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
+        assertEquals(4, conPromesas.conteos[SegmentoDeCobranza.POR_VISITAR])
+        assertEquals(1, conPromesas.conteos[SegmentoDeCobranza.NO_PAGA])
 
-        assertEquals(1, proyeccion.conteos[SegmentoDeCobranza.VOLVER_A_VISITAR])
-        // Control positivo: sin esa puerta el chip vuelve a 0.
-        val sinPromesa = CarteraEnPantalla.proyectar(
+        // Control positivo: sin esas puertas las cifras bajan.
+        val sinPromesas = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.ruta(),
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
-        assertEquals(0, sinPromesa.conteos[SegmentoDeCobranza.VOLVER_A_VISITAR])
+        assertEquals(3, sinPromesas.conteos[SegmentoDeCobranza.POR_VISITAR])
+        assertEquals(0, sinPromesas.conteos[SegmentoDeCobranza.NO_PAGA])
     }
 
     @Test
@@ -191,7 +194,7 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **Los CUATRO, no sólo los que caben.** A `MUY_GRANDE` los rótulos crecen y
+     * **Las TRES, no sólo las que caben.** A `MUY_GRANDE` los rótulos crecen y
      * el segmentado —un `LazyRow` desde 2026-09-22— deja de componer lo que no
      * cabe en pantalla; el riesgo es que un segmento fuera del viewport mida
      * distinto del que se ve, o que la prueba lo dé por bueno sin haberlo tocado.
@@ -231,7 +234,7 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
                 ListaDeClientesContent(
                     state = ListaDeClientesUiState(
                         cargando = false,
-                        segmento = SegmentoDeCobranza.VOLVER_A_VISITAR
+                        segmento = SegmentoDeCobranza.POR_VISITAR
                     ),
                     onBuscar = {},
                     onElegirSegmento = {},

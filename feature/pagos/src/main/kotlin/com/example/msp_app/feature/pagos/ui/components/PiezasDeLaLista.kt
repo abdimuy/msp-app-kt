@@ -12,13 +12,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -36,6 +39,7 @@ import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.math.min
 
 /** Prefijo de `testTag` de cada chip: `"${CHIP_DE_SEGMENTO_TAG}todos"`, etc. */
 const val CHIP_DE_SEGMENTO_TAG: String = "pagos_chip_"
@@ -57,11 +61,11 @@ private val LETRA_DE_LA_DISTANCIA = 22.sp
 const val RENGLON_DE_VENTA_TAG: String = "pagos_renglon_venta_"
 
 /**
- * El filtro de la lista, como **un solo control de cuatro estados**.
+ * El filtro de la lista, como **un solo control de tres estados**.
  *
- * ## Por qué un segmentado y no cuatro pastillas
+ * ## Por qué un segmentado y no tres pastillas
  *
- * La forma dice la verdad. Cuatro pastillas sueltas sugieren que se pueden
+ * La forma dice la verdad. Tres pastillas sueltas sugieren que se pueden
  * prender varias a la vez, y el comportamiento real es que **solo una puede
  * estar activa**. El segmentado lo dice sin gastar una palabra de texto.
  *
@@ -72,7 +76,7 @@ const val RENGLON_DE_VENTA_TAG: String = "pagos_renglon_venta_"
  * el alto lo pone el toque y no la tinta: cada segmento fija
  * [ALTO_TOCABLE_DEL_SEGMENTO] y el contenedor no agrega padding vertical, así
  * que el control mide 50dp. La misma accesibilidad, 6dp menos de franja, y
- * cuatro pastillas sueltas menos.
+ * tres pastillas sueltas menos.
  *
  * **50 y no 48.** El piso de Material son 48dp, pero este repo pide **≥50**
  * (`plans/2026-09-01-pagos-y-visitas.md` §Global Constraints) y ya lo cobra
@@ -81,8 +85,8 @@ const val RENGLON_DE_VENTA_TAG: String = "pagos_renglon_venta_"
  *
  * ## Qué pasa a escala grande
  *
- * Repartir los 328dp de la pantalla entre cuatro segmentos da 79dp a cada uno. A
- * `MUY_GRANDE` (2.0) "Sin visitar" no cabe ni de lejos: la fila entera pide
+ * Repartir los 328dp de la pantalla entre los segmentos da poco ancho a cada uno. A
+ * `MUY_GRANDE` (2.0) "Por visitar" puede no caber: la fila entera pide
  * 542dp. Hubo una **rejilla de dos renglones** para eso y el dueño la retiró
  * —2×2 se comía un bloque de pantalla antes de la primera tarjeta—, así que hoy
  * es una sola fila que rueda en horizontal. Lo que la fila no puede enseñar lo
@@ -108,19 +112,32 @@ fun SegmentadoDeCobranza(
     onElegir: (SegmentoDeCobranza) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ControlSegmentado(
-        opciones = segmentosVisibles(),
-        seleccionado = seleccionado,
-        conteos = conteos,
-        etiquetaDe = { it.etiqueta },
-        tagDe = { CHIP_DE_SEGMENTO_TAG + it.name.lowercase() },
-        onElegir = onElegir,
-        modifier = modifier
-    )
+    // Con letra grande del sistema las tres pastillas no caben y se esconden;
+    // sólo este control topa su escala de letra para que siempre se vean las tres.
+    val densidad = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = densidad.density,
+            fontScale = min(densidad.fontScale, ESCALA_MAXIMA_DEL_SEGMENTADO)
+        )
+    ) {
+        ControlSegmentado(
+            opciones = segmentosVisibles(),
+            seleccionado = seleccionado,
+            conteos = conteos,
+            etiquetaDe = { it.etiqueta },
+            tagDe = { CHIP_DE_SEGMENTO_TAG + it.name.lowercase() },
+            onElegir = onElegir,
+            modifier = modifier
+        )
+    }
 }
 
+/** Escala de letra más grande con la que se pinta el control de la lista. */
+private const val ESCALA_MAXIMA_DEL_SEGMENTADO = 1.3f
+
 /**
- * Los chips que se pintan: **los cuatro, sin filtrar**.
+ * Los chips que se pintan: **los tres, sin filtrar**.
  *
  * ## Por qué ya no hay interruptor
  *
@@ -131,7 +148,7 @@ fun SegmentadoDeCobranza(
  * cobrador que la fila de filtros miente, y cuando deja de leer la fila se
  * pierden también los chips que sí sirven.
  *
- * Los cuatro de ahora **particionan** el catálogo de ocho (ver
+ * Los tres de ahora **particionan** el catálogo de ocho (ver
  * [SegmentoDeCobranza]): esconder cualquiera de ellos dejaría cuentas sin ningún
  * chip donde verse, porque `TODOS` ya no existe. Por eso no hay nada que apagar
  * y la función se queda sólo como el punto donde se decide qué se enseña.

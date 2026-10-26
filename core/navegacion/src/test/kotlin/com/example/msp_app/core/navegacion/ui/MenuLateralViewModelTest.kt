@@ -100,7 +100,7 @@ class MenuLateralViewModelTest {
 
     @Test
     fun `abrir pide los contadores de las opciones visibles y los publica`() = runTest(dispatcher) {
-        contadores.respuesta = mapOf("clientes" to "8 por volver", "ventas" to "1 sin subir")
+        contadores.respuesta = mapOf("clientes" to "8 por visitar", "ventas" to "1 sin subir")
         val vm = viewModel()
         backgroundScope.launch { vm.estado.collect {} }
 
@@ -108,7 +108,7 @@ class MenuLateralViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(setOf("inicio", "clientes")), contadores.pedidos)
-        assertEquals(mapOf("clientes" to "8 por volver"), vm.estado.value.contadores)
+        assertEquals(mapOf("clientes" to "8 por visitar"), vm.estado.value.contadores)
     }
 
     @Test

@@ -2,6 +2,9 @@ package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -42,7 +45,7 @@ import org.robolectric.annotation.GraphicsMode
  * ## La prueba que estaba aquí afirmaba esto y no lo medía
  *
  * Hasta el **2026-09-22** este archivo tenía un solo test, verde, que decía
- * *«a MUY_GRANDE las cuatro etiquetas y conteos quedan completos y dentro de la
+ * *«a MUY_GRANDE las tres etiquetas y conteos quedan completos y dentro de la
  * pantalla»* mientras su propio golden (`pagos_bitacora_light_2_0.png`) mostraba
  * "Visitas" rebanado y "Promesas" ausente. Medía con `boundsInRoot`, y
  * `boundsInRoot` **viene recortado por los padres**. El mecanismo se midió, no
@@ -76,7 +79,7 @@ import org.robolectric.annotation.GraphicsMode
  *
  * Se cobra en las DOS pantallas que comparten el control —la bitácora
  * (`FiltrosDeContacto`) y la lista de clientes (`SegmentadoDeCobranza`)—: son
- * las etiquetas de la lista ("Sin visitar") las que primero dejan de caber.
+ * las etiquetas de la lista ("Por visitar") las que primero dejan de caber.
  *
  * **Pinta la pantalla real, no el control suelto.** Un primer intento montó sólo
  * `FiltrosDeContacto` dentro de un `Box` con el margen de `BitacoraScreen`
@@ -131,6 +134,45 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
     }
 
     /**
+     * **En la lista, a cualquier escala de letra, se ven las tres pastillas.**
+     *
+     * Con tres opciones el aviso contado no basta: esconder "Pagados" o "No
+     * paga" detrás de un "+1" deja al cobrador sin ver un tercio de su ruta. Por
+     * eso el control de la lista limita su propia escala de letra a 1.3×, y
+     * aquí se cobra que a 1.3, 1.5 y 2.0 —la más grande que ofrece
+     * [FontSizeLevel]— cero pastillas quedan ocultas y ningún aviso aparece.
+     */
+    @Test
+    fun `lista a escala de letra 1_3 1_5 y 2_0 no esconde ninguna pastilla`() {
+        val escalas = listOf(
+            1.3f,
+            FontSizeLevel.GRANDE.nominalScale,
+            FontSizeLevel.MUY_GRANDE.nominalScale
+        )
+        // `setContent` va una sola vez por prueba: la escala se cambia por estado.
+        var escala by mutableFloatStateOf(escalas.first())
+        composeTestRule.setContent {
+            val density = LocalDensity.current
+            val nivel = FontSizeLevel.entries.last { it.nominalScale <= escala }
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, escala),
+                LocalFontSizeLevel provides nivel
+            ) {
+                MspTheme(darkTheme = false, animateColors = false) { Lista() }
+            }
+        }
+        val fallos = escalas.mapNotNull { actual ->
+            escala = actual
+            composeTestRule.waitForIdle()
+            val ocultas = tagsDeLaLista().filterNot { seLeeCompleta(it) }
+            val anunciadas = cuentaDelAviso(AVISO_IZQUIERDA_TAG) + cuentaDelAviso(AVISO_DERECHA_TAG)
+            "escala $actual: ocultas=$ocultas avisos=$anunciadas"
+                .takeIf { ocultas.isNotEmpty() || anunciadas != 0 }
+        }
+        assertTrue("pastillas ocultas en la lista: $fallos", fallos.isEmpty())
+    }
+
+    /**
      * **El aviso no sólo cuenta: lleva.**
      *
      * Un degradado dice "hay más" y deja al cobrador adivinando el gesto. Esto
@@ -144,8 +186,9 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
      */
     @Test
     fun `tocando el aviso se llega a ver cada opcion escondida`() {
-        pinta(FontSizeLevel.MUY_GRANDE) { Lista() }
-        val tags = tagsDeLaLista()
+        // En la bitácora: la lista ya no esconde pastillas (topa su escala a 1.3×).
+        pinta(FontSizeLevel.MUY_GRANDE) { Bitacora() }
+        val tags = tagsDeLaBitacora()
         val escondidasAlInicio = tags.filterNot { seLeeCompleta(it) }
         assertFalse(
             "el fixture ya no reproduce el caso: a MUY_GRANDE caben las cuatro",
@@ -244,7 +287,7 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
      *    `ORILLA_*` **pintados**, no de la constante de producción: si algún día
      *    la orilla cambia de ancho, esta prueba mide la que se pintó.
      *
-     * La segunda mitad no es teórica. A `GRANDE`, "Después" quedaba entero
+     * La segunda mitad no es teórica. A `GRANDE`, "No paga" quedaba entero
      * dentro de la ventana y su conteo se desvanecía a blanco bajo la orilla; el
      * aviso decía "+1" y había dos datos ilegibles en pantalla.
      */
@@ -328,7 +371,7 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
     private fun Lista() {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.rutaConPromesaDeHoy(),
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
@@ -337,7 +380,7 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
                 cargando = false,
                 clientes = proyeccion.clientes,
                 conteos = proyeccion.conteos,
-                segmento = SegmentoDeCobranza.SIN_VISITAR
+                segmento = SegmentoDeCobranza.POR_VISITAR
             ),
             onBuscar = {},
             onElegirSegmento = {},

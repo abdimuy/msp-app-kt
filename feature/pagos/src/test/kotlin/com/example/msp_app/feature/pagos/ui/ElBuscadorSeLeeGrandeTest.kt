@@ -173,7 +173,7 @@ class ElBuscadorSeLeeGrandeTest : RobolectricTestBase() {
         }
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = query,
             hoy = ListaFixtures.HOY
         )
@@ -181,7 +181,7 @@ class ElBuscadorSeLeeGrandeTest : RobolectricTestBase() {
             cargando = false,
             clientes = proyeccion.clientes,
             conteos = proyeccion.conteos,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = query,
             hoy = ListaFixtures.HOY
         )

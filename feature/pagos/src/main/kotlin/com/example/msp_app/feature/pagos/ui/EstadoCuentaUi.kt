@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
+import com.example.msp_app.core.common.cobranza.domain.TratoDeEstado
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspColors
@@ -15,41 +16,10 @@ import java.time.format.DateTimeFormatter
 
 /**
  * Cómo se trata en pantalla cada uno de los ocho estados del catálogo de la
- * Task 14.
- *
- * **No es una novena clasificación.** Hay más tratos que estados por una sola
- * razón, explicada abajo: [EstadoCuenta.PROMETIO_PROXIMA] se pinta distinto
- * según traiga fecha o no, y esa fecha la devuelve el propio dominio en
- * [EstadoDelPeriodo.fechaPromesa]. Ningún valor de aquí decide un estado.
+ * Task 14. El enum vive ahora en `:core:common` (E-APP-070) para que los casos
+ * compartidos con msp-api lo prueben; este alias conserva los imports.
  */
-enum class TratoDelEstado {
-    /** Cobró lo del periodo. */
-    PAGADO,
-
-    /** Entró dinero pero no lo esperado. */
-    PARCIAL,
-
-    /** Sigue en la lista de esta semana: hay que volver a esa puerta. */
-    REGRESAS,
-
-    /**
-     * **El único trato que dice "no vuelvas esta semana".** Solo lo alcanza una
-     * promesa CON fecha.
-     */
-    DIFERIDO,
-
-    /** Se negó: atención especial. */
-    ESCALAR,
-
-    /** Quedaron de verse. */
-    CITA,
-
-    /** Fuiste y no había quién atendiera. */
-    NADIE,
-
-    /** Nadie trabajó esta cuenta. */
-    SIN_TRABAJAR
-}
+typealias TratoDelEstado = com.example.msp_app.core.common.cobranza.domain.TratoDelEstado
 
 /**
  * La terna que pinta un estado: **color + ícono + texto**, nunca color solo
@@ -120,20 +90,8 @@ private val HORA: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", BUSIN
 object EstadoCuentaUi {
 
     /** El trato de [estado]. Función TOTAL: los ocho estados tienen el suyo. */
-    fun tratoDe(estado: EstadoDelPeriodo): TratoDelEstado = when (estado.estado) {
-        EstadoCuenta.PAGO -> TratoDelEstado.PAGADO
-        EstadoCuenta.ABONO_PARCIAL -> TratoDelEstado.PARCIAL
-        EstadoCuenta.VISITE_VUELVO -> TratoDelEstado.REGRESAS
-        // La rama que sostiene toda la regla de arriba.
-        EstadoCuenta.PROMETIO_PROXIMA ->
-            if (estado.fechaPromesa == null) TratoDelEstado.REGRESAS else TratoDelEstado.DIFERIDO
-        EstadoCuenta.SE_NEGO -> TratoDelEstado.ESCALAR
-        // La MISMA guarda que la promesa: sin hora no hay cita que sostenga la espera.
-        EstadoCuenta.CITA_A_UNA_HORA ->
-            if (estado.horaCita == null) TratoDelEstado.REGRESAS else TratoDelEstado.CITA
-        EstadoCuenta.NO_ESTABA -> TratoDelEstado.NADIE
-        EstadoCuenta.SIN_TOCAR -> TratoDelEstado.SIN_TRABAJAR
-    }
+    fun tratoDe(estado: EstadoDelPeriodo): TratoDelEstado =
+        TratoDeEstado.de(estado.estado, estado.fechaPromesa, estado.horaCita)
 
     /**
      * ¿La cuenta sigue pidiendo trabajo esta semana? Solo [TratoDelEstado.PAGADO]
