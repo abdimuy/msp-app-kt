@@ -4,6 +4,9 @@ import android.util.Log
 import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.database.dao.visit.VisitaZonaDao
 import com.example.msp_app.core.database.entities.VisitaZonaEntity
+import com.example.msp_app.core.sync.zona.CursorParSyncEngine
+import com.example.msp_app.core.sync.zona.EstadoSync
+import com.example.msp_app.core.sync.zona.PaginaSync
 import com.example.msp_app.data.api.services.visits.VisitaZonaDto
 import com.example.msp_app.data.api.services.visits.VisitasZonaSyncApi
 import java.time.Instant
@@ -18,7 +21,10 @@ import kotlinx.coroutines.sync.withLock
  *
  * Copia deliberada de las reglas de `CobranzaSyncManager.syncResource`
  * (`COBRANZA-SYNC.md` §2 y §3), cada una con la prueba del mismo nombre en
- * `VisitasZonaSyncManagerTest`:
+ * `VisitasZonaSyncManagerTest`. Desde visitas P3 (Tarea 10, E-APP-120) las
+ * reglas del par y de la generación viven en el motor común
+ * [CursorParSyncEngine], que comparte con la bajada de tareas; esta clase
+ * conserva el cambio de zona, el `desde` y la traducción a `visita_zona`:
  *
  * - **El cursor es un PAR** `(UPDATED_AT, ID)`. La página y su posición se
  *   escriben juntas con `VisitaZonaDao.aplicarPagina`, en UNA transacción
@@ -103,85 +109,57 @@ class VisitasZonaSyncManager(
             Log.i(TAG, "cambio de zona: se borra la agenda bajada de otras zonas (zona=$zona)")
             dao.reiniciarZona(zona)
         }
-        val estado = dao.estado(zona)
-        // Generación ya replicada por completo; constante durante la corrida.
-        val epochAplicado = estado?.EPOCH
-        // El par sale del estado persistido, que solo escribe la respuesta del
-        // servidor (E-VIS-070): nunca de las filas de `visita_zona`.
-        var cursor: String? = estado?.CURSOR
-        var afterId: String? = estado?.AFTER_ID
-        var paginas = 0
-        var aplicadas = 0
-        var descartadas = 0
-        var replayPorEpoch = false
-        var primeraVista = false
-        var epochCorrida: Int? = null
-        var epochEstable = true
-        while (true) {
-            val r = api.sync(zona, desde, cursor, afterId, VisitasZonaSyncApi.LIMITE_PAGINA)
-            paginas++
-            val epochServidor = r.sync_epoch?.takeIf { it > 0 }
-            if (!primeraVista) {
-                if (epochServidor != null && epochServidor != epochAplicado && cursor != null) {
-                    Log.i(
-                        TAG,
-                        "generación $epochAplicado -> $epochServidor, replay desde el inicio"
-                    )
-                    // Los dos, juntos, y la agenda bajada con ellos, en una
-                    // transacción. La generación nueva NO se guarda aquí.
-                    dao.reiniciarPorEpoch(zona)
-                    cursor = null
-                    afterId = null
-                    replayPorEpoch = true
-                    continue
-                }
-                primeraVista = true
-                epochCorrida = epochServidor
-            } else if (epochServidor != epochCorrida) {
-                epochEstable = false
-            }
-            val items = r.items.orEmpty()
-            val filas = items.mapNotNull { it.aEntidad(zona) }
-            descartadas += items.size - filas.size
-            val siguienteCursor = r.cursor
-            val siguienteAfterId = when {
-                // Sin cursor no hay media posición posible.
-                siguienteCursor == null -> null
-                // Página con filas: la posición nueva es la última fila.
-                r.after_id != null -> r.after_id
-                items.isNotEmpty() -> items.last().id
-                // Página vacía con el MISMO cursor: la posición dentro del grupo
-                // empatado sigue valiendo. Ponerla en nulo aquí volvería a bajar
-                // el grupo entero en la siguiente corrida.
-                siguienteCursor == cursor -> afterId
-                // Cursor movido sin filas: el after_id viejo es de OTRO cursor;
-                // el grupo nuevo se pide desde su inicio (solo cuesta red).
-                else -> null
-            }
-            // Filas y posición en la MISMA transacción (E-APP-102).
-            dao.aplicarPagina(zona, filas, siguienteCursor, siguienteAfterId)
-            cursor = siguienteCursor
-            afterId = siguienteAfterId
-            aplicadas += filas.size
-            if (r.has_more != true) {
-                val epochNuevo = epochCorrida
-                if (epochEstable && epochNuevo != null && epochNuevo != epochAplicado) {
-                    dao.guardarEpoch(zona, epochNuevo)
-                }
-                break
-            }
+        val corrida = motorDe(zona).correr(desde)
+        if (corrida.descartadas > 0) {
+            Log.w(TAG, "bajada zona=$zona: ${corrida.descartadas} fila(s) sin datos minimos")
         }
-        if (descartadas > 0) Log.w(TAG, "bajada zona=$zona: $descartadas fila(s) sin datos minimos")
         return ResultadoSync.Ok(
-            paginas = paginas,
-            aplicadas = aplicadas,
-            descartadas = descartadas,
-            replayPorEpoch = replayPorEpoch,
+            paginas = corrida.paginas,
+            aplicadas = corrida.aplicadas,
+            descartadas = corrida.descartadas,
+            replayPorEpoch = corrida.replayPorEpoch,
             cambioDeZona = cambioDeZona,
-            cursor = cursor,
-            afterId = afterId
+            cursor = corrida.cursor,
+            afterId = corrida.afterId
         )
     }
+
+    /**
+     * Las reglas del par y de la generación viven en [CursorParSyncEngine]
+     * (E-APP-120); aquí solo se dice de dónde sale la página y dónde se
+     * escribe: siempre `VisitaZonaDao`, nunca `Visit` (I8).
+     */
+    private fun motorDe(zona: Int) = CursorParSyncEngine<VisitaZonaDto>(
+        pagina = { cursor, afterId, desde ->
+            val r = api.sync(zona, desde, cursor, afterId, VisitasZonaSyncApi.LIMITE_PAGINA)
+            PaginaSync(
+                items = r.items.orEmpty(),
+                cursor = r.cursor,
+                afterId = r.after_id,
+                hasMore = r.has_more == true,
+                syncEpoch = r.sync_epoch
+            )
+        },
+        idDe = { it.id },
+        aplicar = { items, cursor, afterId ->
+            val filas = items.mapNotNull { it.aEntidad(zona) }
+            // Filas y posición en la MISMA transacción (E-APP-102).
+            dao.aplicarPagina(zona, filas, cursor, afterId)
+            filas.size
+        },
+        estado = {
+            // El par sale del estado persistido, que solo escribe la respuesta
+            // del servidor (E-VIS-070): nunca de las filas de `visita_zona`.
+            val e = dao.estado(zona)
+            EstadoSync(cursor = e?.CURSOR, afterId = e?.AFTER_ID, epoch = e?.EPOCH)
+        },
+        reiniciar = {
+            Log.i(TAG, "generación distinta, replay desde el inicio (zona=$zona)")
+            // Cursor, after_id y la agenda bajada, juntos, en una transacción.
+            dao.reiniciarPorEpoch(zona)
+        },
+        guardarEpoch = { dao.guardarEpoch(zona, it) }
+    )
 
     companion object {
         /** V del servidor (`VISITAS_BAJADA_VENTANA_DIAS`, DA-3 = 92). */
