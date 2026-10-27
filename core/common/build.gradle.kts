@@ -61,19 +61,22 @@ extensions.configure<KoverProjectExtension> {
     }
 }
 
+// `-PpitCompromisos` acota la mutación a la derivación de compromisos (plan
+// visitas P2, Tarea 17; E-APP-104):
+// `./gradlew --no-parallel :core:common:pitestDebug -PpitCompromisos`.
+// Sin la propiedad, el alcance es el de P1 (envío de visitas).
+val alcancePit: List<String> = if (providers.gradleProperty("pitCompromisos").isPresent) {
+    listOf("com.example.msp_app.core.common.visitas.domain.*")
+} else {
+    listOf(
+        "com.example.msp_app.core.common.visitas.envio.*",
+        "com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase*"
+    )
+}
+
 pitest {
-    targetClasses.set(
-        listOf(
-            "com.example.msp_app.core.common.visitas.envio.*",
-            "com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase*"
-        )
-    )
-    targetTests.set(
-        listOf(
-            "com.example.msp_app.core.common.visitas.envio.*",
-            "com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase*"
-        )
-    )
+    targetClasses.set(alcancePit)
+    targetTests.set(alcancePit)
     threads.set(2)
     outputFormats.set(listOf("HTML", "XML"))
     timestampedReports.set(false)
@@ -95,7 +98,7 @@ dependencies {
     // (coroutines-test, turbine, junit) vía `api`.
     testImplementation(project(":core:testing"))
 
-    // Los juegos de casos compartidos con msp-api (estado por venta y orden de precios) son JSON.
+    // Los juegos de casos compartidos con msp-api (estado por venta, orden de precios y compromisos) son JSON.
     // Solo pruebas: el dominio de :core:common no parsea JSON.
     testImplementation(libs.gson)
 

@@ -1,0 +1,43 @@
+{
+  "nombre": "espejo de testdata/estado-cuenta/050-promesa-y-cita-a-la-vez-por-visitar.json (decisión del dueño 2026-10-17): visita con promesa a futuro y cita a la vez queda en por_visitar, gana la cita",
+  "hoy": "2026-10-14",
+  "ahora": "2026-10-14T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 100,
+      "tipo_visita": "Pidió reagendar visita",
+      "instante": "2026-10-12T16:00:00Z",
+      "promesa": {
+        "venta_id": null,
+        "fecha": "2026-10-16",
+        "monto_centavos": null
+      },
+      "cita": {
+        "fecha": "2026-10-15",
+        "hora": "16:30"
+      }
+    }
+  ],
+  "pagos": [],
+  "esperado": [
+    {
+      "venta_id": 100,
+      "visita_id": "00000000-0000-3000-8000-000000000001",
+      "tipo": "cita",
+      "estado": "vigente_futura",
+      "dia": "2026-10-15",
+      "hora": "16:30",
+      "monto_centavos": null,
+      "columna": "por_visitar"
+    }
+  ]
+}

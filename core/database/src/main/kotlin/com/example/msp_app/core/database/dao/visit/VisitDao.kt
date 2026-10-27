@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
 import kotlinx.coroutines.flow.Flow
@@ -160,6 +161,31 @@ interface VisitDao {
         """
     )
     suspend fun getVisitsByDate(start: String, end: String): List<VisitEntity>
+
+    /**
+     * Los pagos tal como los lee la agenda de compromisos (E-APP-128). Solo
+     * lectura de `Payment`.
+     *
+     * Vive aquí y no en `PaymentDao` porque la lectura de la agenda no debe
+     * mover el DAO del dinero, y es la misma lista de columnas que
+     * `PaymentDao.getAllPayments` MÁS `PAGO_RECIBIDO_ID`: sin esa columna la
+     * agenda no distingue el pago de la app capturado a las 00:00:00 locales
+     * (tiene hora) del pago de oficina del sync (no la tiene) y cierra la
+     * promesa en falso. Las columnas no listadas llegan con el default de la
+     * data class.
+     */
+    @Query(
+        """
+        SELECT
+            ID, COBRADOR, DOCTO_CC_ACR_ID, DOCTO_CC_ID, FECHA_HORA_PAGO,
+            GUARDADO_EN_MICROSIP, IMPORTE, LAT, LNG, CLIENTE_ID,
+            COBRADOR_ID, FORMA_COBRO_ID, ZONA_CLIENTE_ID, NOMBRE_CLIENTE,
+            PAGO_RECIBIDO_ID
+        FROM Payment
+        ORDER BY FECHA_HORA_PAGO DESC
+        """
+    )
+    suspend fun pagosParaLaAgenda(): List<PaymentEntity>
 
     /**
      * Todas las visitas de un cliente, de la más reciente a la más vieja —

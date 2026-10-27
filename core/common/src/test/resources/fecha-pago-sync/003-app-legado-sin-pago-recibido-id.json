@@ -1,0 +1,14 @@
+{
+  "nombre": "pago de la app ligado a MSP_PAGOS_RECIBIDOS solo por DOCTO_CC_ID: el sync no trae pago_recibido_id pero la hora es real. Medido en dev el 2026-10-26, zona 21563, IMPTE 14944259 (E-APP-112)",
+  "origen": "app",
+  "firebird_fecha": "2026-02-19 18:56:14",
+  "sync": {
+    "id": "14944259",
+    "fecha": "2026-02-20T00:56:14Z",
+    "pago_recibido_id": null
+  },
+  "esperado": {
+    "instante": "2026-02-20T00:56:14Z",
+    "fecha": "2026-02-19"
+  }
+}

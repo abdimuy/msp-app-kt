@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales
 
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
@@ -155,4 +156,13 @@ object SaleIdSpaces {
      * `IMPTE_DOCTO_CC_ID = sale.DOCTO_CC_ACR_ID`).
      */
     fun forSaleRow(sale: Sale): Int = sale.DOCTO_CC_ACR_ID
+
+    /**
+     * La misma PK, desde la fila de Room que devuelve `SaleDao.getAll`. La usa
+     * `RoomFuenteDeAgenda.cuentasDeZona` (visitas P2, Tarea 17; E-APP-104): la
+     * venta de la agenda se casa con `Visit.IMPTE_DOCTO_CC_ID`, que
+     * `VisitFactory:63` escribe con `sale.DOCTO_CC_ACR_ID`, y con
+     * `visita_zona.IMPTE_DOCTO_CC_ID`, que trae el mismo número del servidor.
+     */
+    fun forSaleRow(sale: SaleWithProductsEntity): Int = sale.DOCTO_CC_ACR_ID
 }

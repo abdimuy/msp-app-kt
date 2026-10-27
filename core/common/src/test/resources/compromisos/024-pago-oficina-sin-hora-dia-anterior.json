@@ -1,0 +1,48 @@
+{
+  "nombre": "pago de oficina sin hora del día anterior a la visita: no cierra (DA-7)",
+  "hoy": "2026-10-16",
+  "ahora": "2026-10-16T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 100,
+      "tipo_visita": "Pidió que regrese otro día",
+      "instante": "2026-10-15T17:00:00Z",
+      "promesa": {
+        "venta_id": 100,
+        "fecha": "2026-10-20",
+        "monto_centavos": 15000
+      },
+      "cita": null
+    }
+  ],
+  "pagos": [
+    {
+      "venta_id": 100,
+      "instante": null,
+      "fecha": "2026-10-14",
+      "rechazado": false,
+      "local_pendiente": false
+    }
+  ],
+  "esperado": [
+    {
+      "venta_id": 100,
+      "visita_id": "00000000-0000-3000-8000-000000000001",
+      "tipo": "promesa",
+      "estado": "vigente_futura",
+      "dia": "2026-10-20",
+      "hora": null,
+      "monto_centavos": 15000,
+      "columna": "no_paga"
+    }
+  ]
+}

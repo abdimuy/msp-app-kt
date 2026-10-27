@@ -1,0 +1,14 @@
+{
+  "nombre": "pago de la app capturado justo a las 00:00:00 locales: trae pago_recibido_id, así que tiene hora aunque caiga a medianoche (E-APP-112)",
+  "origen": "app",
+  "firebird_fecha": "2026-10-16 00:00:00",
+  "sync": {
+    "id": "15090001",
+    "fecha": "2026-10-16T06:00:00Z",
+    "pago_recibido_id": "6b0c1f2e-3d4a-4b5c-8d6e-7f8091a2b3c4"
+  },
+  "esperado": {
+    "instante": "2026-10-16T06:00:00Z",
+    "fecha": "2026-10-16"
+  }
+}

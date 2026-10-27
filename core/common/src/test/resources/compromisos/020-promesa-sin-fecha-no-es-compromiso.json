@@ -1,0 +1,25 @@
+{
+  "nombre": "el teléfono capturó solo monto (sin fecha): no viaja como promesa (DA-16), sin entrada",
+  "hoy": "2026-10-16",
+  "ahora": "2026-10-16T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 100,
+      "tipo_visita": "Pidió reagendar visita",
+      "instante": "2026-10-15T17:00:00Z",
+      "promesa": null,
+      "cita": null
+    }
+  ],
+  "pagos": [],
+  "esperado": []
+}

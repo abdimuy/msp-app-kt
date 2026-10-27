@@ -1,0 +1,14 @@
+{
+  "nombre": "pago de oficina (sin fila en MSP_PAGOS_RECIBIDOS): MSP_PAGOS_VENTAS.FECHA es DOCTOS_CC.FECHA a las 00:00 locales y el sync lo manda como el instante UTC de esa medianoche; no tiene hora (DA-7). Medido en dev el 2026-10-26, zona 21550, IMPTE 14998988 (E-APP-112)",
+  "origen": "oficina",
+  "firebird_fecha": "2026-08-24 00:00:00",
+  "sync": {
+    "id": "14998988",
+    "fecha": "2026-08-24T06:00:00Z",
+    "pago_recibido_id": null
+  },
+  "esperado": {
+    "instante": null,
+    "fecha": "2026-08-24"
+  }
+}
