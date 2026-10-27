@@ -225,7 +225,7 @@ class ReconcileCompromisosEntregadosUseCaseTest {
                     Servidor(cancela = true),
                     Reporte()
                 ) { ahora }.execute()
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 propagada = true
             }
         }

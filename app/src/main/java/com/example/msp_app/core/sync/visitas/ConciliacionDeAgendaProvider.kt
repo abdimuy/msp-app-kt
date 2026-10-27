@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.visitas
 
 import android.content.Context
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.visitas.agenda.AgendaLocal
@@ -24,7 +25,7 @@ object ConciliacionDeAgendaProvider {
 
     suspend fun conciliar(
         context: Context,
-        ahora: Instant = Instant.now()
+        ahora: Instant = AppClock.System.now()
     ): ResultadoConciliacionDeAgenda? {
         if (!KillSwitchAgenda.bajada) return null
         val zona = CobranzaSyncProvider.userContextFlow.value?.zona ?: return null

@@ -95,6 +95,7 @@ internal data class CasoDeCompromiso(
         private const val ZONA_UNICA = "America/Mexico_City"
         private val HORA: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
+        @Suppress("LongMethod")
         fun desdeJson(archivo: String, texto: String): CasoDeCompromiso {
             val raiz = JsonParser.parseString(texto).asJsonObject
             raiz.soloClavesConOpcionales(

@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.tareas
 
 import android.util.Log
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.database.dao.tareas.TareaZonaDao
 import com.example.msp_app.core.database.entities.TareaZonaEntity
@@ -63,7 +64,7 @@ class TareasZonaSyncManager(
     private val alAplicar: suspend (List<TareaZonaEntity>) -> Unit = {},
     /** Solo reporta; no decide nada. Si revienta, la corrida sigue. */
     private val telemetria: (ResultadoSync) -> Unit = {},
-    private val reloj: () -> Instant = { Instant.now() },
+    private val reloj: () -> Instant = { AppClock.System.now() },
     /** Serializa el disparo periódico y el del despertador FCM. */
     private val mutex: Mutex = MUTEX_DEL_PROCESO
 ) {

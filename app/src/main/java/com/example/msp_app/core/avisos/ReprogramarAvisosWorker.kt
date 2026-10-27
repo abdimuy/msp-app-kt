@@ -8,13 +8,13 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.visitas.agenda.AgendaLocal
 import com.example.msp_app.core.visitas.agenda.RoomFuenteDeAgenda
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
-import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Encola la reprogramación de alarmas; total: nunca propaga (plan P3, Tarea 13). */
@@ -76,7 +76,7 @@ class ReprogramarAvisosWorker @JvmOverloads constructor(
                     TelemetriaDeVisitas.avisos(
                         EstadoDePermisos.leer(context),
                         programados,
-                        ContadorDeDisparos.de(context).ultimas24h(Instant.now())
+                        ContadorDeDisparos.de(context).ultimas24h(AppClock.System.now())
                     )
                 )
             } catch (e: CancellationException) {
@@ -98,7 +98,7 @@ class ReprogramarAvisosWorker @JvmOverloads constructor(
             if (zona == null) {
                 // Sin zona (p. ej. justo tras el reinicio) no se recalcula: se
                 // reconstruyen las alarmas de la tabla tal cual.
-                val ahora = Instant.now()
+                val ahora = AppClock.System.now()
                 reprogramador.reprogramarTodo(
                     PlanDeAvisos.desdeTabla(db.avisosDao().programados(), ahora)
                 )
@@ -107,7 +107,7 @@ class ReprogramarAvisosWorker @JvmOverloads constructor(
             val agenda = AgendaLocal(
                 RoomFuenteDeAgenda(db.saleDao(), db.visitDao(), db.visitaZonaDao())
             )
-            val ahora = Instant.now()
+            val ahora = AppClock.System.now()
             val compromisos = agenda.derivarAhora(zona, ahora).values
             val tareas = db.tareaZonaDao().deZona(zona)
             val estados = agenda.estadosDeTareas(tareas, AgendaLocal.hoyDe(ahora))

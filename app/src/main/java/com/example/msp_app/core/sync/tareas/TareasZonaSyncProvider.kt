@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.msp_app.core.avisos.AvisoInmediato
 import com.example.msp_app.core.avisos.NotificadorDeVisitaAsignada
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.TareaZonaEntity
 import com.example.msp_app.core.fcm.SuscripcionDeZonaProvider
@@ -14,7 +15,6 @@ import com.example.msp_app.core.visitas.agenda.KillSwitchAgenda
 import com.example.msp_app.core.visitas.agenda.RoomFuenteDeAgenda
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.visits.TareasZonaSyncApi
-import java.time.Instant
 
 /**
  * Arma un [TareasZonaSyncManager] por corrida (plan visitas P3, Tarea 11).
@@ -56,15 +56,15 @@ object TareasZonaSyncProvider {
             dao = db.avisosDao(),
             notificar = notificador::mostrar,
             permitido = notificador::permitido,
-            ahora = { Instant.now() },
-            hoy = { AgendaLocal.hoyDe(Instant.now()) },
+            ahora = { AppClock.System.now() },
+            hoy = { AgendaLocal.hoyDe(AppClock.System.now()) },
             etiqueta = { t ->
                 db.saleDao().getById(t.VENTA_ID)?.let { it.FOLIO.ifBlank { it.CLIENTE } }.orEmpty()
             },
             reportarPermiso = { Log.i(TAG, "permiso.notificaciones=$it") }
         )
         return { filas ->
-            val hoy = AgendaLocal.hoyDe(Instant.now())
+            val hoy = AgendaLocal.hoyDe(AppClock.System.now())
             aviso.alAplicar(filas, agenda.estadosDeTareas(filas, hoy))
         }
     }

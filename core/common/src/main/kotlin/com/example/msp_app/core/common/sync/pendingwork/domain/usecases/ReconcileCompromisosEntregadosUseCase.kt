@@ -71,6 +71,7 @@ class ReconcileCompromisosEntregadosUseCase(
     private val clock: () -> Instant
 ) {
 
+    @Suppress("LongMethod")
     suspend fun execute(
         dias: Int = ReconcileDeliveredVisitsUseCase.VENTANA_DIAS
     ): ConciliacionDeCompromisos {

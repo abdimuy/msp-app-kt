@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +51,7 @@ class AvisoAlarmReceiver : BroadcastReceiver() {
                 id.hashCode(),
                 CanalesDeNotificacion.AVISOS_COMPROMISOS
             )
-            ContadorDeDisparos.de(context).registrar(java.time.Instant.now())
+            ContadorDeDisparos.de(context).registrar(AppClock.System.now())
         }
 
         /** Título y texto por tipo; sin datos del cliente (se verían en la pantalla bloqueada). */

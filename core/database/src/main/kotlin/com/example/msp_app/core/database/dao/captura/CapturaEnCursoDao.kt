@@ -166,4 +166,5 @@ interface CapturaEnCursoDao {
 }
 
 /** E-APP-119: la venta local sin terminar del aviso; [ESCRITA] = ya está en `local_sale`. */
+@Suppress("ConstructorParameterNaming") // Room mapea por nombre de columna: ID, ESCRITA
 data class VentaLocalSinTerminarFila(val ID: String, val ESCRITA: Boolean)

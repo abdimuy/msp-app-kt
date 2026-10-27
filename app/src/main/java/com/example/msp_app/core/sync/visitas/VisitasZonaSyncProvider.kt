@@ -2,6 +2,7 @@ package com.example.msp_app.core.sync.visitas
 
 import android.content.Context
 import android.util.Log
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.visitas.agenda.KillSwitchAgenda
@@ -54,7 +55,7 @@ object VisitasZonaSyncProvider {
      */
     suspend fun inventariar(
         context: Context,
-        ahora: Instant = Instant.now()
+        ahora: Instant = AppClock.System.now()
     ): ResultadoInventario? {
         if (!KillSwitchAgenda.bajada) return null
         val zona = CobranzaSyncProvider.userContextFlow.value?.zona ?: return null

@@ -109,6 +109,8 @@ fun derivarEstadoTarea(
 }
 
 /** Punto 2. [aplicables] ya viene filtrada por alcance. */
+// Lectura lineal de las reglas del contrato v2.2: partirla separaría el desempate de la comparación.
+@Suppress("CyclomaticComplexMethod")
 private fun primeraAtencion(
     t: TareaCompromiso,
     aplicables: List<VisitaCompromiso>,
@@ -117,6 +119,8 @@ private fun primeraAtencion(
 ): AtendidaPor? {
     var mejor: AtendidaPor? = null
     var claveMejor: Instant = Instant.MAX
+
+    @Suppress("ComplexCondition")
     fun considerar(clave: Instant, a: AtendidaPor) {
         val actual = mejor
         if (actual == null || clave.isBefore(claveMejor) ||
