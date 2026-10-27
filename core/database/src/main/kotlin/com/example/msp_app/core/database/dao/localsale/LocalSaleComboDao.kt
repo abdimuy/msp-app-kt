@@ -16,6 +16,10 @@ interface LocalSaleComboDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllCombos(combos: List<LocalSaleComboEntity>)
 
+    /** Los combos de una venta NUEVA (E-APP-094). `ABORT`, como las líneas. */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertarCombosNuevos(combos: List<LocalSaleComboEntity>)
+
     @Query("SELECT * FROM local_sale_combos WHERE LOCAL_SALE_ID = :saleId")
     suspend fun getCombosForSale(saleId: String): List<LocalSaleComboEntity>
 
