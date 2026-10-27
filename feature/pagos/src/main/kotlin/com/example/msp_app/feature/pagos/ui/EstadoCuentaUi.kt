@@ -129,7 +129,10 @@ object EstadoCuentaUi {
         TratoDelEstado.PARCIAL -> "Abonó parcial"
         TratoDelEstado.REGRESAS -> when (estado.estado) {
             EstadoCuenta.PROMETIO_PROXIMA -> "Prometió sin fecha"
-            EstadoCuenta.CITA_A_UNA_HORA -> "Cita sin hora"
+            // Spec visitas §5.7 F (E-APP-115): sin hora, la cita dice su DÍA.
+            // Antes decía "Cita sin hora" y el cobrador no sabía cuándo.
+            EstadoCuenta.CITA_A_UNA_HORA ->
+                estado.fechaCita?.let { "Cita " + DIA_Y_MES.format(it) } ?: "Cita sin hora"
             else -> "Visité, vuelvo"
         }
         // **Con el monto prometido**, cuando lo hay. Se capturaba y no se
@@ -162,7 +165,8 @@ object EstadoCuentaUi {
         TratoDelEstado.PARCIAL -> "Falta por confirmar"
         TratoDelEstado.REGRESAS -> when (estado.estado) {
             EstadoCuenta.PROMETIO_PROXIMA -> "Sin fecha, regresas"
-            EstadoCuenta.CITA_A_UNA_HORA -> "Sin hora, regresas"
+            // §5.7 F: nunca "regresas"; lo que falta es la hora, y eso dice.
+            EstadoCuenta.CITA_A_UNA_HORA -> "Sin hora"
             else -> "Regresas esta semana"
         }
         TratoDelEstado.DIFERIDO -> "No cae esta semana"

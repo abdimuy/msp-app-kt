@@ -1,0 +1,20 @@
+{
+  "nombre": "cita-incumplida-con-hora-con-abonos",
+  "hoy": "2026-10-20",
+  "con_abonos": true,
+  "compromiso": {
+    "tipo": "cita",
+    "estado": "incumplida",
+    "dia": "2026-10-15",
+    "hora": "16:30",
+    "monto_centavos": null
+  },
+  "esperado": {
+    "principal": "estado",
+    "compromiso": {
+      "titulo": "Cita incumplida",
+      "detalle": "Jue 15 oct, 16:30",
+      "trato": "REGRESAS"
+    }
+  }
+}

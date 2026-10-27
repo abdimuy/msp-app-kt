@@ -95,11 +95,26 @@ class EstadoCuentaUiTest {
         assertTrue(EstadoCuentaUi.requiereAtencion(EstadoCuentaUi.tratoDe(cita(null))))
     }
 
+    /**
+     * Spec visitas §5.7 F (plan P2, Tarea 20; E-APP-115): una cita sin hora es
+     * una cita **con su día**. Antes decía "Cita sin hora / Sin hora, regresas"
+     * y escondía el día. El trato sigue en REGRESAS (pide visita): cambiarlo a
+     * CITA espera a la lista de tres columnas, donde el trato se amarra con Go.
+     */
     @Test
-    fun `cita sin hora se nombra como pendiente, no como cita cerrada`() {
+    fun `cita sin hora dice su dia y nunca regresas`() {
+        val conDia = cita(null).copy(fechaCita = LocalDate.of(2026, 10, 23))
+        assertEquals("Cita 23 oct", EstadoCuentaUi.etiquetaDe(conDia))
+        assertEquals("Sin hora", EstadoCuentaUi.detalleDe(conDia))
+        assertFalse(EstadoCuentaUi.detalleDe(conDia).contains("regresas", ignoreCase = true))
+        assertFalse(EstadoCuentaUi.detalleDe(conDia).contains("quedaron"))
+    }
+
+    /** Sin día tampoco hay qué decir de cuándo: se nombra la cita y lo que le falta. */
+    @Test
+    fun `cita sin hora ni dia se nombra sin inventar fecha`() {
         assertEquals("Cita sin hora", EstadoCuentaUi.etiquetaDe(cita(null)))
-        assertEquals("Sin hora, regresas", EstadoCuentaUi.detalleDe(cita(null)))
-        assertFalse(EstadoCuentaUi.detalleDe(cita(null)).contains("quedaron"))
+        assertEquals("Sin hora", EstadoCuentaUi.detalleDe(cita(null)))
     }
 
     @Test

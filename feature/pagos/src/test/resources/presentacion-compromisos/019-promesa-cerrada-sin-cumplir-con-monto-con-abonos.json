@@ -1,0 +1,16 @@
+{
+  "nombre": "promesa-cerrada-sin-cumplir-con-monto-con-abonos",
+  "hoy": "2026-10-20",
+  "con_abonos": true,
+  "compromiso": {
+    "tipo": "promesa",
+    "estado": "cerrada_sin_cumplir",
+    "dia": "2026-09-30",
+    "hora": null,
+    "monto_centavos": 50050
+  },
+  "esperado": {
+    "principal": "estado",
+    "compromiso": null
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "nombre": "reemplazada-o-sin-compromiso-sin-abonos",
+  "hoy": "2026-10-20",
+  "con_abonos": false,
+  "compromiso": null,
+  "esperado": {
+    "principal": "primer_abono",
+    "compromiso": null
+  }
+}

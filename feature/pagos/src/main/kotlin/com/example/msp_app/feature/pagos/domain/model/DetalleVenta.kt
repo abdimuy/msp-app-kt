@@ -107,7 +107,13 @@ data class DetalleVenta(
      * razón: un default sería un `LocalDate.now()` escrito en otro lado, que es
      * justo lo que esto evita.
      */
-    val hoy: LocalDate
+    val hoy: LocalDate,
+    /**
+     * El compromiso vigente de esta venta, para el renglón del detalle (spec
+     * visitas §5.7 E; E-APP-115). `null` = sin compromiso. Lo llena la agenda
+     * local de la Tarea 17 de visitas P2; mientras no esté integrada, `null`.
+     */
+    val compromiso: CompromisoDeLaVenta? = null
 ) : CuentaCobrable
 
 /** Una línea de la sección "productos". */

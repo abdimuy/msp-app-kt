@@ -1,0 +1,20 @@
+{
+  "nombre": "promesa-incumplida-sin-monto-sin-abonos",
+  "hoy": "2026-10-20",
+  "con_abonos": false,
+  "compromiso": {
+    "tipo": "promesa",
+    "estado": "incumplida",
+    "dia": "2026-10-15",
+    "hora": null,
+    "monto_centavos": null
+  },
+  "esperado": {
+    "principal": "primer_abono",
+    "compromiso": {
+      "titulo": "Promesa incumplida",
+      "detalle": "Jue 15 oct",
+      "trato": "REGRESAS"
+    }
+  }
+}

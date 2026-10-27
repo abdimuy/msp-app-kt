@@ -1,0 +1,20 @@
+{
+  "nombre": "cita-vigente-hoy-con-hora-sin-abonos",
+  "hoy": "2026-10-20",
+  "con_abonos": false,
+  "compromiso": {
+    "tipo": "cita",
+    "estado": "vigente_hoy",
+    "dia": "2026-10-20",
+    "hora": "16:30",
+    "monto_centavos": null
+  },
+  "esperado": {
+    "principal": "primer_abono",
+    "compromiso": {
+      "titulo": "Cita",
+      "detalle": "Hoy, 16:30",
+      "trato": "CITA"
+    }
+  }
+}

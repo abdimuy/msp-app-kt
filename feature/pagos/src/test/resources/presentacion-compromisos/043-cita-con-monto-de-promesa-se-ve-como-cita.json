@@ -1,0 +1,20 @@
+{
+  "nombre": "cita-con-monto-de-promesa-se-ve-como-cita",
+  "hoy": "2026-10-20",
+  "con_abonos": true,
+  "compromiso": {
+    "tipo": "cita",
+    "estado": "vigente_futura",
+    "dia": "2026-10-23",
+    "hora": "09:05",
+    "monto_centavos": 30000
+  },
+  "esperado": {
+    "principal": "estado",
+    "compromiso": {
+      "titulo": "Cita",
+      "detalle": "Vie 23 oct, 09:05",
+      "trato": "CITA"
+    }
+  }
+}

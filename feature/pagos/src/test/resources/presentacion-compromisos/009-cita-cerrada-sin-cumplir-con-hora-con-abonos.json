@@ -1,0 +1,16 @@
+{
+  "nombre": "cita-cerrada-sin-cumplir-con-hora-con-abonos",
+  "hoy": "2026-10-20",
+  "con_abonos": true,
+  "compromiso": {
+    "tipo": "cita",
+    "estado": "cerrada_sin_cumplir",
+    "dia": "2026-09-30",
+    "hora": "16:30",
+    "monto_centavos": null
+  },
+  "esperado": {
+    "principal": "estado",
+    "compromiso": null
+  }
+}

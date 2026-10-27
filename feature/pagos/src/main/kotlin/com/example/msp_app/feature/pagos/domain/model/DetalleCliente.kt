@@ -257,7 +257,13 @@ data class VentaDelCliente(
      * de cada una. Se dice aquí, con su costo, en vez de dejar creer que el
      * "pídele hoy" del detalle de cliente ya está cubierto — no lo está.
      */
-    override val cuota: CuotaDeLaVenta = CuotaDeLaVenta(parcialidad, OrigenDeLaCuota.PARCIALIDAD)
+    override val cuota: CuotaDeLaVenta = CuotaDeLaVenta(parcialidad, OrigenDeLaCuota.PARCIALIDAD),
+    /**
+     * El compromiso vigente de esta venta (spec visitas §5.7 B y C; E-APP-115).
+     * `null` = sin compromiso que pintar. Lo llena la agenda local de la Tarea
+     * 17 de visitas P2; mientras no esté integrada, siempre es `null`.
+     */
+    val compromiso: CompromisoDeLaVenta? = null
 ) : CuentaCobrable
 
 /**

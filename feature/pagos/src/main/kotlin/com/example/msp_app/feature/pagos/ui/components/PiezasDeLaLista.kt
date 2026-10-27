@@ -36,7 +36,9 @@ import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
+import com.example.msp_app.feature.pagos.ui.PiezaPrincipal
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
+import com.example.msp_app.feature.pagos.ui.piezasDeLaTarjeta
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.min
@@ -460,9 +462,13 @@ private fun RenglonDeVenta(
         // dos en una fila, también medido, y ahí no se gasta alto de más. La misma
         // regla aplica al par nuevo (chip de primer abono + "Vendida …").
         val enUnaFila = LocalFontSizeLevel.current != FontSizeLevel.MUY_GRANDE
+        // Spec visitas §5.7 B y C (E-APP-115): el chip de dinero —o "Primer
+        // abono"— sigue en su lugar y el compromiso se pinta ADEMÁS, debajo.
+        val piezas = piezasDeLaTarjeta(!esNueva, venta.compromiso, hoy, montosOcultos, venta.estado)
+        val primerAbono = piezas.principal == PiezaPrincipal.PRIMER_ABONO
         if (enUnaFila) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (esNueva) {
+                if (primerAbono) {
                     ChipDePrimerAbono(
                         venta.cuota,
                         montosOcultos
@@ -481,7 +487,7 @@ private fun RenglonDeVenta(
                 }
             }
         } else {
-            if (esNueva) {
+            if (primerAbono) {
                 ChipDePrimerAbono(
                     venta.cuota,
                     montosOcultos
@@ -491,6 +497,10 @@ private fun RenglonDeVenta(
             }
             Spacer(Modifier.height(MspTheme.spacing.xs))
             if (esNueva) TextoDeVendida(venta.fechaVenta, hoy) else PastillaDeAtrasos(venta.atrasos)
+        }
+        piezas.compromiso?.let {
+            Spacer(Modifier.height(MspTheme.spacing.xs + 2.dp))
+            LineaDeCompromiso(it)
         }
         Spacer(Modifier.height(AIRE_SOBRE_LA_BARRA))
         MspProgressBar(

@@ -153,7 +153,9 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
         assertEquals(EstadoCuenta.CITA_A_UNA_HORA, estado.estado)
         assertEquals(TratoDelEstado.REGRESAS, EstadoCuentaUi.tratoDe(estado))
-        assertEquals("Cita sin hora", EstadoCuentaUi.etiquetaDe(estado))
+        // Spec visitas §5.7 F (E-APP-115): sin hora, la cita dice su día.
+        assertEquals("Cita 3 sept", EstadoCuentaUi.etiquetaDe(estado))
+        assertEquals("Sin hora", EstadoCuentaUi.detalleDe(estado))
         assertTrue(EstadoCuentaUi.requiereAtencion(EstadoCuentaUi.tratoDe(estado)))
     }
 
