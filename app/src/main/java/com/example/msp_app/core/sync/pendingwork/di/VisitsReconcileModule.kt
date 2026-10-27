@@ -1,18 +1,23 @@
 package com.example.msp_app.core.sync.pendingwork.di
 
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.CompromisoEnServidorRegistry
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.CompromisosEntregadosStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DineroPendiente
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.MemoriaDeBarridoPospuesto
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileCompromisosEntregadosUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.sync.pendingwork.data.visits.RoomCompromisosEntregadosStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDineroPendiente
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomPendingVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.TelemetrySyncErrorReporter
+import com.example.msp_app.core.sync.pendingwork.data.visits.V2CompromisoEnServidorRegistry
 import com.example.msp_app.core.sync.pendingwork.data.visits.V2VisitCustodyRegistry
 import com.example.msp_app.core.visitas.envio.PreferenciasDeBarridoPospuesto
 import dagger.Binds
@@ -65,6 +70,17 @@ abstract class VisitsReconcileModule {
     @Binds
     abstract fun bindSyncErrorReporter(impl: TelemetrySyncErrorReporter): SyncErrorReporter
 
+    /** Conciliación inversa del compromiso (P2 Tarea 18, E-APP-132). Sin `@Singleton`. */
+    @Binds
+    abstract fun bindCompromisosEntregadosStore(
+        impl: RoomCompromisosEntregadosStore
+    ): CompromisosEntregadosStore
+
+    @Binds
+    abstract fun bindCompromisoEnServidorRegistry(
+        impl: V2CompromisoEnServidorRegistry
+    ): CompromisoEnServidorRegistry
+
     companion object {
 
         @Provides
@@ -92,6 +108,19 @@ abstract class VisitsReconcileModule {
             errorReporter = errorReporter,
             dineroPendiente = dineroPendiente,
             memoriaDePospuesto = memoriaDePospuesto,
+            clock = { AppClock.System.now() }
+        )
+
+        /** Conciliación inversa del compromiso (plan visitas P2, Tarea 18). Sin `@Singleton`, igual que las de arriba. */
+        @Provides
+        fun provideReconcileCompromisosEntregadosUseCase(
+            store: CompromisosEntregadosStore,
+            registry: CompromisoEnServidorRegistry,
+            errorReporter: SyncErrorReporter
+        ): ReconcileCompromisosEntregadosUseCase = ReconcileCompromisosEntregadosUseCase(
+            store = store,
+            registry = registry,
+            errorReporter = errorReporter,
             clock = { AppClock.System.now() }
         )
     }

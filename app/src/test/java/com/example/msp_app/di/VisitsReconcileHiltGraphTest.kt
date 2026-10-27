@@ -1,14 +1,19 @@
 package com.example.msp_app.di
 
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.CompromisoEnServidorRegistry
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.CompromisosEntregadosStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileCompromisosEntregadosUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
+import com.example.msp_app.core.sync.pendingwork.data.visits.RoomCompromisosEntregadosStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomPendingVisitsStore
 import com.example.msp_app.core.sync.pendingwork.data.visits.TelemetrySyncErrorReporter
+import com.example.msp_app.core.sync.pendingwork.data.visits.V2CompromisoEnServidorRegistry
 import com.example.msp_app.core.sync.pendingwork.data.visits.V2VisitCustodyRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -58,6 +63,15 @@ class VisitsReconcileHiltGraphTest {
     @Inject
     lateinit var deliveredStore: DeliveredVisitsStore
 
+    @Inject
+    lateinit var reconcileCompromisos: ReconcileCompromisosEntregadosUseCase
+
+    @Inject
+    lateinit var compromisosStore: CompromisosEntregadosStore
+
+    @Inject
+    lateinit var compromisoRegistry: CompromisoEnServidorRegistry
+
     @Before
     fun setUp() {
         hiltRule.inject()
@@ -76,5 +90,13 @@ class VisitsReconcileHiltGraphTest {
     fun `el grafo Hilt de app resuelve la reconciliacion inversa y su puerto local`() {
         assertNotNull(reconcileDelivered)
         assertTrue(deliveredStore is RoomDeliveredVisitsStore)
+    }
+
+    /** Plan visitas P2, Tarea 18 (E-APP-132): el grafo real arma la conciliación inversa del compromiso. */
+    @Test
+    fun `el grafo Hilt de app resuelve la conciliacion inversa del compromiso y sus puertos`() {
+        assertNotNull(reconcileCompromisos)
+        assertTrue(compromisosStore is RoomCompromisosEntregadosStore)
+        assertTrue(compromisoRegistry is V2CompromisoEnServidorRegistry)
     }
 }

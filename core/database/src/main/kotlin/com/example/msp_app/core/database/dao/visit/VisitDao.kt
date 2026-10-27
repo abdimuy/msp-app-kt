@@ -468,6 +468,27 @@ interface VisitDao {
     )
     suspend fun entregadasDesde(desde: String): List<String>
 
+    /**
+     * Las soltadas que la conciliación inversa del compromiso (P2 Tarea 18,
+     * E-APP-132) compara con el servidor: las mismas de [entregadasDesde] con
+     * promesa o cita cuyo compromiso el teléfono ya dio por entregado
+     * (`COMPROMISO_CONFIRMADO_EN`) y no resguardado. Las que esperan relleno o
+     * están resguardadas ya tienen su propio camino. Solo lectura.
+     */
+    @Query(
+        """
+        SELECT * FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND RESGUARDADA_EN IS NULL
+          AND (PROMESA_FECHA IS NOT NULL OR CITA_FECHA IS NOT NULL)
+          AND COMPROMISO_CONFIRMADO_EN IS NOT NULL
+          AND COMPROMISO_RESGUARDADO_EN IS NULL
+          AND (CONFIRMADA_EN IS NULL OR CONFIRMADA_EN >= :desde)
+        ORDER BY FECHA ASC, ID ASC
+        """
+    )
+    suspend fun entregadasConCompromisoDesde(desde: String): List<VisitEntity>
+
     @Query("DELETE FROM Visit")
     suspend fun deleteAllVisits()
 

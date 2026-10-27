@@ -8,9 +8,12 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionDeCompromisos
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
+import com.example.msp_app.core.sync.visitas.MotivoOmitida
+import com.example.msp_app.core.sync.visitas.ResultadoConciliacionDeAgenda
 import com.example.msp_app.core.sync.visitas.ResultadoInventario
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
@@ -78,6 +81,8 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
         modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
         useV2: Boolean = true,
         inventariar: suspend () -> ResultadoInventario? = { null },
+        conciliarAgenda: suspend () -> ResultadoConciliacionDeAgenda? = { null },
+        conciliarCompromisos: suspend () -> ConciliacionDeCompromisos? = { null },
         conciliar: suspend () -> ConciliacionInversa
     ): VisitsDailyReconcileWorker = TestListenableWorkerBuilder<VisitsDailyReconcileWorker>(context)
         .setWorkerFactory(object : WorkerFactory() {
@@ -96,7 +101,9 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
                 anotarCorrida = { registro.corridas += it },
                 clock = FakeClock(ahora),
                 telemetria = { e, d -> registro.eventos += e to d },
-                inventariar = inventariar
+                inventariar = inventariar,
+                conciliarAgenda = conciliarAgenda,
+                conciliarCompromisos = conciliarCompromisos
             )
         })
         .build()
@@ -325,4 +332,196 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
                 .second["visitas.inventario.fallido"]
         )
     }
+
+    // ─── P2 Tarea 18: conciliación directa de la agenda (E-APP-131) ────────
+
+    @Test
+    fun `E-APP-131 la corrida diaria concilia la agenda y reporta solo conteos`() = runBlocking {
+        val registro = Registro()
+        var llamadas = 0
+
+        construir(registro, conciliarAgenda = {
+            llamadas++
+            ResultadoConciliacionDeAgenda.Ok(
+                items = 12,
+                diferencias = 2,
+                ventasConDiferencia = listOf(100, 200)
+            )
+        }) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
+
+        assertEquals(1, llamadas)
+        assertEquals(
+            mapOf<String, Any>(
+                "visitas.conciliacion.agenda_fallida" to 0,
+                "visitas.conciliacion.agenda_omitida" to 0,
+                "visitas.conciliacion.agenda_items" to 12,
+                "visitas.conciliacion.diferencias_agenda" to 2
+            ),
+            registro.eventos.single { it.first == TelemetriaDeVisitas.EVENTO_CONCILIACION_AGENDA }.second
+        )
+        assertEquals(listOf(ahora), registro.corridas)
+    }
+
+    /** Una falla no es un cero: sin la clave de diferencias, y la corrida no se anota (reintento propio). */
+    @Test
+    fun `E-APP-131 una conciliacion fallida no reporta diferencias ni anota la corrida`() =
+        runBlocking {
+            val registro = Registro()
+
+            val r = construir(registro, conciliarAgenda = {
+                ResultadoConciliacionDeAgenda.Fallida("http", 500)
+            }) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
+
+            assertEquals(ListenableWorker.Result.success(), r)
+            val datos = registro.eventos.single {
+                it.first == TelemetriaDeVisitas.EVENTO_CONCILIACION_AGENDA
+            }.second
+            assertEquals(1, datos["visitas.conciliacion.agenda_fallida"])
+            assertEquals(null, datos["visitas.conciliacion.diferencias_agenda"])
+            assertEquals(emptyList<Instant>(), registro.corridas)
+        }
+
+    @Test
+    fun `E-APP-131 una conciliacion omitida a proposito no impide anotar la corrida`() =
+        runBlocking {
+            val registro = Registro()
+
+            construir(registro, conciliarAgenda = {
+                ResultadoConciliacionDeAgenda.Omitida(MotivoOmitida.SERVIDOR_SIN_LA_RUTA)
+            }) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
+
+            val datos = registro.eventos.single {
+                it.first == TelemetriaDeVisitas.EVENTO_CONCILIACION_AGENDA
+            }.second
+            assertEquals(1, datos["visitas.conciliacion.agenda_omitida"])
+            assertEquals(null, datos["visitas.conciliacion.diferencias_agenda"])
+            assertEquals(listOf(ahora), registro.corridas)
+        }
+
+    /** Como el inventario, la conciliación de la agenda se rige por el interruptor de la bajada, no por el del envío. */
+    @Test
+    fun `E-APP-131 en modo v2_actual la conciliacion de la agenda si corre`() = runBlocking {
+        val registro = Registro()
+        var agenda = 0
+        var inversas = 0
+
+        construir(registro, modo = ModoEnvioVisitas.V2_ACTUAL, conciliarAgenda = {
+            agenda++
+            ResultadoConciliacionDeAgenda.Ok(0, 0, emptyList())
+        }) {
+            inversas++
+            ConciliacionInversa(0, 0, 0, 0)
+        }.doWork()
+
+        assertEquals(0, inversas)
+        assertEquals(1, agenda)
+    }
+
+    @Test
+    fun `E-APP-131 una conciliacion de la agenda que revienta no tumba la corrida ni la anota`() =
+        runBlocking {
+            val registro = Registro()
+
+            val r = construir(
+                registro,
+                conciliarAgenda = { throw IllegalStateException("grafo") }
+            ) {
+                ConciliacionInversa(3, 0, 3, 0)
+            }.doWork()
+
+            assertEquals(ListenableWorker.Result.success(), r)
+            assertEquals(emptyList<Instant>(), registro.corridas)
+        }
+
+    // ─── P2 Tarea 18: conciliación inversa del compromiso (E-APP-132) ──────
+
+    @Test
+    fun `E-APP-132 las incompletas devueltas reencolan las pendientes y reportan conteos`() =
+        runBlocking {
+            db.visitDao().insertVisit(pendingVisit(id = "pendiente-a-reenviar"))
+            val registro = Registro()
+
+            construir(registro, conciliarCompromisos = {
+                ConciliacionDeCompromisos(
+                    revisadas = 5,
+                    incompletas = 3,
+                    porRellenar = 2,
+                    distintas = 1,
+                    devueltas = 2,
+                    tandasFallidas = 0
+                )
+            }) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
+
+            assertEquals(listOf("pendiente-a-reenviar"), registro.encoladas)
+            assertEquals(
+                mapOf<String, Any>(
+                    "visitas.reconcilia.incompleta" to 3,
+                    "visitas.reconcilia.compromiso_distinto" to 1,
+                    "visitas.reconcilia.incompleta_devuelta" to 2,
+                    "visitas.conciliacion.compromisos_revisados" to 5,
+                    "visitas.conciliacion.compromisos_tandas_fallidas" to 0,
+                    "visitas.conciliacion.compromisos_ilegibles" to 0
+                ),
+                registro.eventos.single { it.first == TelemetriaDeVisitas.EVENTO_CONCILIACION_COMPROMISOS }.second
+            )
+            assertEquals(listOf(ahora), registro.corridas)
+        }
+
+    /** Un compromiso DISTINTO solo se reporta: no hay nada que reencolar. */
+    @Test
+    fun `E-APP-132 una distinta no reencola nada`() = runBlocking {
+        db.visitDao().insertVisit(pendingVisit(id = "pendiente-ajena"))
+        val registro = Registro()
+
+        construir(registro, conciliarCompromisos = {
+            ConciliacionDeCompromisos(1, 1, 0, 1, 0, 0)
+        }) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
+
+        assertEquals(emptyList<String>(), registro.encoladas)
+        assertEquals(
+            1,
+            registro.eventos.single { it.first == TelemetriaDeVisitas.EVENTO_CONCILIACION_COMPROMISOS }
+                .second["visitas.reconcilia.compromiso_distinto"]
+        )
+    }
+
+    @Test
+    fun `E-APP-132 una tanda sin decidir no anota la corrida`() = runBlocking {
+        val registro = Registro()
+
+        construir(registro, conciliarCompromisos = {
+            ConciliacionDeCompromisos(0, 0, 0, 0, 0, tandasFallidas = 1)
+        }) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
+
+        assertEquals(emptyList<Instant>(), registro.corridas)
+    }
+
+    @Test
+    fun `E-APP-132 en modo v2_actual la conciliacion del compromiso no corre`() = runBlocking {
+        val registro = Registro()
+        var llamadas = 0
+
+        construir(registro, modo = ModoEnvioVisitas.V2_ACTUAL, conciliarCompromisos = {
+            llamadas++
+            null
+        }) { ConciliacionInversa(0, 0, 0, 0) }.doWork()
+
+        assertEquals(0, llamadas)
+    }
+
+    @Test
+    fun `E-APP-132 una conciliacion del compromiso que revienta no tumba la corrida`() =
+        runBlocking {
+            val registro = Registro()
+
+            val r = construir(
+                registro,
+                conciliarCompromisos = { throw IllegalStateException("grafo") }
+            ) {
+                ConciliacionInversa(3, 0, 3, 0)
+            }.doWork()
+
+            assertEquals(ListenableWorker.Result.success(), r)
+            assertEquals(emptyList<Instant>(), registro.corridas)
+        }
 }

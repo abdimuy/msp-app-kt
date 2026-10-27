@@ -85,7 +85,18 @@ class TelemetriaDeVisitasTest {
             "permiso.alarmas_exactas",
             "bateria.sin_optimizar",
             "avisos.programados",
-            "avisos.disparados_24h"
+            "avisos.disparados_24h",
+            // P2 Tarea 18: conciliacion directa de la agenda (E-APP-131) e inversa del compromiso (E-APP-132).
+            "visitas.conciliacion.diferencias_agenda",
+            "visitas.conciliacion.agenda_items",
+            "visitas.conciliacion.agenda_fallida",
+            "visitas.conciliacion.agenda_omitida",
+            "visitas.reconcilia.incompleta",
+            "visitas.reconcilia.compromiso_distinto",
+            "visitas.reconcilia.incompleta_devuelta",
+            "visitas.conciliacion.compromisos_revisados",
+            "visitas.conciliacion.compromisos_tandas_fallidas",
+            "visitas.conciliacion.compromisos_ilegibles"
         )
         val fallos = TelemetriaDeVisitas.CODIGOS_DE_FALLO.map { "visitas.fallos.$it" }.toSet()
         assertEquals(base + fallos, TelemetriaDeVisitas.CLAVES)
@@ -98,7 +109,9 @@ class TelemetriaDeVisitasTest {
                 "visitas_cuenta_ausente_al_reintentar",
                 "visitas_inventario",
                 "visitas_sync",
-                "visitas_avisos"
+                "visitas_avisos",
+                "visitas_conciliacion_agenda",
+                "visitas_conciliacion_compromisos"
             ),
             TelemetriaDeVisitas.EVENTOS
         )

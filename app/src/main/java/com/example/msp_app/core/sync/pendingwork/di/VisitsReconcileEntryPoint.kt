@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.pendingwork.di
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileCompromisosEntregadosUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
 import dagger.hilt.EntryPoint
@@ -38,4 +39,10 @@ interface VisitsReconcileEntryPoint {
      * se resuelve en cada corrida, nunca se guarda.
      */
     fun reconcileDeliveredVisitsUseCase(): ReconcileDeliveredVisitsUseCase
+
+    /**
+     * Conciliación inversa del compromiso (plan visitas P2, Tarea 18), para
+     * `VisitsDailyReconcileWorker`. Misma regla: se resuelve en cada corrida.
+     */
+    fun reconcileCompromisosEntregadosUseCase(): ReconcileCompromisosEntregadosUseCase
 }

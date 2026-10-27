@@ -1,0 +1,72 @@
+{
+  "nombre": "visita de las 23:30 locales del 15 (05:30Z del 16 en UTC) con promesa para hoy 16: el día se cuenta en la zona del negocio; los dos dicen vigente_hoy",
+  "hoy": "2026-10-16",
+  "zona_id": 21,
+  "limite_conocido": null,
+  "telefono": {
+    "ventas": [
+      {
+        "pk": 100,
+        "cargo": 100,
+        "cliente_id": 10
+      }
+    ],
+    "visitas_propias": [],
+    "visitas_zona": [
+      {
+        "id": "00000000-0000-3000-8000-000000000001",
+        "cliente_id": 10,
+        "venta_id": 100,
+        "tipo_visita": "Pidió que regrese otro día",
+        "fecha": "2026-10-16T05:30:00Z",
+        "promesa_venta_id": 100,
+        "promesa_fecha": "2026-10-16",
+        "promesa_monto_centavos": null,
+        "cita_fecha": null,
+        "cita_hora": null
+      }
+    ],
+    "pagos": []
+  },
+  "servidor": {
+    "cuentas": [
+      {
+        "venta_id": 100,
+        "cliente_id": 10
+      }
+    ],
+    "visitas": [
+      {
+        "id": "00000000-0000-3000-8000-000000000001",
+        "cliente_id": 10,
+        "venta_id": 100,
+        "tipo_visita": "Pidió que regrese otro día",
+        "instante": "2026-10-16T05:30:00Z",
+        "promesa": {
+          "venta_id": 100,
+          "fecha": "2026-10-16",
+          "monto_centavos": null
+        },
+        "cita": null
+      }
+    ],
+    "pagos": []
+  },
+  "esperado": {
+    "telefono": [
+      {
+        "venta_id": 100,
+        "visita_id": "00000000-0000-3000-8000-000000000001",
+        "estado": "vigente_hoy"
+      }
+    ],
+    "servidor": [
+      {
+        "venta_id": 100,
+        "visita_id": "00000000-0000-3000-8000-000000000001",
+        "estado": "vigente_hoy"
+      }
+    ],
+    "diferencias": []
+  }
+}

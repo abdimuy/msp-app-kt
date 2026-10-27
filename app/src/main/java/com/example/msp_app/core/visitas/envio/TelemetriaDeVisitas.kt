@@ -2,6 +2,7 @@ package com.example.msp_app.core.visitas.envio
 
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionDeCompromisos
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.enviodiagnostico.FallosPorCodigo
@@ -76,6 +77,12 @@ object TelemetriaDeVisitas {
 
     /** E-APP-134: permisos y conteos de los avisos de la agenda (P3, Tarea 15). */
     const val EVENTO_AVISOS = "visitas_avisos"
+
+    /** P2 Tarea 18 (E-APP-131): conciliación directa de la agenda con el servidor. */
+    const val EVENTO_CONCILIACION_AGENDA = "visitas_conciliacion_agenda"
+
+    /** P2 Tarea 18 (E-APP-132): conciliación inversa del compromiso. */
+    const val EVENTO_CONCILIACION_COMPROMISOS = "visitas_conciliacion_compromisos"
     val EVENTOS: Set<String> = setOf(
         EVENTO_ESTADO,
         EVENTO_CONCILIACION,
@@ -84,7 +91,9 @@ object TelemetriaDeVisitas {
         EVENTO_CUENTA_AUSENTE,
         EVENTO_INVENTARIO,
         EVENTO_SYNC,
-        EVENTO_AVISOS
+        EVENTO_AVISOS,
+        EVENTO_CONCILIACION_AGENDA,
+        EVENTO_CONCILIACION_COMPROMISOS
     )
 
     const val APP_VERSION = "app.version"
@@ -185,6 +194,39 @@ object TelemetriaDeVisitas {
 
     /** E-APP-109: 1 si alguna consulta falló (no se borró nada), 0 si no. */
     const val INV_FALLIDO = "visitas.inventario.fallido"
+
+    /**
+     * E-APP-131: ventas donde el teléfono y el servidor derivan distinto. Alerta
+     * del spec §12-2 si > 0. Solo se manda cuando el servidor contestó.
+     */
+    const val CONC_DIFERENCIAS_AGENDA = "visitas.conciliacion.diferencias_agenda"
+
+    /** E-APP-131: ventas con compromiso que el teléfono mandó. */
+    const val CONC_AGENDA_ITEMS = "visitas.conciliacion.agenda_items"
+
+    /** E-APP-131: 1 si la conciliación de la agenda no se pudo hacer (se reintenta), 0 si no. */
+    const val CONC_AGENDA_FALLIDA = "visitas.conciliacion.agenda_fallida"
+
+    /** E-APP-131: 1 si no se hizo a propósito (servidor sin la ruta o demasiadas ventas), 0 si no. */
+    const val CONC_AGENDA_OMITIDA = "visitas.conciliacion.agenda_omitida"
+
+    /** E-APP-132 (spec §4.6-1): soltadas cuyo compromiso el servidor tiene incompleto o distinto. Alerta si > 0. */
+    const val RECONCILIA_INCOMPLETA = "visitas.reconcilia.incompleta"
+
+    /** E-APP-132: de las incompletas, las que el servidor tiene DISTINTAS; solo se reportan, no se reenvían. */
+    const val RECONCILIA_COMPROMISO_DISTINTO = "visitas.reconcilia.compromiso_distinto"
+
+    /** E-APP-132: de las incompletas, las que volvieron a pendiente para rellenarse. */
+    const val RECONCILIA_INCOMPLETA_DEVUELTA = "visitas.reconcilia.incompleta_devuelta"
+
+    /** E-APP-132: visitas con compromiso entregado que se preguntaron al servidor. */
+    const val CONC_COMPROMISOS_REVISADOS = "visitas.conciliacion.compromisos_revisados"
+
+    /** E-APP-132: consultas que no contestaron; sus visitas no cambiaron. */
+    const val CONC_COMPROMISOS_TANDAS_FALLIDAS = "visitas.conciliacion.compromisos_tandas_fallidas"
+
+    /** E-APP-132: 1 si la lectura local falló y no se preguntó nada. */
+    const val CONC_COMPROMISOS_ILEGIBLES = "visitas.conciliacion.compromisos_ilegibles"
 
     /** E-APP-110: corridas seguidas de la bajada que cerraron en la misma posición aplicando filas. */
     const val SYNC_CURSOR_STALLED = "visitas_sync.cursor_stalled"
@@ -332,7 +374,17 @@ object TelemetriaDeVisitas {
         PERMISO_ALARMAS_EXACTAS,
         BATERIA_SIN_OPTIMIZAR,
         AVISOS_PROGRAMADOS,
-        AVISOS_DISPARADOS_24H
+        AVISOS_DISPARADOS_24H,
+        CONC_DIFERENCIAS_AGENDA,
+        CONC_AGENDA_ITEMS,
+        CONC_AGENDA_FALLIDA,
+        CONC_AGENDA_OMITIDA,
+        RECONCILIA_INCOMPLETA,
+        RECONCILIA_COMPROMISO_DISTINTO,
+        RECONCILIA_INCOMPLETA_DEVUELTA,
+        CONC_COMPROMISOS_REVISADOS,
+        CONC_COMPROMISOS_TANDAS_FALLIDAS,
+        CONC_COMPROMISOS_ILEGIBLES
     ) + CODIGOS_DE_FALLO.map { PREFIJO_FALLOS + it }
 
     private val FORMA_DE_VERSION = Regex("^[0-9][0-9A-Za-z._+-]{0,39}$")
@@ -426,6 +478,27 @@ object TelemetriaDeVisitas {
         INV_FALLIDO to if (r.fallido) 1 else 0
     )
 
+    /**
+     * Conciliación directa de la agenda (Tarea 18, E-APP-131): solo conteos. Las
+     * diferencias solo se mandan si el servidor contestó: una falla no es un cero.
+     */
+    fun conciliacionAgenda(r: ConciliacionAgendaConteos): Map<String, Any> = buildMap {
+        put(CONC_AGENDA_FALLIDA, if (r.fallida) 1 else 0)
+        put(CONC_AGENDA_OMITIDA, if (r.omitida) 1 else 0)
+        put(CONC_AGENDA_ITEMS, r.items)
+        if (!r.fallida && !r.omitida) put(CONC_DIFERENCIAS_AGENDA, r.diferencias)
+    }
+
+    /** Conciliación inversa del compromiso (Tarea 18, E-APP-132): solo conteos, sin ids. */
+    fun conciliacionCompromisos(r: ConciliacionDeCompromisos): Map<String, Any> = mapOf(
+        RECONCILIA_INCOMPLETA to r.incompletas,
+        RECONCILIA_COMPROMISO_DISTINTO to r.distintas,
+        RECONCILIA_INCOMPLETA_DEVUELTA to r.devueltas,
+        CONC_COMPROMISOS_REVISADOS to r.revisadas,
+        CONC_COMPROMISOS_TANDAS_FALLIDAS to r.tandasFallidas,
+        CONC_COMPROMISOS_ILEGIBLES to if (r.ilegibles) 1 else 0
+    )
+
     /** Guardado cancelado (E-APP-078): solo conteos. */
     fun guardadoCancelado(escritas: Int, cuentas: Int, enUbicacion: Boolean): Map<String, Any> =
         mapOf(
@@ -495,6 +568,13 @@ object TelemetriaDeVisitas {
  * Los conteos de una corrida del inventario de la agenda, sin depender de la
  * clase que la hace (esta telemetría vive en `core/visitas/envio`).
  */
+data class ConciliacionAgendaConteos(
+    val items: Int,
+    val diferencias: Int,
+    val fallida: Boolean,
+    val omitida: Boolean
+)
+
 data class ResultadoInventarioConteos(
     val revisadas: Int,
     val rescatadas: Int,

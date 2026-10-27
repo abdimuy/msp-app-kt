@@ -6,12 +6,17 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionDeCompromisos
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.pendingwork.di.VisitsReconcileEntryPoint
+import com.example.msp_app.core.sync.visitas.ConciliacionDeAgendaProvider
+import com.example.msp_app.core.sync.visitas.ResultadoConciliacionDeAgenda
 import com.example.msp_app.core.sync.visitas.ResultadoInventario
 import com.example.msp_app.core.sync.visitas.VisitasZonaSyncProvider
+import com.example.msp_app.core.sync.visitas.conteos
+import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
@@ -92,6 +97,31 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val inventariar: suspend () -> ResultadoInventario? = {
         VisitasZonaSyncProvider.inventariar(appContext, clock.now())
+    },
+    /**
+     * Conciliación directa de la agenda (P2 Tarea 18, E-APP-131). `null` = no
+     * corrió (interruptor de la bajada apagado o sin zona). No usa la bandeja
+     * de dinero: su reintento es la siguiente corrida (E-VIS-116).
+     */
+    @VisibleForTesting
+    internal val conciliarAgenda: suspend () -> ResultadoConciliacionDeAgenda? = {
+        ConciliacionDeAgendaProvider.conciliar(appContext, clock.now())
+    },
+    /**
+     * Conciliación inversa del compromiso (P2 Tarea 18, E-APP-132). `null` = no
+     * corrió: el servidor no manda compromisos (contrato < 3 o bandera apagada),
+     * y entonces ninguna visita puede estar "incompleta" por eso.
+     */
+    @VisibleForTesting
+    internal val conciliarCompromisos: suspend () -> ConciliacionDeCompromisos? = {
+        if (CapacidadesDeVisitas.de(appContext).actual().mandaCompromisos()) {
+            EntryPointAccessors.fromApplication(
+                appContext.applicationContext,
+                VisitsReconcileEntryPoint::class.java
+            ).reconcileCompromisosEntregadosUseCase().execute()
+        } else {
+            null
+        }
     }
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -102,13 +132,73 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
             Log.i(TAG, "envio legacy: la reconciliacion inversa no corre")
             return Result.success()
         }
+        var decidida = false
         if (modo() == ModoEnvioVisitas.V2_ACTUAL) {
             Log.i(TAG, "modo v2_actual: la reconciliacion inversa no corre")
         } else {
-            conciliacionInversa()
+            decidida = conciliacionInversa()
+            decidida = conciliacionDeCompromisos() && decidida
         }
         inventarioDeLaAgenda()
+        val agendaFallo = conciliacionDeLaAgenda()
+        // Reintento propio (sin bandeja de dinero): si algo no se decidió la marca
+        // no se anota y la siguiente apertura de la app lo vuelve a intentar.
+        if (decidida && !agendaFallo) anotarCorrida(clock.now())
         return Result.success()
+    }
+
+    /**
+     * Conciliación directa de la agenda (E-APP-131). Devuelve `true` si FALLÓ
+     * (no si omitió a propósito): una falla impide anotar la corrida. Nunca
+     * tumba la corrida.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun conciliacionDeLaAgenda(): Boolean {
+        val r = try {
+            conciliarAgenda() ?: return false
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "conciliacion de la agenda fallo de forma inesperada", e)
+            return true
+        }
+        Log.i(TAG, "conciliacion de la agenda: $r")
+        try {
+            telemetria(
+                TelemetriaDeVisitas.EVENTO_CONCILIACION_AGENDA,
+                TelemetriaDeVisitas.conciliacionAgenda(r.conteos())
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "telemetria de la conciliacion de la agenda fallo; la corrida sigue", e)
+        }
+        return r is ResultadoConciliacionDeAgenda.Fallida
+    }
+
+    /**
+     * Conciliación inversa del compromiso (E-APP-132). Devuelve `true` si decidió
+     * todo lo que leyó (o no corrió). Reencola las pendientes si devolvió alguna.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun conciliacionDeCompromisos(): Boolean {
+        val r = try {
+            conciliarCompromisos() ?: return true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "conciliacion del compromiso fallo de forma inesperada", e)
+            return false
+        }
+        Log.i(TAG, "conciliacion del compromiso: $r")
+        try {
+            telemetria(
+                TelemetriaDeVisitas.EVENTO_CONCILIACION_COMPROMISOS,
+                TelemetriaDeVisitas.conciliacionCompromisos(r)
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "telemetria del compromiso fallo; la corrida sigue", e)
+        }
+        if (r.devueltas > 0) reencolarPendientes()
+        return r.tandasFallidas == 0 && !r.ilegibles && r.devolucionesFallidas == 0
     }
 
     /**
@@ -136,8 +226,9 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
         }
     }
 
-    private suspend fun conciliacionInversa() {
-        try {
+    /** `true` si la corrida decidió todo lo que leyó (para anotarla). */
+    private suspend fun conciliacionInversa(): Boolean {
+        return try {
             val r = conciliar()
             Log.i(
                 TAG,
@@ -148,13 +239,14 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
             reportar(r)
             // E-APP-079: las devueltas por una foto sin enviar también tienen que salir hoy.
             if (r.faltantes > 0 || r.devueltasPorFoto > 0) reencolarPendientes()
-            if (r.tandasFallidas == 0 && !r.entregadasIlegibles) anotarCorrida(clock.now())
+            r.tandasFallidas == 0 && !r.entregadasIlegibles
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // Defensa: el use case ya reporta y absorbe lo esperable; esto
             // cubre un escape inesperado (p. ej. el grafo de Hilt).
             Log.w(TAG, "reconciliacion inversa de visitas fallo de forma inesperada", e)
+            false
         }
     }
 

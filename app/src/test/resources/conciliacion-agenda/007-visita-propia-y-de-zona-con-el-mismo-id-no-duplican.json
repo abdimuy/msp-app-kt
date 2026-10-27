@@ -1,0 +1,84 @@
+{
+  "nombre": "la visita enviada vive en Visit y en visita_zona con el mismo id: gana Visit y no se duplica; los dos dicen vigente_futura (cita)",
+  "hoy": "2026-10-16",
+  "zona_id": 21,
+  "limite_conocido": null,
+  "telefono": {
+    "ventas": [
+      {
+        "pk": 100,
+        "cargo": 100,
+        "cliente_id": 10
+      }
+    ],
+    "visitas_propias": [
+      {
+        "id": "00000000-0000-3000-8000-000000000001",
+        "cliente_id": 10,
+        "venta_id": 100,
+        "tipo_visita": "Pidió que regrese otro día",
+        "fecha": "2026-10-15T17:00:00Z",
+        "promesa_venta_id": null,
+        "promesa_fecha": null,
+        "promesa_monto_centavos": null,
+        "cita_fecha": "2026-10-17",
+        "cita_hora": "10:00"
+      }
+    ],
+    "visitas_zona": [
+      {
+        "id": "00000000-0000-3000-8000-000000000001",
+        "cliente_id": 10,
+        "venta_id": 100,
+        "tipo_visita": "Pidió que regrese otro día",
+        "fecha": "2026-10-15T17:00:00Z",
+        "promesa_venta_id": null,
+        "promesa_fecha": null,
+        "promesa_monto_centavos": null,
+        "cita_fecha": "2026-10-17",
+        "cita_hora": "10:00"
+      }
+    ],
+    "pagos": []
+  },
+  "servidor": {
+    "cuentas": [
+      {
+        "venta_id": 100,
+        "cliente_id": 10
+      }
+    ],
+    "visitas": [
+      {
+        "id": "00000000-0000-3000-8000-000000000001",
+        "cliente_id": 10,
+        "venta_id": 100,
+        "tipo_visita": "Pidió que regrese otro día",
+        "instante": "2026-10-15T17:00:00Z",
+        "promesa": null,
+        "cita": {
+          "fecha": "2026-10-17",
+          "hora": "10:00"
+        }
+      }
+    ],
+    "pagos": []
+  },
+  "esperado": {
+    "telefono": [
+      {
+        "venta_id": 100,
+        "visita_id": "00000000-0000-3000-8000-000000000001",
+        "estado": "vigente_futura"
+      }
+    ],
+    "servidor": [
+      {
+        "venta_id": 100,
+        "visita_id": "00000000-0000-3000-8000-000000000001",
+        "estado": "vigente_futura"
+      }
+    ],
+    "diferencias": []
+  }
+}
