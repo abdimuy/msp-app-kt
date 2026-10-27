@@ -175,7 +175,76 @@ class VisitasZonaSyncManagerTest : RoomTestBase() {
         )
     }
 
+    /**
+     * Revisión de T16, R7: la respuesta trae un cursor DISTINTO del enviado y
+     * ninguna fila. El `after_id` guardado es una posición dentro del grupo del
+     * cursor viejo; pegado al cursor nuevo sería media posición inventada y
+     * saltaría las filas del grupo nuevo con id menor. Debe quedar nulo: el
+     * grupo nuevo se pide desde su inicio.
+     */
+    @Test
+    fun cursorMovidoSinFilasDejaElAfterIdNulo_EAPP101() = runTest {
+        sembrarEstado(cursor = CURSOR_VIEJO, afterId = "v-205", epoch = null)
+
+        val api = FakeApi(
+            Pagina(emptyList(), hasMore = false, cursor = CURSOR_PAGINA_1),
+            Pagina(emptyList(), hasMore = false)
+        )
+        val mgr = newManager(api)
+        mgr.sincronizar()
+
+        assertEquals(
+            "cursor nuevo sin filas: el after_id viejo no se arrastra",
+            VisitasSyncStateEntity(ZONA, CURSOR_PAGINA_1, null, null),
+            dao.estado(ZONA)
+        )
+
+        mgr.sincronizar()
+
+        assertEquals(listOf(CURSOR_VIEJO, CURSOR_PAGINA_1), api.cursores)
+        assertEquals(listOf("v-205", null), api.afterIds)
+    }
+
     // ─── Cambio de zona (Review Focus 5, I8) ───────────────────────────────
+
+    /**
+     * Revisión de T16, R6: el cambio de zona también se detecta por la
+     * POSICIÓN de otra zona, no solo por sus filas. La zona vieja tiene cursor
+     * pero ninguna fila en `visita_zona` (su agenda estaba vacía o se podó):
+     * sin la subconsulta de `visitas_sync_state` en `restosDeOtraZona`, su
+     * cursor sobreviviría y, al volver a ella, el teléfono retomaría desde ahí
+     * sin las filas que se perdieron mientras tanto.
+     *
+     * Control: una posición de otra zona con cursor NULO no cuenta (el
+     * reinicio deja así a todas), así que la segunda corrida no es cambio.
+     */
+    @Test
+    fun cursorDeOtraZonaSinFilasTambienEsCambioDeZona_EAPP103() = runTest {
+        dao.aplicarPagina(OTRA_ZONA, emptyList(), CURSOR_VIEJO, "w-9")
+        assertTrue("no hay filas de otra zona", dao.deZona(OTRA_ZONA).isEmpty())
+
+        val api = FakeApi(
+            Pagina(listOf(dto("v-1")), hasMore = false),
+            Pagina(emptyList(), hasMore = false)
+        )
+        val mgr = newManager(api)
+        val primera = mgr.sincronizar()
+
+        assertTrue("$primera", primera is ResultadoSync.Ok && primera.cambioDeZona)
+        assertEquals(
+            "la zona vieja pierde su posición",
+            VisitasSyncStateEntity(OTRA_ZONA, null, null, null),
+            dao.estado(OTRA_ZONA)
+        )
+        assertEquals("la zona nueva arranca sin cursor", listOf<String?>(null), api.cursores)
+
+        val segunda = mgr.sincronizar()
+
+        assertTrue(
+            "una posición de otra zona sin cursor no es cambio: $segunda",
+            segunda is ResultadoSync.Ok && !segunda.cambioDeZona
+        )
+    }
 
     /**
      * El teléfono cambia de zona con visitas propias pendientes: lo bajado de
