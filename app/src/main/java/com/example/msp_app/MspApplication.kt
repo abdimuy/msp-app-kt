@@ -3,6 +3,7 @@ package com.example.msp_app
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.example.msp_app.core.avisos.CanalesDeNotificacion
 import com.example.msp_app.core.debug.RemoteDbDebugger
 import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.logging.Logger
@@ -61,6 +62,9 @@ class MspApplication : Application(), Configuration.Provider {
 
         // Kill-switch del envío de visitas: config/visitas_envio (nunca api_settings)
         FirestoreModoEnvioVisitas.instalar()
+
+        // Canales de los avisos de la agenda (visitas asignadas y compromisos)
+        CanalesDeNotificacion.crear(this)
 
         // Interruptor de la bajada de la agenda: config/visitas_compromisos (apagado por omisión)
         KillSwitchAgenda.instalar()

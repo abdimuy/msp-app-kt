@@ -94,6 +94,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.O)
+private const val NOTIFICACIONES_PERMISO = Manifest.permission.POST_NOTIFICATIONS
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion? = null) {
@@ -166,6 +168,9 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+    // Avisos de la agenda (plan visitas P3, Tarea 12): se pide junto a la
+    // ubicación, en Android 13+. Si se niega, la lista sigue mostrando todo.
+    val notificacionesState = rememberPermissionState(NOTIFICACIONES_PERMISO)
     // La posición SIGUE al cobrador mientras el inicio está a la vista: ver el
     // bloque de la petición de permiso más abajo.
     val fuente = fuenteDePosicion ?: remember(context) { CurrentLocationReader(context) }
@@ -231,6 +236,16 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
     LaunchedEffect(permissionState.status.isGranted) {
         if (!permissionState.status.isGranted) {
             permissionState.launchPermissionRequest()
+        }
+    }
+
+    // Después de la ubicación, para no encimar dos diálogos del sistema.
+    LaunchedEffect(permissionState.status.isGranted, notificacionesState.status.isGranted) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            permissionState.status.isGranted &&
+            !notificacionesState.status.isGranted
+        ) {
+            notificacionesState.launchPermissionRequest()
         }
     }
 

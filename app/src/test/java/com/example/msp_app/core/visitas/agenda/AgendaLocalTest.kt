@@ -2,6 +2,7 @@ package com.example.msp_app.core.visitas.agenda
 
 import com.example.msp_app.core.common.visitas.domain.CuentaCompromiso
 import com.example.msp_app.core.common.visitas.domain.EstadoCompromiso
+import com.example.msp_app.core.common.visitas.domain.EstadoTarea
 import com.example.msp_app.core.common.visitas.domain.TipoCompromiso
 import com.example.msp_app.core.database.entities.DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
 import com.example.msp_app.core.database.entities.PaymentEntity
@@ -250,6 +251,48 @@ class AgendaLocalTest {
         // Monto sin fecha no es promesa (DA-16).
         val soloMonto = propia(promesaFecha = null).copy(PROMESA_MONTO_CENTAVOS = 15000L)
         assertNull(AgendaLocal.unir(listOf(soloMonto), emptyList()).single().promesa)
+    }
+
+    private fun tareaZona(
+        id: String = ID_1,
+        cancelada: String? = null,
+        fecha: String = "2026-10-17"
+    ) = com.example.msp_app.core.database.entities.TareaZonaEntity(
+        ID = id,
+        VENTA_ID = 100,
+        CLIENTE_ID = 10,
+        ZONA_CLIENTE_ID = zona,
+        FECHA = fecha,
+        HORA = null,
+        NOTA = null,
+        REEMPLAZA_A = null,
+        CREATED_AT = "2026-10-16T14:00:00Z",
+        UPDATED_AT = "2026-10-16T14:00:00Z",
+        CANCELADA_AT = cancelada
+    )
+
+    @Test
+    fun estadosDeTareasPendienteAtendidaCanceladaYNoAtendida() = runTest {
+        // E-APP-123. Pago local pendiente posterior a la asignación atiende.
+        val f = FuenteFalsa(pagos = listOf(pago(fechaHora = "2026-10-16T15:00:00Z")))
+        val tareas = listOf(
+            tareaZona(ID_1),
+            tareaZona(ID_2, cancelada = "2026-10-16T14:30:00Z"),
+            tareaZona("3", fecha = "2026-09-01")
+        )
+        val sinPago = AgendaLocal(FuenteFalsa(), cdmx).estadosDeTareas(tareas, hoy)
+        assertEquals(EstadoTarea.PENDIENTE, sinPago.getValue(ID_1))
+        assertEquals(EstadoTarea.CANCELADA, sinPago.getValue(ID_2))
+        assertEquals(EstadoTarea.NO_ATENDIDA, sinPago.getValue("3"))
+
+        val conPago = AgendaLocal(f, cdmx).estadosDeTareas(tareas, hoy)
+        assertEquals(EstadoTarea.ATENDIDA, conPago.getValue(ID_1))
+        // El pago de OTRA venta no atiende (control).
+        val otra = FuenteFalsa(pagos = listOf(pago(venta = 999)))
+        assertEquals(
+            EstadoTarea.PENDIENTE,
+            AgendaLocal(otra, cdmx).estadosDeTareas(tareas, hoy).getValue(ID_1)
+        )
     }
 
     private companion object {

@@ -5,16 +5,20 @@ import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.common.visitas.domain.CitaCompromiso
 import com.example.msp_app.core.common.visitas.domain.CompromisoVigente
 import com.example.msp_app.core.common.visitas.domain.CuentaCompromiso
+import com.example.msp_app.core.common.visitas.domain.EstadoTarea
 import com.example.msp_app.core.common.visitas.domain.PagoCompromiso
 import com.example.msp_app.core.common.visitas.domain.PromesaCompromiso
+import com.example.msp_app.core.common.visitas.domain.TareaCompromiso
 import com.example.msp_app.core.common.visitas.domain.VisitaCompromiso
 import com.example.msp_app.core.common.visitas.domain.derivarCompromisos
+import com.example.msp_app.core.common.visitas.domain.derivarEstadoTarea
 import com.example.msp_app.core.common.visitas.domain.momentoDePago
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitaZonaDao
 import com.example.msp_app.core.database.entities.DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.TareaZonaEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitaZonaEntity
 import com.example.msp_app.features.sales.SaleIdSpaces
@@ -113,6 +117,54 @@ class AgendaLocal(
     /** [derivar] con el "hoy" del negocio para [ahora]. */
     suspend fun derivarAhora(zona: Int, ahora: Instant): Map<Int, CompromisoVigente> =
         derivar(zona, hoyDe(ahora, zonaNegocio))
+
+    /**
+     * El estado de cada tarea de [tareas] (plan visitas P3, Tarea 12; E-APP-123),
+     * con la MISMA derivación que el servidor ([derivarEstadoTarea]) sobre las
+     * visitas (`Visit` ∪ `visita_zona`) y los pagos locales, la captura pendiente
+     * incluida. Solo lectura; el "hoy" es el del negocio. Una tarea que ya
+     * atendió el cobrador sale `ATENDIDA` y no se avisa.
+     */
+    suspend fun estadosDeTareas(
+        tareas: List<TareaZonaEntity>,
+        hoy: LocalDate
+    ): Map<String, EstadoTarea> {
+        if (tareas.isEmpty()) return emptyMap()
+        val creadas = tareas.mapNotNull { AppTime.parseWireFormatOrNull(it.CREATED_AT) }
+        val desde = (creadas.minOrNull() ?: desdeDe(hoy, zonaNegocio))
+            .atZone(zonaNegocio).toLocalDate().minusDays(1)
+        val zonas = tareas.map { it.ZONA_CLIENTE_ID }.toSet()
+        val propias = fuente.visitasPropias(desde.toString())
+        val deZona = zonas.flatMap { fuente.visitasDeZona(it) }
+        val visitas = unir(propias, deZona)
+        val ventas = tareas.map { it.VENTA_ID }.toSet()
+        val pagos = fuente.pagos().filter { SaleIdSpaces.forSalePayments(it) in ventas }
+            .mapNotNull { pagoDe(it, zonaNegocio) }
+        return tareas.associate { t ->
+            val creada = AppTime.parseWireFormatOrNull(t.CREATED_AT)
+            val fecha = AppTime.parseWireDateOrNull(t.FECHA)
+            if (creada == null || fecha == null) {
+                t.ID to EstadoTarea.NO_ATENDIDA
+            } else {
+                val compromiso = TareaCompromiso(
+                    id = t.ID,
+                    ventaId = t.VENTA_ID,
+                    fecha = fecha,
+                    hora = horaCivil(t.HORA),
+                    createdAt = creada,
+                    canceladaAt = t.CANCELADA_AT?.let { AppTime.parseWireFormatOrNull(it) }
+                )
+                t.ID to derivarEstadoTarea(
+                    compromiso,
+                    visitas,
+                    pagos,
+                    CuentaCompromiso(t.VENTA_ID, t.CLIENTE_ID),
+                    hoy,
+                    zonaNegocio
+                ).estado
+            }
+        }
+    }
 
     companion object {
         /** V de la bajada (DA-3): la misma constante que el servidor; si cambia allá, sube el epoch. */
