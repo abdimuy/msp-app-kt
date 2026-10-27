@@ -25,7 +25,12 @@ internal class NotificadorDeVisitaAsignada(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission") // permitido() lo comprueba antes de llamar.
-    fun mostrar(titulo: String, texto: String, id: Int) {
+    fun mostrar(
+        titulo: String,
+        texto: String,
+        id: Int,
+        canal: String = CanalesDeNotificacion.VISITAS_ASIGNADAS
+    ) {
         CanalesDeNotificacion.crear(context)
         val abrir = PendingIntent.getActivity(
             context,
@@ -34,7 +39,7 @@ internal class NotificadorDeVisitaAsignada(private val context: Context) {
                 ?: android.content.Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val n = NotificationCompat.Builder(context, CanalesDeNotificacion.VISITAS_ASIGNADAS)
+        val n = NotificationCompat.Builder(context, canal)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(titulo)
             .setContentText(texto)

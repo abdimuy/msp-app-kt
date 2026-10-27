@@ -49,7 +49,7 @@ object TareasZonaSyncProvider {
     ): suspend (List<TareaZonaEntity>) -> Unit {
         val notificador = NotificadorDeVisitaAsignada(context)
         val agenda = AgendaLocal(
-            RoomFuenteDeAgenda(db.saleDao(), db.visitDao(), db.visitaZonaDao(), db.paymentDao())
+            RoomFuenteDeAgenda(db.saleDao(), db.visitDao(), db.visitaZonaDao())
         )
         val aviso = AvisoInmediato(
             dao = db.avisosDao(),

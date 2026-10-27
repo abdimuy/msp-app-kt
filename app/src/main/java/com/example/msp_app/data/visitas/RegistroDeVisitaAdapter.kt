@@ -1,5 +1,6 @@
 package com.example.msp_app.data.visitas
 
+import android.util.Log
 import androidx.room.withTransaction
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
@@ -89,7 +90,9 @@ class RegistroDeVisitaAdapter(
      * escrita ([UbicacionTardiaDeVisitaWorker]). Por defecto no hace nada
      * (las pruebas); `VisitasPortsModule` pasa el encolado real.
      */
-    private val encolarUbicacion: (String) -> Unit = {}
+    private val encolarUbicacion: (String) -> Unit = {},
+    /** Reprograma las alarmas tras la captura (P3 T13, E-APP-124); total, no propaga. */
+    private val reprogramarAvisos: () -> Unit = {}
 ) : RegistroDeVisitaPort {
 
     /**
@@ -255,6 +258,7 @@ class RegistroDeVisitaAdapter(
         sinCancelar {
             if (escritaAhora) lote.forEach { guardarComprobantes(it) }
             entidades.forEach { encolarEnvio(it.ID) }
+            reprogramarAvisosSinRiesgo()
             capturas.marcarCerrada(semilla, AppTime.toWireFormat(clock.now()))
         }
         return ResultadoDelRegistro.REGISTRADA
@@ -414,6 +418,7 @@ class RegistroDeVisitaAdapter(
                 }
                 guardarComprobantes(visita)
                 encolarEnvio(entidad.ID)
+                reprogramarAvisosSinRiesgo()
                 bloqueTerminado = true
             }
         } catch (tardia: CancellationException) {
@@ -425,6 +430,18 @@ class RegistroDeVisitaAdapter(
             // llamador cuente la visita escrita; el job sigue cancelado y la
             // cancelacion se observa en la siguiente suspension, como sin carrera.
             if (!bloqueTerminado) throw tardia
+        }
+    }
+
+    /** Una alarma es comodidad: si no se puede encolar, la visita ya escrita no se toca. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun reprogramarAvisosSinRiesgo() {
+        try {
+            reprogramarAvisos()
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            Log.w("RegistroDeVisita", "no se pudo encolar la reprogramacion de alarmas", fallo)
         }
     }
 

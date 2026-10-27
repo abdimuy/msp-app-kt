@@ -6,6 +6,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.avisos.encolarReprogramacionDeAvisos
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.diagnosticoenvio.EstadoDeEnvioDeVisitas
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
@@ -107,7 +108,10 @@ class VisitsReconcileWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val bajarTareas: suspend () -> Unit = {
         TareasZonaSyncProvider.sincronizar(appContext)
-    }
+    },
+    /** Tras cada sync de agenda y tareas, reconstruye las alarmas (P3 T13, E-APP-124). */
+    @VisibleForTesting
+    internal val reprogramarAvisos: () -> Unit = { encolarReprogramacionDeAvisos(appContext) }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -116,6 +120,7 @@ class VisitsReconcileWorker @JvmOverloads constructor(
         encolarRelleno()
         bajarAgendaSinRiesgo()
         bajarTareasSinRiesgo()
+        reprogramarAvisosSinRiesgo()
         reconciliar()
         reportarEstadoSinRiesgo()
         return Result.success()
@@ -228,6 +233,17 @@ class VisitsReconcileWorker @JvmOverloads constructor(
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "bajada de tareas de la zona falló; la corrida sigue", e)
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun reprogramarAvisosSinRiesgo() {
+        try {
+            reprogramarAvisos()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "reprogramacion de alarmas fallo; la corrida sigue", e)
         }
     }
 

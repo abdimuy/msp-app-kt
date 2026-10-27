@@ -72,6 +72,7 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
     private fun adaptadorCon(
         saleDao: SaleDao = db.saleDao(),
         recomendaciones: VisitRecommendationDao = db.visitRecommendationDao(),
+        reprogramarAvisos: () -> Unit = {},
         usuario: suspend () -> User?
     ) = RegistroDeVisitaAdapter(
         db = db,
@@ -81,7 +82,8 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         imagenes = db.visitImageDao(),
         telemetry = telemetry,
         clock = clock,
-        traerUsuario = usuario
+        traerUsuario = usuario,
+        reprogramarAvisos = reprogramarAvisos
     )
 
     // ─── las columnas estructuradas ──────────────────────────────────────────
@@ -402,6 +404,20 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
 
         val ligada = db.visitRecommendationDao().porId(REC_ID)
         assertEquals("la sugerencia no se va con la visita", VISITA_ID, ligada?.VISITA_ID)
+    }
+
+    /** E-APP-124: tras la captura se piden las alarmas; si eso revienta, la visita queda. */
+    @Test
+    fun `la captura reprograma las alarmas y si falla la visita queda - E-APP-124`() = runTest {
+        var llamadas = 0
+        val conAvisos = adaptadorCon(reprogramarAvisos = { llamadas++ }) { cobrador }
+        assertEquals(ResultadoDelRegistro.REGISTRADA, conAvisos.registrar(visita()))
+        assertEquals(1, llamadas)
+
+        val conFallo = adaptadorCon(
+            reprogramarAvisos = { error("WorkManager no disponible") }
+        ) { cobrador }
+        assertEquals(ResultadoDelRegistro.REGISTRADA, conFallo.registrar(visita()))
     }
 
     /** Una recomendación que ya no está no se calla: se reporta y la visita queda. */

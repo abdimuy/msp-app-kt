@@ -1,6 +1,7 @@
 package com.example.msp_app.di
 
 import android.content.Context
+import com.example.msp_app.core.avisos.encolarReprogramacionDeAvisos
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.SaleDao
@@ -91,7 +92,8 @@ object VisitasPortsModule {
         imagenes = imagenes,
         telemetry = telemetry,
         clock = clock,
-        encolarUbicacion = { id -> enqueueUbicacionTardiaDeVisita(context, id) }
+        encolarUbicacion = { id -> enqueueUbicacionTardiaDeVisita(context, id) },
+        reprogramarAvisos = { encolarReprogramacionDeAvisos(context) }
     )
 
     @Provides

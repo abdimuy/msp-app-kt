@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.example.msp_app.core.avisos.CanalesDeNotificacion
+import com.example.msp_app.core.avisos.KillSwitchAvisos
+import com.example.msp_app.core.avisos.encolarReprogramacionDeAvisos
 import com.example.msp_app.core.debug.RemoteDbDebugger
 import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.logging.Logger
@@ -68,6 +70,12 @@ class MspApplication : Application(), Configuration.Provider {
 
         // Interruptor de la bajada de la agenda: config/visitas_compromisos (apagado por omisión)
         KillSwitchAgenda.instalar()
+
+        // Interruptor de los avisos: config/visitas_avisos (apagado por omisión)
+        KillSwitchAvisos.instalar()
+
+        // Las alarmas se reconstruyen al abrir la app (plan visitas P3, Tarea 13)
+        encolarReprogramacionDeAvisos(this)
 
         // Inicializar sincronización periódica de clientes
         enqueueClienteSyncWorker(this)
