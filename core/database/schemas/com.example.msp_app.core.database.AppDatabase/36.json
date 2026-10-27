@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 36,
-    "identityHash": "92f8232249d18e1b761ace6b7f2ff5b2",
+    "identityHash": "3e9eb2dd6102f9a3e0c2b78f615f69b6",
     "entities": [
       {
         "tableName": "sales",
@@ -2192,92 +2192,6 @@
         },
         "indices": [],
         "foreignKeys": []
-      },
-      {
-        "tableName": "capturas_en_curso",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `TIPO` TEXT NOT NULL, `LLAVE` TEXT NOT NULL, `USUARIO` TEXT NOT NULL, `ESTADO` TEXT NOT NULL, `RESUMEN` TEXT NOT NULL, `CREADA_EN` TEXT NOT NULL, `ACTUALIZADA_EN` TEXT NOT NULL, `DISCREPANCIA` TEXT, `DISCREPANCIA_EN` TEXT, PRIMARY KEY(`ID`))",
-        "fields": [
-          {
-            "fieldPath": "ID",
-            "columnName": "ID",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "TIPO",
-            "columnName": "TIPO",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "LLAVE",
-            "columnName": "LLAVE",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "USUARIO",
-            "columnName": "USUARIO",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "ESTADO",
-            "columnName": "ESTADO",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "RESUMEN",
-            "columnName": "RESUMEN",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "CREADA_EN",
-            "columnName": "CREADA_EN",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "ACTUALIZADA_EN",
-            "columnName": "ACTUALIZADA_EN",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "DISCREPANCIA",
-            "columnName": "DISCREPANCIA",
-            "affinity": "TEXT",
-            "notNull": false
-          },
-          {
-            "fieldPath": "DISCREPANCIA_EN",
-            "columnName": "DISCREPANCIA_EN",
-            "affinity": "TEXT",
-            "notNull": false
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "ID"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_capturas_en_curso_tipo_llave_estado",
-            "unique": false,
-            "columnNames": [
-              "TIPO",
-              "LLAVE",
-              "ESTADO"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_capturas_en_curso_tipo_llave_estado` ON `${TABLE_NAME}` (`TIPO`, `LLAVE`, `ESTADO`)"
-          }
-        ],
-        "foreignKeys": []
       }
     ],
     "views": [
@@ -2288,7 +2202,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '92f8232249d18e1b761ace6b7f2ff5b2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3e9eb2dd6102f9a3e0c2b78f615f69b6')"
     ]
   }
 }

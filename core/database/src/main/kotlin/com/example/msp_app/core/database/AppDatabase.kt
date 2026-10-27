@@ -62,6 +62,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_32_33
 import com.example.msp_app.core.database.migrations.MIGRATION_33_34
 import com.example.msp_app.core.database.migrations.MIGRATION_34_35
 import com.example.msp_app.core.database.migrations.MIGRATION_35_36
+import com.example.msp_app.core.database.migrations.MIGRATION_36_37
 
 @Database(
     entities = [
@@ -89,7 +90,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_35_36
         CapturaEnCursoEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 36,
+    version = 37,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -180,7 +181,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_32_33,
                     MIGRATION_33_34,
                     MIGRATION_34_35,
-                    MIGRATION_35_36
+                    MIGRATION_35_36,
+                    MIGRATION_36_37
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }
