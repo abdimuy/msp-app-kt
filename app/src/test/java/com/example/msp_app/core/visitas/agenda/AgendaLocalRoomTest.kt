@@ -183,7 +183,7 @@ class AgendaLocalRoomTest : RoomTestBase() {
     /**
      * E-APP-125 (límite conocido): el abono no aplicado (`DOCTO_CC_ID = -2`,
      * E-APP-092) SÍ cumple la promesa en el teléfono; el servidor no lo ve (queda
-     * en `MSP_FAILED_INTENTS`). Decisión del dueño 2026-10-27. Control: `-1`
+     * en `MSP_FAILED_INTENTS`). Decisión del coordinador del 2026-10-27, siguiendo 4b del dueño. Control: `-1`
      * (rechazado) no cierra.
      */
     @Test
