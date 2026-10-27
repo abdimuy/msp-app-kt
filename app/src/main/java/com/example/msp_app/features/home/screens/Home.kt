@@ -93,9 +93,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
-@RequiresApi(Build.VERSION_CODES.O)
 private const val NOTIFICACIONES_PERMISO = Manifest.permission.POST_NOTIFICATIONS
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion? = null) {
