@@ -1,0 +1,52 @@
+# Spec visitas §7.1 (enmendado 2026-10-16). Quitar una línea es un PR que aprueba el dueño.
+app/src/main/java/com/example/msp_app/workers/PendingPaymentsWorker.kt
+core/upload/**
+app/src/main/java/com/example/msp_app/core/sync/cobranza/**
+app/src/main/java/com/example/msp_app/data/pagos/**
+app/src/main/java/com/example/msp_app/data/api/services/payment/**
+app/src/main/java/com/example/msp_app/data/api/services/cobranza/**
+core/database/src/main/kotlin/com/example/msp_app/core/database/dao/payment/**
+core/database/src/main/kotlin/com/example/msp_app/core/database/dao/sale/SaleDao.kt
+core/database/src/main/kotlin/com/example/msp_app/core/database/entities/PaymentEntity.kt
+core/database/src/main/kotlin/com/example/msp_app/core/database/migrations/Migration[0-9]*to3[0-3].kt
+core/common/src/main/kotlin/com/example/msp_app/core/common/cobranza/domain/EstadoCuentaDeriver.kt
+core/common/src/main/kotlin/com/example/msp_app/core/common/cobranza/domain/VentanaCobro.kt
+feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/data/**
+core/database/src/main/kotlin/com/example/msp_app/core/database/AppDatabase.kt
+# Atributos de git: pueden esconder un diff (-diff, binary, textconv).
+.gitattributes
+**/.gitattributes
+# Autoprotección: la guardia, sus ganchos y el CI que la corre.
+# «@base» = rige desde que la lista ya está en la base; en la rama que introduce
+# la guardia (la base aún no tiene lista) no aplica, porque esa rama los crea.
+# Las tareas installGit* de build.gradle.kts las protege el script por región
+# (vedar el archivo entero bloquearía cualquier cambio de build).
+# Enmienda: con la lista ya en la base, la lista solo cambia en un diff que
+# toque ÚNICAMENTE la lista (va primero a main; en rango se juzga con la de main).
+@base scripts/guardia-aislamiento*
+@base scripts/pre-commit
+@base scripts/pre-push
+@base .github/workflows/**
+# Relevo 6 (2026-10-26), aprobado por el dueño como una sola decisión. Solo modificaciones (@permitir no autoriza crear).
+@permitir app/src/main/java/com/example/msp_app/core/sync/cobranza/CobranzaReconciler.kt # Sync de captura E-APP-081/082 (ya en entrega/1); ANTES+DESPUÉS APTO
+@permitir app/src/main/java/com/example/msp_app/core/sync/cobranza/CobranzaSyncManager.kt # Sync de captura E-APP-081/082 y carrera E-APP-083; ANTES+DESPUÉS
+@permitir app/src/main/java/com/example/msp_app/core/sync/cobranza/RefrescoDelSaldoDeLaVenta.kt # Sync de captura E-APP-081/082 (ya en entrega/1); ANTES+DESPUÉS APTO
+@permitir app/src/main/java/com/example/msp_app/data/api/services/payment/V2PaymentsApi.kt # Captura E-APP-088 GET por UUID; ANTES + DESPUÉS de Captura
+@permitir app/src/main/java/com/example/msp_app/data/pagos/ComprobantesDeAbonoAdapter.kt # Captura E-APP-084..086; ANTES + DESPUÉS de Captura
+@permitir app/src/main/java/com/example/msp_app/data/pagos/RegistroDeAbonoAdapter.kt # Captura E-APP-084..090, telemetría E-APP-095, carrera E-APP-083; ANTES+DESPUÉS
+@permitir app/src/main/java/com/example/msp_app/workers/PendingPaymentsWorker.kt # Captura E-APP-088, opción B E-APP-092, D9b E-APP-108; ANTES+DESPUÉS
+@permitir core/database/src/main/kotlin/com/example/msp_app/core/database/AppDatabase.kt # Room: P2=36, Captura=37, P3=38 (una sola secuencia); revisión por tarea
+@permitir core/database/src/main/kotlin/com/example/msp_app/core/database/dao/payment/PaymentDao.kt # Opción B E-APP-092 (abono no aplicado -2); ANTES+DESPUÉS
+@permitir core/database/src/main/kotlin/com/example/msp_app/core/database/dao/sale/SaleDao.kt # Opción B E-APP-092 y carrera E-APP-083; ANTES+DESPUÉS
+@permitir core/database/src/main/kotlin/com/example/msp_app/core/database/entities/PaymentEntity.kt # Opción B E-APP-092 (KDoc del -2); ANTES+DESPUÉS
+@permitir feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/data/adapter/RoomPagosAdapter.kt # Opción B E-APP-092 (rótulo no aplicado); ANTES+DESPUÉS. También D4 condonación encolada en la misma transacción E-APP-093 (fix/captura-d4); ANTES estrecha SOSTIENE, DESPUÉS pendiente
+@permitir app/src/main/java/com/example/msp_app/data/pagos/RegistroDeCondonacion.kt # D4 condonación encolada en la misma transacción E-APP-093 (fix/captura-d4); ANTES estrecha SOSTIENE, DESPUÉS pendiente
+@permitir app/src/main/java/com/example/msp_app/core/sync/cobranza/CobranzaWriteMutex.kt # Carrera abono registrado/venta borrada E-APP-083 (fix/captura-e-app-083); ANTES Q1 SOSTIENE MEDIDO 20/20, DESPUÉS pendiente
+@permitir core/common/src/main/kotlin/com/example/msp_app/core/common/cobranza/domain/EstadoCuentaDeriver.kt # Lista de 3 columnas E-APP-057 (feat/lista-tres-columnas-t16), aprobada en el doc 1; entra con la Entrega 1 (entrega/1-r6)
+# «@permitir-nuevo <ruta exacta> # <motivo>»: solo CREAR esa ruta (no existe en
+# la base y sí en la punta); modificarla, borrarla o renombrarla sigue vedado.
+# Relevo 6 (2026-10-26), aprobado por el dueño como una sola decisión: 3 archivos nuevos.
+@permitir-nuevo app/src/main/java/com/example/msp_app/data/pagos/CapturasSinTerminarAdapter.kt # Captura (feat/captura-nunca-se-pierde) E-APP-084; compuertas ANTES+DESPUÉS de Captura (DESPUÉS pendiente)
+@permitir-nuevo app/src/main/java/com/example/msp_app/data/pagos/ResumenDelAbono.kt # Captura (feat/captura-nunca-se-pierde) E-APP-084/086; compuertas ANTES+DESPUÉS de Captura (DESPUÉS pendiente)
+@permitir-nuevo core/database/src/main/kotlin/com/example/msp_app/core/database/dao/payment/AbonosNoAplicadosDao.kt # Opción B de E-APP-083 (fix/captura-e-app-083), ID nuevo E-APP-092; ANTES SOSTIENE, revisión APTO CON CAMBIOS, DESPUÉS pendiente
+@permitir-nuevo .gitattributes # Dos líneas -text para los casos compartidos estado-cuenta (E-APP-057) y precios-orden (fix/precios-orden-y-contado); aceptado por el dueño 2026-10-26 en la Entrega 1 (entrega/1-r6)

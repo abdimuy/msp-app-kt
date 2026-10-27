@@ -62,6 +62,32 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Hueco aceptado (decision del dueno, 2026-10-17): este paso corre con el
+      # ci.yml del propio PR, asi que un PR que edita su ci.yml puede quitarlo;
+      # y un push directo a main no tiene diff contra origin/main. Pendiente para cuando
+      # se configure GitHub: un check obligatorio con pull_request_target.
+      # Corre la guardia de la BASE (origin/main), no la del PR: un PR no puede
+      # debilitar la guardia que lo juzga. Mientras la base aun no la tiene,
+      # corre la del commit que la introduce en este PR, no la de HEAD: un
+      # commit posterior del mismo PR no puede apagarla. Sin fetch extra:
+      # fetch-depth 0 ya trae todo y un fetch con --depth volveria superficial
+      # el clon.
+      - name: Guardia de aislamiento del dinero
+        run: |
+          if git cat-file -e origin/main:scripts/guardia-aislamiento.sh 2>/dev/null; then
+            git cat-file blob origin/main:scripts/guardia-aislamiento.sh > "$RUNNER_TEMP/guardia-base.sh"
+          else
+            intro="$(git log --diff-filter=A --format=%H origin/main..HEAD -- scripts/guardia-aislamiento.sh | tail -1)"
+            if [ -z "$intro" ]; then echo "::error::no encuentro el commit que introduce la guardia"; exit 1; fi
+            git cat-file blob "$intro:scripts/guardia-aislamiento.sh" > "$RUNNER_TEMP/guardia-base.sh"
+          fi
+          bash "$RUNNER_TEMP/guardia-base.sh" --rango origin/main...HEAD
+
+      - name: Prueba de la guardia
+        run: bash scripts/guardia-aislamiento_test.sh
 
       - name: Configurar JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
