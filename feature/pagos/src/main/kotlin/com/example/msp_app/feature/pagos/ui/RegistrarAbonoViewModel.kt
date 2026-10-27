@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
@@ -21,6 +22,7 @@ import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.model.TipoDeContacto
+import com.example.msp_app.feature.pagos.domain.port.AbonoEnCurso
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
@@ -29,6 +31,7 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -93,7 +96,11 @@ import kotlinx.coroutines.withContext
     // Agruparlas en un holder solo escondería el wiring —mismo criterio que
     // `CollectionReportViewModel`—, y el puerto no puede vivir en otro tipo
     // inyectado sin partir en dos el estado único de la pantalla.
-    "LongParameterList"
+    "LongParameterList",
+    // E-APP-084: la reanudación desde el marcador ("Guardar", "Capturar otro")
+    // vive aquí porque comparte el guard y el UUID persistidos del abono;
+    // sacarla a otra clase partiría el único camino que escribe dinero.
+    "LargeClass"
 ) // una tecla por gesto del teclado + los dos pasos de la confirmacion; partirla los separaria.
 class RegistrarAbonoViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
@@ -102,6 +109,7 @@ class RegistrarAbonoViewModel @Inject constructor(
     private val camara: ComprobantesPort,
     private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
+    private val clock: AppClock,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -113,8 +121,12 @@ class RegistrarAbonoViewModel @Inject constructor(
      * La clave de idempotencia de ESTE abono. Se acuña una sola vez por
      * instancia de pantalla y sobrevive a la rotación y a la muerte del proceso.
      */
-    val abonoId: String = savedStateHandle.get<String>(CLAVE_ABONO_ID)
+    var abonoId: String = savedStateHandle.get<String>(CLAVE_ABONO_ID)
         ?: UUID.randomUUID().toString().also { savedStateHandle[CLAVE_ABONO_ID] = it }
+        private set(valor) {
+            field = valor
+            savedStateHandle[CLAVE_ABONO_ID] = valor
+        }
 
     /** El guard anti-duplicado, persistido. Ver el KDoc de la clase. */
     private var yaSeEncolo: Boolean
@@ -194,7 +206,11 @@ class RegistrarAbonoViewModel @Inject constructor(
     fun cargar() {
         viewModelScope.launch {
             mutableState.value = conLoCapturado(RegistrarAbonoUiState(cargando = true))
-            mutableState.value = conLoCapturado(leer())
+            val leido = leer()
+            mutableState.value = conLoCapturado(leido)
+            // El guard encontró el abono en el historial: la pantalla va al
+            // éxito, así que el marcador se cierra (E-APP-084).
+            leido.registrado?.let { cerrarSinLanzar(it) }
         }
     }
 
@@ -660,8 +676,73 @@ class RegistrarAbonoViewModel @Inject constructor(
         // sobre el ViewModel recreado pueden colarse entre el chequeo y aquí.
         yaSeEncolo = true
         mutableState.value = actual.copy(guardando = true)
+        // E-APP-084: UNDISPATCHED y sin `withContext(io)` delante, para que el
+        // marcador entre a `NonCancellable` en este mismo frame — antes de que un
+        // Atrás inmediato pueda cancelar el `viewModelScope`.
+        // E-APP-085: la hora del pago es ESTE toque.
+        val capturadoEn = clock.now()
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            aplicar(
+                escribir(
+                    venta,
+                    confirmacion.importe,
+                    confirmacion.metodo,
+                    comprobantes,
+                    capturadoEn
+                )
+            )
+        }
+    }
+
+    /**
+     * **"Guardar" del abono sin guardar** (E-APP-084, texto aprobado por el
+     * dueño 2026-10-20). Escribe lo que dice el marcador —mismo UUID, mismo
+     * importe, mismos comprobantes, misma hora de captura (E-APP-085)— y no lo
+     * que la pantalla tenga. No hay botón para descartarlo (E-APP-090).
+     */
+    fun guardarSinGuardar() {
+        val actual = mutableState.value
+        val pendiente = actual.sinGuardar ?: return
+        val venta = actual.venta ?: return
+        if (yaSeEncolo || actual.guardando || actual.registrado != null) return
+        yaSeEncolo = true
+        mutableState.value = actual.copy(guardando = true, fallo = null)
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            aplicar(
+                escribir(
+                    venta,
+                    pendiente.importe,
+                    pendiente.metodo,
+                    pendiente.comprobantes,
+                    pendiente.capturadoEn
+                )
+            )
+        }
+    }
+
+    /**
+     * **"Capturar otro"** tras "Abono registrado": cierra el marcador ESCRITA y
+     * arma un formulario nuevo con un UUID nuevo.
+     */
+    @Suppress("TooGenericExceptionCaught") // cerrar el marcador no toca el dinero ya escrito.
+    fun capturarOtro() {
+        val actual = mutableState.value
+        val escrito = actual.yaRegistrado ?: return
+        abonoId = UUID.randomUUID().toString()
+        yaSeEncolo = false
+        mutableState.value = actual.copy(yaRegistrado = null, fallo = null)
         viewModelScope.launch {
-            aplicar(escribir(venta, confirmacion))
+            try {
+                registrarAbono.cerrar(escrito)
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                telemetry.error(
+                    code = PagosTelemetria.CODE_ABONO_SIN_VERIFICAR,
+                    message = "no se pudo cerrar el marcador del abono registrado",
+                    props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+                )
+            }
         }
     }
 
@@ -737,21 +818,28 @@ class RegistrarAbonoViewModel @Inject constructor(
         return Verificacion.NO_SE_PUDO_SABER
     }
 
+    /**
+     * SIN `withContext(io)`: el adaptador escribe el marcador como su primera
+     * operación y Room despacha solo (E-APP-084, ajuste Q11 de la compuerta).
+     */
+    @Suppress("LongParameterList") // los datos del abono, tal cual viajan al puerto.
     private suspend fun escribir(
         venta: DetalleVenta,
-        confirmacion: ConfirmacionPendiente
-    ): ResultadoDelAbono = withContext(io) {
-        registrarAbono(
-            abonoId = abonoId,
-            venta = venta,
-            importe = confirmacion.importe,
-            metodo = confirmacion.metodo,
-            // Se manda lo que el ESTADO tiene en este instante, no lo que la
-            // hoja congeló: con la hoja arriba `sePuedeCapturar` es falso, así
-            // que la lista no puede haber cambiado desde el paso uno.
-            comprobantes = comprobantes
-        )
-    }
+        importe: Money,
+        metodo: MetodoDeCobro,
+        adjuntos: List<ComprobanteDelAbono>,
+        capturadoEn: java.time.Instant
+    ): ResultadoDelAbono = registrarAbono(
+        abonoId = abonoId,
+        venta = venta,
+        importe = importe,
+        metodo = metodo,
+        // Se manda lo que el ESTADO tiene en este instante, no lo que la hoja
+        // congeló: con la hoja arriba `sePuedeCapturar` es falso, así que la
+        // lista no puede haber cambiado desde el paso uno.
+        comprobantes = adjuntos,
+        capturadoEn = capturadoEn
+    )
 
     /**
      * Cierra el registro.
@@ -806,15 +894,33 @@ class RegistrarAbonoViewModel @Inject constructor(
         }
     }
 
-    private fun terminarComoRegistrado() {
+    private suspend fun terminarComoRegistrado() {
         mutableState.value = mutableState.value.copy(
             guardando = false,
             confirmacion = null,
             fallo = null,
             registrado = abonoId,
+            sinGuardar = null,
             // La duda se acabó: el abono está.
             verificacionPendiente = false
         )
+        // La pantalla ya muestra el éxito: el marcador se cierra (E-APP-084).
+        cerrarSinLanzar(abonoId)
+    }
+
+    @Suppress("TooGenericExceptionCaught") // cerrar el marcador no toca el dinero ya escrito.
+    private suspend fun cerrarSinLanzar(id: String) {
+        try {
+            registrarAbono.cerrar(id)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            telemetry.error(
+                code = PagosTelemetria.CODE_ABONO_SIN_VERIFICAR,
+                message = "no se pudo cerrar el marcador del abono registrado",
+                props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+            )
+        }
     }
 
     /**
@@ -921,18 +1027,23 @@ class RegistrarAbonoViewModel @Inject constructor(
             RegistrarAbonoUiState(cargando = false, error = ErrorDeDetalle.NO_ESTA_EN_EL_TELEFONO)
         } else {
             conVeredicto(
-                RegistrarAbonoUiState(
-                    cargando = false,
-                    venta = venta,
-                    sugeridos = MontosSugeridos.de(
-                        venta = venta,
-                        historial = historialDelCliente(venta)
+                reanudar(
+                    conVeredicto(
+                        RegistrarAbonoUiState(
+                            cargando = false,
+                            venta = venta,
+                            sugeridos = MontosSugeridos.de(
+                                venta = venta,
+                                historial = historialDelCliente(venta)
+                            ),
+                            monto = montoInicialDe(venta),
+                            registrado = resolverGuard(venta)
+                            // Lo capturado NO se repone aquí: lo cuelga `conLoCapturado`
+                            // en el instante de publicar, que es lo que impide reponer
+                            // un destino que la cámara ya atendió.
+                        )
                     ),
-                    monto = montoInicialDe(venta),
-                    registrado = resolverGuard(venta)
-                    // Lo capturado NO se repone aquí: lo cuelga `conLoCapturado`
-                    // en el instante de publicar, que es lo que impide reponer
-                    // un destino que la cámara ya atendió.
+                    enCurso = registrarAbono.enCurso(ventaId)
                 )
             )
         }
@@ -945,6 +1056,38 @@ class RegistrarAbonoViewModel @Inject constructor(
             props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
         RegistrarAbonoUiState(cargando = false, error = ErrorDeDetalle.FALLO_LA_CARGA)
+    }
+
+    /**
+     * La pantalla deriva del marcador (E-APP-084, D8): ESCRITA → "Abono
+     * registrado" con "Ver ticket" y "Capturar otro"; CAPTURADA → "Abono de $X
+     * sin guardar" con "Guardar", el MISMO UUID y la captura cerrada al teclado
+     * (no hay descarte, E-APP-090). Nada → formulario.
+     */
+    private fun reanudar(
+        estado: RegistrarAbonoUiState,
+        enCurso: AbonoEnCurso?
+    ): RegistrarAbonoUiState {
+        if (enCurso == null || estado.registrado != null) return estado
+        abonoId = enCurso.abonoId
+        return if (enCurso.escrito) {
+            yaSeEncolo = true
+            estado.copy(yaRegistrado = enCurso.abonoId)
+        } else {
+            // Un guard puesto sobre un abono sin escribir se suelta: lo que manda
+            // ahora es el botón "Guardar" del marcador.
+            yaSeEncolo = false
+            estado.copy(
+                sinGuardar = AbonoSinGuardar(
+                    importe = enCurso.importe,
+                    metodo = enCurso.metodo,
+                    comprobantes = enCurso.comprobantes,
+                    capturadoEn = enCurso.capturadoEn
+                ),
+                monto = MontoCapturado.deSugerido(enCurso.importe),
+                metodo = enCurso.metodo
+            )
+        }
     }
 
     /**

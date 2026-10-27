@@ -636,7 +636,8 @@ class MergeVentasCarreraEAPP081Test : RobolectricTestBase() {
             encolador = NoEncola,
             clock = clock,
             traerUsuario = { COBRADOR },
-            pedirUbicacion = {}
+            pedirUbicacion = {},
+            emailEnSesion = { "rosa@example.com" }
         )
         val r = adaptador.registrar(
             AbonoARegistrar(

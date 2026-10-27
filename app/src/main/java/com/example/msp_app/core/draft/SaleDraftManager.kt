@@ -41,6 +41,12 @@ data class DraftCombo(
 )
 
 data class SaleDraft(
+    /**
+     * El id de la venta que se está capturando (E-APP-094). Vacío en un
+     * borrador de una versión anterior. Si ya hay una venta local con este id,
+     * el borrador ya se guardó: no se ofrece de nuevo.
+     */
+    val saleId: String = "",
     // Common fields for both types
     val clientName: String = "",
     val street: String = "",
@@ -187,6 +193,8 @@ class SaleDraftManager(private val context: Context) {
     }
 
     companion object {
+        private val SALE_ID = stringPreferencesKey("draft_sale_id")
+
         // Common fields
         private val CLIENT_NAME = stringPreferencesKey("draft_client_name")
         private val PHONE = stringPreferencesKey("draft_phone")
@@ -236,6 +244,11 @@ class SaleDraftManager(private val context: Context) {
         }
 
         context.saleDraftDataStore.edit { preferences ->
+            if (draft.saleId.isNotBlank()) {
+                preferences[SALE_ID] = draft.saleId
+            } else {
+                preferences.remove(SALE_ID)
+            }
             // Common fields
             preferences[CLIENT_NAME] = draft.clientName
             preferences[PHONE] = draft.phone
@@ -302,6 +315,7 @@ class SaleDraftManager(private val context: Context) {
         }
 
         return SaleDraft(
+            saleId = preferences[SALE_ID] ?: "",
             clientName = preferences[CLIENT_NAME] ?: "",
             phone = preferences[PHONE] ?: "",
             street = preferences[STREET] ?: "",

@@ -7,28 +7,35 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.common.ventas.precios.VeredictoOrdenDePrecios
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
 import com.example.msp_app.core.database.entities.LocalSaleProductEntity
+import com.example.msp_app.core.database.sinCancelar
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.logging.logSaleError
-import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
+import com.example.msp_app.features.sales.data.FotosDeLaVentaLocal
+import com.example.msp_app.features.sales.data.RegistroDeVentaLocal
+import com.example.msp_app.features.sales.data.ResultadoDeLaVentaLocal
 import com.example.msp_app.features.sales.precios.LineasDeVenta
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
-import java.util.UUID
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
-class NewLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
+class NewLocalSaleViewModel @JvmOverloads constructor(
+    application: Application,
+    private val fotos: FotosDeLaVentaLocal = FotosDeLaVentaLocal(application.applicationContext),
+    private val registro: RegistroDeVentaLocal =
+        RegistroDeVentaLocal(AppDatabase.getInstance(application.applicationContext))
+) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
     private val comboDataSource = ComboLocalDataSource(application.applicationContext)
@@ -108,97 +115,6 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 )
                 _saleCombos.value = emptyList()
             }
-        }
-    }
-
-    /**
-     * Guarda las imágenes localmente con compresión inteligente en hilo de fondo
-     *
-     * Esta función aplica compresión adaptativa según el tamaño y dimensiones
-     * de cada imagen, optimizando el espacio de almacenamiento y el rendimiento
-     * de la red al enviar al servidor.
-     *
-     * IMPORTANTE: Se ejecuta en Dispatchers.IO para no bloquear el UI thread
-     *
-     * @param context Contexto de la aplicación
-     * @param uris Lista de URIs de las imágenes a guardar
-     * @param saleId ID de la venta asociada
-     * @return Lista de pares (ruta del archivo, tipo MIME)
-     */
-    suspend fun saveImagesLocally(
-        context: Context,
-        uris: List<Uri>,
-        saleId: String
-    ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
-        val savedPaths = mutableListOf<Pair<String, String>>()
-
-        uris.forEachIndexed { index, uri ->
-            try {
-                // Validar que sea una imagen válida
-                if (!ImageCompressor.isValidImage(context, uri)) {
-                    Log.w("NewLocalSaleViewModel", "URI no válido o no es una imagen: $uri")
-                    return@forEachIndexed
-                }
-
-                val fileName = "sale_${saleId}_${System.currentTimeMillis()}_$index.jpg"
-
-                // Comprimir la imagen de forma inteligente
-                // Esta operación es CPU-intensiva pero está en Dispatchers.IO
-                val result = ImageCompressor.compressImage(
-                    context = context,
-                    uri = uri,
-                    outputFileName = fileName
-                )
-
-                // Las imágenes se guardan siempre como JPEG después de la compresión
-                savedPaths.add(result.outputFile.absolutePath to "image/jpeg")
-            } catch (e: Exception) {
-                Log.e("NewLocalSaleViewModel", "Error al comprimir imagen $index: ${e.message}", e)
-
-                // Log del error
-                logger.error(
-                    module = "SALES",
-                    action = "IMAGE_COMPRESSION_ERROR",
-                    message = "Error al comprimir imagen",
-                    error = e,
-                    data = mapOf(
-                        "saleId" to saleId,
-                        "imageIndex" to index,
-                        "uri" to uri.toString()
-                    )
-                )
-
-                // Continuar con las siguientes imágenes en caso de error
-            }
-        }
-
-        return@withContext savedPaths
-    }
-
-    suspend fun saveSaleImages(
-        context: Context,
-        uris: List<Uri>,
-        saleId: String,
-        fechasubida: String
-    ) {
-        try {
-            val savedPaths = saveImagesLocally(context, uris, saleId)
-
-            val images = savedPaths.map { (path, _) ->
-                LocalSaleImageEntity(
-                    LOCAL_SALE_IMAGE_ID = UUID.randomUUID().toString(),
-                    LOCAL_SALE_ID = saleId,
-                    IMAGE_URI = path,
-                    FECHA_SUBIDA = fechasubida
-                )
-            }
-
-            images.forEach { image ->
-                localSaleStore.insertSaleImage(image)
-            }
-        } catch (e: Exception) {
-            Log.e("NewLocalSaleViewModel", "Error al guardar imágenes: ${e.message}", e)
-            throw e
         }
     }
 
@@ -337,27 +253,51 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         CLIENTE_ID = clienteId
                     )
 
+                    // E-APP-094: con el saleId estable del borrador, una venta que
+                    // ya se escribió no se vuelve a escribir (antes: una segunda
+                    // venta). Se mira antes de comprimir para no reescribir los
+                    // archivos de una venta que quizá se está subiendo.
+                    if (registro.yaSeGuardo(saleId)) {
+                        _saveResult.value = SaveResult.YaGuardada(saleId)
+                        return@withLock
+                    }
+                    // Marcador antes de la única espera cancelable: comprimir fotos.
+                    registro.capturar(saleId, userEmail)
+
+                    // Una foto que falla detiene la venta: nada se escribe.
+                    val imagenes = try {
+                        fotos.preparar(saleId, imageUris, saleDate)
+                    } catch (fallida: FotosDeLaVentaLocal.FotoNoProcesada) {
+                        Log.e("NewLocalSaleViewModel", fallida.message, fallida)
+                        _saveResult.value = SaveResult.Error(fallida.message.orEmpty())
+                        return@withLock
+                    }
+
                     logger.debug(
                         module = "SALES",
                         action = "INSERT_SALE",
                         message = "Insertando venta en base de datos local",
                         data = mapOf("saleId" to saleId, "clientName" to clientName)
                     )
-                    localSaleStore.insertSale(saleEntity)
-
-                    if (productEntities.isNotEmpty()) {
-                        saleProduct.insertSaleProducts(productEntities)
+                    when (registro.escribir(saleEntity, productEntities, comboEntities, imagenes)) {
+                        ResultadoDeLaVentaLocal.ESCRITA -> Unit
+                        ResultadoDeLaVentaLocal.YA_ESTABA -> {
+                            registro.cerrar(saleId)
+                            _saveResult.value = SaveResult.YaGuardada(saleId)
+                            return@withLock
+                        }
+                        ResultadoDeLaVentaLocal.LINEAS_HUERFANAS -> {
+                            Log.e("NewLocalSaleViewModel", "Venta $saleId: líneas sin cabecera")
+                            _saveResult.value = SaveResult.Error(
+                                "Hay productos de esta venta guardados sin la venta"
+                            )
+                            return@withLock
+                        }
                     }
 
-                    if (comboEntities.isNotEmpty()) {
-                        comboDataSource.insertCombos(comboEntities)
-                    }
-
-                    if (imageUris.isNotEmpty()) {
-                        saveSaleImages(context, imageUris, saleId, saleDate)
-                    }
-
-                    enqueuePendingLocalSalesWorker(context, saleId, userEmail)
+                    // Después del commit: la salida de la pantalla no corta el encolado.
+                    sinCancelar { enqueuePendingLocalSalesWorker(context, saleId, userEmail) }
+                    registro.cerrar(saleId)
 
                     _saveResult.value = SaveResult.Success(saleId)
                     loadAllSales()
@@ -374,6 +314,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                             "imageCount" to imageUris.size
                         )
                     )
+                } catch (cancelada: CancellationException) {
+                    throw cancelada
                 } catch (e: Exception) {
                     Log.e("NewLocalSaleViewModel", "Error creating sale: ${e.message}", e)
 
@@ -601,4 +543,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 sealed class SaveResult {
     data class Success(val saleId: String) : SaveResult()
     data class Error(val message: String) : SaveResult()
+
+    /** E-APP-094: la venta con ese id ya estaba guardada; no se escribió otra. */
+    data class YaGuardada(val saleId: String) : SaveResult()
 }

@@ -55,7 +55,7 @@ class AdversarioSeleccionCongeladaR5Test : RoomTestBase() {
      * lanzaba, el caso de uso no terminaba y la VM moría sin `aplicar`.
      */
     @Test
-    fun `E-VIS-074 H-r5-1 con el ancla escrita la telemetria que lanza en la segunda cuenta no hace lanzar al puerto`() =
+    fun `E-VIS-074 H-r5-1 la telemetria que lanza sin cobrador no hace lanzar al puerto y E-APP-087 no deja nada`() =
         runTest {
             val lanza = TelemetriaQueLanzaEn(VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO)
             val llamadas = AtomicInteger(0)
@@ -63,7 +63,7 @@ class AdversarioSeleccionCongeladaR5Test : RoomTestBase() {
                 registro = adaptador(
                     telemetry = lanza,
                     traerUsuario = {
-                        if (llamadas.incrementAndGet() == 2) {
+                        if (llamadas.incrementAndGet() == 1) {
                             error(
                                 "firestore sin red"
                             )
@@ -90,14 +90,12 @@ class AdversarioSeleccionCongeladaR5Test : RoomTestBase() {
 
             assertEquals("la telemetría sí se pidió (y lanzó)", 1, lanza.lanzadas)
             assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, resultado)
+            // E-APP-087 (todo o nada): el cobrador se consulta UNA vez, antes de
+            // la transacción; sin él no queda ni el ancla ni su foto.
             val ancla = IdsDeLaVisita.ancla(SEMILLA, cuentas)
-            assertNotNull("el ancla quedó escrita", db.visitDao().findVisitById(ancla))
-            assertEquals(
-                "su foto también",
-                ancla,
-                db.visitImageDao().getByVisitaId(ancla).single().VISITA_ID
-            )
-            assertEquals("la escritura del ancla se avisó", 1, avisos.get())
+            assertNull("todo o nada: ni el ancla", db.visitDao().findVisitById(ancla))
+            assertTrue(db.visitImageDao().getByVisitaId(ancla).isEmpty())
+            assertEquals("nada escrito, nada avisado", 0, avisos.get())
         }
 
     /**
@@ -135,37 +133,36 @@ class AdversarioSeleccionCongeladaR5Test : RoomTestBase() {
 
     /** **H-r5-1, control positivo.** Telemetría sana: el mismo montaje contesta, no lanza. */
     @Test
-    fun `H-r5-1 control con telemetria sana el mismo parcial contesta fallo sin lanzar`() =
-        runTest {
-            val llamadas = AtomicInteger(0)
-            val caso = RegistrarVisita(
-                registro = adaptador(
-                    telemetry = RecordingTelemetry(clock),
-                    traerUsuario = {
-                        if (llamadas.incrementAndGet() == 2) {
-                            error(
-                                "firestore sin red"
-                            )
-                        } else {
-                            cobrador
-                        }
+    fun `H-r5-1 control con telemetria sana el mismo fallo contesta sin lanzar`() = runTest {
+        val llamadas = AtomicInteger(0)
+        val caso = RegistrarVisita(
+            registro = adaptador(
+                telemetry = RecordingTelemetry(clock),
+                traerUsuario = {
+                    if (llamadas.incrementAndGet() == 1) {
+                        error(
+                            "firestore sin red"
+                        )
+                    } else {
+                        cobrador
                     }
-                ),
-                ubicacion = UbicacionFija,
-                telemetry = RecordingTelemetry(clock)
-            )
+                }
+            ),
+            ubicacion = UbicacionFija,
+            telemetry = RecordingTelemetry(clock)
+        )
 
-            val resultado = caso(
-                visitaId = SEMILLA,
-                clienteId = CLIENTE_ID,
-                ventaId = null,
-                captura = captura(ResultadoDeVisita.VISITE_VUELVO, setOf(VENTA_A, VENTA_B)),
-                hoy = hoy,
-                comprobantes = listOf(foto())
-            )
+        val resultado = caso(
+            visitaId = SEMILLA,
+            clienteId = CLIENTE_ID,
+            ventaId = null,
+            captura = captura(ResultadoDeVisita.VISITE_VUELVO, setOf(VENTA_A, VENTA_B)),
+            hoy = hoy,
+            comprobantes = listOf(foto())
+        )
 
-            assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, resultado)
-        }
+        assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, resultado)
+    }
 
     /**
      * Toda la puerta con Firestore caído al primer intento: el adaptador

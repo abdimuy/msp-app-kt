@@ -1,17 +1,22 @@
 package com.example.msp_app.data.pagos
 
-import androidx.room.withTransaction
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.PaymentImageEntity
+import com.example.msp_app.core.database.escribirSinCancelar
+import com.example.msp_app.core.database.sinCancelar
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.data.auth.emailDeLaSesion
 import com.example.msp_app.data.auth.usuarioAutenticado
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.auth.User
@@ -20,13 +25,13 @@ import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
+import com.example.msp_app.feature.pagos.domain.port.AbonoEnCurso
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import com.example.msp_app.features.payments.newpayment.PaymentFactory
-import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
+import java.time.Duration
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 
 /**
  * Implementación real de [RegistroDeAbonoPort], provista desde el composition
@@ -141,6 +146,7 @@ import kotlinx.coroutines.withContext
  * [traerUsuario] y [pedirUbicacion] son inyectables **solo para test**
  * (fakes-only, sin MockK): ningún test unitario arranca un servicio real.
  */
+@Suppress("LongParameterList", "TooManyFunctions") // las dependencias reales del camino del dinero.
 class RegistroDeAbonoAdapter(
     private val db: AppDatabase,
     private val saleDao: SaleDao,
@@ -150,30 +156,48 @@ class RegistroDeAbonoAdapter(
     private val encolador: PaymentsWorkEnqueuer,
     private val clock: AppClock = AppClock.System,
     private val traerUsuario: suspend () -> User? = ::usuarioAutenticado,
-    private val pedirUbicacion: (pagoId: String) -> Unit
+    private val pedirUbicacion: (pagoId: String) -> Unit,
+    private val capturas: CapturaEnCursoDao = db.capturaEnCursoDao(),
+    private val emailEnSesion: () -> String? = ::emailDeLaSesion
 ) : RegistroDeAbonoPort {
 
+    /**
+     * ## Captura nunca se pierde (E-APP-084/085/086)
+     *
+     * 1. **Escritura 1, la primera operación, sin suspensión previa:** el
+     *    marcador CAPTURADA con el resumen (importe, método, comprobantes, hora
+     *    de captura) dentro de `NonCancellable`. Si la pantalla se cierra o el
+     *    proceso muere después, la captura sigue en el disco.
+     * 2. **Espera cancelable:** el cobrador (Firestore). Cancelada aquí, no se
+     *    escribe dinero y el marcador queda CAPTURADA ("Abono de $X sin
+     *    guardar").
+     * 3. **Escritura 2, [escribirSinCancelar]:** idempotente por el marcador y
+     *    por `Payment.ID`/`PAGO_RECIBIDO_ID`; el saldo se lee DENTRO de la
+     *    transacción (tercer cinturón); pago + descuento + ESCRITA en el mismo
+     *    commit. Un segundo intento con el mismo UUID no descuenta otra vez.
+     * 4. **Post-commit:** comprobantes (fuera de la transacción: una foto nunca
+     *    impide un cobro, decisión 2 del dueño), encolado, ubicación.
+     */
     @Suppress(
         "TooGenericExceptionCaught"
-    ) // Room/Firestore pueden fallar con cualquier excepción; nada quedó escrito.
+    ) // Room/Firestore pueden fallar con cualquier excepción; se reporta sin PII.
     override suspend fun registrar(abono: AbonoARegistrar): ResultadoDelAbono = try {
-        val venta = saleDao.getById(abono.ventaId)
-        val usuario = traerUsuario()
-        when {
-            venta == null -> ResultadoDelAbono.VENTA_NO_ESTA_EN_EL_TELEFONO
-            usuario == null || usuario.COBRADOR_ID == 0 -> ResultadoDelAbono.SIN_COBRADOR
-            // Tercer cinturón: contra el saldo que acaba de leerse, no contra el
-            // que el llamador traía. Ver el KDoc de la clase.
-            sobrepasaElSaldo(abono, venta.SALDO_REST) -> ResultadoDelAbono.BLOQUEADO_POR_SEGURIDAD
-            else -> {
-                guardar(abono, venta.toDomain(), usuario)
-                ResultadoDelAbono.REGISTRADO
+        val usuarioEmail = emailEnSesion()
+        if (usuarioEmail.isNullOrBlank()) {
+            ResultadoDelAbono.SIN_COBRADOR
+        } else {
+            sinCancelar { capturar(abono, usuarioEmail) }
+            val usuario = traerUsuario()
+            if (usuario == null || usuario.COBRADOR_ID == 0) {
+                ResultadoDelAbono.SIN_COBRADOR
+            } else {
+                escribir(abono, usuario)
             }
         }
     } catch (cancelada: CancellationException) {
-        // Se relanza ANTES del catch general, igual que hacen `verificar` y
-        // `leer` en el ViewModel: una cancelación no es un fallo de escritura, y
-        // tragársela ahora que hay una transacción adentro sería peor todavía.
+        // Se relanza ANTES del catch general: una cancelación no es un fallo de
+        // escritura. Si llegó en la espera del cobrador, el marcador quedó
+        // CAPTURADA y la pantalla lo ofrece como "sin guardar".
         throw cancelada
     } catch (fallo: Throwable) {
         // Anti-PII: viaja el nombre de la clase de la excepción, nunca su texto
@@ -186,42 +210,177 @@ class RegistroDeAbonoAdapter(
         ResultadoDelAbono.FALLO_EL_GUARDADO
     }
 
-    private suspend fun guardar(
-        abono: AbonoARegistrar,
-        venta: com.example.msp_app.data.models.sale.Sale,
-        usuario: User
-    ) {
-        val importe = abono.importe.amount.toPlainString().toDouble()
+    /**
+     * Escritura 1. Un UUID ya escrito no se toca; uno sólo capturado se
+     * re-resume (el cobrador corrigió tras un fallo) conservando su hora de
+     * captura si el llamador no trae una (E-APP-085).
+     */
+    private suspend fun capturar(abono: AbonoARegistrar, usuario: String) {
+        val ahora = AppTime.toWireFormat(clock.now())
+        val previa = capturas.obtener(abono.abonoId)
+        val horaPrevia = previa?.let { ResumenDelAbono.leer(it.RESUMEN)?.capturadoEn }
+            ?.let { AppTime.parseWireFormatOrNull(it) }
+        val capturadoEn = (abono.capturadoEn ?: horaPrevia ?: clock.now()).truncatedTo(
+            ChronoUnit.SECONDS
+        )
+        val json = ResumenDelAbono.de(abono, capturadoEn).json()
+        val nueva = capturas.capturar(
+            CapturaEnCursoEntity(
+                ID = abono.abonoId,
+                TIPO = CapturaEnCursoEntity.TIPO_ABONO,
+                LLAVE = abono.ventaId.toString(),
+                USUARIO = usuario,
+                ESTADO = CapturaEnCursoEntity.CAPTURADA,
+                RESUMEN = json,
+                CREADA_EN = ahora,
+                ACTUALIZADA_EN = ahora
+            )
+        )
+        if (nueva == -1L) capturas.actualizarCapturada(abono.abonoId, json, ahora)
+    }
+
+    private suspend fun escribir(abono: AbonoARegistrar, usuario: User): ResultadoDelAbono {
+        val desenlace = db.escribirSinCancelar { escribirEnLaTransaccion(abono, usuario) }
+        return when (desenlace) {
+            is Desenlace.Bloqueado -> {
+                reportarBloqueo(desenlace.bloqueos)
+                ResultadoDelAbono.BLOQUEADO_POR_SEGURIDAD
+            }
+
+            Desenlace.SinVenta -> ResultadoDelAbono.VENTA_NO_ESTA_EN_EL_TELEFONO
+            Desenlace.Escrito, Desenlace.YaEstaba -> {
+                // Fuera de la transacción y DESPUÉS del commit: el dinero ya está
+                // escrito y nada de lo que pase aquí puede deshacerlo. Los
+                // comprobantes van ANTES del encolado: encolar despierta al
+                // worker, que manda lo que encuentre en `pago_imagenes`.
+                sinCancelar {
+                    guardarComprobantes(abono)
+                    encolarSubida(abono.abonoId)
+                    if (desenlace == Desenlace.Escrito) pedirUbicacionDelAbono(abono.abonoId)
+                }
+                ResultadoDelAbono.REGISTRADO
+            }
+        }
+    }
+
+    /** Dentro de la transacción: sin esperas, sin telemetría, con el saldo de la base. */
+    private suspend fun escribirEnLaTransaccion(abono: AbonoARegistrar, usuario: User): Desenlace {
+        val marcador = capturas.obtener(abono.abonoId)
+        val yaEscrito = marcador != null && marcador.ESTADO != CapturaEnCursoEntity.CAPTURADA
+        if (yaEscrito || capturas.pagosConUuid(abono.abonoId) > 0) {
+            capturas.marcarEscrita(abono.abonoId, AppTime.toWireFormat(clock.now()))
+            return Desenlace.YaEstaba
+        }
+        val venta = saleDao.getById(abono.ventaId) ?: return Desenlace.SinVenta
+        val bloqueos = SeguridadDelAbono.bloqueosDe(
+            monto = abono.importe,
+            saldo = Money.of(venta.SALDO_REST)
+        )
+        if (bloqueos.isNotEmpty()) {
+            return Desenlace.Bloqueado(
+                bloqueos.joinToString(",") { it.name }
+            )
+        }
+        // E-APP-085: la hora del pago es la de CAPTURA, nunca la del guardado.
+        val resumen = marcador?.let { ResumenDelAbono.leer(it.RESUMEN) }
+        val capturadoEn = AppTime.parseWireFormatOrNull(resumen?.capturadoEn)
+            ?: (abono.capturadoEn ?: clock.now())
         val pago = PaymentFactory.fromSale(
-            sale = venta,
+            sale = venta.toDomain(),
             currentUser = usuario,
-            importe = importe,
+            importe = abono.importe.amount.toPlainString().toDouble(),
             formaCobroId = formaCobroDe(abono),
             id = abono.abonoId,
-            fecha = currentPaymentTimestamp(clock)
+            fecha = AppTime.toWireFormat(capturadoEn.truncatedTo(ChronoUnit.SECONDS))
         )
-        withContext(NonCancellable) {
-            // El insert del pago y el descuento del saldo, o los dos o ninguno.
-            db.withTransaction {
-                pagos.saveAndEnqueue(
-                    payment = pago.toEntity(),
-                    saleId = pago.DOCTO_CC_ACR_ID,
-                    newAmount = pago.IMPORTE,
-                    newEstadoCobranza = EstadoCobranza.PAGADO
-                )
+        // El insert del pago, el descuento del saldo y el marcador ESCRITA, o los
+        // tres o ninguno.
+        pagos.saveAndEnqueue(
+            payment = pago.toEntity(),
+            saleId = pago.DOCTO_CC_ACR_ID,
+            newAmount = pago.IMPORTE,
+            newEstadoCobranza = EstadoCobranza.PAGADO
+        )
+        capturas.marcarEscrita(abono.abonoId, AppTime.toWireFormat(clock.now()))
+        return Desenlace.Escrito
+    }
+
+    override suspend fun enCursoDe(ventaId: Int): AbonoEnCurso? {
+        val usuario = emailEnSesion()?.takeIf { it.isNotBlank() } ?: return null
+        barrerCerradas()
+        val marcador = capturas.abiertaDe(CapturaEnCursoEntity.TIPO_ABONO, ventaId.toString(), usuario)
+            ?: return null
+        val escrito = marcador.ESTADO == CapturaEnCursoEntity.ESCRITA
+        // Una ESCRITA de un día anterior ya no se ofrece: el cobrador ya siguió.
+        if (escrito && !esDeHoy(marcador.CREADA_EN)) return null
+        val abono = ResumenDelAbono.leer(marcador.RESUMEN)?.aAbono(marcador.ID) ?: return null
+        if (escrito) reponerComprobantes(abono)
+        return AbonoEnCurso(
+            abonoId = marcador.ID,
+            escrito = escrito,
+            importe = abono.importe,
+            metodo = abono.metodo,
+            comprobantes = abono.comprobantes,
+            capturadoEn = checkNotNull(abono.capturadoEn)
+        )
+    }
+
+    /**
+     * ESCRITA → CERRADA sólo con los comprobantes del resumen en `pago_imagenes`
+     * (E-APP-086). Si falta alguno, se repone primero; si no se pudo, el
+     * marcador sigue ESCRITA y la siguiente entrada lo vuelve a intentar.
+     */
+    @Suppress("TooGenericExceptionCaught") // cerrar el marcador nunca toca el dinero.
+    override suspend fun cerrar(abonoId: String) {
+        try {
+            sinCancelar {
+                val marcador = capturas.obtener(abonoId) ?: return@sinCancelar
+                val abono = ResumenDelAbono.leer(marcador.RESUMEN)?.aAbono(abonoId)
+                if (abono != null && !reponerComprobantes(abono)) return@sinCancelar
+                capturas.marcarCerrada(abonoId, AppTime.toWireFormat(clock.now()))
             }
-            // Fuera de la transacción y DESPUÉS del commit: el dinero ya está
-            // escrito y nada de lo que pase aquí puede deshacerlo.
-            //
-            // Los comprobantes van ANTES del encolado, y ese orden es funcional,
-            // no estético: encolar es lo que despierta al worker, y el worker
-            // manda lo que encuentre en `pago_imagenes`. Escribir las fotos
-            // después sería mandar el pago sin ellas cada vez que el teléfono
-            // tenga señal en ese instante.
-            guardarComprobantes(abono)
-            encolarSubida(abono.abonoId)
-            pedirUbicacionDelAbono(abono.abonoId)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            telemetry.error(
+                code = PagosTelemetria.CODE_ABONO_SIN_COMPROBANTES,
+                message = "no se pudo cerrar el marcador del abono; el abono si quedo escrito",
+                props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+            )
         }
+    }
+
+    /** `true` = todos los comprobantes del abono están en `pago_imagenes`. */
+    private suspend fun reponerComprobantes(abono: AbonoARegistrar): Boolean {
+        if (abono.comprobantes.isEmpty()) return true
+        guardarComprobantes(abono)
+        val presentes = capturas.comprobantesDePagoPresentes(
+            abono.comprobantes.map { it.id }
+        ).toSet()
+        return abono.comprobantes.all { it.id in presentes }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // el barrido es limpieza; nunca toca dinero.
+    private suspend fun barrerCerradas() {
+        try {
+            capturas.barrerCerradas(AppTime.toWireFormat(clock.now().minus(VEJEZ_DE_CERRADAS)))
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            // Sin barrer: las CERRADA viejas sólo ocupan disco.
+        }
+    }
+
+    private fun esDeHoy(creadaEn: String): Boolean {
+        val instante = AppTime.parseWireFormatOrNull(creadaEn) ?: return false
+        return instante.atZone(BUSINESS_ZONE).toLocalDate() == AppTime.todayInBusinessZone(clock)
+    }
+
+    private sealed interface Desenlace {
+        data object Escrito : Desenlace
+        data object YaEstaba : Desenlace
+        data object SinVenta : Desenlace
+        data class Bloqueado(val bloqueos: String) : Desenlace
     }
 
     /**
@@ -280,9 +439,16 @@ class RegistroDeAbonoAdapter(
     private suspend fun guardarComprobantes(abono: AbonoARegistrar) {
         if (abono.comprobantes.isEmpty()) return
         try {
+            // Sólo los que faltan: `insertAll` es REPLACE y re-escribir uno ya
+            // subido le borraría `SUBIDA_EN` y lo volvería a mandar (E-APP-086).
+            val presentes = capturas.comprobantesDePagoPresentes(
+                abono.comprobantes.map { it.id }
+            ).toSet()
+            val faltan = abono.comprobantes.withIndex().filterNot { it.value.id in presentes }
+            if (faltan.isEmpty()) return
             val creadaEn = AppTime.toWireFormat(clock.now())
             imagenes.insertAll(
-                abono.comprobantes.mapIndexed { orden, comprobante ->
+                faltan.map { (orden, comprobante) ->
                     PaymentImageEntity(
                         ID = comprobante.id,
                         PAGO_ID = abono.abonoId,
@@ -336,24 +502,16 @@ class RegistroDeAbonoAdapter(
     }
 
     /**
-     * ¿El monto excede el saldo REAL de la venta en este instante? El
-     * `SALDO_REST` cruza a [Money] aquí, en el borde, con `Money.of(Double)`
-     * (que usa `BigDecimal.valueOf`, nunca el constructor de `double`).
-     *
-     * Anti-PII: viajan los NOMBRES de los bloqueos, nunca el monto ni el saldo.
+     * El tercer cinturón disparó contra el saldo REAL de la venta, leído dentro
+     * de la transacción. Anti-PII: viajan los NOMBRES de los bloqueos, nunca el
+     * monto ni el saldo.
      */
-    private fun sobrepasaElSaldo(abono: AbonoARegistrar, saldoRest: Double): Boolean {
-        val bloqueos = SeguridadDelAbono.bloqueosDe(
-            monto = abono.importe,
-            saldo = Money.of(saldoRest)
-        )
-        if (bloqueos.isEmpty()) return false
+    private fun reportarBloqueo(bloqueos: String) {
         telemetry.error(
             code = PagosTelemetria.CODE_ABONO_BLOQUEADO_EN_ESCRITURA,
             message = "el saldo real de la venta no admite este abono; nada se escribio",
-            props = mapOf(PagosTelemetria.PROP_BLOQUEOS to bloqueos.joinToString(",") { it.name })
+            props = mapOf(PagosTelemetria.PROP_BLOQUEOS to bloqueos)
         )
-        return true
     }
 
     /**
@@ -368,5 +526,9 @@ class RegistroDeAbonoAdapter(
             Constants.PAGO_CON_TRANSFERENCIA_ID
 
         else -> Constants.PAGO_EN_EFECTIVO_ID
+    }
+
+    private companion object {
+        val VEJEZ_DE_CERRADAS: Duration = Duration.ofDays(7)
     }
 }

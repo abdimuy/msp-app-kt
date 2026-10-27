@@ -195,6 +195,7 @@ class AbonoPuertaLateralTest : RobolectricTestBase() {
             camara = camaraPort,
             tema = FakeTemaDeLaAppPort(),
             telemetry = telemetria,
+            clock = clock,
             io = testDispatcher
         )
         scheduler.advanceUntilIdle()

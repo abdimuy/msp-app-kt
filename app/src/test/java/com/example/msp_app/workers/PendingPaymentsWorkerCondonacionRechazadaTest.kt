@@ -138,6 +138,135 @@ class PendingPaymentsWorkerCondonacionRechazadaTest : RoomTestBase() {
             )
         }
 
+    /**
+     * **E-APP-108 (D9b): la rama de rechazo se dispara con el cuerpo REAL del
+     * servidor.** El servidor manda el código dentro de `errors[]`
+     * (`"message":"code=pago_saldo_insuficiente"`), no en la raíz; leer sólo la
+     * raíz dejaba la condonación como "no existe en el servidor": pendiente con
+     * aviso, `DOCTO_CC_ID = 0` y el saldo local descontado de más (MEDIDO por la
+     * compuerta ANTES del 2026-10-26). El cuerpo es el literal capturado del
+     * handler real, no una copia de la forma.
+     */
+    @Test
+    fun `E-APP-108 con el cuerpo real del servidor la condonacion queda rechazada`() = runTest {
+        sembrarCondonacionEscrita(ID_COND, 2300.0)
+
+        val result = correrWorker(
+            ID_COND,
+            rechazoConCuerpo(CUERPO_REAL_422_SALDO_INSUFICIENTE),
+            CobranzaDelServidor("300.00")
+        )
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        val fila = db.paymentDao().getPaymentById(ID_COND)!!
+        assertEquals(
+            "con el cuerpo real la fila dice 'rechazada'",
+            DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR,
+            fila.DOCTO_CC_ID
+        )
+        assertTrue("la oficina la tiene resguardada: se suelta", fila.GUARDADO_EN_MICROSIP)
+        assertEquals("el saldo es el que el servidor sí tiene", 300.0, saldoDe(db), 1e-9)
+        assertEquals(
+            "no es una discrepancia: es un rechazo conocido",
+            null,
+            db.capturaEnCursoDao().obtener(ID_COND)?.DISCREPANCIA
+        )
+    }
+
+    /**
+     * E-APP-108: un `errors[]` de validación de Huma (sin el prefijo `code=`) no
+     * es un código, aunque su texto lo nombre. Sólo cuenta el prefijo exacto,
+     * igual que `codeFromHumaDetails` del servidor.
+     */
+    @Test
+    fun `E-APP-108 un mensaje de errors sin el prefijo code no cuenta como rechazo por saldo`() =
+        runTest {
+            sembrarCondonacionEscrita(ID_COND, 2300.0)
+
+            correrWorker(
+                ID_COND,
+                rechazoConCuerpo(
+                    """{"title":"Unprocessable Entity","status":422,""" +
+                        """"errors":[{"message":"pago_saldo_insuficiente","location":"body"}]}"""
+                )
+            )
+
+            val fila = db.paymentDao().getPaymentById(ID_COND)!!
+            assertFalse(fila.GUARDADO_EN_MICROSIP)
+            assertEquals(0, fila.DOCTO_CC_ID)
+        }
+
+    /**
+     * E-APP-108: si algún día el servidor manda el código en la raíz (la forma
+     * de `platform/response`), también se reconoce; la raíz gana, como en
+     * `parseProblemJSON` del servidor.
+     */
+    @Test
+    fun `E-APP-108 el codigo en la raiz tambien se reconoce`() = runTest {
+        sembrarCondonacionEscrita(ID_COND, 2300.0)
+
+        correrWorker(
+            ID_COND,
+            rechazoConCuerpo(
+                """{"title":"Unprocessable Entity","status":422,""" +
+                    """"code":"pago_saldo_insuficiente","detail":"el importe excede el saldo del cargo"}"""
+            ),
+            CobranzaDelServidor("300.00")
+        )
+
+        assertEquals(
+            DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR,
+            db.paymentDao().getPaymentById(ID_COND)!!.DOCTO_CC_ID
+        )
+    }
+
+    /**
+     * **E-APP-108, compuerta DESPUÉS (2026-10-26):** el 422 de saldo es también la
+     * respuesta normal al REINTENTO de una condonación que sí llegó (el servidor
+     * valida el saldo antes del replay idempotente). Sin el 404 del GET no hay
+     * prueba de que no llegó: si el GET no contesta (500), se reintenta y la fila
+     * no se toca.
+     */
+    @Test
+    fun `E-APP-108 cuerpo real y GET 500 - no se suelta como rechazada y se reintenta`() = runTest {
+        sembrarCondonacionEscrita(ID_COND, 2300.0)
+
+        val r = correrWorker(ID_COND, rechazoRealConGet { throw httpError(500) })
+
+        assertEquals(ListenableWorker.Result.retry(), r)
+        val fila = db.paymentDao().getPaymentById(ID_COND)!!
+        assertFalse("sin GET no hay prueba de que no llegó", fila.GUARDADO_EN_MICROSIP)
+        assertEquals(0, fila.DOCTO_CC_ID)
+        assertTrue("no se pide refresco de una rechazada que no lo es", encolados.isEmpty())
+    }
+
+    /** E-APP-108: lo mismo si el GET falla por red. */
+    @Test
+    fun `E-APP-108 cuerpo real y GET sin red - no se suelta como rechazada y se reintenta`() =
+        runTest {
+            sembrarCondonacionEscrita(ID_COND, 2300.0)
+
+            val r = correrWorker(ID_COND, rechazoRealConGet { throw IOException("sin red") })
+
+            assertEquals(ListenableWorker.Result.retry(), r)
+            val fila = db.paymentDao().getPaymentById(ID_COND)!!
+            assertFalse(fila.GUARDADO_EN_MICROSIP)
+            assertEquals(0, fila.DOCTO_CC_ID)
+        }
+
+    /** E-APP-108, control: con GET existente es llegada, nunca rechazada. */
+    @Test
+    fun `E-APP-108 cuerpo real y GET existente - llegada, no rechazada`() = runTest {
+        sembrarCondonacionEscrita(ID_COND, 2300.0)
+
+        val r = correrWorker(ID_COND, rechazoRealConGet { PagoRecibidoDTO(id = it) })
+
+        assertEquals(ListenableWorker.Result.success(), r)
+        val fila = db.paymentDao().getPaymentById(ID_COND)!!
+        assertTrue(fila.GUARDADO_EN_MICROSIP)
+        assertEquals("llegó: no se marca rechazada", 0, fila.DOCTO_CC_ID)
+    }
+
     /** Un segundo 422 sobre la misma fila (reencolado) deja el mismo saldo: idempotente. */
     @Test
     fun `un segundo rechazo sobre la misma condonacion es idempotente`() = runTest {
@@ -225,12 +354,13 @@ class PendingPaymentsWorkerCondonacionRechazadaTest : RoomTestBase() {
     }
 
     /**
-     * **El abono con el mismo 422 NO cambia.** Fuera de alcance a propósito: su
-     * rechazo no está medido. Se suelta como siempre y el saldo se queda como
-     * estaba.
+     * **El abono con el mismo 422** no se marca rechazado (fuera de alcance: su
+     * rechazo no está medido) y, desde E-APP-088, tampoco se da por enviado: el
+     * GET por UUID dice 404, así que queda PENDIENTE con discrepancia y sin
+     * reenvío. El saldo se queda como estaba.
      */
     @Test
-    fun `un abono con el mismo 422 conserva el comportamiento de siempre`() = runTest {
+    fun `E-APP-088 un abono con el mismo 422 y GET 404 queda pendiente con aviso`() = runTest {
         db.saleDao().insertAll(listOf(venta(saldo = 2000.0)))
         db.paymentDao().savePayment(condonacion(ID_ABONO, 300.0, formaCobro = EFECTIVO))
 
@@ -238,21 +368,28 @@ class PendingPaymentsWorkerCondonacionRechazadaTest : RoomTestBase() {
 
         assertEquals(ListenableWorker.Result.success(), result)
         val fila = db.paymentDao().getPaymentById(ID_ABONO)!!
-        assertTrue(fila.GUARDADO_EN_MICROSIP)
+        assertFalse("sin prueba de existencia no se da por enviado", fila.GUARDADO_EN_MICROSIP)
         assertEquals(0, fila.DOCTO_CC_ID)
+        assertEquals(
+            "no_existe_en_servidor",
+            db.capturaEnCursoDao().obtener(ID_ABONO)!!.DISCREPANCIA
+        )
         assertEquals("el saldo del abono no se toca", 2000.0, saldoDe(db), 1e-9)
     }
 
-    /** Otro código de 422 sobre una condonación: no está medido, no cambia. */
+    /**
+     * Otro código de 422 sobre una condonación: no se marca rechazada; con GET
+     * 404 queda pendiente con aviso (E-APP-088), no enviada.
+     */
     @Test
-    fun `una condonacion rechazada por otro motivo conserva el comportamiento de siempre`() =
+    fun `E-APP-088 una condonacion rechazada por otro motivo y GET 404 queda pendiente`() =
         runTest {
             sembrarCondonacionEscrita(ID_COND, 2300.0)
 
             correrWorker(ID_COND, rechazo(code = "pago_cargo_cancelado"))
 
             val fila = db.paymentDao().getPaymentById(ID_COND)!!
-            assertTrue(fila.GUARDADO_EN_MICROSIP)
+            assertFalse(fila.GUARDADO_EN_MICROSIP)
             assertEquals(0, fila.DOCTO_CC_ID)
             assertEquals(0.0, saldoDe(db), 1e-9)
         }
@@ -574,14 +711,42 @@ class PendingPaymentsWorkerCondonacionRechazadaTest : RoomTestBase() {
 
     private fun rechazoPorSaldo(): V2PaymentsApi = rechazo(code = "pago_saldo_insuficiente")
 
+    /**
+     * Un 422 con la FORMA REAL del servidor (E-APP-108): `huma.ErrorModel` no
+     * tiene `code` en la raíz y `mapAppError` lo manda en
+     * `errors[0].message = "code=<código>"`. Ver [CUERPO_REAL_422_SALDO_INSUFICIENTE].
+     */
     private fun rechazo(code: String = "pago_saldo_insuficiente", capturada: Boolean = true) =
-        api { _, _ ->
-            throw httpError(
+        rechazoConCuerpo(
+            CUERPO_REAL_422_SALDO_INSUFICIENTE.replace(
+                "code=pago_saldo_insuficiente",
+                "code=$code"
+            ),
+            capturada
+        )
+
+    private fun rechazoConCuerpo(cuerpo: String, capturada: Boolean = true) = api { _, _ ->
+        throw httpError(
+            422,
+            cuerpo,
+            intentCaptured = if (capturada) "5b0c3a55-1f6e-4f7e-9a0e-5c1f0a9f7a11" else null
+        )
+    }
+
+    /** 422 con el cuerpo real del servidor y un GET por UUID a la medida. */
+    private fun rechazoRealConGet(get: suspend (String) -> PagoRecibidoDTO) =
+        object : V2PaymentsApi {
+            override suspend fun crearPago(
+                idempotencyKey: String,
+                datos: RequestBody,
+                imagenes: List<MultipartBody.Part>
+            ): PagoRecibidoDTO = throw httpError(
                 422,
-                """{"type":"about:blank","title":"Unprocessable Entity","status":422,""" +
-                    """"code":"$code","detail":"el importe excede el saldo del cargo"}""",
-                intentCaptured = if (capturada) "5b0c3a55-1f6e-4f7e-9a0e-5c1f0a9f7a11" else null
+                CUERPO_REAL_422_SALDO_INSUFICIENTE,
+                intentCaptured = "5b0c3a55-1f6e-4f7e-9a0e-5c1f0a9f7a11"
             )
+
+            override suspend fun obtenerPago(id: String): PagoRecibidoDTO = get(id)
         }
 
     private fun api(
@@ -874,6 +1039,21 @@ class PendingPaymentsWorkerCondonacionRechazadaTest : RoomTestBase() {
     }
 
     private companion object {
+        /**
+         * Cuerpo LITERAL del 422 que devuelve el handler real de msp-api
+         * (`MountReadRouter` → `CrearPago` → `mapAppError`,
+         * `internal/cobranza/infra/cobranzahttp/auth.go:59-71` @ab6a19d) a una
+         * condonación (forma de cobro 137026) de 2500 contra un saldo de 2000.
+         * MEDIDO 2026-10-26 en la Mac del dueño con `httptest` (compuerta ANTES
+         * D9b y re-corrido por el autor); control: importe 1500 → 200.
+         * Content-Type `application/problem+json`. E-APP-108.
+         */
+        val CUERPO_REAL_422_SALDO_INSUFICIENTE =
+            """{"${'$'}schema":"https://example.com/schemas/ErrorModel.json",""" +
+                """"title":"Unprocessable Entity","status":422,""" +
+                """"detail":"el importe excede el saldo del cargo",""" +
+                """"errors":[{"message":"code=pago_saldo_insuficiente"}]}"""
+
         const val ID_COND = "8d7e4a10-2c55-4b1a-9f3e-0a6b5c4d3e21"
         const val ID_ABONO = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
         const val ZONA = 21

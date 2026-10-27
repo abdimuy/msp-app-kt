@@ -18,9 +18,12 @@ import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
+import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
+import com.example.msp_app.feature.visitas.domain.port.VisitaARegistrar
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -33,6 +36,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -118,8 +122,15 @@ class TelemetriaQueLanzaNoTumbaLaVisitaTest {
             assertEquals(1, registroPort.registradas.size)
         }
 
+    /**
+     * E-APP-087 quitó el "parcial k de N": las N cuentas van en UNA escritura,
+     * así que ya no hay un reporte de parcial que pueda lanzar. Lo que queda por
+     * proteger con varias cuentas son dos cosas: el fallo se contesta como
+     * fallo sin contar ninguna cuenta como escrita, y la cancelación (que sí
+     * reporta) sale intacta aunque la telemetría lance.
+     */
     @Test
-    fun `E-VIS-074 caso de uso parcial con telemetria que lanza contesta el fallo`() =
+    fun `E-VIS-074 caso de uso varias cuentas que fallan con telemetria que lanza contesta el fallo sin parcial`() =
         runTest(testDispatcher) {
             registroPort.fallaEn = 1
             val escritas = mutableListOf<Unit>()
@@ -128,20 +139,38 @@ class TelemetriaQueLanzaNoTumbaLaVisitaTest {
                 visitaId = "visita-1",
                 clienteId = VisitasFixtures.VICTORIA,
                 ventaId = null,
-                captura = CapturaDeVisita(
-                    resultado = ResultadoDeVisita.VISITE_VUELVO,
-                    etiqueta = CatalogoDeResultados.etiquetaPorDefecto(
-                        ResultadoDeVisita.VISITE_VUELVO
-                    ),
-                    cuentas = setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)
-                ),
+                captura = dosCuentas(),
                 hoy = HOY,
                 alEscribir = { escritas += Unit }
             )
 
-            assertTrue(lanza.lanzadas >= 1)
             assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, resultado)
-            assertEquals(1, escritas.size)
+            assertEquals("todo o nada: ninguna cuenta se cuenta como escrita", 0, escritas.size)
+        }
+
+    @Test
+    fun `E-VIS-074 caso de uso varias cuentas cancelada con telemetria que lanza sale la cancelacion intacta`() =
+        runTest(testDispatcher) {
+            val propia = CancellationException("el cobrador salio de la pantalla")
+            val puerto = object : RegistroDeVisitaPort {
+                override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro =
+                    throw propia
+            }
+
+            val vista = runCatching {
+                RegistrarVisita(puerto, FakeUbicacionPort(), lanza).invoke(
+                    visitaId = "visita-1",
+                    clienteId = VisitasFixtures.VICTORIA,
+                    ventaId = null,
+                    captura = dosCuentas(),
+                    hoy = HOY
+                )
+            }.exceptionOrNull()
+
+            assertTrue("control positivo: la cancelacion se reporto", lanza.lanzadas >= 1)
+            // La recuperación de stack traces de kotlinx-coroutines (modo debug de
+            // las pruebas) puede entregar una copia cuya causa es la original.
+            assertSame(propia, vista.takeIf { it === propia } ?: vista?.cause)
         }
 
     // ─── la pantalla ─────────────────────────────────────────────────────────
@@ -297,6 +326,12 @@ class TelemetriaQueLanzaNoTumbaLaVisitaTest {
             ),
             hoy = HOY
         )
+
+    private fun dosCuentas() = CapturaDeVisita(
+        resultado = ResultadoDeVisita.VISITE_VUELVO,
+        etiqueta = CatalogoDeResultados.etiquetaPorDefecto(ResultadoDeVisita.VISITE_VUELVO),
+        cuentas = setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)
+    )
 
     private fun tomarFoto(vm: RegistrarVisitaViewModel) {
         vm.onOrigen(OrigenDeLaFoto.CAMARA)

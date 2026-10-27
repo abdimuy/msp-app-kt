@@ -583,25 +583,29 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
 
     @Test
     fun v2_422_con_custodia_confirmada_suelta_la_captura() = runTest {
+        // E-APP-088: la custodia sola ya no basta para soltar; hace falta que el
+        // GET por UUID lo encuentre. Aquí lo encuentra (otro caso: GET 404, en
+        // ReconciliacionPorUuidTest).
         seed(pendingPayment())
 
-        val api = fakeV2Api { _, _ ->
-            throw httpError(
-                422,
-                """{"code":"pago_cargo_no_encontrado","detail":"el cargo no existe"}""",
-                intentCaptured = "3f2a1c7e-0000-4000-8000-000000000001"
-            )
-        }
+        val api =
+            fakeV2Api(obtener = { id -> PagoRecibidoDTO(id = id, cliente_id = 11486) }) { _, _ ->
+                throw httpError(
+                    422,
+                    """{"code":"pago_cargo_no_encontrado","detail":"el cargo no existe"}""",
+                    intentCaptured = "3f2a1c7e-0000-4000-8000-000000000001"
+                )
+            }
 
         val result = buildAndRunWorker(api = api)
 
         assertEquals(
-            "un 422 resguardado (X-Intent-Captured) lo corrige la oficina",
+            "un 422 resguardado que el servidor sí tiene lo corrige la oficina",
             ListenableWorker.Result.success(),
             result
         )
         assertTrue(
-            "GUARDADO debe pasar a true: el servidor lo tiene resguardado",
+            "GUARDADO debe pasar a true: el servidor lo tiene",
             guardadoFlag("pago-001")
         )
     }
@@ -626,7 +630,9 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
     @Test
     fun v2_403_con_custodia_suelta_y_sin_custodia_reintenta() = runTest {
         seed(pendingPayment())
-        val conCustodia = fakeV2Api { _, _ -> throw httpError(403, intentCaptured = "abc") }
+        val conCustodia = fakeV2Api(obtener = { id -> PagoRecibidoDTO(id = id) }) { _, _ ->
+            throw httpError(403, intentCaptured = "abc")
+        }
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = conCustodia))
         assertTrue(guardadoFlag("pago-001"))
 

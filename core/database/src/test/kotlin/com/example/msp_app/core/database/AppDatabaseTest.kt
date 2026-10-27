@@ -9,11 +9,10 @@ import org.junit.Test
 
 /**
  * Prueba trivial post-hoist: [AppDatabase] compila y vive en `:core:database`,
- * y reporta la version de esquema vigente (v36 —la 35->36 crea `visita_zona`
- * y `visitas_sync_state` y agrega `Visit.COMPROMISO_CONFIRMADO_EN`/
- * `COMPROMISO_RESGUARDADO_EN`, spec visitas §5.4.8, E-APP-080—; antes v35
- * —la 34->35 agrega `Visit.CONFIRMADA_EN`/`RESGUARDADA_EN`, spec visitas
- * §4.2-7—; antes v34
+ * y reporta la version de esquema vigente (v37 —la 36->37 crea
+ * `capturas_en_curso`, E-APP-084; la 35->36 es de visitas P2, E-APP-080—;
+ * antes v35 —la 34->35 agrega
+ * `Visit.CONFIRMADA_EN`/`RESGUARDADA_EN`, spec visitas §4.2-7—; antes v34
  * —la 33->34 solo crea `envio_diagnostico`, E-APP-063—; antes v33, cuatro migraciones en cadena:
  * la 29->30 —la unica del plan `pagos-y-visitas`— agrego cinco columnas
  * nullable a `Visit` (promesa y cita) y cinco tablas nuevas (comprobantes de
@@ -35,7 +34,7 @@ import org.junit.Test
 class AppDatabaseTest : RobolectricTestBase() {
 
     @Test
-    fun `AppDatabase se instancia in-memory y reporta version 36`() {
+    fun `AppDatabase se instancia in-memory y reporta version 37`() {
         val db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
@@ -44,7 +43,7 @@ class AppDatabaseTest : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(36, db.openHelper.readableDatabase.version)
+            assertEquals(37, db.openHelper.readableDatabase.version)
         } finally {
             db.close()
         }

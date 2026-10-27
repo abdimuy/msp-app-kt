@@ -73,6 +73,7 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
+import com.example.msp_app.feature.pagos.ui.components.AvisoDeCapturasSinTerminar
 import com.example.msp_app.feature.pagos.ui.components.AvisoSinUbicacion
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import com.example.msp_app.feature.pagos.ui.components.HojaDeOrdenarPor
@@ -157,7 +158,9 @@ fun ListaDeClientesScreen(
     onAbrirCliente: (Int) -> Unit,
     onAbrirMenu: () -> Unit,
     modifier: Modifier = Modifier,
-    onAbrirVenta: (Int) -> Unit = {}
+    onAbrirVenta: (Int) -> Unit = {},
+    /** E-APP-119: la venta local sin terminar; `null` abre el borrador. */
+    onAbrirVentaLocal: (String?) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Vuelve a leer al reanudarse — no al recibir un pago o una visita nuevos:
@@ -178,6 +181,8 @@ fun ListaDeClientesScreen(
             onElegirSegmento = viewModel::elegirSegmento,
             onAbrirCliente = onAbrirCliente,
             onAbrirVenta = onAbrirVenta,
+            onReanudarCapturas = viewModel::reanudarCapturas,
+            onAbrirVentaLocal = onAbrirVentaLocal,
             onReintentar = viewModel::cargar,
             onAlternarTema = viewModel::alternarTema,
             onAlternarPrivacidad = viewModel::alternarPrivacidad,
@@ -247,6 +252,10 @@ fun ListaDeClientesContent(
     onAbrirMenu: () -> Unit,
     modifier: Modifier = Modifier,
     onAbrirVenta: (Int) -> Unit = {},
+    /** El toque del aviso sin venta: reanudar visitas y garantías (E-APP-119). */
+    onReanudarCapturas: () -> Unit = {},
+    /** El toque del aviso con una venta local sin terminar (E-APP-119). */
+    onAbrirVentaLocal: (String?) -> Unit = {},
     /**
      * Hospedado y no fijo adentro: los goldens de la barra compacta
      * (`ListaMatrixScreenshotTest`) necesitan arrancar YA desplegados — sin
@@ -440,6 +449,13 @@ fun ListaDeClientesContent(
                     }
                 }
             }
+            AvisoDeCapturasSinTerminar(
+                capturas = state.capturasSinTerminar,
+                onAbrirVenta = onAbrirVenta,
+                onReanudar = onReanudarCapturas,
+                ventaLocal = state.ventaLocalSinTerminar,
+                onAbrirVentaLocal = onAbrirVentaLocal
+            )
             ZonaQueSeEncoge(
                 estado = estadoCabecera,
                 // Toda escondida, fuera del árbol de accesibilidad: TalkBack no debe

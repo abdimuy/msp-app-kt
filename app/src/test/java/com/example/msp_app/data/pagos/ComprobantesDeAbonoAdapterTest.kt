@@ -2,12 +2,14 @@ package com.example.msp_app.data.pagos
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.di.PagosPortsModule
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import java.io.File
 import java.time.Instant
@@ -148,6 +150,62 @@ class ComprobantesDeAbonoAdapterTest : RoomTestBase() {
             }
         )
     }
+
+    /**
+     * A6 (compuerta DESPUÉS 2026-10-26), E-APP-086: el barrido REAL, cableado
+     * como en producción (`PagosPortsModule.provideComprobantesPort`), no
+     * borra el archivo que cita un abono sin guardar. La foto va después del
+     * commit, así que ese archivo todavía no tiene fila en `pago_imagenes`:
+     * sólo el marcador lo protege. Control positivo: el mismo barrido sí se
+     * lleva un comprobante viejo que nadie cita.
+     */
+    @Test
+    fun `E-APP-086 el barrido real no borra el archivo que cita un abono sin guardar`() = runTest {
+        val citado = archivoViejo("IMG-CITADA")
+        val suelto = archivoViejo("IMG-SUELTA")
+        db.capturaEnCursoDao().capturar(
+            CapturaEnCursoEntity(
+                ID = "abono-sin-guardar",
+                TIPO = CapturaEnCursoEntity.TIPO_ABONO,
+                LLAVE = "77021",
+                USUARIO = "rosa@example.com",
+                ESTADO = CapturaEnCursoEntity.CAPTURADA,
+                RESUMEN = ResumenDelAbono(
+                    ventaId = 77021,
+                    importe = "220.00",
+                    metodo = "EFECTIVO",
+                    capturadoEn = "2026-08-01T10:00:00Z",
+                    comprobantes = listOf(
+                        ResumenDelAbono.ComprobanteResumido(
+                            "IMG-CITADA",
+                            citado.absolutePath,
+                            "image/jpeg"
+                        )
+                    )
+                ).json(),
+                CREADA_EN = "2026-08-01T10:00:00Z",
+                ACTUALIZADA_EN = "2026-08-01T10:00:00Z"
+            )
+        )
+        val real = PagosPortsModule.provideComprobantesPort(
+            context = context,
+            paymentImageDao = db.paymentImageDao(),
+            capturas = db.capturaEnCursoDao(),
+            telemetry = telemetry,
+            clock = clock
+        ) as ComprobantesDeAbonoAdapter
+
+        real.barrerHuerfanos()
+
+        assertTrue("el archivo del abono sin guardar se queda", citado.exists())
+        assertFalse("control positivo: el que nadie cita se barre", suelto.exists())
+    }
+
+    private fun archivoViejo(id: String): File =
+        File(context.filesDir, "$PREFIJO_COMPROBANTE$id.jpg").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            setLastModified(Instant.parse("2026-08-01T10:00:00Z").toEpochMilli())
+        }
 
     private suspend fun sembrarPago(id: String) = db.paymentDao().savePayment(
         PaymentEntity(

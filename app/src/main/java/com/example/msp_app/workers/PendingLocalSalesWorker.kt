@@ -495,8 +495,13 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             // replay-with admin (failed_intents), por una corrida anterior cuyo 2xx
             // no nos llegó, o por algún otro flujo asíncrono. Antes de gastar otro
             // intento (o rendirnos en un 4xx permanente), verificamos.
+            // E-APP-088 (decisión 4 del dueño 2026-10-20): existe = es nuestra y
+            // llegó, AUNQUE la oficina la haya editado; el único seguro extra es
+            // el CLIENTE. No existe = NUNCA se da por llegada.
+            var clienteDelServidor: Int? = null
             val existeEnServer: Boolean? = try {
                 val existing = ventasApi.obtenerVenta(saleId)
+                clienteDelServidor = existing.cliente?.cliente_id
                 Log.i(
                     "PendingLocalSalesWorker",
                     "Venta $saleId encontrada en servidor (situacion=${existing.situacion})"
@@ -506,6 +511,29 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 if (verifyErr.code() == 404) false else null
             } catch (_: Exception) {
                 null
+            }
+
+            val clienteDistinto = clienteDelServidor != null &&
+                sale.CLIENTE_ID != null &&
+                clienteDelServidor != sale.CLIENTE_ID
+            if (existeEnServer == true && clienteDistinto) {
+                uploadFailureRepository.recordFailure(
+                    saleId = saleId,
+                    failure = UploadFailure(
+                        httpCode = e.code(),
+                        errorCode = MOTIVO_CONTENIDO_NO_COINCIDE,
+                        errorMessage = TEXTO_ENVIO_NO_COINCIDE,
+                        classification = UploadFailureClassification.PERMANENT,
+                        atEpochMillis = nowEpochMillis()
+                    )
+                )
+                logger.warning(
+                    module = "SALES_WORKER",
+                    action = CODE_CONTENIDO_NO_COINCIDE,
+                    message = "un envio no coincide con la oficina; queda pendiente sin reenvio",
+                    data = mapOf("tipo" to "VENTA_LOCAL", "http" to e.code())
+                )
+                return Result.failure()
             }
 
             if (existeEnServer == true) {
@@ -794,3 +822,10 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
         }
     }
 }
+
+/** E-APP-088: telemetría y motivo cuando el GET por UUID trae otro cliente. */
+internal const val CODE_CONTENIDO_NO_COINCIDE = "captura_contenido_no_coincide"
+internal const val MOTIVO_CONTENIDO_NO_COINCIDE = "contenido_no_coincide"
+
+/** Texto aprobado por el dueño 2026-10-20 (E-APP-089): mayúscula inicial, sin punto. */
+internal const val TEXTO_ENVIO_NO_COINCIDE = "Un envío no coincide con la oficina"

@@ -16,9 +16,11 @@ import com.example.msp_app.feature.visitas.data.fake.FakeUbicacionPort
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.IdsDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
+import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
 import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
 import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
+import com.example.msp_app.feature.visitas.domain.port.VisitaARegistrar
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -212,7 +214,7 @@ class RegistrarVisitaSeleccionCongeladaTest {
     fun `E-VIS-055 si el proceso muere a media escritura la seleccion vuelve congelada`() =
         runTest(testDispatcher) {
             val handle = handle()
-            val muerto = viewModel(handle, ubicacion = UbicacionQueNoContesta)
+            val muerto = viewModel(handle, registro = PuertoQueNoContesta)
             advanceUntilIdle()
             muerto.onResultado(ResultadoDeVisita.VISITE_VUELVO)
             muerto.guardar() // la escritura queda en vuelo: el proceso muere ahí
@@ -344,11 +346,12 @@ class RegistrarVisitaSeleccionCongeladaTest {
 
     private fun viewModel(
         savedStateHandle: SavedStateHandle = handle(),
-        ubicacion: UbicacionPort = FakeUbicacionPort()
+        ubicacion: UbicacionPort = FakeUbicacionPort(),
+        registro: RegistroDeVisitaPort = registroPort
     ) = RegistrarVisitaViewModel(
         savedStateHandle = savedStateHandle,
         abrirRegistro = AbrirRegistroDeVisita(contextoPort, recomendacionesPort, telemetria),
-        registrarVisita = RegistrarVisita(registroPort, ubicacion, telemetria),
+        registrarVisita = RegistrarVisita(registro, ubicacion, telemetria),
         camara = camaraPort,
         dictado = DictadoFalso(),
         tema = FakeTemaDeLaAppPort(),
@@ -356,6 +359,16 @@ class RegistrarVisitaSeleccionCongeladaTest {
         clock = clock,
         io = testDispatcher
     )
+
+    /**
+     * E-APP-127: la ubicación ya no va antes de escribir, así que un GPS sin fix
+     * no detiene la escritura. "El proceso muere antes o durante la escritura"
+     * se modela con el puerto colgado: la escritura queda en vuelo ahí.
+     */
+    private object PuertoQueNoContesta : RegistroDeVisitaPort {
+        override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro =
+            awaitCancellation()
+    }
 
     /** Un GPS sin fix: la escritura queda esperando, como cuando el proceso muere ahí. */
     private object UbicacionQueNoContesta : UbicacionPort {

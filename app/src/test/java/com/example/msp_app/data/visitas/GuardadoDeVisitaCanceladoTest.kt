@@ -125,50 +125,101 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
     private fun evento(code: String) = telemetry.recorded.single { it.name == code }
 
     /**
-     * El caso medido en el emulador (9 de 9): Atrás mientras se espera la
-     * ubicación. No se escribe NADA —ni `Visit` ni `sales`— igual que hoy, y
-     * ahora queda el evento con 0 de 2 en la fase de ubicación.
+     * E-APP-127 (decisión del coordinador 2026-10-27; medición MB de la compuerta
+     * DESPUÉS): Atrás mientras se espera la ubicación ya NO pierde la visita. El
+     * caso medido en el emulador (E-APP-078, 9 de 9) perdía las dos cuentas
+     * porque la ubicación iba antes de escribir. Ahora las dos quedan escritas,
+     * encoladas y sin coordenadas, y el evento dice 2 de 2 en la fase de
+     * ubicación.
      */
     @Test
-    fun `E-APP-078 cancelada esperando la ubicacion no escribe nada y deja el evento`() = runTest {
-        val esperando = CompletableDeferred<Unit>()
-        val ubicacionQueEspera = object : UbicacionPort {
-            override suspend fun ubicacionActual(): UbicacionDeLaVisita? {
-                esperando.complete(Unit)
-                awaitCancellation()
+    fun `E-APP-127 cancelada esperando la ubicacion la visita ya quedo escrita y encolada`() =
+        runTest {
+            val esperando = CompletableDeferred<Unit>()
+            val ubicacionQueEspera = object : UbicacionPort {
+                override suspend fun ubicacionActual(): UbicacionDeLaVisita? {
+                    esperando.complete(Unit)
+                    awaitCancellation()
+                }
             }
-        }
-        val ventasAntes = ventas()
+            val ventasAntes = ventas()
 
-        val job = launch {
-            casoDeUso(ubicacionQueEspera).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
-        }
-        esperando.await()
-        job.cancelAndJoin()
+            val job = launch {
+                casoDeUso(ubicacionQueEspera).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+            }
+            esperando.await()
+            job.cancelAndJoin()
 
-        assertEquals("la conducta de hoy: ninguna visita", 0, visitas())
-        assertEquals("sales sin tocar", ventasAntes, ventas())
-        assertTrue(encoladas.isEmpty())
-        val e = evento(VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO)
-        assertEquals("0", e.props[VisitasTelemetria.PROP_ESCRITAS])
-        assertEquals("2", e.props[VisitasTelemetria.PROP_CUENTAS])
-        assertEquals(VisitasTelemetria.FASE_UBICACION, e.props[VisitasTelemetria.PROP_FASE])
-        assertEquals(listOf(Triple(FaseDelGuardado.UBICACION, 0, 2)), avisos)
-    }
+            assertEquals("las dos cuentas quedaron", 2, visitas())
+            assertTrue("y movieron su estado de cobranza", ventasAntes != ventas())
+            assertEquals(2, encoladas.size)
+            assertEquals("sin coordenadas: 0,0", listOf("0.0,0.0", "0.0,0.0"), coordenadas())
+            val e = evento(VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO)
+            assertEquals("2", e.props[VisitasTelemetria.PROP_ESCRITAS])
+            assertEquals("2", e.props[VisitasTelemetria.PROP_CUENTAS])
+            assertEquals(VisitasTelemetria.FASE_UBICACION, e.props[VisitasTelemetria.PROP_FASE])
+            assertEquals(listOf(Triple(FaseDelGuardado.UBICACION, 2, 2)), avisos)
+        }
 
     /**
-     * Cancelada al empezar la segunda cuenta (durante la consulta del usuario,
-     * antes de su escritura): la primera queda completa y encolada, la segunda
-     * no existe, y el parcial dice 1 de 2.
+     * E-APP-127: la ubicación que llega después del guardado se parcha sobre las
+     * visitas ya escritas. Sólo LAT/LNG: ni reabre (GUARDADO sigue en 0, no se
+     * duplica ninguna fila) ni re-encola (el envío no la esperó).
      */
     @Test
-    fun `E-APP-078 cancelada entre cuentas deja la primera y reporta el parcial`() = runTest {
-        lateinit var job: Job
-        alTraerUsuario = { llamada ->
-            if (llamada == 2) {
-                currentCoroutineContext().job.cancel()
-                awaitCancellation()
+    fun `E-APP-127 la ubicacion que llega despues se parcha sin reabrir ni duplicar ni reencolar`() =
+        runTest {
+            val pedida = CompletableDeferred<Unit>()
+            val suelta = CompletableDeferred<Unit>()
+            val ubicacionTardia = object : UbicacionPort {
+                override suspend fun ubicacionActual(): UbicacionDeLaVisita {
+                    pedida.complete(Unit)
+                    suelta.await()
+                    return UbicacionDeLaVisita(18.4617, -97.3928)
+                }
             }
+            val job = launch {
+                casoDeUso(ubicacionTardia).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+            }
+            pedida.await()
+            assertEquals("escrita y encolada antes de tener ubicación", 2, encoladas.size)
+            assertEquals(listOf("0.0,0.0", "0.0,0.0"), coordenadas())
+
+            suelta.complete(Unit)
+            job.join()
+
+            assertEquals(listOf("18.4617,-97.3928", "18.4617,-97.3928"), coordenadas())
+            assertEquals("no duplica", 2, visitas())
+            assertEquals("no re-encola", 2, encoladas.size)
+            assertEquals(
+                "no reabre",
+                0,
+                db.openHelper.readableDatabase.query(
+                    "SELECT COUNT(*) FROM Visit WHERE GUARDADO_EN_MICROSIP <> 0"
+                ).use {
+                    it.moveToFirst()
+                    it.getInt(0)
+                }
+            )
+        }
+
+    private fun coordenadas(): List<String> =
+        db.openHelper.readableDatabase.query("SELECT LAT, LNG FROM Visit ORDER BY ID").use { c ->
+            buildList { while (c.moveToNext()) add("${c.getDouble(0)},${c.getDouble(1)}") }
+        }
+
+    /**
+     * E-APP-087 (decisión 3 del dueño 2026-10-20, todo o nada): cancelada en la
+     * consulta del cobrador —antes de la transacción— no queda NINGUNA cuenta,
+     * ni encolada, y el aviso dice 0 de 2. Antes quedaba la primera (1 de 2).
+     */
+    @Test
+    fun `E-APP-087 cancelada esperando al cobrador no deja ninguna cuenta`() = runTest {
+        lateinit var job: Job
+        val ventasAntes = ventas()
+        alTraerUsuario = {
+            currentCoroutineContext().job.cancel()
+            awaitCancellation()
         }
 
         job = launch {
@@ -176,58 +227,42 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
         }
         job.join()
 
-        assertEquals(1, visitas())
-        assertEquals(1, encoladas.size)
-        val parcial = evento(VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA)
-        assertEquals("1", parcial.props[VisitasTelemetria.PROP_OCURRENCIAS])
-        assertEquals("2", parcial.props[VisitasTelemetria.PROP_CUENTAS])
-        assertEquals(
-            VisitasTelemetria.RESULTADO_CANCELADO,
-            parcial.props[VisitasTelemetria.PROP_RESULTADO]
-        )
-        assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
+        assertEquals(0, visitas())
+        assertEquals("sales sin tocar", ventasAntes, ventas())
+        assertTrue(encoladas.isEmpty())
+        assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 0, 2)), avisos)
     }
 
     /**
-     * Cancelada DENTRO del bloque `NonCancellable` de la primera cuenta (al
-     * encolar, la última escritura del bloque): la primera se completa entera,
-     * y la cancelación se observa al empezar la segunda. Fija que el conteo k
-     * incluye a la cuenta cuyo bloque protegido terminó.
+     * E-APP-087: cancelada al encolar la primera (post-commit): las DOS cuentas
+     * ya están escritas en la misma transacción y las dos se encolan; el bloque
+     * protegido terminó, así que no hay cancelación tardía que reportar.
      */
     @Test
-    fun `E-APP-078 cancelada dentro del bloque protegido cuenta esa cuenta como escrita`() =
-        runTest {
-            lateinit var job: Job
-            alEncolar = { if (encoladas.size == 1) job.cancel() }
+    fun `E-APP-087 cancelada al encolar deja las dos cuentas escritas y encoladas`() = runTest {
+        lateinit var job: Job
+        alEncolar = { if (encoladas.size == 1) job.cancel() }
 
-            job = launch {
-                casoDeUso(ubicacionInmediata).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
-            }
-            job.join()
-
-            assertEquals(1, visitas())
-            assertEquals(1, encoladas.size)
-            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
-            assertEquals(
-                "1",
-                evento(
-                    VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
-                ).props[VisitasTelemetria.PROP_OCURRENCIAS]
-            )
+        job = launch {
+            casoDeUso(ubicacionInmediata).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
         }
+        job.join()
+
+        assertEquals(2, visitas())
+        assertEquals(2, encoladas.size)
+        assertTrue(
+            "ya no existe el parcial k de N",
+            telemetry.recorded.none { it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA }
+        )
+    }
 
     /**
-     * La carrera que hacía intermitente a la prueba anterior (1 de 2855), forzada.
-     * `withTransaction` de Room 2.6.1 corre en un `runBlocking` HIJO del bloque
-     * `NonCancellable` y reanuda al llamador antes de que ese hijo termine. Si el
-     * resto del bloque acaba primero, el bloque espera al hijo y su resultado
-     * vuelve por `resumeCancellableWith`: con el job ya cancelado, `withContext`
-     * lanzaba la cancelación y la cuenta escrita se reportaba como 0. Con un
-     * despachador sin despacho el resto del bloque corre dentro del
-     * `runBlocking`, así que el orden malo ocurre siempre.
+     * La carrera de E-APP-078 forzada con `UnconfinedTestDispatcher`, sobre el
+     * guardado todo o nada (E-APP-087): las dos cuentas quedan y se encolan, y
+     * la cancelación tardía no convierte lo escrito en "no se guardó".
      */
     @Test
-    fun `E-APP-078 cancelada dentro del bloque protegido con la transaccion aun abierta cuenta esa cuenta como escrita`() =
+    fun `E-APP-087 con la carrera de E-APP-078 forzada las dos cuentas quedan y se encolan`() =
         runTest {
             lateinit var job: Job
             alEncolar = { if (encoladas.size == 1) job.cancel() }
@@ -237,57 +272,44 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
             }
             job.join()
 
-            assertEquals(1, visitas())
-            assertEquals(1, encoladas.size)
-            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 1, 2)), avisos)
-            assertEquals(
-                "1",
-                evento(
-                    VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
-                ).props[VisitasTelemetria.PROP_OCURRENCIAS]
-            )
+            assertEquals(2, visitas())
+            assertEquals(2, encoladas.size)
+            assertTrue(avisos.isEmpty())
         }
 
     /**
-     * El otro lado del arreglo anterior: una cancelación que nace DENTRO del
-     * bloque, antes de su última línea, no es tardía. Se propaga la misma
-     * instancia y la cuenta no se da por escrita (0 de 2), aunque la fila de
-     * `Visit` ya exista. Mata a "tragar toda cancelación" y a "marcar el bloque
-     * como terminado al empezar".
+     * Una cancelación lanzada DENTRO del bloque post-commit (al encolar) no es
+     * tardía: sale la misma instancia (E-APP-078). Las dos cuentas ya están en
+     * la base —la transacción commiteó— y un reintento no las reescribe porque
+     * el marcador quedó ESCRITA (E-APP-087).
      */
     @Test
-    fun `E-APP-078 cancelacion lanzada dentro del bloque antes de terminar se propaga y no cuenta la cuenta`() =
-        runTest {
-            val propia = CancellationException("cancelada al encolar")
-            alEncolar = { if (encoladas.size == 1) throw propia }
-            var recibida: Throwable? = null
+    fun `E-APP-078 cancelacion lanzada dentro del bloque antes de terminar se propaga`() = runTest {
+        val propia = CancellationException("cancelada al encolar")
+        alEncolar = { if (encoladas.size == 1) throw propia }
+        var recibida: Throwable? = null
 
-            val job = launch {
-                val caso = casoDeUso(ubicacionInmediata)
-                try {
-                    caso.invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
-                } catch (e: CancellationException) {
-                    recibida = e
-                    throw e
-                }
+        val job = launch {
+            val caso = casoDeUso(ubicacionInmediata)
+            try {
+                caso.invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+            } catch (e: CancellationException) {
+                recibida = e
+                throw e
             }
-            job.join()
-
-            // La recuperación de stack traces de kotlinx-coroutines (modo debug de
-            // las pruebas) entrega una copia cuya causa es la original.
-            assertSame(
-                "la cancelacion del bloque sale de invoke",
-                propia,
-                recibida.takeIf { it === propia } ?: recibida?.cause
-            )
-            assertEquals("la segunda cuenta no se intenta", 1, visitas())
-            assertEquals(1, encoladas.size)
-            assertEquals(listOf(Triple(FaseDelGuardado.CUENTAS, 0, 2)), avisos)
-            assertTrue(
-                "sin parcial: ninguna cuenta se dio por escrita",
-                telemetry.recorded.none { it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA }
-            )
         }
+        job.join()
+
+        // La recuperación de stack traces de kotlinx-coroutines (modo debug de
+        // las pruebas) entrega una copia cuya causa es la original.
+        assertSame(
+            "la cancelacion del bloque sale de invoke",
+            propia,
+            recibida.takeIf { it === propia } ?: recibida?.cause
+        )
+        assertEquals("todo o nada: la transaccion ya commiteo las dos", 2, visitas())
+        assertEquals(1, encoladas.size)
+    }
 
     /**
      * El cableado real de `:app`: el aviso sale por `TelemetriaDeVisitas` (lo que

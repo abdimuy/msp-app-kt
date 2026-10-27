@@ -15,7 +15,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-34-35-test.db"
 private const val OLD_VERSION = 34
 private const val NEW_VERSION = 35
-private const val ULTIMA_VERSION = 36
+private const val ULTIMA_VERSION = 37
 
 /**
  * Spec visitas §4.2-7: la 34→35 agrega `Visit.CONFIRMADA_EN` y
@@ -116,8 +116,8 @@ class Migration34to35Test : RobolectricTestBase() {
 
     /**
      * Camino real de producción: `buildDatabase` debe tener registrada la 34→35.
-     * La cadena sigue hasta la última versión (v36 agrega dos columnas a
-     * `Visit`), así que se comparan las columnas que la fila ya tenía en v34.
+     * La cadena sigue hasta la última versión (v37 crea `capturas_en_curso`,
+     * E-APP-084), así que se comparan las columnas que la fila ya tenía en v34.
      */
     @Test
     fun `MIGRATION_34_35 esta registrada en la configuracion real que usa produccion`() {

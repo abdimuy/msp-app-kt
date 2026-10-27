@@ -443,7 +443,9 @@ fun NavGraphBuilder.destinoDeListaDeClientes(
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit,
     envoltura: @Composable (contenido: @Composable (onAbrirMenu: () -> Unit) -> Unit) -> Unit =
-        { contenido -> contenido {} }
+        { contenido -> contenido {} },
+    /** E-APP-119: la venta local sin terminar del aviso; `null` abre el borrador. */
+    onAbrirVentaLocal: (String?) -> Unit = {}
 ) {
     composable(route = PagosRutas.LISTA_CLIENTES) {
         envoltura { onAbrirMenu ->
@@ -451,7 +453,8 @@ fun NavGraphBuilder.destinoDeListaDeClientes(
                 viewModel = hiltViewModel(),
                 onAbrirCliente = onAbrirCliente,
                 onAbrirVenta = onAbrirVenta,
-                onAbrirMenu = onAbrirMenu
+                onAbrirMenu = onAbrirMenu,
+                onAbrirVentaLocal = onAbrirVentaLocal
             )
         }
     }

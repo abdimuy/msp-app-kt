@@ -293,9 +293,11 @@ class PendingPaymentsWorkerDiagnosticoDecisionTest : RoomTestBase() {
         assertEquals(true, ok.fila!!.GUARDADO_EN_MICROSIP)
         assertEquals(8800123, ok.fila.DOCTO_CC_ID)
 
+        // E-APP-088: la custodia sin prueba de existencia (el GET da 404) ya no
+        // suelta la captura: queda pendiente, con aviso y sin reenvío.
         val capturado = correr(porNombre.getValue("422 con X-Intent-Captured"), Modo.SIN)
         assertEquals(ListenableWorker.Result.success(), capturado.result)
-        assertEquals(true, capturado.fila!!.GUARDADO_EN_MICROSIP)
+        assertEquals(false, capturado.fila!!.GUARDADO_EN_MICROSIP)
 
         val sinCustodia = correr(porNombre.getValue("422 sin X-Intent-Captured"), Modo.SIN)
         assertEquals(ListenableWorker.Result.retry(), sinCustodia.result)

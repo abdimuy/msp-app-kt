@@ -472,11 +472,23 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
         assertNull(data.ciudad)
     }
 
+    /**
+     * E-APP-094: el saleId es del formulario (y del borrador), no del toque.
+     * Antes esta prueba exigía uno nuevo por llamada, y eso era el defecto:
+     * volver a guardar el mismo borrador creaba una segunda venta.
+     */
     @Test
-    fun `buildSaleData generates unique saleId`() {
+    fun `E-APP-094 buildSaleData conserva el saleId del formulario`() {
         val data1 = viewModel.buildSaleData()
         val data2 = viewModel.buildSaleData()
-        assertNotEquals(data1.saleId, data2.saleId)
+        assertEquals(data1.saleId, data2.saleId)
+    }
+
+    @Test
+    fun `E-APP-094 un formulario nuevo trae otro saleId`() {
+        val antes = viewModel.buildSaleData().saleId
+        viewModel.clearAllFields()
+        assertNotEquals(antes, viewModel.buildSaleData().saleId)
     }
 
     // --- buildSaleData edge cases ---

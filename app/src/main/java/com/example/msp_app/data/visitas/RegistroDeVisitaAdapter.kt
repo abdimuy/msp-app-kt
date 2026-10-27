@@ -4,25 +4,33 @@ import androidx.room.withTransaction
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
+import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
+import com.example.msp_app.core.database.escribirSinCancelar
+import com.example.msp_app.core.database.sinCancelar
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.VisitStatusMapper
+import com.example.msp_app.data.auth.emailDeLaSesion
+import com.example.msp_app.data.captura.CapturasEnProceso
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
+import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
 import com.example.msp_app.feature.visitas.domain.port.VisitaARegistrar
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -73,8 +81,207 @@ class RegistroDeVisitaAdapter(
     private val imagenes: VisitImageDao,
     private val telemetry: Telemetry,
     private val clock: AppClock = AppClock.System,
-    private val traerUsuario: suspend () -> User? = ::usuarioAutenticado
+    private val traerUsuario: suspend () -> User? = ::usuarioAutenticado,
+    private val capturas: CapturaEnCursoDao = db.capturaEnCursoDao(),
+    private val emailEnSesion: () -> String? = ::emailDeLaSesion
 ) : RegistroDeVisitaPort {
+
+    /**
+     * Las N cuentas de una captura, **todo o nada** (E-APP-087, decisión 3 del
+     * dueño 2026-10-20), con su marcador VISITA (E-APP-084):
+     *
+     * 1. Marcador CAPTURADA, la primera operación, en `NonCancellable`.
+     * 2. Espera cancelable: el cobrador.
+     * 3. UNA [escribirSinCancelar] con las N visitas, sus estados de cobranza y
+     *    el marcador ESCRITA. Si el marcador ya estaba ESCRITA (reintento
+     *    tardío) no se reescribe nada: no se vuelve a fijar `ESTADO_COBRANZA`.
+     * 4. Post-commit: fotos del ancla y encolado de cada visita; marcador
+     *    CERRADA.
+     *
+     * E-APP-119 (D15): el marcador lleva en su `RESUMEN` las N cuentas y la
+     * hora de captura, así que una visita CAPTURADA con 0 escrituras (pantalla
+     * cerrada mientras esperaba al cobrador, proceso muerto) se reanuda con
+     * [reanudarPendientes] y la MISMA semilla.
+     */
+    override suspend fun registrarTodas(
+        semilla: String,
+        visitas: List<VisitaARegistrar>
+    ): ResultadoDelRegistro {
+        // Síncrono: no hay suspensión antes del marcador (Q11).
+        CapturasEnProceso.entrar(semilla)
+        try {
+            return registrarTotal(semilla, visitas)
+        } finally {
+            CapturasEnProceso.salir(semilla)
+        }
+    }
+
+    /**
+     * E-APP-119 (D15, regla del dueño "nada se pierde"): reanuda las visitas
+     * CAPTURADA del usuario en sesión que todavía no se escribieron. Corre en
+     * primer plano —al volver a la app y al tocar el aviso "N capturas sin
+     * terminar"—, nunca desde un worker: la escritura toca `sales`
+     * (`ESTADO_COBRANZA`). Idempotente por el marcador. Se salta lo que la
+     * pantalla de este mismo proceso está escribiendo ([CapturasEnProceso]) y
+     * lo que no se puede reconstruir (un resumen incompleto queda visible en el
+     * aviso, nunca se inventa una visita).
+     *
+     * @return cuántas quedaron escritas ahora.
+     */
+    @Suppress("TooGenericExceptionCaught") // leer los marcadores puede fallar; la app sigue.
+    override suspend fun reanudarPendientes(): Int {
+        val email = emailEnSesion()?.takeIf { it.isNotBlank() } ?: return 0
+        val pendientes = try {
+            capturas.abiertasDe(CapturaEnCursoEntity.TIPO_VISITA, email)
+                .filter { it.ESTADO == CapturaEnCursoEntity.CAPTURADA }
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            return 0
+        }
+        var reanudadas = 0
+        for (marcador in pendientes) {
+            val lote = ResumenDeLaVisita.leer(marcador.RESUMEN)?.aLote() ?: continue
+            if (!CapturasEnProceso.entrarSiLibre(marcador.ID)) continue
+            try {
+                if (registrarTotal(marcador.ID, lote) == ResultadoDelRegistro.REGISTRADA) reanudadas++
+            } finally {
+                CapturasEnProceso.salir(marcador.ID)
+            }
+        }
+        return reanudadas
+    }
+
+    /**
+     * E-APP-127: la ubicación que llega DESPUÉS del guardado se parcha sólo en
+     * `Visit.LAT/LNG` (`VisitDao.updateLocation`). No toca `GUARDADO_EN_MICROSIP`,
+     * ni el marcador, ni `sales`, ni re-encola: si el envío ya salió con 0,0, el
+     * servidor se queda con 0,0 (los lectores ya filtran el 0,0).
+     */
+    override suspend fun anotarUbicacion(visitaIds: List<String>, ubicacion: UbicacionDeLaVisita) {
+        sinCancelar {
+            visitaIds.forEach { id ->
+                visitas.updateVisitLocation(
+                    id,
+                    ubicacion.lat,
+                    ubicacion.lng
+                )
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // Room/Firestore pueden fallar; nada queda a medias.
+    private suspend fun registrarTotal(
+        semilla: String,
+        visitas: List<VisitaARegistrar>
+    ): ResultadoDelRegistro = try {
+        registrarLote(semilla, visitas)
+    } catch (cancelada: CancellationException) {
+        throw cancelada
+    } catch (fallo: Throwable) {
+        reportarSinLanzar(
+            code = VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO,
+            message = "la escritura de la visita fallo; la transaccion no dejo nada escrito",
+            props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+        )
+        ResultadoDelRegistro.FALLO_EL_GUARDADO
+    }
+
+    private suspend fun registrarLote(
+        semilla: String,
+        lote: List<VisitaARegistrar>
+    ): ResultadoDelRegistro {
+        val primera = lote.firstOrNull() ?: return ResultadoDelRegistro.REGISTRADA
+        val email = emailEnSesion()
+        val capturadaEn = if (!email.isNullOrBlank()) {
+            sinCancelar { anotarCaptura(semilla, lote, primera.clienteId, email) }
+        } else {
+            clock.now()
+        }
+        val venta = cuentaDeAtribucion(primera.clienteId)
+            ?: return ResultadoDelRegistro.CLIENTE_NO_ESTA_EN_EL_TELEFONO
+        val usuario = traerUsuario()
+        if (usuario == null || usuario.COBRADOR_ID == 0) return ResultadoDelRegistro.SIN_COBRADOR
+        val entidades = lote.map { entidadDe(it, venta, usuario.COBRADOR_ID, capturadaEn) }
+        val escritaAhora = db.escribirSinCancelar {
+            val marcador = capturas.obtener(semilla)
+            if (marcador != null && marcador.ESTADO != CapturaEnCursoEntity.CAPTURADA) {
+                false
+            } else {
+                entidades.forEachIndexed { indice, entidad ->
+                    visitas.insertVisitAndUpdateState(
+                        saleId = entidad.IMPTE_DOCTO_CC_ID,
+                        visit = entidad,
+                        newState = VisitStatusMapper.map(entidad.TIPO_VISITA)
+                    )
+                    reagendarCobranzaLegada(entidad)
+                    ligarRecomendacion(lote[indice])
+                }
+                val ahora = AppTime.toWireFormat(clock.now())
+                if (marcador == null) {
+                    capturas.capturar(
+                        marcadorDe(
+                            semilla,
+                            primera.clienteId,
+                            email.orEmpty(),
+                            ResumenDeLaVisita.de(lote, capturadaEn).json()
+                        ).copy(ESTADO = CapturaEnCursoEntity.ESCRITA)
+                    )
+                } else {
+                    capturas.marcarEscrita(semilla, ahora)
+                }
+                true
+            }
+        }
+        sinCancelar {
+            if (escritaAhora) lote.forEach { guardarComprobantes(it) }
+            entidades.forEach { encolarEnvio(it.ID) }
+            capturas.marcarCerrada(semilla, AppTime.toWireFormat(clock.now()))
+        }
+        return ResultadoDelRegistro.REGISTRADA
+    }
+
+    /**
+     * Escritura 1 (E-APP-084) con el lote completo en el `RESUMEN` (E-APP-119).
+     * Un reintento desde la pantalla sobre una captura que sigue CAPTURADA
+     * conserva la hora de captura original y refresca el lote; una ESCRITA o
+     * CERRADA no cambia. Devuelve la hora de captura: la `FECHA` de las visitas.
+     */
+    private suspend fun anotarCaptura(
+        semilla: String,
+        lote: List<VisitaARegistrar>,
+        clienteId: Int,
+        email: String
+    ): Instant {
+        val previo = capturas.obtener(semilla)
+        val hora = previo?.let { ResumenDeLaVisita.leer(it.RESUMEN)?.hora() } ?: clock.now()
+        val resumen = ResumenDeLaVisita.de(lote, hora).json()
+        if (previo == null) {
+            capturas.capturar(marcadorDe(semilla, clienteId, email, resumen))
+        } else {
+            capturas.actualizarCapturada(semilla, resumen, AppTime.toWireFormat(clock.now()))
+        }
+        return hora
+    }
+
+    private fun marcadorDe(
+        semilla: String,
+        clienteId: Int,
+        usuario: String,
+        resumen: String
+    ): CapturaEnCursoEntity {
+        val ahora = AppTime.toWireFormat(clock.now())
+        return CapturaEnCursoEntity(
+            ID = semilla,
+            TIPO = CapturaEnCursoEntity.TIPO_VISITA,
+            LLAVE = clienteId.toString(),
+            USUARIO = usuario,
+            ESTADO = CapturaEnCursoEntity.CAPTURADA,
+            RESUMEN = resumen,
+            CREADA_EN = ahora,
+            ACTUALIZADA_EN = ahora
+        )
+    }
 
     @Suppress(
         "TooGenericExceptionCaught"
@@ -347,13 +554,16 @@ class RegistroDeVisitaAdapter(
     private fun entidadDe(
         visita: VisitaARegistrar,
         venta: SaleWithProductsEntity,
-        cobradorId: Int
+        cobradorId: Int,
+        // E-APP-119: la hora de CAPTURA, no la de escritura: una visita
+        // reanudada horas después conserva la hora en que se hizo.
+        fecha: Instant = clock.now()
     ): VisitEntity = VisitEntity(
         ID = visita.visitaId,
         CLIENTE_ID = visita.clienteId,
         COBRADOR = venta.NOMBRE_COBRADOR,
         COBRADOR_ID = cobradorId,
-        FECHA = AppTime.toWireFormat(clock.now()),
+        FECHA = AppTime.toWireFormat(fecha),
         // El diálogo de hoy tampoco tiene selector de forma de cobro para las
         // visitas: el contrato de cable lleva el campo y siempre viaja en 0.
         FORMA_COBRO_ID = 0,
