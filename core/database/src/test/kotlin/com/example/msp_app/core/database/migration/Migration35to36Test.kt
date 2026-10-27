@@ -16,6 +16,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-35-36-test.db"
 private const val OLD_VERSION = 35
 private const val NEW_VERSION = 36
+private const val ULTIMA_VERSION = 38
 
 /**
  * E-APP-080 (spec visitas §5.4.8, §5.2.5): la 35→36 crea `visita_zona` y
@@ -147,7 +148,7 @@ class Migration35to36Test : RobolectricTestBase() {
             .build()
         try {
             val db = abierta.openHelper.readableDatabase
-            assertEquals(NEW_VERSION, db.version)
+            assertEquals(ULTIMA_VERSION, db.version)
             assertEquals(antes, volcado(db, "Visit", antes.first().keys.filter { it != "rowid" }))
             db.query(
                 "SELECT COUNT(*) FROM Visit WHERE COMPROMISO_CONFIRMADO_EN IS NULL " +

@@ -14,6 +14,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-36-37-test.db"
 private const val OLD_VERSION = 36
 private const val NEW_VERSION = 37
+private const val ULTIMA_VERSION = 38
 
 /**
  * E-APP-084: la 36→37 (antes 35→36; renumerada por la secuencia única de
@@ -65,7 +66,7 @@ class Migration36to37Test : RobolectricTestBase() {
             .build()
         try {
             val db = abierta.openHelper.readableDatabase
-            assertEquals(NEW_VERSION, db.version)
+            assertEquals(ULTIMA_VERSION, db.version)
             assertEquals(1, pagos(db).size)
         } finally {
             abierta.close()

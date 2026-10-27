@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
+import com.example.msp_app.core.database.dao.avisos.AvisosDao
 import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
@@ -20,10 +21,13 @@ import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.dao.tareas.TareaZonaDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.database.dao.visit.VisitaZonaDao
+import com.example.msp_app.core.database.entities.AvisoEmitidoEntity
+import com.example.msp_app.core.database.entities.AvisoProgramadoEntity
 import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.ClientProfileEntity
 import com.example.msp_app.core.database.entities.ClientProfileSignalEntity
@@ -44,6 +48,8 @@ import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
 import com.example.msp_app.core.database.entities.SaleEntity
+import com.example.msp_app.core.database.entities.TareaZonaEntity
+import com.example.msp_app.core.database.entities.TareasSyncStateEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.database.entities.VisitRecommendationEntity
@@ -66,6 +72,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_33_34
 import com.example.msp_app.core.database.migrations.MIGRATION_34_35
 import com.example.msp_app.core.database.migrations.MIGRATION_35_36
 import com.example.msp_app.core.database.migrations.MIGRATION_36_37
+import com.example.msp_app.core.database.migrations.MIGRATION_P3
 
 @Database(
     entities = [
@@ -92,10 +99,14 @@ import com.example.msp_app.core.database.migrations.MIGRATION_36_37
         EnvioDiagnosticoEntity::class,
         VisitaZonaEntity::class,
         VisitasSyncStateEntity::class,
-        CapturaEnCursoEntity::class
+        CapturaEnCursoEntity::class,
+        TareaZonaEntity::class,
+        TareasSyncStateEntity::class,
+        AvisoEmitidoEntity::class,
+        AvisoProgramadoEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 37,
+    version = 38,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -137,6 +148,12 @@ abstract class AppDatabase : RoomDatabase() {
 
     /** `capturas_en_curso` — el marcador de "captura nunca se pierde" (E-APP-084). */
     abstract fun capturaEnCursoDao(): CapturaEnCursoDao
+
+    /** `tarea_zona` + `tareas_sync_state` — las tareas de oficina bajadas de la zona (E-APP-121). */
+    abstract fun tareaZonaDao(): TareaZonaDao
+
+    /** `aviso_emitido` + `aviso_programado` — idempotencia de avisos y alarmas (E-APP-121). */
+    abstract fun avisosDao(): AvisosDao
 
     companion object {
         @Volatile
@@ -190,7 +207,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_33_34,
                     MIGRATION_34_35,
                     MIGRATION_35_36,
-                    MIGRATION_36_37
+                    MIGRATION_36_37,
+                    MIGRATION_P3
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }
