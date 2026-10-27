@@ -100,7 +100,24 @@ class ReprogramadorDeAlarmasTest : RoomTestBase() {
         reprogramador(encendido = false).reprogramarTodo(plan)
 
         assertTrue(alarmas.isEmpty())
-        assertTrue(db.avisosDao().programados().isEmpty())
+        // La tabla sobrevive: el interruptor llega de Firestore tras el arranque
+        // y su valor por omisión es apagado.
+        assertEquals(plan.map { it.id }, db.avisosDao().programados().map { it.ID })
+
+        reprogramador().reprogramarTodo(plan)
+        assertEquals(1, alarmas.size)
+    }
+
+    @Test
+    @org.robolectric.annotation.Config(sdk = [28])
+    fun `antes de Android 12 las alarmas exactas no necesitan permiso - E-APP-124`() = runTest {
+        val reportes = mutableListOf<Boolean>()
+        reprogramador(
+            reportes = reportes
+        ).reprogramarTodo(listOf(aviso("T-1", "2026-10-28T14:00:00Z")))
+
+        assertEquals(0L, alarmas.single().windowLengthMs)
+        assertTrue(reportes.isEmpty())
     }
 
     @Test

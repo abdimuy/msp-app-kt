@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import com.example.msp_app.core.database.dao.avisos.AvisosDao
 
@@ -31,12 +32,23 @@ class ReprogramadorDeAlarmas(
 
     @Suppress("TooGenericExceptionCaught")
     suspend fun reprogramarTodo(plan: List<AvisoPlaneado>) {
-        val deseado = if (killSwitch()) plan else emptyList()
-        val anteriores = dao.reemplazarProgramados(deseado.map { it.aEntidad() })
+        if (!killSwitch()) {
+            // Apagado: se cancelan las alarmas del sistema pero la tabla NO se
+            // toca. El interruptor llega de Firestore después del arranque; si
+            // vaciáramos la tabla con el valor por omisión (apagado), cada
+            // reinicio la borraría antes de saber si está encendido (E-APP-124).
+            dao.programados().forEach { cancelar(it.ID) }
+            plan.forEach { cancelar(it.id) }
+            return
+        }
+        val anteriores = dao.reemplazarProgramados(plan.map { it.aEntidad() })
         anteriores.forEach { cancelar(it.ID) }
-        if (deseado.isEmpty()) return
-        val exactas = alarmManager.canScheduleExactAlarms()
-        for (a in deseado) {
+        if (plan.isEmpty()) return
+        // canScheduleExactAlarms() es de API 31; antes de eso las exactas no
+        // necesitan permiso (minSdk 24).
+        val exactas = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            alarmManager.canScheduleExactAlarms()
+        for (a in plan) {
             try {
                 cancelar(a.id)
                 poner(a, exactas)
