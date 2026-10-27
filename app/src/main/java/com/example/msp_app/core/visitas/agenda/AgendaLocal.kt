@@ -10,7 +10,6 @@ import com.example.msp_app.core.common.visitas.domain.PromesaCompromiso
 import com.example.msp_app.core.common.visitas.domain.VisitaCompromiso
 import com.example.msp_app.core.common.visitas.domain.derivarCompromisos
 import com.example.msp_app.core.common.visitas.domain.momentoDePago
-import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitaZonaDao
@@ -28,7 +27,7 @@ import java.time.format.DateTimeFormatter
 /**
  * Lo que la agenda local lee. Todo es LECTURA y con métodos que ya existían
  * (plan visitas P2, Tarea 17): aquí no se escribe ninguna tabla, y las de dinero
- * (`Payment`, `sales`) solo se leen con `getAllPayments` / `getAll`.
+ * (`Payment`, `sales`) solo se leen con `VisitDao.pagosParaLaAgenda` / `getAll`.
  */
 interface FuenteDeAgenda {
     suspend fun cuentasDeZona(zona: Int): List<CuentaCompromiso>
@@ -45,8 +44,7 @@ interface FuenteDeAgenda {
 class RoomFuenteDeAgenda(
     private val saleDao: SaleDao,
     private val visitDao: VisitDao,
-    private val visitaZonaDao: VisitaZonaDao,
-    private val paymentDao: PaymentDao
+    private val visitaZonaDao: VisitaZonaDao
 ) : FuenteDeAgenda {
 
     override suspend fun cuentasDeZona(zona: Int): List<CuentaCompromiso> = saleDao.getAll()
@@ -60,7 +58,7 @@ class RoomFuenteDeAgenda(
         zona
     )
 
-    override suspend fun pagos(): List<PaymentEntity> = paymentDao.getAllPayments()
+    override suspend fun pagos(): List<PaymentEntity> = visitDao.pagosParaLaAgenda()
 
     private companion object {
         /** Mayor que cualquier `FECHA` (`2026-…`): la consulta existente pide un tope. */
@@ -146,7 +144,9 @@ class AgendaLocal(
 
         /**
          * Un `Payment` como pago de la derivación. Rechazado = `DOCTO_CC_ID = -1`;
-         * la captura local pendiente cuenta como cualquier otro. La hora se lee con
+         * la captura local pendiente cuenta como cualquier otro, y el abono no
+         * aplicado (`-2`) también: cumple la promesa en el teléfono aunque el servidor
+         * no lo vea (límite conocido E-APP-125). La hora se lee con
          * [momentoDePago], que interpreta el formato real del sync: el pago de
          * oficina llega como el instante de su medianoche local y es pago sin hora
          * del día (DA-7, E-APP-112), como en el servidor. Ilegible → no entra.

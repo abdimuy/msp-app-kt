@@ -1,6 +1,8 @@
 package com.example.msp_app.core.visitas.agenda
 
+import com.example.msp_app.core.common.visitas.domain.EstadoCompromiso
 import com.example.msp_app.core.common.visitas.domain.TipoCompromiso
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
@@ -82,8 +84,7 @@ class AgendaLocalRoomTest : RoomTestBase() {
     private fun fuente() = RoomFuenteDeAgenda(
         db.saleDao(),
         db.visitDao(),
-        db.visitaZonaDao(),
-        db.paymentDao()
+        db.visitaZonaDao()
     )
 
     @Test
@@ -108,12 +109,112 @@ class AgendaLocalRoomTest : RoomTestBase() {
         assertEquals(TipoCompromiso.PROMESA, r.getValue(PK_DE_LA_VENTA).tipo)
     }
 
+    private fun pago(
+        id: String,
+        fechaHora: String,
+        doctoCcId: Int,
+        pagoRecibidoId: String? = null
+    ) = PaymentEntity(
+        ID = id,
+        COBRADOR = "Rosa Elena Martínez Vázquez",
+        DOCTO_CC_ACR_ID = CARGO,
+        DOCTO_CC_ID = doctoCcId,
+        FECHA_HORA_PAGO = fechaHora,
+        GUARDADO_EN_MICROSIP = true,
+        IMPORTE = 150.0,
+        LAT = null,
+        LNG = null,
+        CLIENTE_ID = CLIENTE,
+        COBRADOR_ID = 7,
+        FORMA_COBRO_ID = 157,
+        ZONA_CLIENTE_ID = ZONA,
+        NOMBRE_CLIENTE = "Guadalupe Hernández Soto",
+        PAGO_RECIBIDO_ID = pagoRecibidoId
+    )
+
+    /**
+     * Visita del 16 a las 11:00 locales con promesa para el 20; "hoy" es el 16.
+     * Aquí PK = cargo (el invariante real, `SalesPkIgualACargoTest`): la agenda
+     * casa las cuentas por PK y los pagos por cargo.
+     */
+    private suspend fun estadoConPago(pago: PaymentEntity): EstadoCompromiso {
+        db.saleDao().insertAll(listOf(venta().copy(DOCTO_CC_ACR_ID = CARGO)))
+        db.visitDao().insertVisit(
+            visitaConPromesa().copy(
+                FECHA = "2026-10-16T17:00:00Z",
+                IMPTE_DOCTO_CC_ID = CARGO,
+                PROMESA_VENTA_ID = CARGO
+            )
+        )
+        db.paymentDao().savePayment(pago)
+        val r = AgendaLocal(fuente(), cdmx).derivar(ZONA, LocalDate.parse("2026-10-16"))
+        return r.getValue(CARGO).estado
+    }
+
+    /**
+     * E-APP-128: el pago de la APP capturado a las 00:00:00 locales (id numérico
+     * del sync y `PAGO_RECIBIDO_ID`) tiene hora y es anterior a la visita: no
+     * cierra la promesa. La regla de E-APP-112 solo lo distingue del pago de
+     * oficina si la lectura de Room trae `PAGO_RECIBIDO_ID`; `getAllPayments` no
+     * la proyectaba y el pago se leía como pago de oficina sin hora.
+     */
+    @Test
+    fun `pago de la app a medianoche no cierra la promesa - E-APP-128`() = runTest {
+        val deLaApp = pago(
+            id = "15082370",
+            fechaHora = "2026-10-16T06:00:00Z",
+            doctoCcId = 15082369,
+            pagoRecibidoId = "6b0c1f2e-3d4a-4b5c-8d6e-7f8091a2b3c4"
+        )
+        assertEquals(EstadoCompromiso.VIGENTE_FUTURA, estadoConPago(deLaApp))
+    }
+
+    @Test
+    fun `control - el mismo pago sin pago_recibido_id es de oficina y cierra - E-APP-128`() =
+        runTest {
+            val deOficina = pago(
+                id = "14998988",
+                fechaHora = "2026-10-16T06:00:00Z",
+                doctoCcId = 14998987
+            )
+            assertEquals(EstadoCompromiso.CUMPLIDA, estadoConPago(deOficina))
+        }
+
+    /**
+     * E-APP-125 (límite conocido): el abono no aplicado (`DOCTO_CC_ID = -2`,
+     * E-APP-092) SÍ cumple la promesa en el teléfono; el servidor no lo ve (queda
+     * en `MSP_FAILED_INTENTS`). Decisión del dueño 2026-10-27. Control: `-1`
+     * (rechazado) no cierra.
+     */
+    @Test
+    fun `abono no aplicado -2 cumple la promesa en el telefono - E-APP-125`() = runTest {
+        val noAplicado = pago(
+            id = "7d1f0c52-8a3e-4d62-9b0a-5e4c3b2a1f00",
+            fechaHora = "2026-10-16T18:00:00Z",
+            doctoCcId = DOCTO_CC_ID_NO_APLICADO
+        )
+        assertEquals(EstadoCompromiso.CUMPLIDA, estadoConPago(noAplicado))
+    }
+
+    @Test
+    fun `control - el abono rechazado -1 no cumple la promesa - E-APP-125`() = runTest {
+        val rechazado = pago(
+            id = "7d1f0c52-8a3e-4d62-9b0a-5e4c3b2a1f01",
+            fechaHora = "2026-10-16T18:00:00Z",
+            doctoCcId = -1
+        )
+        assertEquals(EstadoCompromiso.VIGENTE_FUTURA, estadoConPago(rechazado))
+    }
+
     private companion object {
         /** `sales.DOCTO_CC_ACR_ID`: la PK de Room. */
         const val PK_DE_LA_VENTA = 91027
 
         /** `sales.DOCTO_CC_ID`: el cargo. Distinto de la PK a propósito. */
         const val CARGO = 48213
+
+        /** `Payment.DOCTO_CC_ID` del abono que Microsip no aplicó (opción B, E-APP-092). */
+        const val DOCTO_CC_ID_NO_APLICADO = -2
 
         const val CLIENTE = 30144
         const val ZONA = 21
