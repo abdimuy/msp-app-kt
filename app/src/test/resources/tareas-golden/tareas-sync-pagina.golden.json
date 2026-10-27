@@ -1,0 +1,51 @@
+{
+  "after_id": "0a7e0c3b-0000-4000-8000-000000000003",
+  "cursor": "2026-10-18T23:00:00Z",
+  "has_more": true,
+  "items": [
+    {
+      "cancelada_at": null,
+      "cliente_id": 70,
+      "created_at": "2026-09-30T18:00:00Z",
+      "created_by": "5b1e0c2d-7a3f-4c11-9e2a-0c0ffee00001",
+      "fecha": "2026-10-01",
+      "hora": null,
+      "id": "0a7e0c3b-0000-4000-8000-000000000007",
+      "nota": null,
+      "reemplaza_a": null,
+      "updated_at": "2026-09-30T18:00:00Z",
+      "venta_id": 507,
+      "zona_cliente_id": 7
+    },
+    {
+      "cancelada_at": null,
+      "cliente_id": 10,
+      "created_at": "2026-10-18T22:15:00Z",
+      "created_by": "5b1e0c2d-7a3f-4c11-9e2a-0c0ffee00001",
+      "fecha": "2026-10-20",
+      "hora": "10:30",
+      "id": "0a7e0c3b-0000-4000-8000-000000000001",
+      "nota": "toca el timbre azul; pregunta por doña Inés",
+      "reemplaza_a": null,
+      "updated_at": "2026-10-18T22:15:00Z",
+      "venta_id": 501,
+      "zona_cliente_id": 7
+    },
+    {
+      "cancelada_at": null,
+      "cliente_id": 30,
+      "created_at": "2026-10-18T23:00:00Z",
+      "created_by": "5b1e0c2d-7a3f-4c11-9e2a-0c0ffee00001",
+      "fecha": "2026-10-19",
+      "hora": null,
+      "id": "0a7e0c3b-0000-4000-8000-000000000003",
+      "nota": null,
+      "reemplaza_a": null,
+      "updated_at": "2026-10-18T23:00:00Z",
+      "venta_id": 503,
+      "zona_cliente_id": 7
+    }
+  ],
+  "server_now": "2026-10-19T16:00:00Z",
+  "sync_epoch": 3
+}

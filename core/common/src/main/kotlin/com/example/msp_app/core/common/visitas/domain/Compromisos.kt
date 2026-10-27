@@ -98,7 +98,9 @@ data class VisitaCompromiso(
     val tipoVisita: String,
     val instante: Instant,
     val promesa: PromesaCompromiso?,
-    val cita: CitaCompromiso?
+    val cita: CitaCompromiso?,
+    /** Quien la hizo; solo lo usa la derivación de tareas (E-APP-122), no la de compromisos. */
+    val cobradorId: Int? = null
 )
 
 /**
@@ -110,7 +112,10 @@ data class PagoCompromiso(
     val ventaId: Int,
     val instante: Instant?,
     val fecha: LocalDate,
-    val rechazado: Boolean
+    val rechazado: Boolean,
+    /** Id y cobrador del pago; solo los usa la derivación de tareas (E-APP-122). */
+    val id: String? = null,
+    val cobradorId: Int? = null
 )
 
 /** La entrada derivada de una venta. */

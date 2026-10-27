@@ -23,6 +23,25 @@ internal fun diferenciaContraEsperado(
 }
 
 /**
+ * Deriva el estado de cada tarea de [caso] y lo compara con su esperado (plan
+ * P3 Tarea 11, E-APP-122); null si coinciden, o el porqué. `derivarEstadoTarea`
+ * recibe el historial completo del caso, como la función de Go.
+ */
+internal fun diferenciaDeTareas(
+    caso: CasoDeCompromiso,
+    visitas: List<VisitaCompromiso> = caso.visitas,
+    pagos: List<PagoCompromiso> = caso.pagos
+): String? {
+    for (t in caso.tareas) {
+        val obtenido = derivarEstadoTarea(t.tarea, visitas, pagos, t.cuenta, caso.hoy, caso.zona)
+        if (obtenido != t.esperado) {
+            return "$caso\n  tarea ${t.tarea.id}\n  esperado=${t.esperado}\n  obtenido=$obtenido"
+        }
+    }
+    return null
+}
+
+/**
  * Cada caso del juego compartido con msp-api (`testdata/compromisos/`) contra
  * [derivarCompromisos]. msp-api corre los mismos bytes contra
  * `DerivarCompromisos`: los dos verdes con el mismo VERSION son la amarra I5
@@ -41,6 +60,18 @@ internal class CompromisosCasosCompartidosTest(private val caso: CasoDeCompromis
     @Test
     fun `invertir las visitas no cambia el resultado`() {
         assertEquals(null, diferenciaContraEsperado(caso, caso.visitas.reversed()))
+    }
+
+    /** Casos 057–076 (tareas, E-APP-122): el estado derivado contra el que fija Go. */
+    @Test
+    fun `cada tarea del caso contra la derivacion de tareas`() {
+        assertEquals(null, diferenciaDeTareas(caso))
+    }
+
+    /** El orden de visitas y pagos no importa: fija el empate de instante por id. */
+    @Test
+    fun `invertir visitas y pagos no cambia el estado de las tareas`() {
+        assertEquals(null, diferenciaDeTareas(caso, caso.visitas.reversed(), caso.pagos.reversed()))
     }
 
     companion object {
@@ -76,6 +107,23 @@ class CompromisosCoberturaTest {
                 c.pagos.any {
                     it.instante == null
                 }
+            }
+        )
+    }
+
+    /** Los casos con tareas no pueden ser verdes por vacío (E-APP-122). */
+    @Test
+    fun `cobertura de tareas`() {
+        val tareas = casos.flatMap { it.tareas }
+        assertTrue("al menos 20 tareas", tareas.size >= 20)
+        assertEquals(EstadoTarea.entries.toSet(), tareas.map { it.esperado.estado }.toSet())
+        val atenciones = tareas.mapNotNull { it.esperado.atendida }
+        assertEquals(TipoAtencion.entries.toSet(), atenciones.map { it.tipo }.toSet())
+        assertTrue("una atendida por pago sin hora", atenciones.any { it.instante == null })
+        assertTrue(
+            "una cancelada que además tenía atención",
+            casos.any { c ->
+                c.tareas.any { it.esperado.estado == EstadoTarea.CANCELADA } && c.pagos.isNotEmpty()
             }
         )
     }

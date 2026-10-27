@@ -9,6 +9,7 @@ import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.diagnosticoenvio.EstadoDeEnvioDeVisitas
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
+import com.example.msp_app.core.sync.tareas.TareasZonaSyncProvider
 import com.example.msp_app.core.sync.visitas.VisitasZonaSyncProvider
 import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
@@ -96,6 +97,16 @@ class VisitsReconcileWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val bajarAgenda: suspend () -> Unit = {
         VisitasZonaSyncProvider.sincronizar(appContext)
+    },
+    /**
+     * Bajada de las tareas de oficina de la zona a `tarea_zona` (plan visitas
+     * P3, Tarea 11; E-APP-122). Cada 15 min, justo después de la agenda y con
+     * el mismo interruptor. El teléfono SIEMPRE hace pull: el push FCM solo
+     * despierta (spec §6.4).
+     */
+    @VisibleForTesting
+    internal val bajarTareas: suspend () -> Unit = {
+        TareasZonaSyncProvider.sincronizar(appContext)
     }
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -104,6 +115,7 @@ class VisitsReconcileWorker @JvmOverloads constructor(
         refrescarCapacidadesSinRiesgo()
         encolarRelleno()
         bajarAgendaSinRiesgo()
+        bajarTareasSinRiesgo()
         reconciliar()
         reportarEstadoSinRiesgo()
         return Result.success()
@@ -201,6 +213,21 @@ class VisitsReconcileWorker @JvmOverloads constructor(
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "bajada de la agenda de visitas falló; la corrida sigue", e)
+        }
+    }
+
+    /**
+     * Después de la agenda y aislada de ella: una bajada de tareas que falle no
+     * impide reconciliar ni la bajada de la agenda de la siguiente corrida.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun bajarTareasSinRiesgo() {
+        try {
+            bajarTareas()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "bajada de tareas de la zona falló; la corrida sigue", e)
         }
     }
 

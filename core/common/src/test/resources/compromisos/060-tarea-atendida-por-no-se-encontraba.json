@@ -1,0 +1,53 @@
+{
+  "nombre": "'No se encontraba' (alcance cliente) en otra venta del mismo cliente: la atiende (DA-6)",
+  "hoy": "2026-10-19",
+  "ahora": "2026-10-19T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    },
+    {
+      "venta_id": 200,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [
+    {
+      "id": "00000000-0000-3000-8000-000000000001",
+      "cliente_id": 10,
+      "venta_id": 200,
+      "tipo_visita": "No se encontraba",
+      "instante": "2026-10-16T17:00:00Z",
+      "promesa": null,
+      "cita": null,
+      "cobrador_id": 5
+    }
+  ],
+  "pagos": [],
+  "esperado": [],
+  "tareas": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "venta_id": 100,
+      "fecha": "2026-10-20",
+      "hora": null,
+      "created_at": "2026-10-14T16:00:00Z",
+      "cancelada_at": null
+    }
+  ],
+  "esperado_tareas": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "estado": "atendida",
+      "atendida_por": {
+        "tipo": "visita",
+        "id": "00000000-0000-3000-8000-000000000001",
+        "por": 5,
+        "instante": "2026-10-16T17:00:00Z",
+        "fecha": "2026-10-16"
+      }
+    }
+  ]
+}

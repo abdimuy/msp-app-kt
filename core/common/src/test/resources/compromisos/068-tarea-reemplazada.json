@@ -1,0 +1,45 @@
+{
+  "nombre": "editar = cancelar + asignar otra: la vieja cancelada, la nueva pendiente",
+  "hoy": "2026-10-19",
+  "ahora": "2026-10-19T18:00:00Z",
+  "zona": "America/Mexico_City",
+  "cuentas": [
+    {
+      "venta_id": 100,
+      "cliente_id": 10
+    }
+  ],
+  "visitas": [],
+  "pagos": [],
+  "esperado": [],
+  "tareas": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "venta_id": 100,
+      "fecha": "2026-10-20",
+      "hora": null,
+      "created_at": "2026-10-14T16:00:00Z",
+      "cancelada_at": "2026-10-15T16:00:00Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "venta_id": 100,
+      "fecha": "2026-10-21",
+      "hora": null,
+      "created_at": "2026-10-15T16:00:00Z",
+      "cancelada_at": null
+    }
+  ],
+  "esperado_tareas": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "estado": "cancelada",
+      "atendida_por": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "estado": "pendiente",
+      "atendida_por": null
+    }
+  ]
+}
