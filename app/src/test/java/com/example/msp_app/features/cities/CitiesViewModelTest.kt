@@ -8,7 +8,11 @@ import com.example.msp_app.data.cache.CitiesCache
 import com.example.msp_app.data.models.city.City
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -35,11 +39,14 @@ class CitiesViewModelTest : RobolectricTestBase() {
     private class FakeCitiesRepository(
         var resultado: () -> Result<List<City>>
     ) : CitiesRepository() {
-        var llamadas = 0
-            private set
+        // StateFlow y no un Int suelto: getCities corre en Dispatchers.IO y la
+        // prueba lo lee desde otro hilo, así que tiene que poder esperarlo.
+        private val _llamadas = MutableStateFlow(0)
+        val llamadasFlow: StateFlow<Int> = _llamadas.asStateFlow()
+        val llamadas: Int get() = _llamadas.value
 
         override suspend fun getCities(): Result<List<City>> {
-            llamadas++
+            _llamadas.update { it + 1 }
             return resultado()
         }
     }
@@ -125,7 +132,15 @@ class CitiesViewModelTest : RobolectricTestBase() {
         val trasLaCarga = repositorio.llamadas
 
         vm.refresh()
-        vm.state.first { it is ResultState.Success }
+        // refresh() no pasa por Loading: el estado se queda en el Success de la
+        // carga anterior, así que esperar un Success volvía al instante, antes de
+        // que la petición —que corre en Dispatchers.IO— llegara al repositorio, y
+        // la prueba fallaba según el planificador. Se espera la llamada misma; si
+        // refresh no la hace, runTest corta por tiempo y la prueba falla.
+        repositorio.llamadasFlow.first { it > trasLaCarga }
+        // Y que el refresh termine (cache.save incluido) antes de que el @Before
+        // de la siguiente prueba limpie el mismo archivo de cache.
+        vm.isRefreshing.first { !it }
 
         assertTrue(
             "refresh no volvió a pedir el catálogo",
