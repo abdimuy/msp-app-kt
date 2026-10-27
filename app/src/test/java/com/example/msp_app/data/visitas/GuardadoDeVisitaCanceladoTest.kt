@@ -16,6 +16,7 @@ import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.FaseDelGuardado
 import com.example.msp_app.feature.visitas.domain.port.GuardadoCanceladoPort
+import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
 import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
 import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
 import java.time.Instant
@@ -51,6 +52,8 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
     private val aviso = GuardadoCanceladoPort { f, e, n -> avisos += Triple(f, e, n) }
     private val encoladas = mutableListOf<String>()
     private var alEncolar: () -> Unit = {}
+    private val ubicacionesEncoladas = mutableListOf<String>()
+    private var alEncolarUbicacion: (String) -> Unit = { ubicacionesEncoladas += it }
     private var alTraerUsuario: suspend (Int) -> Unit = {}
 
     private val dosCuentas = CapturaDeVisita(
@@ -93,7 +96,8 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
                 traerUsuario = {
                     alTraerUsuario(++usuarios)
                     User(ID = "u-1", NOMBRE = "Efraín Domínguez", COBRADOR_ID = 7)
-                }
+                },
+                encolarUbicacion = { alEncolarUbicacion(it) }
             ),
             ubicacion,
             telemetry,
@@ -201,6 +205,56 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
                     it.getInt(0)
                 }
             )
+        }
+
+    /**
+     * E-APP-129: con ubicación tardía, además del parche en Room se encola UNA
+     * subida por visita (el PATCH por UUID al servidor). Sin ubicación no se
+     * encola nada: no se manda nada.
+     */
+    @Test
+    fun `E-APP-129 la ubicacion tardia encola una subida por visita`() = runTest {
+        casoDeUso(ubicacionInmediata).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+
+        assertEquals(2, visitas())
+        assertEquals(
+            "una subida por cada fila que recibió la ubicación",
+            visitasIds(),
+            ubicacionesEncoladas.sorted()
+        )
+    }
+
+    @Test
+    fun `E-APP-129 sin ubicacion no se encola ninguna subida`() = runTest {
+        val sinSenal = object : UbicacionPort {
+            override suspend fun ubicacionActual(): UbicacionDeLaVisita? = null
+        }
+        casoDeUso(sinSenal).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+
+        assertEquals(2, visitas())
+        assertEquals(emptyList<String>(), ubicacionesEncoladas)
+        assertEquals(listOf("0.0,0.0", "0.0,0.0"), coordenadas())
+    }
+
+    @Test
+    fun `E-APP-129 si encolar la subida lanza, la ubicacion queda en Room y la visita no se toca`() =
+        runTest {
+            alEncolarUbicacion = { throw IllegalStateException("WorkManager no inicializado") }
+
+            val resultado = casoDeUso(ubicacionInmediata)
+                .invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+
+            assertEquals(ResultadoDelRegistro.REGISTRADA, resultado)
+            assertEquals(2, visitas())
+            assertEquals(
+                listOf("18.4617,-97.3928", "18.4617,-97.3928"),
+                coordenadas()
+            )
+        }
+
+    private fun visitasIds(): List<String> =
+        db.openHelper.readableDatabase.query("SELECT ID FROM Visit ORDER BY ID").use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(0)) }
         }
 
     private fun coordenadas(): List<String> =

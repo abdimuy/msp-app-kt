@@ -83,7 +83,13 @@ class RegistroDeVisitaAdapter(
     private val clock: AppClock = AppClock.System,
     private val traerUsuario: suspend () -> User? = ::usuarioAutenticado,
     private val capturas: CapturaEnCursoDao = db.capturaEnCursoDao(),
-    private val emailEnSesion: () -> String? = ::emailDeLaSesion
+    private val emailEnSesion: () -> String? = ::emailDeLaSesion,
+    /**
+     * E-APP-129: encola la subida de la ubicación tardía de una visita ya
+     * escrita ([UbicacionTardiaDeVisitaWorker]). Por defecto no hace nada
+     * (las pruebas); `VisitasPortsModule` pasa el encolado real.
+     */
+    private val encolarUbicacion: (String) -> Unit = {}
 ) : RegistroDeVisitaPort {
 
     /**
@@ -153,11 +159,17 @@ class RegistroDeVisitaAdapter(
     }
 
     /**
-     * E-APP-127: la ubicación que llega DESPUÉS del guardado se parcha sólo en
+     * E-APP-127: la ubicación que llega DESPUÉS del guardado se parcha en
      * `Visit.LAT/LNG` (`VisitDao.updateLocation`). No toca `GUARDADO_EN_MICROSIP`,
-     * ni el marcador, ni `sales`, ni re-encola: si el envío ya salió con 0,0, el
-     * servidor se queda con 0,0 (los lectores ya filtran el 0,0).
+     * ni el marcador, ni `sales`, ni re-encola el envío de la visita.
+     *
+     * E-APP-129: además encola [UbicacionTardiaDeVisitaWorker] por visita, que
+     * lleva esa ubicación al servidor con un PATCH por UUID (E-VIS-114) para el
+     * caso en que la visita ya salió con 0,0. Si el envío aún no salió, ese
+     * envío ya lleva la ubicación de Room. Un fallo al encolar no cambia nada:
+     * la ubicación ya está en Room y el envío de la visita sigue su curso.
      */
+    @Suppress("TooGenericExceptionCaught") // encolar nunca deshace el parche.
     override suspend fun anotarUbicacion(visitaIds: List<String>, ubicacion: UbicacionDeLaVisita) {
         sinCancelar {
             visitaIds.forEach { id ->
@@ -166,6 +178,13 @@ class RegistroDeVisitaAdapter(
                     ubicacion.lat,
                     ubicacion.lng
                 )
+                try {
+                    encolarUbicacion(id)
+                } catch (cancelada: CancellationException) {
+                    throw cancelada
+                } catch (_: Throwable) {
+                    // La ubicación quedó en Room; el envío de la visita la lleva.
+                }
             }
         }
     }

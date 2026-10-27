@@ -22,6 +22,7 @@ import com.example.msp_app.workers.PendingVisitsWorker
 import com.example.msp_app.workers.RefrescarSaldoDeVentaWorker
 import com.example.msp_app.workers.ReparacionDeCondonacionesWorker
 import com.example.msp_app.workers.ResolucionDeCapturasSueltasWorker
+import com.example.msp_app.workers.UbicacionTardiaDeVisitaWorker
 import com.example.msp_app.workers.VisitsDailyReconcileWorker
 import com.example.msp_app.workers.VisitsReconcileWorker
 import java.util.concurrent.TimeUnit
@@ -163,6 +164,27 @@ fun enqueuePendingVisitsWorker(context: Context, visitId: String) {
     WorkManager.getInstance(context)
         .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
+
+/**
+ * E-APP-129: encola la subida de la ubicación tardía de una visita
+ * ([UbicacionTardiaDeVisitaWorker]). Nombre único por visita y `KEEP`: el
+ * trabajo lee la fila de Room en cada intento, así que uno ya encolado ve la
+ * ubicación más reciente. Con red, con espera creciente.
+ */
+fun enqueueUbicacionTardiaDeVisita(context: Context, visitId: String) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+    val request = OneTimeWorkRequestBuilder<UbicacionTardiaDeVisitaWorker>()
+        .setConstraints(constraints)
+        .setInputData(workDataOf(UbicacionTardiaDeVisitaWorker.CLAVE_VISIT_ID to visitId))
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, UBICACION_BACKOFF_SEGUNDOS, TimeUnit.SECONDS)
+        .build()
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork("ubicacion_tardia_visita_$visitId", ExistingWorkPolicy.KEEP, request)
+}
+
+private const val UBICACION_BACKOFF_SEGUNDOS = 30L
 
 fun enqueuePendingGuaranteesWorker(context: Context, guaranteeExternalId: String) {
     val constraints = Constraints.Builder()

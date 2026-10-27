@@ -46,6 +46,7 @@ import com.example.msp_app.data.visitas.PartesDeComprobantesDeVisita
 import com.example.msp_app.data.visitas.partesDeComprobantesDeVisita
 import com.example.msp_app.features.visit.upload.domain.VisitUploadClassifier
 import com.example.msp_app.features.visit.upload.domain.VisitUploadDecision
+import com.example.msp_app.workmanager.enqueueUbicacionTardiaDeVisita
 import com.google.gson.Gson
 import java.io.File
 import java.io.IOException
@@ -156,7 +157,14 @@ class PendingVisitsWorker @JvmOverloads constructor(
      * la refresca `VisitsReconcileWorker`.
      */
     @VisibleForTesting
-    internal val capacidades: () -> Capacidades = { CapacidadesDeVisitas.de(appContext).actual() }
+    internal val capacidades: () -> Capacidades = { CapacidadesDeVisitas.de(appContext).actual() },
+    /**
+     * E-APP-129: encola la subida de la ubicación tardía ([UbicacionTardiaDeVisitaWorker])
+     * cuando una visita sale en 0,0. Por defecto, el encolado real.
+     */
+    @VisibleForTesting
+    internal val encolarUbicacion: (String) -> Unit =
+        { id -> enqueueUbicacionTardiaDeVisita(appContext, id) }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -792,6 +800,24 @@ class PendingVisitsWorker @JvmOverloads constructor(
             datos = json.toRequestBody("application/json".toMediaTypeOrNull()),
             imagenes = comprobantes.partes
         )
+    }.also { pedirUbicacionTardiaSiSalioEnCero(visit) }
+
+    /**
+     * E-APP-129: el servidor recibió la visita con 0,0 (el cuerpo se armó de la
+     * fila leída antes). Si Room ya tiene ubicación —el parche de E-APP-127 llegó
+     * mientras viajaba—, el PATCH por UUID (E-VIS-114) la lleva; si no, el trabajo
+     * no manda nada. Nunca cambia el desenlace del envío.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun pedirUbicacionTardiaSiSalioEnCero(visit: VisitEntity) {
+        if (visit.LAT != 0.0 || visit.LNG != 0.0) return
+        try {
+            encolarUbicacion(visit.ID)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Visita ${visit.ID}: no se pudo encolar la ubicacion tardia", e)
+        }
     }
 
     /**

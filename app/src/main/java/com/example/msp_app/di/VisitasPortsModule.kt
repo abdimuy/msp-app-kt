@@ -22,6 +22,7 @@ import com.example.msp_app.feature.visitas.domain.port.GuardadoCanceladoPort
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.TemaDeLaAppPort
 import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
+import com.example.msp_app.workmanager.enqueueUbicacionTardiaDeVisita
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -89,7 +90,8 @@ object VisitasPortsModule {
         recomendaciones = recomendaciones,
         imagenes = imagenes,
         telemetry = telemetry,
-        clock = clock
+        clock = clock,
+        encolarUbicacion = { id -> enqueueUbicacionTardiaDeVisita(context, id) }
     )
 
     @Provides
