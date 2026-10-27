@@ -165,6 +165,33 @@ class AgendaLocalTest {
         assertEquals(EstadoCompromiso.VIGENTE_FUTURA, r.getValue(100).estado)
     }
 
+    /**
+     * C1 de la revisión de T17 (E-APP-112): el sync manda el pago de oficina
+     * como el instante de su medianoche local (`2026-08-24T06:00:00Z`, medido en
+     * dev). El servidor lo trata como pago sin hora del día y cierra la promesa
+     * de una visita del mismo día (DA-7, caso 023); el teléfono también.
+     */
+    @Test
+    fun `pago de oficina del sync cierra la promesa del mismo dia - E-APP-112`() = runTest {
+        // Visita con promesa el 16 a las 11:00 locales.
+        val visita = propia(fecha = "2026-10-16T17:00:00Z")
+        val oficina = pago(
+            fechaHora = "2026-10-16T06:00:00Z",
+            guardado = true,
+            doctoCcId = 14998987
+        ).copy(ID = "14998988")
+        assertEquals(EstadoCompromiso.CUMPLIDA, estadoCon(visita, oficina))
+        // Control positivo: con pago_recibido_id es un pago con hora, anterior a la visita: no cierra.
+        val conHora = oficina.copy(PAGO_RECIBIDO_ID = "6b0c1f2e-3d4a-4b5c-8d6e-7f8091a2b3c4")
+        assertEquals(EstadoCompromiso.VIGENTE_FUTURA, estadoCon(visita, conHora))
+        // El pago de oficina del día anterior no cierra (caso 024).
+        val ayer = oficina.copy(FECHA_HORA_PAGO = "2026-10-15T06:00:00Z")
+        assertEquals(EstadoCompromiso.VIGENTE_FUTURA, estadoCon(visita, ayer))
+    }
+
+    private suspend fun estadoCon(visita: VisitEntity, pago: PaymentEntity) =
+        derivar(FuenteFalsa(propias = listOf(visita), pagos = listOf(pago))).getValue(100).estado
+
     @Test
     fun pagoConSoloElDiaEsDeOficinaSinHora() {
         val p = requireNotNull(AgendaLocal.pagoDe(pago(fechaHora = "2026-10-16"), cdmx))

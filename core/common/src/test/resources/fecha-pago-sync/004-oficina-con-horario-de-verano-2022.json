@@ -1,0 +1,14 @@
+{
+  "nombre": "pago de oficina de julio de 2022, cuando la zona del negocio tenía horario de verano (UTC-5): la medianoche local es 05:00Z, no 06:00Z; se reconoce por la hora local, no por el texto. Derivado con la cadena de Go, no medido en el sync de dev (E-APP-112)",
+  "origen": "oficina",
+  "firebird_fecha": "2022-07-01 00:00:00",
+  "sync": {
+    "id": "9000001",
+    "fecha": "2022-07-01T05:00:00Z",
+    "pago_recibido_id": null
+  },
+  "esperado": {
+    "instante": null,
+    "fecha": "2022-07-01"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "nombre": "pago capturado por la app a las 23:34 locales: el sync lo manda en UTC del día siguiente; tiene hora y su día civil es el local. Medido en dev el 2026-10-26, zona 21563, IMPTE 15082370 (E-APP-112)",
+  "origen": "app",
+  "firebird_fecha": "2026-10-08 23:34:25",
+  "sync": {
+    "id": "15082370",
+    "fecha": "2026-10-09T05:34:25Z",
+    "pago_recibido_id": "7a1f39e4-925e-4dfd-a755-a895aa15404f"
+  },
+  "esperado": {
+    "instante": "2026-10-09T05:34:25Z",
+    "fecha": "2026-10-08"
+  }
+}

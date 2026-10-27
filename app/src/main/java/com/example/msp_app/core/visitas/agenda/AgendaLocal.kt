@@ -9,6 +9,7 @@ import com.example.msp_app.core.common.visitas.domain.PagoCompromiso
 import com.example.msp_app.core.common.visitas.domain.PromesaCompromiso
 import com.example.msp_app.core.common.visitas.domain.VisitaCompromiso
 import com.example.msp_app.core.common.visitas.domain.derivarCompromisos
+import com.example.msp_app.core.common.visitas.domain.momentoDePago
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
@@ -120,7 +121,6 @@ class AgendaLocal(
         const val VENTANA_DIAS: Long = 92
 
         private val HORA_CIVIL: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-        private val FECHA_SIN_HORA = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
         /** El día civil de [ahora] en la zona del negocio (E-APP-106). */
         fun hoyDe(ahora: Instant, zonaNegocio: ZoneId = BUSINESS_ZONE): LocalDate =
@@ -146,21 +146,20 @@ class AgendaLocal(
 
         /**
          * Un `Payment` como pago de la derivación. Rechazado = `DOCTO_CC_ID = -1`;
-         * la captura local pendiente cuenta como cualquier otro. `FECHA_HORA_PAGO`
-         * con solo el día es un pago de oficina sin hora (DA-7). Ilegible → no entra.
+         * la captura local pendiente cuenta como cualquier otro. La hora se lee con
+         * [momentoDePago], que interpreta el formato real del sync: el pago de
+         * oficina llega como el instante de su medianoche local y es pago sin hora
+         * del día (DA-7, E-APP-112), como en el servidor. Ilegible → no entra.
          */
         fun pagoDe(p: PaymentEntity, zonaNegocio: ZoneId = BUSINESS_ZONE): PagoCompromiso? {
-            val rechazado = p.DOCTO_CC_ID == DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
-            if (FECHA_SIN_HORA.matches(p.FECHA_HORA_PAGO)) {
-                val dia = AppTime.parseWireDateOrNull(p.FECHA_HORA_PAGO) ?: return null
-                return PagoCompromiso(SaleIdSpaces.forSalePayments(p), null, dia, rechazado)
-            }
-            val instante = AppTime.parseWireFormatOrNull(p.FECHA_HORA_PAGO) ?: return null
+            val momento =
+                momentoDePago(p.ID, p.FECHA_HORA_PAGO, p.PAGO_RECIBIDO_ID, zonaNegocio)
+                    ?: return null
             return PagoCompromiso(
                 SaleIdSpaces.forSalePayments(p),
-                instante,
-                instante.atZone(zonaNegocio).toLocalDate(),
-                rechazado
+                momento.instante,
+                momento.fecha,
+                p.DOCTO_CC_ID == DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR
             )
         }
 
