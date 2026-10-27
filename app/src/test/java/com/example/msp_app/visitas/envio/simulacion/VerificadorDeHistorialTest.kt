@@ -342,6 +342,131 @@ class VerificadorDeHistorialTest {
         assertNull("una deuda sin archivo ya no la puede mandar nadie", verificar(perdioArchivo))
     }
 
+    // ─── bajada (plan visitas P2, Tarea 19; E-APP-116) ─────────────────────
+    //
+    // Los MISMOS historiales que `historialesBajadaMalos`/`historialesBajadaBuenos`
+    // de msp-api (`internal/visitas/sim/historial_test.go`): las reglas de
+    // `pull`, `cursor`, `epoch` y `salida` se escriben dos veces y estos casos
+    // las amarran.
+
+    private fun pull(
+        paso: Int,
+        filas: String,
+        hasMore: Int = 0,
+        epoch: String = "1",
+        zona: Int = 7
+    ) = e(paso, TipoEvento.PULL, "", "zona=$zona filas=$filas has_more=$hasMore epoch=$epoch")
+
+    private fun cur(
+        paso: Int,
+        cursor: String,
+        after: String,
+        motivo: String = "pagina",
+        zona: Int = 7
+    ) = e(paso, TipoEvento.CURSOR, "", "zona=$zona cursor=$cursor after_id=$after motivo=$motivo")
+
+    private val t1 = "2026-10-17T18:00:01.000Z"
+    private val t2 = "2026-10-17T18:00:02.000Z"
+
+    private val malosBajada: List<Triple<String, String, List<Evento>>> = listOf(
+        Triple("cursor sin after_id", "I6", listOf(pull(1, "a|$t1"), cur(2, t1, "-"))),
+        Triple("after_id sin cursor", "I6", listOf(cur(1, "-", "a"))),
+        Triple(
+            "cursor que retrocede sin reinicio",
+            "I6",
+            listOf(pull(1, "a|$t2"), cur(2, t2, "a"), pull(3, "b|$t1"), cur(4, t1, "b"))
+        ),
+        Triple("cursor por delante de lo aplicado", "I6", listOf(cur(1, t1, "x"))),
+        Triple("reinicio que conserva el cursor", "I6", listOf(cur(1, t1, "a", "reinicio_epoch"))),
+        Triple(
+            "cursor de una fila que borró el cambio de zona",
+            "I6",
+            listOf(
+                pull(1, "a|$t1"),
+                cur(2, t1, "a"),
+                cur(3, "-", "-", "reinicio_zona", zona = 8),
+                cur(4, t1, "a")
+            )
+        ),
+        Triple(
+            "cursor de una fila que borró el replay por generación",
+            "I6",
+            listOf(
+                pull(1, "a|$t1"),
+                cur(2, t1, "a"),
+                cur(3, "-", "-", "reinicio_epoch"),
+                cur(4, t1, "a")
+            )
+        ),
+        Triple(
+            "generación persistida a media paginación",
+            "epoch",
+            listOf(
+                pull(1, "a|$t1", hasMore = 1, epoch = "2"),
+                e(2, TipoEvento.EPOCH, "", "zona=7 epoch=2")
+            )
+        ),
+        Triple(
+            "generación persistida distinta de la de la página",
+            "epoch",
+            listOf(pull(1, "a|$t1", epoch = "2"), e(2, TipoEvento.EPOCH, "", "zona=7 epoch=3"))
+        ),
+        Triple(
+            "la bajada cambia la tabla de salida",
+            "I8",
+            listOf(
+                e(1, TipoEvento.SALIDA, "", "fase=antes huella=h1"),
+                e(2, TipoEvento.SALIDA, "", "fase=despues huella=h2")
+            )
+        )
+    )
+
+    private val buenosBajada: List<Pair<String, List<Evento>>> = listOf(
+        "retroceso tras reinicio por generación" to listOf(
+            pull(1, "a|$t2"),
+            cur(2, t2, "a"),
+            cur(3, "-", "-", "reinicio_epoch"),
+            pull(4, "b|$t1", epoch = "2"),
+            cur(5, t1, "b"),
+            e(6, TipoEvento.EPOCH, "", "zona=7 epoch=2")
+        ),
+        "página vacía conserva el cursor" to listOf(
+            pull(1, "a|$t1"),
+            cur(2, t1, "a"),
+            pull(3, ""),
+            cur(4, t1, "a"),
+            e(5, TipoEvento.EPOCH, "", "zona=7 epoch=1")
+        ),
+        "empate: mismo cursor, id mayor" to listOf(
+            pull(1, "a|$t1,b|$t1", hasMore = 1),
+            cur(2, t1, "b"),
+            pull(3, "c|$t1"),
+            cur(4, t1, "c")
+        ),
+        "la bajada no toca la salida" to listOf(
+            e(1, TipoEvento.SALIDA, "", "fase=antes huella=h1"),
+            e(2, TipoEvento.ACCION, "", "cambiar_zona zona=8"),
+            e(3, TipoEvento.SALIDA, "", "fase=despues huella=h1")
+        )
+    )
+
+    @Test
+    fun `E-APP-116 los historiales de la bajada malos fallan con su invariante y los buenos pasan`() {
+        malosBajada.forEach { (nombre, inv, h) ->
+            val err = verificar(h)
+            assertNotNull("$nombre: debía fallar con $inv", err)
+            assertEquals(nombre, inv, err!!.inv)
+        }
+        buenosBajada.forEach { (nombre, h) ->
+            assertNull(
+                "$nombre: ${verificar(h)?.message}",
+                verificar(h)
+            )
+        }
+        assertEquals(10, malosBajada.size)
+        assertEquals(4, buenosBajada.size)
+    }
+
     @Test
     fun `el JSONL tiene el formato de Go y se lee igual`() {
         val f = File(carpeta.root, "x.jsonl")
