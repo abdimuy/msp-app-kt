@@ -12,6 +12,7 @@ import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.example.msp_app.core.database.entities.AvisoProgramadoEntity
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -88,4 +89,37 @@ class ReceptoresTest : RoomTestBase() {
             AvisoAlarmReceiver.notificarSiVigente(context, "A-1")
             assertEquals(1, notificaciones().size)
         }
+
+    /** E-APP-134 (revision de T15): el receptor cuenta el disparo; si deja de llamarlo, esta prueba se pone roja. */
+    @Test
+    fun `la alarma que notifica queda contada en las ultimas 24 horas - E-APP-134`() = runTest {
+        shadowOf(context as android.app.Application)
+            .grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        db.avisosDao().reemplazarProgramados(
+            listOf(AvisoProgramadoEntity("A-1", "2026-10-28T14:00:00Z", "promesa", "V-1"))
+        )
+        val antes = ContadorDeDisparos.de(context).ultimas24h(java.time.Instant.now())
+
+        AvisoAlarmReceiver.notificarSiVigente(context, "A-OTRO")
+        assertEquals(antes, ContadorDeDisparos.de(context).ultimas24h(java.time.Instant.now()))
+
+        AvisoAlarmReceiver.notificarSiVigente(context, "A-1")
+        assertEquals(antes + 1, ContadorDeDisparos.de(context).ultimas24h(java.time.Instant.now()))
+    }
+
+    /** E-APP-134 (revision de T15): el trabajo emite `visitas_avisos`; si quitan reportarAvisos, se pone roja. */
+    @Test
+    fun `reprogramar por omision emite la telemetria de avisos - E-APP-134`() = runTest {
+        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+        TelemetriaDeVisitas.sinkParaPrueba = { e, d -> emitidos += e to d }
+        try {
+            ReprogramarAvisosWorker.reprogramarPorOmision(context)
+        } finally {
+            TelemetriaDeVisitas.sinkParaPrueba = null
+        }
+        val avisos = emitidos.filter { it.first == TelemetriaDeVisitas.EVENTO_AVISOS }
+        // Al menos uno: otro trabajo de avisos puede correr a la vez en la suite completa.
+        assertTrue(avisos.isNotEmpty())
+        assertTrue(avisos.all { it.second.containsKey(TelemetriaDeVisitas.AVISOS_PROGRAMADOS) })
+    }
 }

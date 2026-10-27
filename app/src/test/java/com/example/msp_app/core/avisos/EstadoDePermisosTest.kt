@@ -33,7 +33,7 @@ class EstadoDePermisosTest {
     }
 
     @Test
-    fun `telemetriaIncluyeLosCincoPermisosYNadaMas - E-APP-134`() {
+    fun `telemetriaIncluyeLosTresPermisosYDosConteosYNadaMas - E-APP-134`() {
         val mapa = TelemetriaDeVisitas.avisos(
             EstadoDePermisos(
                 notificaciones = true,
