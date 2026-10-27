@@ -1,9 +1,13 @@
 package com.example.msp_app.feature.pagos.ui
 
+import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.feature.pagos.domain.model.CompromisoDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDeCompromiso
+import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.TipoDeCompromiso
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
@@ -138,5 +142,83 @@ class PresentacionDeCompromisoTest {
             assertFalse(texto, texto.endsWith("."))
             assertTrue(texto, prohibidas.none { texto.contains(it, ignoreCase = true) })
         }
+    }
+
+    // --- La tarjeta y el detalle no repiten lo que el estado de la semana ya dice (rev-t20) ---
+
+    private val viernes = LocalDate.of(2026, 10, 23)
+
+    private fun chip(
+        estado: EstadoCuenta,
+        fechaPromesa: LocalDate? = null,
+        fechaCita: LocalDate? = null,
+        horaCita: LocalTime? = null
+    ) = EstadoDelPeriodo(
+        estado = estado,
+        abonoDelPeriodo = Money.ZERO,
+        parcialidad = Money.of(BigDecimal("220")),
+        fechaPromesa = fechaPromesa,
+        montoPrometido = Money.of(BigDecimal("500")),
+        fechaCita = fechaCita,
+        horaCita = horaCita
+    )
+
+    private fun tarjeta(chip: EstadoDelPeriodo, c: CompromisoDeLaVenta, conAbonos: Boolean = true) =
+        piezasDeLaTarjeta(conAbonos, c, hoy, estadoDelChip = chip).compromiso
+
+    @Test
+    fun laTarjetaNoRepiteLaPromesaQueYaDiceElChip() {
+        val c = promesa()
+        assertNull(tarjeta(chip(EstadoCuenta.PROMETIO_PROXIMA, fechaPromesa = viernes), c))
+    }
+
+    @Test
+    fun laTarjetaNoRepiteLaCitaQueYaDiceElChip() {
+        val c = cita(dia = viernes, hora = LocalTime.of(16, 30))
+        val chip =
+            chip(EstadoCuenta.CITA_A_UNA_HORA, fechaCita = viernes, horaCita = LocalTime.of(16, 30))
+        assertNull(tarjeta(chip, c))
+        // La cita sin hora con su día en el chip ("Cita 23 oct / Sin hora") tampoco se repite.
+        assertNull(
+            tarjeta(chip(EstadoCuenta.CITA_A_UNA_HORA, fechaCita = viernes), cita(dia = viernes))
+        )
+    }
+
+    /** Controles: lo que el chip NO dice sí se pinta. */
+    @Test
+    fun loQueElChipNoDiceSiSePinta() {
+        // Chip de dinero (B): el compromiso va debajo.
+        assertNotNull(tarjeta(chip(EstadoCuenta.ABONO_PARCIAL), promesa()))
+        // Otro día, otra hora, otro tipo.
+        assertNotNull(
+            tarjeta(
+                chip(EstadoCuenta.PROMETIO_PROXIMA, fechaPromesa = viernes.minusDays(1)),
+                promesa()
+            )
+        )
+        val cita1630 =
+            chip(EstadoCuenta.CITA_A_UNA_HORA, fechaCita = viernes, horaCita = LocalTime.of(16, 30))
+        assertNotNull(tarjeta(cita1630, cita(dia = viernes, hora = LocalTime.of(9, 0))))
+        assertNotNull(
+            tarjeta(
+                chip(EstadoCuenta.PROMETIO_PROXIMA, fechaPromesa = viernes),
+                cita(dia = viernes)
+            )
+        )
+        // Un chip sin día ("Cita sin hora") no dice cuándo.
+        assertNotNull(tarjeta(chip(EstadoCuenta.CITA_A_UNA_HORA), cita(dia = viernes)))
+        // El desenlace (incumplida, cumplida) agrega información aunque el día coincida.
+        val prometio = chip(EstadoCuenta.PROMETIO_PROXIMA, fechaPromesa = viernes)
+        assertNotNull(tarjeta(prometio, promesa(estado = EstadoDeCompromiso.INCUMPLIDA)))
+        assertNotNull(tarjeta(prometio, promesa(estado = EstadoDeCompromiso.CUMPLIDA)))
+        // "Primer abono" no dice nada del compromiso (C).
+        assertNotNull(tarjeta(prometio, promesa(), conAbonos = false))
+    }
+
+    @Test
+    fun elDetalleNoRepiteLoQueDiceElEstado() {
+        val prometio = chip(EstadoCuenta.PROMETIO_PROXIMA, fechaPromesa = viernes)
+        assertNull(renglonDelDetalle(prometio, promesa(), hoy))
+        assertNotNull(renglonDelDetalle(chip(EstadoCuenta.ABONO_PARCIAL), promesa(), hoy))
     }
 }

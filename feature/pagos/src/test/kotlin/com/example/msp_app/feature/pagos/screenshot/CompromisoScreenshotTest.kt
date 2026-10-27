@@ -3,11 +3,13 @@ package com.example.msp_app.feature.pagos.screenshot
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
+import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.model.CompromisoDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDeCompromiso
+import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.TipoDeCompromiso
 import com.example.msp_app.feature.pagos.ui.DetalleVentaContent
 import com.example.msp_app.feature.pagos.ui.DetalleVentaUiState
@@ -39,6 +41,22 @@ class CompromisoScreenshotTest : PagosScreenshotTest() {
         montoCentavos = 50_000
     )
 
+    /**
+     * rev-t20: los fixtures pintan estados que la derivación SÍ puede dar
+     * juntos. B es el chip de dinero ("Abonó parcial") con la cita debajo; el
+     * detalle de la cita abonó parcial esta semana, y el de la promesa
+     * incumplida no tiene nada esta semana ("Falta pasar").
+     */
+    private val abonoParcial = ListaFixtures.estado(
+        EstadoCuenta.ABONO_PARCIAL,
+        abonoDelPeriodo = ListaFixtures.dinero("100")
+    )
+
+    private val sinTocar = ListaFixtures.estado(EstadoCuenta.SIN_TOCAR)
+
+    private fun ClienteEnLista.conEstado(e: EstadoDelPeriodo) =
+        copy(ventas = ventas.map { it.copy(venta = it.venta.copy(estado = e)) })
+
     private fun ClienteEnLista.con(c: CompromisoDeLaVenta) =
         copy(ventas = ventas.map { it.copy(venta = it.venta.copy(compromiso = c)) })
 
@@ -46,21 +64,21 @@ class CompromisoScreenshotTest : PagosScreenshotTest() {
     fun `tarjeta con abonos y cita sin hora light`() = tarjeta(
         "abonos_cita",
         false,
-        ListaFixtures.guadalupe().con(citaSinHora)
+        ListaFixtures.guadalupe().conEstado(abonoParcial).con(citaSinHora)
     )
 
     @Test
     fun `tarjeta con abonos y cita sin hora dark`() = tarjeta(
         "abonos_cita",
         true,
-        ListaFixtures.guadalupe().con(citaSinHora)
+        ListaFixtures.guadalupe().conEstado(abonoParcial).con(citaSinHora)
     )
 
     @Test
     fun `tarjeta con abonos y cita sin hora muy grande`() = tarjeta(
         "abonos_cita",
         false,
-        ListaFixtures.guadalupe().con(citaSinHora),
+        ListaFixtures.guadalupe().conEstado(abonoParcial).con(citaSinHora),
         FontSizeLevel.MUY_GRANDE
     )
 
@@ -78,25 +96,42 @@ class CompromisoScreenshotTest : PagosScreenshotTest() {
         ListaFixtures.conVentaNueva().con(promesa)
     )
 
+    /** rev-t20: el chip ya dice la promesa; la tarjeta no la repite. */
+    @Test
+    fun `tarjeta sin repetir la promesa del chip light`() = tarjeta(
+        "promesa_del_chip",
+        false,
+        ListaFixtures.guadalupe().conEstado(
+            ListaFixtures.estado(
+                EstadoCuenta.PROMETIO_PROXIMA,
+                fechaPromesa = promesa.dia,
+                montoPrometido = ListaFixtures.dinero("500")
+            )
+        ).con(promesa)
+    )
+
     @Test
     fun `detalle con cita light`() = detalle(
         "cita",
         false,
-        citaSinHora.copy(hora = LocalTime.of(16, 30))
+        citaSinHora.copy(hora = LocalTime.of(16, 30)),
+        abonoParcial
     )
 
     @Test
     fun `detalle con cita dark`() = detalle(
         "cita",
         true,
-        citaSinHora.copy(hora = LocalTime.of(16, 30))
+        citaSinHora.copy(hora = LocalTime.of(16, 30)),
+        abonoParcial
     )
 
     @Test
     fun `detalle con promesa incumplida light`() = detalle(
         "promesa_incumplida",
         false,
-        promesa.copy(estado = EstadoDeCompromiso.INCUMPLIDA, dia = hoy.minusDays(2))
+        promesa.copy(estado = EstadoDeCompromiso.INCUMPLIDA, dia = hoy.minusDays(2)),
+        sinTocar
     )
 
     private fun tarjeta(
@@ -114,14 +149,19 @@ class CompromisoScreenshotTest : PagosScreenshotTest() {
         }
     }
 
-    private fun detalle(nombre: String, dark: Boolean, c: CompromisoDeLaVenta) = capture(
+    private fun detalle(
+        nombre: String,
+        dark: Boolean,
+        c: CompromisoDeLaVenta,
+        estado: EstadoDelPeriodo
+    ) = capture(
         name = "pagos_compromiso_detalle_${nombre}_${tema(dark)}",
         dark = dark
     ) {
         DetalleVentaContent(
             state = DetalleVentaUiState(
                 cargando = false,
-                detalle = ventaDelMock().copy(compromiso = c, hoy = hoy)
+                detalle = ventaDelMock().copy(estado = estado, compromiso = c, hoy = hoy)
             ),
             onAtras = {},
             onRegistrarAbono = {},

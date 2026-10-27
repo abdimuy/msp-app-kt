@@ -4,13 +4,16 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.domain.model.CompromisoDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDeCompromiso
+import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.TipoDeCompromiso
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_PRIMER_ABONO_TAG
 import com.example.msp_app.feature.pagos.ui.components.COMPROMISO_DE_LA_VENTA_TAG
@@ -52,6 +55,16 @@ class ElCompromisoSeVeEnLaTarjetaYElDetalleTest : RobolectricTestBase() {
     private fun ClienteEnLista.conCompromiso(c: CompromisoDeLaVenta?) =
         copy(ventas = ventas.map { it.copy(venta = it.venta.copy(compromiso = c)) })
 
+    /** Pone el chip de la semana de cada venta del cliente en [estado]. */
+    private fun ClienteEnLista.conEstado(estado: EstadoDelPeriodo) =
+        copy(ventas = ventas.map { it.copy(venta = it.venta.copy(estado = estado)) })
+
+    /** Abonó parcial esta semana: el chip DE DINERO del que habla B. */
+    private val abonoParcial = ListaFixtures.estado(
+        EstadoCuenta.ABONO_PARCIAL,
+        abonoDelPeriodo = ListaFixtures.dinero("100")
+    )
+
     private fun fila(cliente: ClienteEnLista, ocultos: Boolean = false) {
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
@@ -65,10 +78,10 @@ class ElCompromisoSeVeEnLaTarjetaYElDetalleTest : RobolectricTestBase() {
         }
     }
 
-    /** B: Guadalupe ya abonó; su chip de estado sigue y la cita se ve con él. */
+    /** B: Guadalupe abonó parcial esta semana; el chip de dinero sigue y la cita se ve con él. */
     @Test
     fun chipDeDineroYCompromisoJuntos() {
-        fila(ListaFixtures.guadalupe().conCompromiso(citaSinHora))
+        fila(ListaFixtures.guadalupe().conEstado(abonoParcial).conCompromiso(citaSinHora))
 
         composeTestRule.onAllNodesWithTag(
             ETIQUETA_DE_ESTADO_TAG,
@@ -99,6 +112,26 @@ class ElCompromisoSeVeEnLaTarjetaYElDetalleTest : RobolectricTestBase() {
             .assertTextEquals("Promesa · Vie 4 sept, $MASKED_MONEY")
     }
 
+    /**
+     * rev-t20: cuando el chip de la semana YA es esta promesa ("Prometió $500
+     * el 4 sept"), la tarjeta no la repite debajo. Si se duplica, esta prueba
+     * se pone roja.
+     */
+    @Test
+    fun laTarjetaNoDuplicaLaPromesaDelChip() {
+        val prometio = ListaFixtures.estado(
+            EstadoCuenta.PROMETIO_PROXIMA,
+            fechaPromesa = promesa.dia,
+            montoPrometido = ListaFixtures.dinero("500")
+        )
+        fila(ListaFixtures.guadalupe().conEstado(prometio).conCompromiso(promesa))
+
+        composeTestRule.onAllNodesWithText("Prometió", substring = true, useUnmergedTree = true)
+            .assertCountEquals(1)
+        composeTestRule.onAllNodesWithTag(COMPROMISO_DE_LA_VENTA_TAG, useUnmergedTree = true)
+            .assertCountEquals(0)
+    }
+
     /** Control: sin compromiso la tarjeta no reserva nada. */
     @Test
     fun sinCompromisoLaTarjetaNoPintaNada() {
@@ -114,13 +147,13 @@ class ElCompromisoSeVeEnLaTarjetaYElDetalleTest : RobolectricTestBase() {
         ).assertCountEquals(0)
     }
 
-    private fun detalle(c: CompromisoDeLaVenta?) {
+    private fun detalle(c: CompromisoDeLaVenta?, estado: EstadoDelPeriodo = abonoParcial) {
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
                 DetalleVentaContent(
                     state = DetalleVentaUiState(
                         cargando = false,
-                        detalle = PagosFixtures.detalleVenta().copy(compromiso = c)
+                        detalle = PagosFixtures.detalleVenta().copy(estado = estado, compromiso = c)
                     ),
                     onAtras = {},
                     onRegistrarAbono = {},
@@ -140,6 +173,19 @@ class ElCompromisoSeVeEnLaTarjetaYElDetalleTest : RobolectricTestBase() {
 
         composeTestRule.onNodeWithTag(RENGLON_DE_COMPROMISO_TAG)
             .assertTextEquals("Cita", "Vie 4 sept, 16:30")
+    }
+
+    /** rev-t20: el estado en grande ya dice "Prometió $500 el 4 sept": no se repite abajo. */
+    @Test
+    fun detalleNoDuplicaLaPromesaDelEstado() {
+        val prometio = ListaFixtures.estado(
+            EstadoCuenta.PROMETIO_PROXIMA,
+            fechaPromesa = promesa.dia,
+            montoPrometido = ListaFixtures.dinero("500")
+        )
+        detalle(promesa, prometio)
+
+        composeTestRule.onAllNodesWithTag(RENGLON_DE_COMPROMISO_TAG).assertCountEquals(0)
     }
 
     @Test

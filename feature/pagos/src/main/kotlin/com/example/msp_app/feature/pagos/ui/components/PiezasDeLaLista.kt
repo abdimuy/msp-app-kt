@@ -447,7 +447,7 @@ private fun RenglonDeVenta(
         val enUnaFila = LocalFontSizeLevel.current != FontSizeLevel.MUY_GRANDE
         // Spec visitas §5.7 B y C (E-APP-115): el chip de dinero —o "Primer
         // abono"— sigue en su lugar y el compromiso se pinta ADEMÁS, debajo.
-        val piezas = piezasDeLaTarjeta(!esNueva, venta.compromiso, hoy, montosOcultos)
+        val piezas = piezasDeLaTarjeta(!esNueva, venta.compromiso, hoy, montosOcultos, venta.estado)
         val primerAbono = piezas.principal == PiezaPrincipal.PRIMER_ABONO
         if (enUnaFila) {
             Row(verticalAlignment = Alignment.CenterVertically) {

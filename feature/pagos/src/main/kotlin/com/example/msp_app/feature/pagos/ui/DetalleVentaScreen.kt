@@ -430,7 +430,7 @@ private fun CuerpoDeLaVenta(
         EstadoEnGrande(detalle.estado, ocultos = ocultos)
         // Spec visitas §5.7 E (E-APP-115): la próxima cita o promesa, con día,
         // hora y monto, justo debajo del estado.
-        presentacionDe(detalle.compromiso, detalle.hoy, ocultos)?.let {
+        renglonDelDetalle(detalle.estado, detalle.compromiso, detalle.hoy, ocultos)?.let {
             Spacer(Modifier.height(MspTheme.spacing.sm))
             RenglonDeCompromiso(it)
         }
