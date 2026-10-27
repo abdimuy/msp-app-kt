@@ -87,6 +87,7 @@ import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
+import com.example.msp_app.feature.pagos.ui.components.RenglonDeCompromiso
 import com.example.msp_app.feature.pagos.ui.components.RitmoDeSemanas
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
 import com.example.msp_app.feature.pagos.ui.components.Separador
@@ -427,6 +428,12 @@ private fun CuerpoDeLaVenta(
         )
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         EstadoEnGrande(detalle.estado, ocultos = ocultos)
+        // Spec visitas §5.7 E (E-APP-115): la próxima cita o promesa, con día,
+        // hora y monto, justo debajo del estado.
+        presentacionDe(detalle.compromiso, detalle.hoy, ocultos)?.let {
+            Spacer(Modifier.height(MspTheme.spacing.sm))
+            RenglonDeCompromiso(it)
+        }
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         TarjetaDelSaldo(detalle, ocultos, acciones.onVerDatos)
 

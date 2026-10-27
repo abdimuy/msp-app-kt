@@ -1,0 +1,20 @@
+{
+  "nombre": "promesa-cumplida-sin-monto-con-abonos",
+  "hoy": "2026-10-20",
+  "con_abonos": true,
+  "compromiso": {
+    "tipo": "promesa",
+    "estado": "cumplida",
+    "dia": "2026-10-18",
+    "hora": null,
+    "monto_centavos": null
+  },
+  "esperado": {
+    "principal": "estado",
+    "compromiso": {
+      "titulo": "Promesa cumplida",
+      "detalle": "Dom 18 oct",
+      "trato": "PAGADO"
+    }
+  }
+}
