@@ -241,6 +241,9 @@ class LocalSaleSyncHandlerTest : RoomTestBase() {
             override suspend fun insertAllSaleProducts(saleProducts: List<LocalSaleProductEntity>) =
                 Unit
 
+            override suspend fun insertarProductosNuevos(productos: List<LocalSaleProductEntity>) =
+                Unit
+
             override suspend fun getProductsForSale(saleId: String): List<LocalSaleProductEntity> =
                 throw error
 
@@ -260,6 +263,7 @@ class LocalSaleSyncHandlerTest : RoomTestBase() {
     private fun throwingComboDao(error: Throwable): LocalSaleComboDao = object : LocalSaleComboDao {
         override suspend fun insertCombo(combo: LocalSaleComboEntity) = Unit
         override suspend fun insertAllCombos(combos: List<LocalSaleComboEntity>) = Unit
+        override suspend fun insertarCombosNuevos(combos: List<LocalSaleComboEntity>) = Unit
         override suspend fun getCombosForSale(saleId: String): List<LocalSaleComboEntity> =
             throw error
 

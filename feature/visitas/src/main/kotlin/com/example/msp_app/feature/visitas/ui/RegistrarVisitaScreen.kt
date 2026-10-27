@@ -449,7 +449,7 @@ private fun CuerpoDeLaVisita(
                 OpcionDeResultado(
                     resultado = resultado,
                     seleccionado = false,
-                    habilitado = state.sePuedeCapturar,
+                    habilitado = state.sePuedeElegirLaSeleccion,
                     onElegir = { acciones.onResultado(resultado) }
                 )
             }
@@ -457,7 +457,7 @@ private fun CuerpoDeLaVisita(
             OpcionDeResultado(
                 resultado = elegido,
                 seleccionado = true,
-                habilitado = state.sePuedeCapturar,
+                habilitado = state.sePuedeElegirLaSeleccion,
                 onElegir = acciones.onCambiarResultado
             )
         }
@@ -510,6 +510,7 @@ private fun CuerpoDeLaVisita(
             miniaturas = state.miniaturas,
             intentos = state.intentos,
             puedeAgregar = state.sePuedeAgregarFoto,
+            fijas = state.fotosFijas,
             onAgregar = acciones.onAgregarFoto,
             onQuitar = acciones.onQuitarFoto
         )
@@ -535,10 +536,13 @@ private fun CuerpoDeLaVisita(
 private fun SeccionDeCuentas(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
     if (!state.pideCuentas) return
     val contexto = requireNotNull(state.contexto)
-    if (state.variasCuentas) {
+    if (state.variasCuentas && state.seleccionCongelada) {
+        // Sin el atajo: un "Ninguna" que se ve vivo y no responde mentiría.
+        TituloDeSeccion("¿De cuáles cuentas?")
+    } else if (state.variasCuentas) {
         EncabezadoDeCuentas(
             todasMarcadas = state.todasLasCuentasMarcadas,
-            habilitado = state.sePuedeCapturar,
+            habilitado = state.sePuedeElegirLaSeleccion,
             onTodas = acciones.onTodasLasCuentas
         )
         Text(
@@ -549,12 +553,22 @@ private fun SeccionDeCuentas(state: RegistrarVisitaUiState, acciones: AccionesDe
     } else {
         TituloDeSeccion("¿De cuál cuenta?")
     }
+    // E-VIS-055: la foto ya quedó atada a la visita de estas cuentas. E-VIS-073:
+    // el texto no dice "ya se guardó": tras un parcial la cuenta que falló no se
+    // guardó, y tras morir el proceso antes de escribir no se guardó ninguna.
+    if (state.seleccionCongelada) {
+        Text(
+            text = "Estas cuentas ya no se pueden cambiar",
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted
+        )
+    }
     contexto.ventas.forEach { venta ->
         FilaDeCuenta(
             venta = venta,
             marcada = venta.ventaId in state.captura.cuentas,
             varias = state.variasCuentas,
-            habilitado = state.sePuedeCapturar,
+            habilitado = state.sePuedeElegirLaSeleccion,
             onTocar = { acciones.onCuenta(venta.ventaId) }
         )
     }
@@ -576,7 +590,7 @@ private fun FilaDeEtiquetas(
             ChipDeOpcion(
                 texto = etiqueta,
                 activo = state.captura.etiqueta == etiqueta,
-                habilitado = state.sePuedeCapturar,
+                habilitado = state.sePuedeElegirLaSeleccion,
                 onElegir = { acciones.onEtiqueta(etiqueta) },
                 modifier = Modifier.testTag(ETIQUETA_TAG + indice)
             )

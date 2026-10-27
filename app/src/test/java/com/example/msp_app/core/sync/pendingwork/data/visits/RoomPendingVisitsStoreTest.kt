@@ -2,8 +2,12 @@ package com.example.msp_app.core.sync.pendingwork.data.visits
 
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -79,5 +83,45 @@ class RoomPendingVisitsStoreTest : RoomTestBase() {
         store().markSynced(many)
 
         assertEquals(emptyList<String>(), store().pendingVisitIds())
+    }
+
+    // ── Plan visitas P1, Tarea 13: lo que confirma by-ids lleva CONFIRMADA_EN ──
+
+    private fun storeEn(modo: ModoEnvioVisitas) = RoomPendingVisitsStore(
+        visitDao = db.visitDao(),
+        modo = { modo },
+        clock = FakeClock(Instant.parse("2026-10-17T15:00:00Z"))
+    )
+
+    @Test
+    fun `en V3 markSynced estampa CONFIRMADA_EN`() = runTest {
+        db.visitDao().insertVisit(visit("v-1"))
+
+        assertEquals(1, storeEn(ModoEnvioVisitas.V3).markSynced(listOf("v-1")))
+
+        val v = db.visitDao().getVisitById("v-1")
+        assertEquals(1, v.GUARDADO_EN_MICROSIP)
+        assertEquals("2026-10-17T15:00:00Z", v.CONFIRMADA_EN)
+    }
+
+    /** El kill-switch conserva la conducta de antes de P1: marca sin estampar. */
+    @Test
+    fun `en V2_ACTUAL markSynced marca sin estampar CONFIRMADA_EN`() = runTest {
+        db.visitDao().insertVisit(visit("v-1"))
+
+        assertEquals(1, storeEn(ModoEnvioVisitas.V2_ACTUAL).markSynced(listOf("v-1")))
+
+        val v = db.visitDao().getVisitById("v-1")
+        assertEquals(1, v.GUARDADO_EN_MICROSIP)
+        assertNull(v.CONFIRMADA_EN)
+    }
+
+    @Test
+    fun `en V3 un lote mayor al tope de SQLite se trocea y estampa todo`() = runTest {
+        val many = List(1500) { "v-$it" }
+        many.forEach { db.visitDao().insertVisit(visit(it)) }
+
+        assertEquals(1500, storeEn(ModoEnvioVisitas.V3).markSynced(many))
+        assertEquals(emptyList<String>(), storeEn(ModoEnvioVisitas.V3).pendingVisitIds())
     }
 }

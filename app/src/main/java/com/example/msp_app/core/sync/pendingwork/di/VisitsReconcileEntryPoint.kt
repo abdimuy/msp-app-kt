@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.pendingwork.di
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -30,4 +31,11 @@ import dagger.hilt.components.SingletonComponent
 interface VisitsReconcileEntryPoint {
     fun reconcileVisitsUseCase(): ReconcileVisitsUseCase
     fun syncErrorReporter(): SyncErrorReporter
+
+    /**
+     * Reconciliación inversa diaria (plan visitas P1, Tarea 13), para
+     * `VisitsDailyReconcileWorker`. Misma regla que [reconcileVisitsUseCase]:
+     * se resuelve en cada corrida, nunca se guarda.
+     */
+    fun reconcileDeliveredVisitsUseCase(): ReconcileDeliveredVisitsUseCase
 }

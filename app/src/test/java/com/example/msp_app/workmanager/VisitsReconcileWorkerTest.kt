@@ -123,7 +123,9 @@ class VisitsReconcileWorkerTest {
                         workerParameters: WorkerParameters
                     ): ListenableWorker = VisitsReconcileWorker(
                         appContext,
-                        workerParameters
+                        workerParameters,
+                        pendientes = { emptyList() },
+                        encolar = {}
                     ) { throw IllegalStateException("grafo de Hilt no listo") }
                 }
             )
@@ -147,7 +149,14 @@ class VisitsReconcileWorkerTest {
             workerParameters: WorkerParameters
         ): ListenableWorker? {
             if (workerClassName != VisitsReconcileWorker::class.java.name) return null
-            return VisitsReconcileWorker(appContext, workerParameters) {
+            // Sin Room: el reencolado de pendientes (Tarea 12 de visitas P1)
+            // lo prueba `VisitsReconcileWorkerReencoladoTest`.
+            return VisitsReconcileWorker(
+                appContext,
+                workerParameters,
+                pendientes = { emptyList() },
+                encolar = {}
+            ) {
                 corridas.incrementAndGet()
             }
         }

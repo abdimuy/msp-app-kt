@@ -27,6 +27,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -386,12 +388,17 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
     fun `la recomendacion sobrevive a la poda de su visita`() = runTest {
         db.visitRecommendationDao().guardar(recomendacion())
         adaptador.registrar(visita(recomendacionId = REC_ID))
-        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+        db.visitDao().confirmar(listOf(VISITA_ID), "2026-01-01T00:00:00Z")
 
         db.visitDao().deleteUploadedVisits(
-            conservarDesde = "2027-01-01",
-            comprobantesDesde = "2027-01-01T00:00:00Z"
+            confirmadasAntesDe = "2027-01-01T00:00:00Z",
+            resguardadasAntesDe = "2027-01-01T00:00:00Z",
+            comprobantesDesde = "2027-01-01T00:00:00Z",
+            conservarCompromisosDesde = "2027-01-01",
+            protegidas = emptyList()
         )
+        // Control positivo: la visita sí se podó.
+        assertNull(db.visitDao().findVisitById(VISITA_ID))
 
         val ligada = db.visitRecommendationDao().porId(REC_ID)
         assertEquals("la sugerencia no se va con la visita", VISITA_ID, ligada?.VISITA_ID)
@@ -508,9 +515,17 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
      * El fake cancela el job como ÚLTIMA escritura de la transacción, que es
      * justo el instante en que la ventana se abre. Se afirman las DOS mitades:
      * la visita quedó escrita **y** quedó encolada.
+     *
+     * E-APP-078: esta es la ÚNICA guarda del `withContext(NonCancellable)` de
+     * `RegistroDeVisitaAdapter.guardar`. Las de `GuardadoDeVisitaCanceladoTest`
+     * guardan otra cosa (la cancelación tardía y su telemetría) y siguen verdes
+     * sin el `NonCancellable`. MEDIDO 2026-10-19 en dev (Robolectric): con
+     * `run {` en lugar del `NonCancellable`, esta prueba sale roja (encoladas
+     * `[]`) y las 6 de ese archivo verdes. Por eso lleva el ID en el nombre:
+     * filtrar por `*E-APP-078*` tiene que encontrarla.
      */
     @Test
-    fun `una cancelacion no deja la visita escrita y sin encolar`() = runTest {
+    fun `E-APP-078 una cancelacion no deja la visita escrita y sin encolar`() = runTest {
         db.visitRecommendationDao().guardar(recomendacion())
         val propio = Job()
         val conCancelacion = adaptadorCon(
@@ -801,12 +816,16 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
 
         override suspend fun marcarSubida(imagenId: String, subidaEn: String) = Unit
 
+        override suspend fun pendientesDeEntregadas(): List<VisitImageEntity> = emptyList()
+
         override suspend fun rutasVivas(): List<String> = emptyList()
 
         override suspend fun huerfanasAnterioresA(limite: String): List<VisitImageEntity> =
             emptyList()
 
         override suspend fun eliminar(imagenId: String) = Unit
+
+        override fun observarSinSubir(): Flow<Int> = flowOf(0)
     }
 
     /** Fake a mano (sin MockK): lista pública de llamadas. */

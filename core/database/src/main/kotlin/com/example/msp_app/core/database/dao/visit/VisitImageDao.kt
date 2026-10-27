@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.msp_app.core.database.entities.VisitImageEntity
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Los comprobantes de una visita (`visita_imagenes`, Task 26 / consumida por la
@@ -59,6 +60,33 @@ interface VisitImageDao {
             "ORDER BY ORDEN ASC, ID ASC"
     )
     suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity>
+
+    /**
+     * Fotos sin `SUBIDA_EN` de visitas ENTREGADAS: `GUARDADO_EN_MICROSIP = 1`
+     * y sin `RESGUARDADA_EN`, o sea confirmadas y también legadas sin marcas
+     * (E-VIS-031). El barrido de la reconciliación inversa (E-APP-079) las
+     * revisa, porque una foto de una visita ya soltada no la vuelve a mandar
+     * nadie. Las resguardadas no: están en la bandeja, no en `MSP_VISITAS`.
+     * Solo lectura.
+     */
+    @Query(
+        "SELECT i.* FROM visita_imagenes i JOIN Visit v ON v.ID = i.VISITA_ID " +
+            "WHERE v.GUARDADO_EN_MICROSIP = 1 AND v.RESGUARDADA_EN IS NULL AND i.SUBIDA_EN IS NULL " +
+            "ORDER BY i.VISITA_ID ASC, i.ORDEN ASC, i.ID ASC"
+    )
+    suspend fun pendientesDeEntregadas(): List<VisitImageEntity>
+
+    /**
+     * Cuántas fotos siguen sin `SUBIDA_EN` y tienen su visita en el teléfono,
+     * observadas. La huérfana (su visita ya no existe) no cuenta: nadie la va a
+     * mandar y el aviso se quedaría prendido para siempre. La lee el aviso de
+     * Inicio "N sin enviar · no cambies de teléfono" (E-APP-096). Solo lectura.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM visita_imagenes i JOIN Visit v ON v.ID = i.VISITA_ID " +
+            "WHERE i.SUBIDA_EN IS NULL"
+    )
+    fun observarSinSubir(): Flow<Int>
 
     /**
      * Marca UNA imagen como subida. Filtra por `ID` —el de la imagen— y no por

@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.domain.port
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import java.time.Instant
 
 /**
  * El abono que se va a escribir. Viaja en tipos de dominio: el [importe] es
@@ -31,7 +32,13 @@ data class AbonoARegistrar(
      * él, igual que pide la ubicación. La lista vacía es el caso normal —
      * llevar comprobante es opcional, y la foto nunca bloquea el guardado.
      */
-    val comprobantes: List<ComprobanteDelAbono> = emptyList()
+    val comprobantes: List<ComprobanteDelAbono> = emptyList(),
+    /**
+     * La hora en que el cobrador CONFIRMÓ (E-APP-085, decisión del dueño
+     * 2026-10-20 opción A): es la `FECHA_HORA_PAGO` del pago aunque se guarde
+     * horas después desde "Abono de \$X sin guardar". `null` = ahora.
+     */
+    val capturadoEn: Instant? = null
 )
 
 /**
@@ -82,4 +89,28 @@ interface RegistroDeAbonoPort {
 
     /** Registra [abono]. Total: no lanza, contesta con un [ResultadoDelAbono]. */
     suspend fun registrar(abono: AbonoARegistrar): ResultadoDelAbono
+
+    /**
+     * La captura abierta de esta venta para el usuario en sesión (E-APP-084):
+     * una CAPTURADA (sin guardar) siempre; una ESCRITA sólo si es de hoy.
+     * `null` = no hay nada pendiente y la pantalla arranca en el formulario.
+     */
+    suspend fun enCursoDe(ventaId: Int): AbonoEnCurso? = null
+
+    /**
+     * La pantalla mostró el éxito y el cobrador sigue: ESCRITA → CERRADA, sólo
+     * si los comprobantes del marcador ya están en `pago_imagenes` (E-APP-086).
+     */
+    suspend fun cerrar(abonoId: String) = Unit
 }
+
+/** Lo que el marcador dice de un abono que no terminó su camino (E-APP-084). */
+data class AbonoEnCurso(
+    val abonoId: String,
+    /** `true` = el dinero ya está escrito; `false` = "Abono de $X sin guardar". */
+    val escrito: Boolean,
+    val importe: Money,
+    val metodo: MetodoDeCobro,
+    val comprobantes: List<ComprobanteDelAbono>,
+    val capturadoEn: Instant
+)

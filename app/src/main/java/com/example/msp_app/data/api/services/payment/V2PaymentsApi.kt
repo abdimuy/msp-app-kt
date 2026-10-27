@@ -102,5 +102,11 @@ data class PagoRecibidoDTO(
      * en los totales de pantalla.
      */
     val docto_cc_id: Int? = null,
-    val sincronizacion: String? = null
+    val sincronizacion: String? = null,
+    /**
+     * El cliente del pago en el servidor (`dto_pago_recibido.go:20`). Es lo
+     * ÚNICO que se compara al reconciliar por GET (E-APP-088, decisión 4 del
+     * dueño 2026-10-20): existe = llegó, salvo que el cliente no coincida.
+     */
+    val cliente_id: Int? = null
 )

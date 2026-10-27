@@ -73,6 +73,7 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
+import com.example.msp_app.feature.pagos.ui.components.AvisoDeCapturasSinTerminar
 import com.example.msp_app.feature.pagos.ui.components.AvisoSinUbicacion
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import com.example.msp_app.feature.pagos.ui.components.HojaDeOrdenarPor
@@ -440,6 +441,10 @@ fun ListaDeClientesContent(
                     }
                 }
             }
+            AvisoDeCapturasSinTerminar(
+                capturas = state.capturasSinTerminar,
+                onAbrirVenta = onAbrirVenta
+            )
             ZonaQueSeEncoge(
                 estado = estadoCabecera,
                 // Toda escondida, fuera del árbol de accesibilidad: TalkBack no debe

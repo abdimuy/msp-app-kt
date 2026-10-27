@@ -3,6 +3,7 @@ package com.example.msp_app.core.database.di
 import android.content.Context
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
+import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
@@ -117,4 +118,7 @@ object DatabaseModule {
      */
     @Provides
     fun provideClientProfileDao(db: AppDatabase): ClientProfileDao = db.clientProfileDao()
+
+    @Provides
+    fun provideCapturaEnCursoDao(db: AppDatabase): CapturaEnCursoDao = db.capturaEnCursoDao()
 }

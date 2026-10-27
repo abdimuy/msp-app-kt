@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.BuildConfig
 import com.example.msp_app.components.ModernLoadingOverlay
+import com.example.msp_app.core.diagnosticoenvio.MotivoDeFila
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.models.auth.User
@@ -49,7 +50,15 @@ fun HomeFooterSection(
     onResendAllPayments: () -> Unit,
     onLogout: () -> Unit,
     onInitWeek: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Solo diagnóstico (E-APP-063): el motivo del último fallo de envío.
+    motivoPagos: String? = null,
+    // Plan visitas P1, Tarea 14: cada visita pendiente o resguardada, y el
+    // motivo e intentos de la que tiene un fallo vigente.
+    enviosDeVisitas: EstadoDeEnvios = EstadoDeEnvios(),
+    motivosDeVisitas: Map<String, MotivoDeFila> = emptyMap(),
+    // Ranura para el aviso de H15 (abierta); vacía por omisión.
+    avisoDeVisitas: (@Composable () -> Unit)? = null
 ) {
     val showDialogInitWeek = remember { mutableStateOf(false) }
     val baseURL = ApiProvider.baseURL.collectAsState()
@@ -85,16 +94,13 @@ fun HomeFooterSection(
                         color = Color.Red
                     )
 
-                    is ResultState.Success -> {
-                        val pending = visitsPendingState.data
-                        Text(
-                            if (pending.isEmpty()) {
-                                "No hay visitas pendientes"
-                            } else {
-                                "Visitas Pendientes: ${pending.size}"
-                            }
-                        )
-                    }
+                    is ResultState.Success -> VisitasSinEnviar(
+                        envios = enviosDeVisitas.envios,
+                        motivos = motivosDeVisitas,
+                        onEnviar = onSyncPendingVisits,
+                        fallo = enviosDeVisitas.fallo,
+                        aviso = avisoDeVisitas
+                    )
 
                     else -> {}
                 }
@@ -134,6 +140,9 @@ fun HomeFooterSection(
                                 "Pagos Pendientes: ${pending.size}"
                             }
                         )
+                        if (pending.isNotEmpty() && motivoPagos != null) {
+                            MotivoDeEnvio(motivoPagos)
+                        }
                     }
 
                     else -> {}
@@ -212,4 +221,14 @@ fun HomeFooterSection(
             fontSize = 14.sp
         )
     }
+}
+
+/** Una línea con el motivo del último fallo de envío (E-APP-063). Solo informa. */
+@Composable
+private fun MotivoDeEnvio(texto: String) {
+    Text(
+        text = texto,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error
+    )
 }

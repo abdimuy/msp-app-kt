@@ -7,8 +7,10 @@ import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
+import com.example.msp_app.feature.pagos.domain.port.AbonoEnCurso
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
+import java.time.Instant
 import javax.inject.Inject
 
 /**
@@ -45,7 +47,8 @@ class RegistrarAbono @Inject constructor(
         venta: DetalleVenta,
         importe: Money,
         metodo: MetodoDeCobro,
-        comprobantes: List<ComprobanteDelAbono> = emptyList()
+        comprobantes: List<ComprobanteDelAbono> = emptyList(),
+        capturadoEn: Instant? = null
     ): ResultadoDelAbono {
         val bloqueos = SeguridadDelAbono.bloqueosDe(monto = importe, saldo = venta.saldo)
         if (bloqueos.isNotEmpty()) {
@@ -65,8 +68,15 @@ class RegistrarAbono @Inject constructor(
                 ventaId = venta.ventaId,
                 importe = importe,
                 metodo = metodo,
-                comprobantes = comprobantes
+                comprobantes = comprobantes,
+                capturadoEn = capturadoEn
             )
         )
     }
+
+    /** El abono de esta venta que no terminó su camino (E-APP-084). */
+    suspend fun enCurso(ventaId: Int): AbonoEnCurso? = port.enCursoDe(ventaId)
+
+    /** La pantalla ya mostró el éxito: el marcador se cierra (E-APP-084). */
+    suspend fun cerrar(abonoId: String) = port.cerrar(abonoId)
 }

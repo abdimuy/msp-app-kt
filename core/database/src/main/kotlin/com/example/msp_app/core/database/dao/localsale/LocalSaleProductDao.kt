@@ -16,6 +16,14 @@ interface LocalSaleProductDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllSaleProducts(saleProducts: List<LocalSaleProductEntity>)
 
+    /**
+     * Las líneas de una venta NUEVA (E-APP-094). `ABORT`: un `ARTICULO_ID`
+     * repetido o una línea ya existente aborta la transacción en vez de pisar
+     * otra línea en silencio.
+     */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertarProductosNuevos(productos: List<LocalSaleProductEntity>)
+
     @Query(
         "SELECT LOCAL_SALE_ID, ARTICULO_ID, ARTICULO, CANTIDAD, PRECIO_LISTA, PRECIO_CORTO_PLAZO, PRECIO_CONTADO, COMBO_ID, SERVER_UUID FROM local_sale_products WHERE LOCAL_SALE_ID = :saleId"
     )

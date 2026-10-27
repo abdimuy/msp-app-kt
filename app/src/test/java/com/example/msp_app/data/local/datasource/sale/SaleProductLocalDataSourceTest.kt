@@ -171,6 +171,9 @@ class SaleProductLocalDataSourceTest : RoomTestBase() {
             override suspend fun insertAllSaleProducts(saleProducts: List<LocalSaleProductEntity>) =
                 Unit
 
+            override suspend fun insertarProductosNuevos(productos: List<LocalSaleProductEntity>) =
+                Unit
+
             override suspend fun getProductsForSale(saleId: String): List<LocalSaleProductEntity> =
                 throw error
 

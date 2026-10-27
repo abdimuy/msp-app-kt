@@ -1,6 +1,7 @@
 package com.example.msp_app.data.api
 
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.network.NetworkConfig
 import com.example.msp_app.core.network.RetrofitClientFactory
 import com.example.msp_app.core.utils.Constants
@@ -40,6 +41,8 @@ internal fun appNetworkConfig(): NetworkConfig = NetworkConfig(
 internal val appRetrofitClientFactory: RetrofitClientFactory by lazy {
     RetrofitClientFactory(
         configProvider = Provider { appNetworkConfig() },
-        authTokenProvider = FirebaseAuthTokenProvider()
+        authTokenProvider = FirebaseAuthTokenProvider(),
+        // Solo observa el POST de pagos del perfil v2 (E-APP-064); no decide nada.
+        envioDiagnostico = EnvioDiagnostico.sink
     )
 }

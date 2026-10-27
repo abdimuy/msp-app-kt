@@ -30,6 +30,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -49,6 +50,8 @@ import com.example.msp_app.components.UpdateBanner
 import com.example.msp_app.core.common.location.label
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.diagnosticoenvio.LectorDeEnvioDiagnostico
 import com.example.msp_app.core.utils.CurrentLocationReader
 import com.example.msp_app.core.utils.FuenteDePosicion
 import com.example.msp_app.core.utils.ResultState
@@ -60,6 +63,9 @@ import com.example.msp_app.feature.pagos.ui.CercanosViewModel
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.TarjetaDeCercano
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
+import com.example.msp_app.feature.visitas.ui.AvisoDePendientesViewModel
+import com.example.msp_app.feature.visitas.ui.components.AvisoDePendientes
+import com.example.msp_app.feature.visitas.ui.components.irAPendientes
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
@@ -84,6 +90,8 @@ import java.time.ZoneOffset
 import java.util.Locale
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -110,6 +118,35 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
 
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
+    val enviosDeVisitas by visitsViewModel.enviosDeVisitas.collectAsState()
+
+    // E-APP-096: "N sin enviar · no cambies de teléfono" (visitas, fotos, pagos
+    // y ventas sin enviar; solo lecturas). Tocarlo baja a los pendientes.
+    val avisoDePendientesViewModel: AvisoDePendientesViewModel = hiltViewModel()
+    val pendientesDelTelefono by avisoDePendientesViewModel.pendientes.collectAsState()
+    val alcanceDelAviso = rememberCoroutineScope()
+
+    // Solo diagnóstico (E-APP-063): el motivo del último fallo de los pendientes.
+    val lectorDeDiagnostico = remember {
+        runCatching {
+            LectorDeEnvioDiagnostico(
+                AppDatabase.getInstance(context).envioDiagnosticoDao()
+            )
+        }
+            .getOrNull()
+    }
+    val idsPagosPendientes = (pendingPaymentsState as? ResultState.Success)?.data
+        ?.map { it.ID }?.toSet().orEmpty()
+    val motivoPagos by remember(lectorDeDiagnostico, idsPagosPendientes) {
+        lectorDeDiagnostico?.motivoMasReciente(LectorDeEnvioDiagnostico.TIPO_PAGO, idsPagosPendientes)
+            ?: flowOf(null)
+    }.collectAsState(initial = null)
+    // Plan visitas P1, Tarea 14: motivo e intentos por fila, para que la visita
+    // que se reintenta para siempre se vea en la pantalla de pendientes.
+    val motivosDeVisitas by remember(lectorDeDiagnostico) {
+        lectorDeDiagnostico?.motivosPorFila(LectorDeEnvioDiagnostico.TIPO_VISITA)
+            ?: flowOf(emptyMap())
+    }.collectAsState(initial = emptyMap())
 
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
 
@@ -338,6 +375,13 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                     }
 
                     item {
+                        AvisoDePendientes(
+                            pendientes = pendientesDelTelefono,
+                            onClick = { alcanceDelAviso.launch { listState.irAPendientes() } }
+                        )
+                    }
+
+                    item {
                         HomeSummarySection(
                             isDark = isDark,
                             totalTodayPayments = totalTodayPayments,
@@ -434,7 +478,10 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                             },
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
-                            onInitWeek = { authViewModel.updateStartOfWeekDate() }
+                            onInitWeek = { authViewModel.updateStartOfWeekDate() },
+                            motivoPagos = motivoPagos,
+                            enviosDeVisitas = enviosDeVisitas,
+                            motivosDeVisitas = motivosDeVisitas
                         )
                     }
                 }

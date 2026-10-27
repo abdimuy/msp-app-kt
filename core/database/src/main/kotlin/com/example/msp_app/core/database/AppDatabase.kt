@@ -5,8 +5,10 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
+import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
+import com.example.msp_app.core.database.dao.enviodiagnostico.EnvioDiagnosticoDao
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
@@ -21,10 +23,12 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
+import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.ClientProfileEntity
 import com.example.msp_app.core.database.entities.ClientProfileSignalEntity
 import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
+import com.example.msp_app.core.database.entities.EnvioDiagnosticoEntity
 import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.database.entities.GuaranteeEventEntity
 import com.example.msp_app.core.database.entities.GuaranteeImageEntity
@@ -55,6 +59,9 @@ import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 import com.example.msp_app.core.database.migrations.MIGRATION_30_31
 import com.example.msp_app.core.database.migrations.MIGRATION_31_32
 import com.example.msp_app.core.database.migrations.MIGRATION_32_33
+import com.example.msp_app.core.database.migrations.MIGRATION_33_34
+import com.example.msp_app.core.database.migrations.MIGRATION_34_35
+import com.example.msp_app.core.database.migrations.MIGRATION_35_36
 
 @Database(
     entities = [
@@ -77,10 +84,12 @@ import com.example.msp_app.core.database.migrations.MIGRATION_32_33
         PaymentImageEntity::class,
         VisitRecommendationEntity::class,
         ClientProfileEntity::class,
-        ClientProfileSignalEntity::class
+        ClientProfileSignalEntity::class,
+        EnvioDiagnosticoEntity::class,
+        CapturaEnCursoEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 33,
+    version = 36,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -113,6 +122,12 @@ abstract class AppDatabase : RoomDatabase() {
      */
     abstract fun clientProfileDao(): ClientProfileDao
     abstract fun cobranzaSyncStateDao(): CobranzaSyncStateDao
+
+    /** `envio_diagnostico` — motivo del último fallo de envío, solo diagnóstico (E-APP-063). */
+    abstract fun envioDiagnosticoDao(): EnvioDiagnosticoDao
+
+    /** `capturas_en_curso` — el marcador de "captura nunca se pierde" (E-APP-084). */
+    abstract fun capturaEnCursoDao(): CapturaEnCursoDao
 
     companion object {
         @Volatile
@@ -162,7 +177,10 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_29_30,
                     MIGRATION_30_31,
                     MIGRATION_31_32,
-                    MIGRATION_32_33
+                    MIGRATION_32_33,
+                    MIGRATION_33_34,
+                    MIGRATION_34_35,
+                    MIGRATION_35_36
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

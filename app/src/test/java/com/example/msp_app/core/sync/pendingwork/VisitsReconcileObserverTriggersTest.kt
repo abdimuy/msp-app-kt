@@ -25,7 +25,8 @@ class VisitsReconcileObserverTriggersTest {
 
         registerVisitsReconcileWorkManagerTriggers(
             registerNow = { throw IllegalStateException("WorkManager no disponible") },
-            registerPeriodic = { periodicoRegistrado = true }
+            registerPeriodic = { periodicoRegistrado = true },
+            registerDaily = {}
         )
 
         assertTrue(
@@ -41,7 +42,8 @@ class VisitsReconcileObserverTriggersTest {
 
         registerVisitsReconcileWorkManagerTriggers(
             registerNow = { aperturaRegistrado = true },
-            registerPeriodic = { throw IllegalStateException("WorkManager no disponible") }
+            registerPeriodic = { throw IllegalStateException("WorkManager no disponible") },
+            registerDaily = {}
         )
 
         assertTrue(aperturaRegistrado)
@@ -53,9 +55,24 @@ class VisitsReconcileObserverTriggersTest {
 
         registerVisitsReconcileWorkManagerTriggers(
             registerNow = { llamadas++ },
-            registerPeriodic = { llamadas++ }
+            registerPeriodic = { llamadas++ },
+            registerDaily = { llamadas++ }
         )
 
-        assertEquals(2, llamadas)
+        assertEquals(3, llamadas)
+    }
+
+    /** Plan visitas P1, Tarea 13: la reconciliación inversa no depende de los otros dos. */
+    @Test
+    fun `si los otros dos lanzan, la reconciliacion inversa diaria se registra igual`() {
+        var diariaRegistrada = false
+
+        registerVisitsReconcileWorkManagerTriggers(
+            registerNow = { throw IllegalStateException("WorkManager no disponible") },
+            registerPeriodic = { throw IllegalStateException("WorkManager no disponible") },
+            registerDaily = { diariaRegistrada = true }
+        )
+
+        assertTrue(diariaRegistrada)
     }
 }

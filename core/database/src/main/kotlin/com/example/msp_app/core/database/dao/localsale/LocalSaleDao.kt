@@ -17,6 +17,20 @@ interface LocalSaleDao {
     suspend fun insertSale(localsale: LocalSaleEntity)
 
     /**
+     * Alta de una venta NUEVA (E-APP-094). `ABORT`, nunca `REPLACE`: con el
+     * `saleId` estable del borrador, un `REPLACE` sobre una venta ya escrita la
+     * borraría y la reinsertaría, y el `ON DELETE CASCADE` de `sale_image` se
+     * llevaría sus fotos y regresaría `ENVIADO` a 0 (MEDIDO por la compuerta
+     * ANTES del 2026-10-26). Un duplicado aborta la transacción entera.
+     */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertarVentaNueva(venta: LocalSaleEntity)
+
+    /** Las fotos de una venta NUEVA (E-APP-094). `ABORT`: ver [insertarVentaNueva]. */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertarImagenesNuevas(imagenes: List<LocalSaleImageEntity>)
+
+    /**
      * Ventas que todavía esperan subir. Excluye `LAST_UPLOAD_PERMANENT = 1`: con
      * fallo permanente el servidor ya resguardó el intento (`LaRevisaLaOficina`,
      * ver el KDoc de la consulta de corrección de nivel 2 más abajo), así que no

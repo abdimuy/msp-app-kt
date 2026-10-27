@@ -129,7 +129,9 @@ fun SeccionDeComprobantesDeVisita(
     puedeAgregar: Boolean,
     onAgregar: () -> Unit,
     onQuitar: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** E-VIS-072: fotos que un guardado se pudo llevar; se pintan sin tache. */
+    fijas: Set<String> = emptySet()
 ) {
     Column(
         modifier = modifier
@@ -150,6 +152,7 @@ fun SeccionDeComprobantesDeVisita(
                     CuadroDeComprobante(
                         comprobante = comprobante,
                         miniatura = miniaturas[comprobante.id],
+                        quitable = comprobante.id !in fijas,
                         onQuitar = { onQuitar(comprobante.id) }
                     )
                 }
@@ -247,6 +250,7 @@ private fun CuadroDeAgregar(onAgregar: () -> Unit) {
 private fun CuadroDeComprobante(
     comprobante: ComprobanteDeVisita,
     miniatura: Miniatura?,
+    quitable: Boolean,
     onQuitar: () -> Unit
 ) {
     val colors = MspTheme.colors
@@ -262,12 +266,14 @@ private fun CuadroDeComprobante(
         } else {
             SinVistaPrevia(esPdf = comprobante.mime == PDF)
         }
-        TacheDelCuadro(
-            tag = QUITAR_FOTO_TAG + comprobante.id,
-            sobreFoto = miniatura != null,
-            onQuitar = onQuitar,
-            modifier = Modifier.align(Alignment.TopEnd)
-        )
+        if (quitable) {
+            TacheDelCuadro(
+                tag = QUITAR_FOTO_TAG + comprobante.id,
+                sobreFoto = miniatura != null,
+                onQuitar = onQuitar,
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
+        }
     }
 }
 

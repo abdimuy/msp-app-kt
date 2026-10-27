@@ -85,6 +85,7 @@ import com.example.msp_app.features.sales.viewmodels.NewSaleFormViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
+import com.example.msp_app.navigation.Screen
 import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -125,6 +126,8 @@ fun NewSaleScreen(navController: NavController) {
     var showProductSheet by remember { mutableStateOf(false) }
     var showClienteSearch by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
+    // E-APP-094: id de la venta que ya estaba guardada ("Esta venta ya se guardó").
+    var ventaYaGuardadaId by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf("") }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
@@ -155,7 +158,13 @@ fun NewSaleScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         formViewModel.clearOldDrafts()
         val draft = formViewModel.loadDraftSuspend()
-        if (draft != null) {
+        if (draft != null && formViewModel.borradorYaGuardado(draft)) {
+            // E-APP-094: el proceso murió entre guardar y limpiar el borrador.
+            // No se ofrece de nuevo: guardarlo otra vez sería una segunda venta.
+            formViewModel.markSaleCompleted()
+            formViewModel.clearDraft()
+            ventaYaGuardadaId = draft.saleId
+        } else if (draft != null) {
             loadedDraft = draft
             showDraftDialog = true
         }
@@ -220,6 +229,12 @@ fun NewSaleScreen(navController: NavController) {
                 errorMessage = result.message
                 showErrorDialog = true
                 viewModel.clearSaveResult()
+            }
+            is SaveResult.YaGuardada -> {
+                formViewModel.markSaleCompleted()
+                viewModel.clearSaveResult()
+                formViewModel.clearDraft()
+                ventaYaGuardadaId = result.saleId
             }
         }
     }
@@ -485,6 +500,28 @@ fun NewSaleScreen(navController: NavController) {
                     }
                 ) {
                     Text("Aceptar")
+                }
+            }
+        )
+    }
+
+    ventaYaGuardadaId?.let { id ->
+        // Texto aprobado por el dueño (2026-10-20, decisión 5).
+        AlertDialog(
+            onDismissRequest = {
+                ventaYaGuardadaId = null
+                navController.popBackStack()
+            },
+            title = { Text("Esta venta ya se guardó") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        ventaYaGuardadaId = null
+                        navController.popBackStack()
+                        navController.navigate(Screen.SaleDescripction.creatRoute(id))
+                    }
+                ) {
+                    Text("Ver venta")
                 }
             }
         )

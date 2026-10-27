@@ -161,6 +161,14 @@ data class RegistrarAbonoUiState(
     val confirmacion: ConfirmacionPendiente? = null,
     val guardando: Boolean = false,
     val registrado: String? = null,
+    /**
+     * El marcador dice que ESTE abono ya está escrito (E-APP-084): "Abono
+     * registrado" con "Ver ticket" y "Capturar otro". A diferencia de
+     * [registrado], no navega solo al ticket.
+     */
+    val yaRegistrado: String? = null,
+    /** El marcador dice que hay un abono capturado y sin escribir (E-APP-084). */
+    val sinGuardar: AbonoSinGuardar? = null,
     val fallo: FalloDelAbono? = null,
     /**
      * Los comprobantes adjuntos, **en orden de captura**. El índice de esta
@@ -224,6 +232,8 @@ data class RegistrarAbonoUiState(
             veredicto.sePuedeRegistrar &&
             !guardando &&
             registrado == null &&
+            yaRegistrado == null &&
+            sinGuardar == null &&
             !verificacionPendiente
 
     /** ¿La banda de fallo ofrece volver a revisar? Solo la duda se resuelve así. */
@@ -236,7 +246,8 @@ data class RegistrarAbonoUiState(
      * un botón que no hace nada.
      */
     val sePuedeCapturar: Boolean
-        get() = registrado == null && !guardando && confirmacion == null && !verificacionPendiente
+        get() = registrado == null && yaRegistrado == null && sinGuardar == null &&
+            !guardando && confirmacion == null && !verificacionPendiente
 
     /**
      * ¿Se puede adjuntar otra foto? La MISMA guarda que el teclado, más el
@@ -259,3 +270,15 @@ data class RegistrarAbonoUiState(
     val espaciosLibres: Int
         get() = (Comprobantes.MAXIMO - comprobantes.size).coerceAtLeast(0)
 }
+
+/**
+ * Lo que el marcador guardó de un abono que no llegó a escribirse (E-APP-084):
+ * se guarda TAL CUAL con "Guardar" —mismo importe, mismos comprobantes, misma
+ * hora de captura (E-APP-085)—. No hay descarte en v1 (E-APP-090).
+ */
+data class AbonoSinGuardar(
+    val importe: Money,
+    val metodo: MetodoDeCobro,
+    val comprobantes: List<ComprobanteDelAbono>,
+    val capturadoEn: java.time.Instant
+)

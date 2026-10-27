@@ -13,6 +13,8 @@ import com.example.msp_app.feature.pagos.application.TogglesDeCabecera
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
+import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminar
+import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminarPort
 import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
@@ -34,6 +36,8 @@ import kotlinx.coroutines.withContext
 @Immutable
 data class ListaDeClientesUiState(
     val cargando: Boolean = true,
+    /** "N capturas sin terminar" (E-APP-084). */
+    val capturasSinTerminar: CapturasSinTerminar = CapturasSinTerminar.NINGUNA,
     /** Los clientes YA buscados, filtrados por chip y ordenados. */
     val clientes: List<ClienteEnLista> = emptyList(),
     val conteos: Map<SegmentoDeCobranza, Int> = emptyMap(),
@@ -111,6 +115,13 @@ private val EPOCA: LocalDate = LocalDate.of(1970, 1, 1)
  * `@HiltViewModel`, sin `@Singleton` (kill-switch de baseURL).
  */
 @HiltViewModel
+@Suppress(
+    // E-APP-084: el aviso "N capturas sin terminar" es la séptima dependencia y
+    // su colecta la función número once; agruparlo con el orden o los toggles
+    // mezclaría el dinero pendiente con la presentación de la lista.
+    "LongParameterList",
+    "TooManyFunctions"
+)
 class ListaDeClientesViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val reunirCartera: ReunirCartera,
@@ -124,7 +135,9 @@ class ListaDeClientesViewModel @Inject constructor(
      */
     private val controladorDeOrden: ControladorDeOrden,
     private val telemetry: Telemetry,
-    @PagosIoDispatcher private val io: CoroutineDispatcher
+    @PagosIoDispatcher private val io: CoroutineDispatcher,
+    /** "N capturas sin terminar" (E-APP-084). Default para las pruebas que no lo miran. */
+    private val capturasSinTerminar: CapturasSinTerminarPort = CapturasSinTerminarPort.NINGUNA
 ) : ViewModel() {
 
     /**
@@ -192,6 +205,22 @@ class ListaDeClientesViewModel @Inject constructor(
     init {
         telemetry.screenView(PANTALLA)
         cargar()
+        observarCapturasSinTerminar()
+    }
+
+    @Suppress("TooGenericExceptionCaught") // el aviso nunca tumba la lista.
+    private fun observarCapturasSinTerminar() {
+        viewModelScope.launch {
+            try {
+                capturasSinTerminar.observar().collect { capturas ->
+                    mutableState.value = mutableState.value.copy(capturasSinTerminar = capturas)
+                }
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (_: Throwable) {
+                // Sin aviso: la lista sigue.
+            }
+        }
     }
 
     /**

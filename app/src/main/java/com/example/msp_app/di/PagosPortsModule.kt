@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
@@ -16,6 +17,7 @@ import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkMana
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.CurrentLocationReader
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
+import com.example.msp_app.data.pagos.CapturasSinTerminarAdapter
 import com.example.msp_app.data.pagos.CentroidesCercaniaAdapter
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
 import com.example.msp_app.data.pagos.DataStoreOrdenGuardadoAdapter
@@ -25,7 +27,9 @@ import com.example.msp_app.data.pagos.SettingsPrivacidadAdapter
 import com.example.msp_app.data.pagos.SettlementLiquidacionAdapter
 import com.example.msp_app.data.pagos.ThemeControllerTemaDeLaAppAdapter
 import com.example.msp_app.data.pagos.UserCyclePeriodoDeCobroAdapter
+import com.example.msp_app.data.pagos.archivosCitadosPorMarcadores
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
+import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminarPort
 import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
@@ -181,6 +185,11 @@ object PagosPortsModule {
         pedirUbicacion = { pagoId -> pedirUbicacionDelPago(context, pagoId) }
     )
 
+    /** "N capturas sin terminar" de la lista de ruta (E-APP-084). Sin `@Singleton`: lee la sesión vigente. */
+    @Provides
+    fun provideCapturasSinTerminarPort(capturas: CapturaEnCursoDao): CapturasSinTerminarPort =
+        CapturasSinTerminarAdapter(capturas)
+
     /**
      * La cámara del comprobante (Task 22). SIN `@Singleton`, igual que sus
      * vecinos: no sostiene ni sesión ni red, y el `Context` de aplicación ya es
@@ -190,13 +199,15 @@ object PagosPortsModule {
     fun provideComprobantesPort(
         @ApplicationContext context: Context,
         paymentImageDao: PaymentImageDao,
+        capturas: CapturaEnCursoDao,
         telemetry: Telemetry,
         clock: AppClock
     ): ComprobantesPort = ComprobantesDeAbonoAdapter(
         context = context,
         imagenes = paymentImageDao,
         telemetry = telemetry,
-        clock = clock
+        clock = clock,
+        rutasCitadas = { archivosCitadosPorMarcadores(capturas) }
     )
 
     /**

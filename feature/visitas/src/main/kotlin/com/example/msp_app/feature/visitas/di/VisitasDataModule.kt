@@ -1,13 +1,18 @@
 package com.example.msp_app.feature.visitas.di
 
+import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
+import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.visitas.data.adapter.RoomContextoDeVisitaAdapter
+import com.example.msp_app.feature.visitas.data.adapter.RoomPendientesDelTelefonoAdapter
 import com.example.msp_app.feature.visitas.data.adapter.RoomRecomendacionesAdapter
 import com.example.msp_app.feature.visitas.data.adapter.RoomVisitaImpresaAdapter
 import com.example.msp_app.feature.visitas.domain.port.ContextoDeVisitaPort
+import com.example.msp_app.feature.visitas.domain.port.PendientesDelTelefonoPort
 import com.example.msp_app.feature.visitas.domain.port.RecomendacionesPort
 import com.example.msp_app.feature.visitas.domain.port.VisitaImpresaPort
 import dagger.Module
@@ -58,6 +63,19 @@ object VisitasDataModule {
     @Provides
     fun provideVisitaImpresaPort(dao: VisitDao, telemetry: Telemetry): VisitaImpresaPort =
         RoomVisitaImpresaAdapter(dao, telemetry)
+
+    /**
+     * El aviso de pendientes de Inicio (E-APP-096). Pagos y ventas se leen con
+     * las consultas que ya existían para el menú lateral; nada se escribe.
+     */
+    @Provides
+    fun providePendientesDelTelefonoPort(
+        visitDao: VisitDao,
+        visitImageDao: VisitImageDao,
+        paymentDao: PaymentDao,
+        localSaleDao: LocalSaleDao
+    ): PendientesDelTelefonoPort =
+        RoomPendientesDelTelefonoAdapter(visitDao, visitImageDao, paymentDao, localSaleDao)
 
     @Provides
     @VisitasIoDispatcher

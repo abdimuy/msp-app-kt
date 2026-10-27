@@ -106,7 +106,8 @@ class ContratoDelOutboxDelAbonoTest : ContratoDelOutbox() {
             encolador = encolador,
             clock = clock,
             traerUsuario = { COBRADOR },
-            pedirUbicacion = pedirUbicacion
+            pedirUbicacion = pedirUbicacion,
+            emailEnSesion = { "rosa@example.com" }
         )
 
         override suspend fun escribir(id: String, comprobantes: List<String>): Boolean =

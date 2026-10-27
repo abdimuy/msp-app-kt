@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales.viewmodels
 
 import android.net.Uri
+import java.util.UUID
 
 /**
  * Errores de captura, uno por campo. Cada bandera se cablea al `isError` /
@@ -47,6 +48,12 @@ data class FormErrors(
 }
 
 data class NewSaleFormState(
+    /**
+     * El id de la venta, estable durante toda la captura y guardado en el
+     * borrador (E-APP-094). Antes nacía en cada toque de Guardar: volver a
+     * guardar el mismo borrador creaba una segunda venta.
+     */
+    val saleId: String = UUID.randomUUID().toString(),
     val clientName: String = "",
     val selectedClienteId: Int? = null,
     val phone: String = "",

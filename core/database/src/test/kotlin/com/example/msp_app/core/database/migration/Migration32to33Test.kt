@@ -188,10 +188,10 @@ class Migration32to33Test : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(
-                "abrir por el camino real de produccion debe terminar en v33",
-                NEW_VERSION,
-                opened.openHelper.readableDatabase.version
+            assertTrue(
+                "abrir por el camino real de produccion debe pasar por v33 sin bloquearse " +
+                    "(y puede seguir de largo hasta la ultima version registrada)",
+                opened.openHelper.readableDatabase.version >= NEW_VERSION
             )
 
             opened.openHelper.readableDatabase.query(

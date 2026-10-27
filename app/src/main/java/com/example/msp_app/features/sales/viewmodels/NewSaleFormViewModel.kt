@@ -8,9 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.draft.DraftCombo
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
+import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.models.city.City
 import java.io.File
-import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +21,7 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
 
     private val context get() = getApplication<Application>().applicationContext
     val draftManager = SaleDraftManager(context)
+    private val localSales by lazy { LocalSaleDataSource(context) }
 
     private val _formState = MutableStateFlow(NewSaleFormState())
     val formState: StateFlow<NewSaleFormState> = _formState.asStateFlow()
@@ -321,9 +322,19 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
         return draftManager.loadDraft()
     }
 
+    /**
+     * ¿El borrador es de una venta que ya se guardó? (E-APP-094). Pasa cuando el
+     * proceso murió después de escribir la venta y antes de limpiar el borrador.
+     */
+    suspend fun borradorYaGuardado(draft: SaleDraft): Boolean =
+        draft.saleId.isNotBlank() && localSales.getSaleById(draft.saleId) != null
+
     fun applyDraft(draft: SaleDraft) {
         _formState.update {
             it.copy(
+                // E-APP-094: el mismo borrador conserva su saleId; uno viejo, sin
+                // id, se queda con el que ya trae el formulario.
+                saleId = draft.saleId.ifBlank { it.saleId },
                 clientName = draft.clientName,
                 phone = draft.phone,
                 street = draft.street,
@@ -399,6 +410,7 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
             }
 
             val draft = SaleDraft(
+                saleId = state.saleId,
                 clientName = state.clientName,
                 phone = state.phone,
                 street = state.street,
@@ -470,7 +482,8 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
         val state = _formState.value
         val tipoVenta = state.tipoVenta
         return SaleCreationData(
-            saleId = UUID.randomUUID().toString(),
+            // E-APP-094: el id estable del formulario/borrador, no uno por toque.
+            saleId = state.saleId,
             saleDate = java.time.Instant.now().toString(),
             clientName = state.clientName,
             imageUris = state.imageUris,

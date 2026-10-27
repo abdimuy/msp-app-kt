@@ -15,6 +15,7 @@ import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
+import com.example.msp_app.feature.pagos.domain.port.AbonoEnCurso
 import com.example.msp_app.feature.pagos.domain.port.AccionesExternasPort
 import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
@@ -278,6 +279,18 @@ class FakeRegistroDeAbonoPort : RegistroDeAbonoPort {
         registrados += abono
         alRegistrar(abono)
         return resultado
+    }
+
+    /** Lo que dice el marcador de la venta (E-APP-084). `null` = nada pendiente. */
+    var enCurso: AbonoEnCurso? = null
+
+    /** Los marcadores que la pantalla mandó cerrar, en orden. */
+    val cerrados: MutableList<String> = mutableListOf()
+
+    override suspend fun enCursoDe(ventaId: Int): AbonoEnCurso? = enCurso
+
+    override suspend fun cerrar(abonoId: String) {
+        cerrados += abonoId
     }
 }
 

@@ -200,6 +200,7 @@ class ComboLocalDataSourceTest : RoomTestBase() {
     private fun throwingComboDao(error: Throwable): LocalSaleComboDao = object : LocalSaleComboDao {
         override suspend fun insertCombo(combo: LocalSaleComboEntity) = Unit
         override suspend fun insertAllCombos(combos: List<LocalSaleComboEntity>) = Unit
+        override suspend fun insertarCombosNuevos(combos: List<LocalSaleComboEntity>) = Unit
         override suspend fun getCombosForSale(saleId: String): List<LocalSaleComboEntity> =
             throw error
 

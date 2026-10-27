@@ -1,5 +1,7 @@
 package com.example.msp_app.core.network
 
+import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
+import com.example.msp_app.core.network.diagnostico.EnvioPagoDiagnosticoInterceptor
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Provider
@@ -36,10 +38,23 @@ import retrofit2.converter.gson.GsonConverterFactory
  *   defaults de OkHttp; se homologa a 60 s, más generoso que el default de 10 s,
  *   para descargas de imagen sin regresión de comportamiento).
  */
-class RetrofitClientFactory @Inject constructor(
+class RetrofitClientFactory(
     private val configProvider: Provider<NetworkConfig>,
-    private val authTokenProvider: AuthTokenProvider
+    private val authTokenProvider: AuthTokenProvider,
+    /**
+     * Destino del diagnóstico de envío de pagos (E-APP-064). `null` = sin
+     * observación (Hilt y pruebas existentes). Solo el perfil [v2] lo usa, y
+     * solo para observar: ver [EnvioPagoDiagnosticoInterceptor].
+     */
+    private val envioDiagnostico: EnvioDiagnosticoSink?
 ) {
+
+    /** Constructor de Hilt y de las pruebas: sin diagnóstico de envío. */
+    @Inject
+    constructor(
+        configProvider: Provider<NetworkConfig>,
+        authTokenProvider: AuthTokenProvider
+    ) : this(configProvider, authTokenProvider, null)
 
     /**
      * Cliente v1 (Node legacy): sin bearer, sin `X-App-Version` (backend no
@@ -68,7 +83,8 @@ class RetrofitClientFactory @Inject constructor(
             config.appVersion,
             auth = true,
             appVersionHeader = true,
-            V2_TIMEOUT_SECONDS
+            V2_TIMEOUT_SECONDS,
+            diagnosticoDePagos = true
         )
     }
 
@@ -116,11 +132,20 @@ class RetrofitClientFactory @Inject constructor(
         appVersion: String,
         auth: Boolean,
         appVersionHeader: Boolean,
-        timeoutSeconds: Long
+        timeoutSeconds: Long,
+        diagnosticoDePagos: Boolean = false
     ): Retrofit {
         val clientBuilder = OkHttpClient.Builder()
             .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
             .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+
+        // PRIMERO = el más externo: ve exactamente la respuesta (tras el
+        // reintento del bearer ante 401) y la excepción que recibe Retrofit.
+        // Solo observa; no cambia petición, respuesta ni excepción (E-APP-064).
+        val sink = envioDiagnostico
+        if (diagnosticoDePagos && sink != null) {
+            clientBuilder.addInterceptor(EnvioPagoDiagnosticoInterceptor(sink))
+        }
 
         if (appVersionHeader) {
             clientBuilder.addInterceptor(AppVersionInterceptor(appVersion))

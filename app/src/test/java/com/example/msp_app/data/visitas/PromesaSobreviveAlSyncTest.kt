@@ -105,7 +105,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
 
         // La sincronización, en su orden real:
         // 1. el reconciliador confirma la visita contra el servidor…
-        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+        confirmarHaceMucho()
         // 2. …y `syncSales` poda lo ya confirmado.
         visitas.deleteUploadedVisits()
 
@@ -122,7 +122,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
     fun `la cita sobrevive a una sincronizacion completa`() = runTest {
         adaptador.registrar(visitaConCita())
 
-        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+        confirmarHaceMucho()
         visitas.deleteUploadedVisits()
 
         val guardada = db.visitDao().getVisitById(VISITA_ID)
@@ -139,7 +139,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
     fun `una visita subida sin promesa ni cita si se poda`() = runTest {
         adaptador.registrar(visitaSinCompromiso())
 
-        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+        confirmarHaceMucho()
         visitas.deleteUploadedVisits()
 
         assertNull(
@@ -155,7 +155,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
     @Test
     fun `pasada la ventana de retencion la promesa si se poda`() = runTest {
         adaptador.registrar(visitaConPromesa())
-        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+        confirmarHaceMucho()
 
         // 2026-09-04 + 90 días = 2026-12-03; un día más y el corte la rebasa.
         clock.setNow(Instant.parse("2026-12-04T15:00:00Z"))
@@ -181,7 +181,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
     @Test
     fun `una promesa ya vencida pero dentro de la ventana sobrevive a la poda real`() = runTest {
         adaptador.registrar(visitaConPromesa(fecha = hoy))
-        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+        confirmarHaceMucho()
 
         // Diez días después: la promesa ya venció, la ventana sigue abierta.
         clock.setNow(Instant.parse("2026-09-11T15:00:00Z"))
@@ -206,6 +206,16 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
     }
 
     // ─── fixtures ────────────────────────────────────────────────────────────
+
+    /**
+     * El servidor la confirma. Plan visitas P1, Tarea 12: la poda exige
+     * `CONFIRMADA_EN` y 30 días de retención; se estampa una confirmación
+     * vieja para que estas pruebas sigan midiendo la condición de compromisos
+     * y no la ventana de confirmadas (esa la cubre `VisitDaoPodaTest`).
+     */
+    private suspend fun confirmarHaceMucho() {
+        db.visitDao().confirmar(listOf(VISITA_ID), "2026-01-01T00:00:00Z")
+    }
 
     private fun visitaConPromesa(fecha: LocalDate = hoy.plusDays(3)) = VisitaARegistrar(
         visitaId = VISITA_ID,
