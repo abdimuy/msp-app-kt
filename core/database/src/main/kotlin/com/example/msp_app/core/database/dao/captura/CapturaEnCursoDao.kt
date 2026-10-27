@@ -77,14 +77,19 @@ interface CapturaEnCursoDao {
 
     /**
      * "N capturas sin terminar": abonos CAPTURADA (los únicos con pantalla que
-     * los reanuda, "Guardar") o cualquier captura con discrepancia sin cerrar,
-     * del usuario. Una visita o garantía CAPTURADA no cuenta todavía: no hay
-     * pantalla que la reanude y el aviso no se apagaría nunca.
+     * los reanuda, "Guardar") o cualquier captura con discrepancia, del usuario.
+     * Una visita o garantía CAPTURADA no cuenta todavía: no hay pantalla que la
+     * reanude y el aviso no se apagaría nunca.
+     *
+     * E-APP-117: la discrepancia cuenta **en cualquier estado**. En el flujo
+     * normal la pantalla ya cerró el marcador (CERRADA) cuando el worker recibe
+     * el 409/422 y anota la discrepancia sobre ese mismo marcador; filtrar
+     * `ESTADO <> 'CERRADA'` dejaba "Un envío no coincide con la oficina" con
+     * aviso 0 (medición M2 de la compuerta DESPUÉS, 2026-10-26).
      */
     @Query(
         "SELECT COUNT(*) FROM capturas_en_curso WHERE USUARIO = :usuario " +
-            "AND ((ESTADO = 'CAPTURADA' AND TIPO = 'ABONO') " +
-            "OR (DISCREPANCIA IS NOT NULL AND ESTADO <> 'CERRADA'))"
+            "AND ((ESTADO = 'CAPTURADA' AND TIPO = 'ABONO') OR DISCREPANCIA IS NOT NULL)"
     )
     fun observarSinTerminar(usuario: String): Flow<Int>
 

@@ -99,6 +99,20 @@ class CapturaEnCursoDaoTest : RoomTestBase() {
         )
     }
 
+    @Test
+    fun `E-APP-117 una discrepancia sobre un marcador CERRADA cuenta en el aviso`() = runTest {
+        dao.capturar(marcador("cerrada", CapturaEnCursoEntity.CERRADA))
+        assertEquals(
+            "control: una CERRADA sin discrepancia no cuenta",
+            0,
+            dao.observarSinTerminar(USUARIO).first()
+        )
+
+        dao.marcarDiscrepancia("cerrada", "contenido_no_coincide", HOY)
+
+        assertEquals(1, dao.observarSinTerminar(USUARIO).first())
+    }
+
     private companion object {
         const val USUARIO = "rosa@example.com"
         const val VIEJA = "2026-10-01T10:00:00Z"
