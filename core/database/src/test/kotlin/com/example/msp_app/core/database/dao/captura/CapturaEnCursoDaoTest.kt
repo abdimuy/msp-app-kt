@@ -1,6 +1,7 @@
 package com.example.msp_app.core.database.dao.captura
 
 import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -84,20 +85,28 @@ class CapturaEnCursoDaoTest : RoomTestBase() {
         }
 
     @Test
-    fun `E-APP-084 sin terminar cuenta CAPTURADA y discrepancias abiertas del usuario`() = runTest {
-        dao.capturar(marcador("c1"))
-        dao.capturar(marcador("e1", CapturaEnCursoEntity.ESCRITA))
-        dao.capturar(marcador("e2", CapturaEnCursoEntity.ESCRITA))
-        dao.marcarDiscrepancia("e2", "contenido_no_coincide", HOY)
-        dao.capturar(marcador("o1").copy(USUARIO = "otro@example.com"))
-        dao.capturar(marcador("v1").copy(TIPO = CapturaEnCursoEntity.TIPO_VISITA))
+    fun `E-APP-119 sin terminar cuenta toda CAPTURADA del usuario, visitas y garantias incluidas, y las discrepancias`() =
+        runTest {
+            dao.capturar(marcador("c1"))
+            dao.capturar(marcador("e1", CapturaEnCursoEntity.ESCRITA))
+            dao.capturar(marcador("e2", CapturaEnCursoEntity.ESCRITA))
+            dao.marcarDiscrepancia("e2", "contenido_no_coincide", HOY)
+            dao.capturar(marcador("o1").copy(USUARIO = "otro@example.com"))
+            dao.capturar(marcador("v1").copy(TIPO = CapturaEnCursoEntity.TIPO_VISITA))
+            dao.capturar(marcador("g1").copy(TIPO = CapturaEnCursoEntity.TIPO_GARANTIA))
+            dao.capturar(
+                marcador("v2-escrita", CapturaEnCursoEntity.ESCRITA)
+                    .copy(TIPO = CapturaEnCursoEntity.TIPO_VISITA)
+            )
+            dao.capturar(marcador("vl").copy(TIPO = CapturaEnCursoEntity.TIPO_VENTA_LOCAL))
+            dao.capturar(marcador("cd").copy(TIPO = CapturaEnCursoEntity.TIPO_CONDONACION))
 
-        assertEquals(
-            "c1 y e2; la visita sin pantalla que la reanude no cuenta",
-            2,
-            dao.observarSinTerminar(USUARIO).first()
-        )
-    }
+            assertEquals(
+                "c1, e2, v1, g1 y vl; la ESCRITA, la de otro usuario y la condonación (D4) no cuentan",
+                5,
+                dao.observarSinTerminar(USUARIO).first()
+            )
+        }
 
     @Test
     fun `E-APP-117 una discrepancia sobre un marcador CERRADA cuenta en el aviso`() = runTest {
@@ -149,6 +158,49 @@ class CapturaEnCursoDaoTest : RoomTestBase() {
                 dao.observarVentaDelAviso(USUARIO).first()
             )
         }
+
+    @Test
+    fun `E-APP-119 la venta local sin terminar es la CAPTURADA mas vieja y dice si ya esta escrita`() =
+        runTest {
+            assertNull(dao.observarVentaLocalSinTerminar(USUARIO).first())
+            dao.capturar(
+                marcador("venta-1", en = VIEJA)
+                    .copy(TIPO = CapturaEnCursoEntity.TIPO_VENTA_LOCAL, LLAVE = "venta_nueva")
+            )
+
+            assertEquals(
+                VentaLocalSinTerminarFila("venta-1", false),
+                dao.observarVentaLocalSinTerminar(USUARIO).first()
+            )
+
+            db.localSaleDao().insertSale(ventaLocal("venta-1"))
+            assertEquals(
+                "ya en local_sale: el toque abre la venta",
+                VentaLocalSinTerminarFila("venta-1", true),
+                dao.observarVentaLocalSinTerminar(USUARIO).first()
+            )
+        }
+
+    private fun ventaLocal(id: String) = LocalSaleEntity(
+        LOCAL_SALE_ID = id,
+        NOMBRE_CLIENTE = "Guadalupe Hernández Ruiz",
+        FECHA_VENTA = HOY,
+        LATITUD = 0.0,
+        LONGITUD = 0.0,
+        DIRECCION = "C. Reforma 18",
+        PARCIALIDAD = 150.0,
+        ENGANCHE = null,
+        TELEFONO = "2381234567",
+        FREC_PAGO = "SEMANAL",
+        AVAL_O_RESPONSABLE = null,
+        NOTA = null,
+        DIA_COBRANZA = "LUNES",
+        PRECIO_TOTAL = 4200.0,
+        TIEMPO_A_CORTO_PLAZOMESES = 4,
+        MONTO_A_CORTO_PLAZO = 3600.0,
+        MONTO_DE_CONTADO = 3200.0,
+        ENVIADO = false
+    )
 
     private companion object {
         const val USUARIO = "rosa@example.com"

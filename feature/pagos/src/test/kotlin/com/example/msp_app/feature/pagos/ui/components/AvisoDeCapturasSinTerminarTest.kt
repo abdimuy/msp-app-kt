@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.ui.components
 
 import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminar
+import com.example.msp_app.feature.pagos.domain.port.VentaLocalSinTerminar
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -33,5 +34,35 @@ class AvisoDeCapturasSinTerminarTest {
     @Test
     fun `sin capturas el aviso no pinta nada`() {
         assertEquals(emptyList<String>(), lineasDelAviso(CapturasSinTerminar.NINGUNA))
+    }
+
+    @Test
+    fun `E-APP-119 sin venta a la que llevar, el toque reanuda las visitas y garantias`() {
+        assertEquals(
+            DestinoDelAviso.Reanudar,
+            destinoDelAviso(CapturasSinTerminar(cuantas = 1, ventaId = null))
+        )
+    }
+
+    @Test
+    fun `E-APP-119 control positivo, con abono sin guardar el toque abre su venta`() {
+        assertEquals(
+            DestinoDelAviso.AbrirVenta(77188),
+            destinoDelAviso(CapturasSinTerminar(cuantas = 2, ventaId = 77188))
+        )
+        assertEquals(null, destinoDelAviso(CapturasSinTerminar.NINGUNA))
+    }
+
+    @Test
+    fun `E-APP-119 una venta local sin escribir lleva al borrador y una escrita a la venta`() {
+        val capturas = CapturasSinTerminar(cuantas = 1, ventaId = null)
+        assertEquals(
+            DestinoDelAviso.AbrirVentaLocal(null),
+            destinoDelAviso(capturas, VentaLocalSinTerminar("venta-1", yaSeGuardo = false))
+        )
+        assertEquals(
+            DestinoDelAviso.AbrirVentaLocal("venta-1"),
+            destinoDelAviso(capturas, VentaLocalSinTerminar("venta-1", yaSeGuardo = true))
+        )
     }
 }

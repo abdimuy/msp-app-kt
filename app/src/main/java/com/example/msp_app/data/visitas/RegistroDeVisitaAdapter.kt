@@ -18,6 +18,7 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.VisitStatusMapper
 import com.example.msp_app.data.auth.emailDeLaSesion
+import com.example.msp_app.data.captura.CapturasEnProceso
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
@@ -28,6 +29,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -93,10 +95,64 @@ class RegistroDeVisitaAdapter(
      *    el marcador ESCRITA. Si el marcador ya estaba ESCRITA (reintento
      *    tardío) no se reescribe nada: no se vuelve a fijar `ESTADO_COBRANZA`.
      * 4. Post-commit: fotos del ancla y encolado de cada visita; marcador
-     *    CERRADA (la visita no tiene pantalla de reanudación).
+     *    CERRADA.
+     *
+     * E-APP-119 (D15): el marcador lleva en su `RESUMEN` las N cuentas y la
+     * hora de captura, así que una visita CAPTURADA con 0 escrituras (pantalla
+     * cerrada mientras esperaba al cobrador, proceso muerto) se reanuda con
+     * [reanudarPendientes] y la MISMA semilla.
      */
-    @Suppress("TooGenericExceptionCaught") // Room/Firestore pueden fallar; nada queda a medias.
     override suspend fun registrarTodas(
+        semilla: String,
+        visitas: List<VisitaARegistrar>
+    ): ResultadoDelRegistro {
+        // Síncrono: no hay suspensión antes del marcador (Q11).
+        CapturasEnProceso.entrar(semilla)
+        try {
+            return registrarTotal(semilla, visitas)
+        } finally {
+            CapturasEnProceso.salir(semilla)
+        }
+    }
+
+    /**
+     * E-APP-119 (D15, regla del dueño "nada se pierde"): reanuda las visitas
+     * CAPTURADA del usuario en sesión que todavía no se escribieron. Corre en
+     * primer plano —al volver a la app y al tocar el aviso "N capturas sin
+     * terminar"—, nunca desde un worker: la escritura toca `sales`
+     * (`ESTADO_COBRANZA`). Idempotente por el marcador. Se salta lo que la
+     * pantalla de este mismo proceso está escribiendo ([CapturasEnProceso]) y
+     * lo que no se puede reconstruir (un resumen incompleto queda visible en el
+     * aviso, nunca se inventa una visita).
+     *
+     * @return cuántas quedaron escritas ahora.
+     */
+    @Suppress("TooGenericExceptionCaught") // leer los marcadores puede fallar; la app sigue.
+    override suspend fun reanudarPendientes(): Int {
+        val email = emailEnSesion()?.takeIf { it.isNotBlank() } ?: return 0
+        val pendientes = try {
+            capturas.abiertasDe(CapturaEnCursoEntity.TIPO_VISITA, email)
+                .filter { it.ESTADO == CapturaEnCursoEntity.CAPTURADA }
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            return 0
+        }
+        var reanudadas = 0
+        for (marcador in pendientes) {
+            val lote = ResumenDeLaVisita.leer(marcador.RESUMEN)?.aLote() ?: continue
+            if (!CapturasEnProceso.entrarSiLibre(marcador.ID)) continue
+            try {
+                if (registrarTotal(marcador.ID, lote) == ResultadoDelRegistro.REGISTRADA) reanudadas++
+            } finally {
+                CapturasEnProceso.salir(marcador.ID)
+            }
+        }
+        return reanudadas
+    }
+
+    @Suppress("TooGenericExceptionCaught") // Room/Firestore pueden fallar; nada queda a medias.
+    private suspend fun registrarTotal(
         semilla: String,
         visitas: List<VisitaARegistrar>
     ): ResultadoDelRegistro = try {
@@ -118,14 +174,16 @@ class RegistroDeVisitaAdapter(
     ): ResultadoDelRegistro {
         val primera = lote.firstOrNull() ?: return ResultadoDelRegistro.REGISTRADA
         val email = emailEnSesion()
-        if (!email.isNullOrBlank()) {
-            sinCancelar { capturas.capturar(marcadorDe(semilla, primera.clienteId, email)) }
+        val capturadaEn = if (!email.isNullOrBlank()) {
+            sinCancelar { anotarCaptura(semilla, lote, primera.clienteId, email) }
+        } else {
+            clock.now()
         }
         val venta = cuentaDeAtribucion(primera.clienteId)
             ?: return ResultadoDelRegistro.CLIENTE_NO_ESTA_EN_EL_TELEFONO
         val usuario = traerUsuario()
         if (usuario == null || usuario.COBRADOR_ID == 0) return ResultadoDelRegistro.SIN_COBRADOR
-        val entidades = lote.map { entidadDe(it, venta, usuario.COBRADOR_ID) }
+        val entidades = lote.map { entidadDe(it, venta, usuario.COBRADOR_ID, capturadaEn) }
         val escritaAhora = db.escribirSinCancelar {
             val marcador = capturas.obtener(semilla)
             if (marcador != null && marcador.ESTADO != CapturaEnCursoEntity.CAPTURADA) {
@@ -143,8 +201,12 @@ class RegistroDeVisitaAdapter(
                 val ahora = AppTime.toWireFormat(clock.now())
                 if (marcador == null) {
                     capturas.capturar(
-                        marcadorDe(semilla, primera.clienteId, email.orEmpty())
-                            .copy(ESTADO = CapturaEnCursoEntity.ESCRITA)
+                        marcadorDe(
+                            semilla,
+                            primera.clienteId,
+                            email.orEmpty(),
+                            ResumenDeLaVisita.de(lote, capturadaEn).json()
+                        ).copy(ESTADO = CapturaEnCursoEntity.ESCRITA)
                     )
                 } else {
                     capturas.marcarEscrita(semilla, ahora)
@@ -160,7 +222,35 @@ class RegistroDeVisitaAdapter(
         return ResultadoDelRegistro.REGISTRADA
     }
 
-    private fun marcadorDe(semilla: String, clienteId: Int, usuario: String): CapturaEnCursoEntity {
+    /**
+     * Escritura 1 (E-APP-084) con el lote completo en el `RESUMEN` (E-APP-119).
+     * Un reintento desde la pantalla sobre una captura que sigue CAPTURADA
+     * conserva la hora de captura original y refresca el lote; una ESCRITA o
+     * CERRADA no cambia. Devuelve la hora de captura: la `FECHA` de las visitas.
+     */
+    private suspend fun anotarCaptura(
+        semilla: String,
+        lote: List<VisitaARegistrar>,
+        clienteId: Int,
+        email: String
+    ): Instant {
+        val previo = capturas.obtener(semilla)
+        val hora = previo?.let { ResumenDeLaVisita.leer(it.RESUMEN)?.hora() } ?: clock.now()
+        val resumen = ResumenDeLaVisita.de(lote, hora).json()
+        if (previo == null) {
+            capturas.capturar(marcadorDe(semilla, clienteId, email, resumen))
+        } else {
+            capturas.actualizarCapturada(semilla, resumen, AppTime.toWireFormat(clock.now()))
+        }
+        return hora
+    }
+
+    private fun marcadorDe(
+        semilla: String,
+        clienteId: Int,
+        usuario: String,
+        resumen: String
+    ): CapturaEnCursoEntity {
         val ahora = AppTime.toWireFormat(clock.now())
         return CapturaEnCursoEntity(
             ID = semilla,
@@ -168,7 +258,7 @@ class RegistroDeVisitaAdapter(
             LLAVE = clienteId.toString(),
             USUARIO = usuario,
             ESTADO = CapturaEnCursoEntity.CAPTURADA,
-            RESUMEN = "{}",
+            RESUMEN = resumen,
             CREADA_EN = ahora,
             ACTUALIZADA_EN = ahora
         )
@@ -445,13 +535,16 @@ class RegistroDeVisitaAdapter(
     private fun entidadDe(
         visita: VisitaARegistrar,
         venta: SaleWithProductsEntity,
-        cobradorId: Int
+        cobradorId: Int,
+        // E-APP-119: la hora de CAPTURA, no la de escritura: una visita
+        // reanudada horas después conserva la hora en que se hizo.
+        fecha: Instant = clock.now()
     ): VisitEntity = VisitEntity(
         ID = visita.visitaId,
         CLIENTE_ID = visita.clienteId,
         COBRADOR = venta.NOMBRE_COBRADOR,
         COBRADOR_ID = cobradorId,
-        FECHA = AppTime.toWireFormat(clock.now()),
+        FECHA = AppTime.toWireFormat(fecha),
         // El diálogo de hoy tampoco tiene selector de forma de cobro para las
         // visitas: el contrato de cable lleva el campo y siempre viaja en 0.
         FORMA_COBRO_ID = 0,

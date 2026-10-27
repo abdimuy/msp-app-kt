@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminar
+import com.example.msp_app.feature.pagos.domain.port.VentaLocalSinTerminar
 
 /** `testTag` del aviso "N capturas sin terminar" (E-APP-084). */
 const val AVISO_CAPTURAS_SIN_TERMINAR_TAG: String = "pagos_aviso_capturas_sin_terminar"
@@ -33,27 +34,66 @@ internal fun lineasDelAviso(capturas: CapturasSinTerminar): List<String> = build
 }
 
 /**
+ * El destino del toque (E-APP-119): la venta del abono sin guardar o del pago
+ * que no coincide si la hay; si no, reanudar las visitas y garantías
+ * capturadas que no se escribieron. Sin aviso, ninguno.
+ */
+internal sealed interface DestinoDelAviso {
+    data class AbrirVenta(val ventaId: Int) : DestinoDelAviso
+
+    /** La venta local: [saleId] si ya se escribió (abre la venta), `null` abre el borrador. */
+    data class AbrirVentaLocal(val saleId: String?) : DestinoDelAviso
+    data object Reanudar : DestinoDelAviso
+}
+
+internal fun destinoDelAviso(
+    capturas: CapturasSinTerminar,
+    ventaLocal: VentaLocalSinTerminar? = null
+): DestinoDelAviso? {
+    val venta = capturas.ventaId
+    return when {
+        venta != null -> DestinoDelAviso.AbrirVenta(venta)
+        ventaLocal != null -> DestinoDelAviso.AbrirVentaLocal(
+            ventaLocal.saleId.takeIf {
+                ventaLocal.yaSeGuardo
+            }
+        )
+        capturas.cuantas > 0 -> DestinoDelAviso.Reanudar
+        else -> null
+    }
+}
+
+/**
  * El aviso fijo de la cabecera: capturas que no terminaron su camino y envíos
  * que no coinciden con la oficina (E-APP-118). Toca y lleva a la venta del
  * abono sin guardar o del pago que no coincide más viejo, donde "Guardar" lo
- * termina. Sin capturas no pinta nada.
+ * termina; sin venta, reanuda las visitas y garantías capturadas (E-APP-119).
+ * Sin capturas no pinta nada.
  */
 @Composable
-fun AvisoDeCapturasSinTerminar(capturas: CapturasSinTerminar, onAbrirVenta: (Int) -> Unit) {
+fun AvisoDeCapturasSinTerminar(
+    capturas: CapturasSinTerminar,
+    onAbrirVenta: (Int) -> Unit,
+    onReanudar: () -> Unit = {},
+    ventaLocal: VentaLocalSinTerminar? = null,
+    onAbrirVentaLocal: (String?) -> Unit = {}
+) {
     val lineas = lineasDelAviso(capturas)
     if (lineas.isEmpty()) return
-    val venta = capturas.ventaId
+    val destino = destinoDelAviso(capturas, ventaLocal)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .testTag(AVISO_CAPTURAS_SIN_TERMINAR_TAG)
             .let { base ->
-                if (venta != null) {
-                    base.clickable(
-                        role = Role.Button
-                    ) { onAbrirVenta(venta) }
-                } else {
-                    base
+                when (destino) {
+                    is DestinoDelAviso.AbrirVenta ->
+                        base.clickable(role = Role.Button) { onAbrirVenta(destino.ventaId) }
+                    is DestinoDelAviso.AbrirVentaLocal ->
+                        base.clickable(role = Role.Button) { onAbrirVentaLocal(destino.saleId) }
+                    DestinoDelAviso.Reanudar ->
+                        base.clickable(role = Role.Button) { onReanudar() }
+                    null -> base
                 }
             }
             .padding(vertical = MspTheme.spacing.xs)

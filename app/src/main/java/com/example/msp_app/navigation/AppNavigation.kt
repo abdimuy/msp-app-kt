@@ -35,6 +35,7 @@ import com.example.msp_app.core.sync.cobranza.UserContext
 import com.example.msp_app.core.sync.pendingwork.VisitsReconcileObserver
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.captura.ReanudarCapturasAlVolver
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen
 import com.example.msp_app.feature.collectionreport.ui.tier2.CollectionReportScreenTier2
@@ -333,6 +334,9 @@ fun AppNavigation() {
     // CobranzaSyncObserver.
     if (authedUserData != null) {
         VisitsReconcileObserver()
+        // E-APP-119 (D15): visitas y garantías capturadas sin escribir se
+        // reanudan al volver a la app, en primer plano.
+        ReanudarCapturasAlVolver()
     }
 
     // Drive the cobranza incremental sync (ventas + pagos) while the user is

@@ -17,12 +17,16 @@ import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminar
 import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminarPort
 import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
+import com.example.msp_app.feature.pagos.domain.port.ReanudarCapturasPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
+import com.example.msp_app.feature.pagos.domain.port.VentaLocalSinTerminar
+import com.example.msp_app.feature.pagos.domain.port.VentaLocalSinTerminarPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +42,8 @@ data class ListaDeClientesUiState(
     val cargando: Boolean = true,
     /** "N capturas sin terminar" (E-APP-084). */
     val capturasSinTerminar: CapturasSinTerminar = CapturasSinTerminar.NINGUNA,
+    /** La venta local sin terminar, destino del aviso (E-APP-119). */
+    val ventaLocalSinTerminar: VentaLocalSinTerminar? = null,
     /** Los clientes YA buscados, filtrados por chip y ordenados. */
     val clientes: List<ClienteEnLista> = emptyList(),
     val conteos: Map<SegmentoDeCobranza, Int> = emptyMap(),
@@ -137,7 +143,11 @@ class ListaDeClientesViewModel @Inject constructor(
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher,
     /** "N capturas sin terminar" (E-APP-084). Default para las pruebas que no lo miran. */
-    private val capturasSinTerminar: CapturasSinTerminarPort = CapturasSinTerminarPort.NINGUNA
+    private val capturasSinTerminar: CapturasSinTerminarPort = CapturasSinTerminarPort.NINGUNA,
+    /** El destino del aviso cuando lo pendiente es visita o garantía (E-APP-119). */
+    private val reanudarCapturas: ReanudarCapturasPort = ReanudarCapturasPort.NINGUNA,
+    /** La venta local sin terminar (E-APP-119). */
+    private val ventaLocalSinTerminar: VentaLocalSinTerminarPort = VentaLocalSinTerminarPort.NINGUNA
 ) : ViewModel() {
 
     /**
@@ -208,6 +218,26 @@ class ListaDeClientesViewModel @Inject constructor(
         observarCapturasSinTerminar()
     }
 
+    private var reanudando: Job? = null
+
+    /**
+     * E-APP-119 (D15): el toque del aviso sin venta a la que llevar reanuda las
+     * visitas y garantías capturadas que no se escribieron. Una sola a la vez.
+     */
+    @Suppress("TooGenericExceptionCaught") // reanudar nunca tumba la lista.
+    fun reanudarCapturas() {
+        if (reanudando?.isActive == true) return
+        reanudando = viewModelScope.launch {
+            try {
+                reanudarCapturas.reanudar()
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (_: Throwable) {
+                // Siguen visibles en el aviso; el siguiente toque reintenta.
+            }
+        }
+    }
+
     @Suppress("TooGenericExceptionCaught") // el aviso nunca tumba la lista.
     private fun observarCapturasSinTerminar() {
         viewModelScope.launch {
@@ -219,6 +249,17 @@ class ListaDeClientesViewModel @Inject constructor(
                 throw cancelada
             } catch (_: Throwable) {
                 // Sin aviso: la lista sigue.
+            }
+        }
+        viewModelScope.launch {
+            try {
+                ventaLocalSinTerminar.observar().collect { venta ->
+                    mutableState.value = mutableState.value.copy(ventaLocalSinTerminar = venta)
+                }
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (_: Throwable) {
+                // Sin destino de venta local: el aviso sigue.
             }
         }
     }
