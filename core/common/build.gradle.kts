@@ -8,6 +8,10 @@ plugins {
     // Ruleset completo (Plan 2: detekt-strict); + money rule vía detektPlugins abajo.
     id("msp.detekt")
     alias(libs.plugins.ktlint) // para que el ktlintCheck raíz cubra el módulo
+    // Mutación dirigida del envío de visitas (plan visitas P1, Tarea 17;
+    // E-APP-076). No entra al prePushCheck: se corre a mano con
+    // `./gradlew --no-parallel :core:common:pitestDebug`.
+    alias(libs.plugins.pitest.android)
 }
 
 android {
@@ -57,16 +61,43 @@ extensions.configure<KoverProjectExtension> {
     }
 }
 
+pitest {
+    targetClasses.set(
+        listOf(
+            "com.example.msp_app.core.common.visitas.envio.*",
+            "com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase*"
+        )
+    )
+    targetTests.set(
+        listOf(
+            "com.example.msp_app.core.common.visitas.envio.*",
+            "com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase*"
+        )
+    )
+    threads.set(2)
+    outputFormats.set(listOf("HTML", "XML"))
+    timestampedReports.set(false)
+}
+
 dependencies {
     // SyncAllPendingWorkUseCase (dominio de pendingwork) usa coroutineScope /
     // async / awaitAll / withTimeoutOrNull. Solo `-core` (JVM puro): el
     // dominio no depende de Android, así que NO se usa `kotlinx-coroutines-android`.
     implementation(libs.kotlinx.coroutines.core)
 
+    // La decisión de envío de visitas (visitas/envio/DecisionDeEnvio.kt) LLAMA a
+    // la tabla compartida `classifyUpload`; no la copia (plan visitas P1, Tarea 9).
+    // `:core:upload` no depende de `:core:common` en main: no hay ciclo.
+    implementation(project(":core:upload"))
+
     // El use case de pendingwork (SyncAllPendingWorkUseCase) usa runTest +
     // MainDispatcherRule en sus tests; :core:testing expone esas deps de test
     // (coroutines-test, turbine, junit) vía `api`.
     testImplementation(project(":core:testing"))
+
+    // Los juegos de casos compartidos con msp-api (estado por venta y orden de precios) son JSON.
+    // Solo pruebas: el dominio de :core:common no parsea JSON.
+    testImplementation(libs.gson)
 
     // Regla custom `NoDoubleForMoney` (Task 9) — registrada vía ServiceLoader,
     // por eso viaja como `detektPlugins` y no como dependencia normal.

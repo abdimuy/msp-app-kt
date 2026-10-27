@@ -95,5 +95,20 @@ data class VisitEntity(
      * leyera esto concluiría que *Cita a una hora* no se puede derivar, que es
      * el razonamiento equivocado que ya costó una vuelta entera en la Task 17.
      */
-    @ColumnInfo(name = "CITA_HORA") val CITA_HORA: String? = null
+    @ColumnInfo(name = "CITA_HORA") val CITA_HORA: String? = null,
+    /**
+     * Instante (`AppTime.toWireFormat`) en que el servidor CONFIRMÓ esta visita
+     * por su UUID: 2xx con eco del id, GET de existencia completa o by-ids.
+     * `NULL` = no probada, incluidas las legadas que el envío anterior soltó
+     * con `GUARDADO_EN_MICROSIP = 1` sin prueba (spec visitas §4.2-1/-7). Lo
+     * escriben solo `VisitDao.confirmar`/`confirmarTrasSubida` (y lo limpia
+     * `devolverAPendiente`).
+     */
+    @ColumnInfo(name = "CONFIRMADA_EN") val CONFIRMADA_EN: String? = null,
+    /**
+     * Instante en que el servidor la RESGUARDÓ en la bandeja de intentos
+     * fallidos (`X-Intent-Captured`): está en la oficina, no en `MSP_VISITAS`.
+     * La escribe solo `VisitDao.resguardar`.
+     */
+    @ColumnInfo(name = "RESGUARDADA_EN") val RESGUARDADA_EN: String? = null
 )

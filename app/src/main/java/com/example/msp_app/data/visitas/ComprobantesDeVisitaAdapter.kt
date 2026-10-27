@@ -301,7 +301,7 @@ class ComprobantesDeVisitaAdapter(
         } catch (cancelada: CancellationException) {
             throw cancelada
         } catch (fallo: Throwable) {
-            telemetry.error(
+            reportarSinLanzar(
                 code = VisitasTelemetria.CODE_VISITA_FOTO_FALLO,
                 message = "no se pudo barrer los comprobantes huerfanos; la captura sigue",
                 props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
@@ -317,11 +317,27 @@ class ComprobantesDeVisitaAdapter(
      */
     private fun reportarLoQueNuncaSubio(cuantas: Int) {
         if (cuantas == 0) return
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_FOTO_BARRIDA_SIN_SUBIR,
             message = "se barrieron comprobantes de visitas podadas que nunca llegaron a subir",
             props = mapOf(VisitasTelemetria.PROP_OCURRENCIAS to cuantas.toString())
         )
+    }
+
+    /**
+     * E-VIS-074: la ÚNICA salida a `telemetry.error` del barrido. **Total: no
+     * lanza.** `DurableTelemetry.error` inserta en Room de forma síncrona y
+     * puede fallar; si su excepción saliera del barrido, saldría de
+     * [nuevoDestino] y la cámara de la visita no abriría — justo lo que el
+     * barrido promete no hacer.
+     */
+    @Suppress("TooGenericExceptionCaught") // la telemetria caida no impide tomar una foto.
+    private fun reportarSinLanzar(code: String, message: String, props: Map<String, String>) {
+        try {
+            telemetry.error(code = code, message = message, props = props)
+        } catch (_: Throwable) {
+            // Sin reporte: la cámara sigue.
+        }
     }
 
     private companion object {

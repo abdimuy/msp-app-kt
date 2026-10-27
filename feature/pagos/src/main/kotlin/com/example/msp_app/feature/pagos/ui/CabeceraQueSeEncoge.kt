@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 
 /**
  * El estado de colapso de la cabecera de la lista de clientes: **uno solo**, compartido
- * por los cuatro segmentos, que sobrevive a salir de la pantalla y volver.
+ * por los tres segmentos, que sobrevive a salir de la pantalla y volver.
  *
  * ## Por qué ya no se deriva del índice de la lista (causa raíz del teclado, 2026-10-07)
  *

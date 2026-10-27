@@ -1,0 +1,635 @@
+{
+  "version": 1,
+  "fuente": "msp-api internal/visitas/sim/telefono_test.go casosDecision (DecisionDeEnvioTest.kt + ExistenciaCompletaTest.kt)",
+  "nota": "enviada, codigo y cabecera vienen SIEMPRE (\"\", 0, false si no aplican a la funcion); eco, fotos_pendientes, get, existencia, respuesta y codigo_get se omiten cuando son nulos o no aplican: ausente = null en eco/get/respuesta/codigo_get y lista vacia en fotos_pendientes",
+  "casos": [
+    {
+      "origen": "DecisionDeEnvioTest.2xx con el mismo id y sin fotos pendientes confirma con el eco",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.v3_200_con_id_distinto_no_suelta",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "otro",
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.v3_200_sin_cuerpo_no_suelta",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.2xx con id en blanco no suelta [eco vacío]",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "",
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.2xx con id en blanco no suelta [enviada vacía]",
+      "funcion": "salidaTras2xx",
+      "enviada": "",
+      "eco": "",
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx con fotos sin GET no suelta",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx con una foto ausente de imagen_ids no suelta",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 200,
+        "visita": {
+          "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+          "imagen_ids": [
+            "f1"
+          ]
+        }
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx y el GET falla por red 5xx o 404 no suelta [red]",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": null,
+        "visita": null
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx y el GET falla por red 5xx o 404 no suelta [500]",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 500,
+        "visita": null
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx y el GET falla por red 5xx o 404 no suelta [503]",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 503,
+        "visita": null
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx y el GET falla por red 5xx o 404 no suelta [404]",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 404,
+        "visita": null
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx con imagen_ids ausente de servidor viejo no suelta",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 200,
+        "visita": {
+          "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+          "imagen_ids": null
+        }
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx con GET de otra visita no suelta",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 200,
+        "visita": {
+          "id": "otro",
+          "imagen_ids": [
+            "f1",
+            "f2"
+          ]
+        }
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 2xx y GET completo confirma",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 200,
+        "visita": {
+          "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+          "imagen_ids": [
+            "f1",
+            "f2"
+          ]
+        }
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.E-VIS-022 GET completo no rescata un eco ajeno",
+      "funcion": "salidaTras2xx",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "eco": "otro",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "get": {
+        "codigo": 200,
+        "visita": {
+          "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+          "imagen_ids": [
+            "f1",
+            "f2"
+          ]
+        }
+      },
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.existencia completa confirma ante cualquier error [400]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "COMPLETA",
+      "codigo": 400,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.existencia completa confirma ante cualquier error [409]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "COMPLETA",
+      "codigo": 409,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.existencia completa confirma ante cualquier error [413]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "COMPLETA",
+      "codigo": 413,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.existencia completa confirma ante cualquier error [422]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "COMPLETA",
+      "codigo": 422,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.existencia completa confirma ante cualquier error [500]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "COMPLETA",
+      "codigo": 500,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.existencia completa confirma ante cualquier error [503]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "COMPLETA",
+      "codigo": 503,
+      "cabecera": false,
+      "esperado": "CONFIRMADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.409 nunca suelta sin existencia completa [INCOMPLETA cabecera=1]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "INCOMPLETA",
+      "codigo": 409,
+      "cabecera": true,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.409 nunca suelta sin existencia completa [INCOMPLETA cabecera=0]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "INCOMPLETA",
+      "codigo": 409,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.409 nunca suelta sin existencia completa [NO_EXISTE cabecera=1]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 409,
+      "cabecera": true,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.409 nunca suelta sin existencia completa [NO_EXISTE cabecera=0]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 409,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.409 nunca suelta sin existencia completa [INDETERMINADA cabecera=1]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "INDETERMINADA",
+      "codigo": 409,
+      "cabecera": true,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.409 nunca suelta sin existencia completa [INDETERMINADA cabecera=0]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "INDETERMINADA",
+      "codigo": 409,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.existencia sin compromiso o sin foto no suelta por existencia",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "INCOMPLETA",
+      "codigo": 500,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.4xx con custodia confirmada se resguarda",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 422,
+      "cabecera": true,
+      "esperado": "RESGUARDADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.4xx sin custodia reintenta",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 422,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.401 siempre reintenta [cabecera=1]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 401,
+      "cabecera": true,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.401 siempre reintenta [cabecera=0]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 401,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.404 sin llegar al api reintenta",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "INDETERMINADA",
+      "codigo": 404,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.500 sin custodia reintenta",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 500,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.413 con custodia se resguarda E-VIS-020",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 413,
+      "cabecera": true,
+      "esperado": "RESGUARDADA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.413 sin custodia reintenta E-VIS-020",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "INDETERMINADA",
+      "codigo": 413,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.un 2xx que llegara al camino de error no suelta [cabecera=1]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 200,
+      "cabecera": true,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "DecisionDeEnvioTest.un 2xx que llegara al camino de error no suelta [cabecera=0]",
+      "funcion": "salidaTrasError",
+      "enviada": "",
+      "existencia": "NO_EXISTE",
+      "codigo": 200,
+      "cabecera": false,
+      "esperado": "REINTENTA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.200 con el mismo id y sin fotos pendientes es completa",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+        "imagen_ids": []
+      },
+      "codigo_get": 200,
+      "esperado": "COMPLETA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.404 no existe",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "codigo_get": 404,
+      "esperado": "NO_EXISTE"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.500 o red es indeterminada [500]",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "codigo_get": 500,
+      "esperado": "INDETERMINADA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.500 o red es indeterminada [red]",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "esperado": "INDETERMINADA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.200 con otro id es indeterminada",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "otro",
+        "imagen_ids": []
+      },
+      "codigo_get": 200,
+      "esperado": "INDETERMINADA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.200 sin cuerpo es indeterminada [sin cuerpo]",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "codigo_get": 200,
+      "esperado": "INDETERMINADA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.200 sin cuerpo es indeterminada [id nulo]",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": null,
+        "imagen_ids": null
+      },
+      "codigo_get": 200,
+      "esperado": "INDETERMINADA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.otro 2xx distinto de 200 es indeterminada",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+        "imagen_ids": []
+      },
+      "codigo_get": 204,
+      "esperado": "INDETERMINADA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.id enviado en blanco nunca es completa",
+      "funcion": "existenciaCompleta",
+      "enviada": "",
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "",
+        "imagen_ids": []
+      },
+      "codigo_get": 200,
+      "esperado": "INDETERMINADA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.existenciaSinLaFotoPendienteEsIncompleta",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+        "imagen_ids": [
+          "f1"
+        ]
+      },
+      "codigo_get": 200,
+      "esperado": "INCOMPLETA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.imagenIdsAusenteConFotosPendientesEsIncompleta",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1"
+      ],
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+        "imagen_ids": null
+      },
+      "codigo_get": 200,
+      "esperado": "INCOMPLETA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.imagen_ids vacio con fotos pendientes es incompleta",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1"
+      ],
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+        "imagen_ids": []
+      },
+      "codigo_get": 200,
+      "esperado": "INCOMPLETA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.imagen_ids ausente sin fotos pendientes es completa",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+        "imagen_ids": null
+      },
+      "codigo_get": 200,
+      "esperado": "COMPLETA"
+    },
+    {
+      "origen": "ExistenciaCompletaTest.todas las fotos pendientes en imagen_ids es completa aunque haya de mas",
+      "funcion": "existenciaCompleta",
+      "enviada": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+      "fotos_pendientes": [
+        "f1",
+        "f2"
+      ],
+      "codigo": 0,
+      "cabecera": false,
+      "respuesta": {
+        "id": "8f1c2b8e-1d3a-4e4b-9c55-0a1b2c3d4e5f",
+        "imagen_ids": [
+          "f0",
+          "f1",
+          "f2"
+        ]
+      },
+      "codigo_get": 200,
+      "esperado": "COMPLETA"
+    }
+  ]
+}

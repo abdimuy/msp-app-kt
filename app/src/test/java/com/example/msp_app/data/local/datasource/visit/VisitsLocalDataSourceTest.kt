@@ -3,19 +3,24 @@ package com.example.msp_app.data.local.datasource.visit
 import android.location.Location
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
+import com.example.msp_app.core.common.visitas.envio.ReglaDePoda
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
+import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.visit.toEntity
 import com.example.msp_app.features.visit.newvisit.VisitFactory
 import com.example.msp_app.services.UpdateLocationHandler
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -25,7 +30,7 @@ import org.junit.Test
  * de DAOs inyectados** (la forma Hilt) con DAOs de la DB in-memory de
  * [RoomTestBase]. Cubre las visitas (con y sin pago) y la transaccion que
  * cambia el estado de cobranza de la venta, y prueba que la forma inyectada es
- * EQUIVALENTE al puente `context` que usan `PendingVisitsWorkerV2Test` y los
+ * EQUIVALENTE al puente `context` que usan `PendingVisitsWorkerModoV2ActualTest` y los
  * ViewModels no-Hilt (ambos resuelven a la misma DB via
  * [com.example.msp_app.core.database.AppDatabase.getInstance]).
  */
@@ -669,7 +674,9 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
     @Test
     fun deleteUploadedVisits_preservesPending() = runTest {
         store.saveVisit(visit(id = "pend-1", guardado = 0))
-        store.saveVisit(visit(id = "sync-1", guardado = 1))
+        store.saveVisit(visit(id = "sync-1", guardado = 0))
+        // Plan visitas P1, Tarea 12: la poda exige la prueba del servidor y 30 días.
+        db.visitDao().confirmar(listOf("sync-1"), "2020-01-01T00:00:00Z")
 
         store.deleteUploadedVisits()
 
@@ -684,6 +691,307 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
                 it.ID == "sync-1"
             }
         )
+    }
+
+    // ─── poda segura (plan visitas P1, Tarea 12; cierra H2) ────────────────────
+
+    private val ahora = Instant.parse("2026-10-17T15:00:00Z")
+
+    private class MemoriaEnPrueba(var valor: String? = null) : MemoriaDePodaDeResguardadas {
+        override fun reportadasHasta(): String? = valor
+        override fun anotarReportadasHasta(limite: String) {
+            valor = limite
+        }
+    }
+
+    private fun storeCon(clock: FakeClock, memoria: MemoriaDePodaDeResguardadas) =
+        VisitsLocalDataSource(db.visitDao(), db.saleDao(), enqueuer, clock, memoria)
+
+    /**
+     * E-VIS-032 (R2): la poda nunca borra una confirmada, por vieja que sea,
+     * mientras tenga una foto sin subir que conserva su archivo. Antes la
+     * borraba con la foto de más de 7 días según el reloj del teléfono y el
+     * barrido de huérfanos se llevaba después la fila y el archivo. La foto
+     * sin archivo sigue como antes: ya no bloquea pasada la semana.
+     */
+    @Test
+    fun `E-VIS-032 la poda no borra una confirmada vieja con una foto sin subir que conserva su archivo`() =
+        runTest {
+            val existen = setOf("/fotos/con-archivo.jpg")
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                archivoExiste = { it in existen }
+            )
+            listOf("con-foto", "sin-archivo", "sin-foto").forEach {
+                s.saveVisit(visit(id = it))
+                db.visitDao().confirmar(listOf(it), "2026-09-01T00:00:00Z")
+            }
+            fun foto(id: String, visita: String) =
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = id,
+                    VISITA_ID = visita,
+                    URI = "/fotos/$id.jpg",
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            // Tras confirmar: la retención por foto de `confirmar` ya no aplica.
+            db.visitImageDao().insertAll(
+                listOf(foto("con-archivo", "con-foto"), foto("sin-arch", "sin-archivo"))
+            )
+
+            s.deleteUploadedVisits()
+
+            assertNotNull(
+                "foto sin subir con archivo: no se poda",
+                db.visitDao().findVisitById("con-foto")
+            )
+            assertNull(
+                "foto sin archivo: como antes, se poda",
+                db.visitDao().findVisitById("sin-archivo")
+            )
+            assertNull("sin foto: se poda", db.visitDao().findVisitById("sin-foto"))
+        }
+
+    /**
+     * Adenda de E-APP-079: la poda y el barrido usan el MISMO predicado
+     * (`FotoQueViaja`: tipo permitido Y archivo en el disco). Una foto con
+     * archivo de un tipo que nunca viaja ya no protege su visita para siempre;
+     * se cuenta en la telemetría de la poda.
+     */
+    @Test
+    fun `E-APP-079 una foto con archivo de un tipo que no viaja no protege su visita y se cuenta`() =
+        runTest {
+            val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                telemetria = { evento, datos -> emitidos += evento to datos },
+                archivoExiste = { true }
+            )
+            listOf("con-jpeg", "con-bmp").forEach {
+                s.saveVisit(visit(id = it))
+                db.visitDao().confirmar(listOf(it), "2026-09-01T00:00:00Z")
+            }
+            fun foto(id: String, visita: String, mime: String) =
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = id,
+                    VISITA_ID = visita,
+                    URI = "/fotos/$id",
+                    MIME = mime,
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            db.visitImageDao().insertAll(
+                listOf(foto("j", "con-jpeg", "image/jpeg"), foto("b", "con-bmp", "image/bmp"))
+            )
+
+            s.deleteUploadedVisits()
+
+            assertNotNull("la que viaja sigue protegida", db.visitDao().findVisitById("con-jpeg"))
+            assertNull(
+                "la de tipo que no viaja ya no protege",
+                db.visitDao().findVisitById("con-bmp")
+            )
+            assertEquals(
+                listOf(
+                    "visitas_poda" to mapOf<String, Any>(
+                        "visitas.resguardadas_por_podar" to 0,
+                        "visitas.poda.fotos_con_archivo_que_no_viajan" to 1
+                    )
+                ),
+                emitidos
+            )
+        }
+
+    /**
+     * Adenda de E-APP-079: si las visitas protegidas no caben en el `NOT IN`
+     * (más de 900), esa corrida no poda nada (ni lo que sí podría) y lo cuenta
+     * en la telemetría con una clave de la lista blanca; antes solo era un
+     * `Log.w` que no sale del teléfono.
+     */
+    @Test
+    fun `E-APP-079 si las protegidas no caben la poda no corre y se cuenta`() = runTest {
+        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+        val s = VisitsLocalDataSource(
+            db.visitDao(),
+            db.saleDao(),
+            enqueuer,
+            FakeClock(ahora),
+            MemoriaEnPrueba(),
+            telemetria = { evento, datos -> emitidos += evento to datos },
+            archivoExiste = { true }
+        )
+        val protegidas = (1..PROTEGIDAS_DE_MAS).map { "p-$it" }
+        (protegidas + "sin-foto").forEach { s.saveVisit(visit(id = it)) }
+        (protegidas + "sin-foto").chunked(500).forEach {
+            db.visitDao().confirmar(it, "2026-09-01T00:00:00Z")
+        }
+        db.visitImageDao().insertAll(
+            protegidas.map {
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = "f-$it",
+                    VISITA_ID = it,
+                    URI = "/fotos/$it.jpg",
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-02T00:00:00Z",
+                    SUBIDA_EN = null
+                )
+            }
+        )
+
+        s.deleteUploadedVisits()
+
+        assertNotNull("esta corrida no poda nada", db.visitDao().findVisitById("sin-foto"))
+        assertEquals(
+            listOf(
+                "visitas_poda" to mapOf<String, Any>(
+                    "visitas.resguardadas_por_podar" to 0,
+                    "visitas.poda.pospuesta_protegidas" to PROTEGIDAS_DE_MAS
+                )
+            ),
+            emitidos
+        )
+    }
+
+    /** Review Focus 2: la legada soltada sin prueba no se poda por la fuente real. */
+    @Test
+    fun `la poda real no borra la legada sin confirmar`() = runTest {
+        val s = storeCon(FakeClock(ahora), MemoriaEnPrueba())
+        s.saveVisit(visit(id = "legada", guardado = 1))
+        s.saveVisit(visit(id = "confirmada-vieja"))
+        db.visitDao().confirmar(listOf("confirmada-vieja"), "2026-09-01T00:00:00Z")
+        s.saveVisit(visit(id = "confirmada-reciente"))
+        db.visitDao().confirmar(listOf("confirmada-reciente"), "2026-10-01T00:00:00Z")
+
+        s.deleteUploadedVisits()
+
+        assertNotNull(db.visitDao().findVisitById("legada"))
+        assertNull(
+            "confirmada hace más de 30 días",
+            db.visitDao().findVisitById("confirmada-vieja")
+        )
+        assertNotNull("confirmada hace 16 días", db.visitDao().findVisitById("confirmada-reciente"))
+    }
+
+    /** Spec §4.2-8: una resguardada vencida se reporta en una corrida y se poda en la siguiente. */
+    @Test
+    fun `la resguardada vencida se reporta antes y se poda en la corrida siguiente`() = runTest {
+        val clock = FakeClock(ahora)
+        val memoria = MemoriaEnPrueba()
+        val s = storeCon(clock, memoria)
+        s.saveVisit(visit(id = "r-vieja"))
+        db.visitDao().resguardar("r-vieja", "2026-07-01T00:00:00Z") // > 90 días
+
+        s.deleteUploadedVisits()
+        assertNotNull("primera corrida: solo se reporta", db.visitDao().findVisitById("r-vieja"))
+        assertEquals(ReglaDePoda.limiteResguardadas(ahora), memoria.valor)
+
+        clock.setNow(ahora.plusSeconds(3600))
+        s.deleteUploadedVisits()
+        assertNull("segunda corrida: ya reportada, se poda", db.visitDao().findVisitById("r-vieja"))
+    }
+
+    /** Plan visitas P1, Tarea 14 (H14): el conteo de T12 sale por la telemetría, antes de podar. */
+    @Test
+    fun `H14 la resguardada vencida se reporta por telemetria con solo su conteo`() = runTest {
+        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+        val s = VisitsLocalDataSource(
+            db.visitDao(),
+            db.saleDao(),
+            enqueuer,
+            FakeClock(ahora),
+            MemoriaEnPrueba(),
+            telemetria = { e, m -> emitidos += e to m }
+        )
+        s.saveVisit(visit(id = "r-vieja-1"))
+        db.visitDao().resguardar("r-vieja-1", "2026-07-01T00:00:00Z")
+        s.saveVisit(visit(id = "r-vieja-2"))
+        db.visitDao().resguardar("r-vieja-2", "2026-06-01T00:00:00Z")
+        s.saveVisit(visit(id = "r-reciente"))
+        db.visitDao().resguardar("r-reciente", "2026-10-01T00:00:00Z")
+
+        s.deleteUploadedVisits()
+
+        assertEquals(
+            listOf("visitas_poda" to mapOf<String, Any>("visitas.resguardadas_por_podar" to 2)),
+            emitidos
+        )
+        assertNotNull("se reporta antes de podar", db.visitDao().findVisitById("r-vieja-1"))
+    }
+
+    @Test
+    fun `H14 sin resguardadas vencidas la poda no emite y si la telemetria revienta la poda sigue`() =
+        runTest {
+            val s = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                telemetria = { _, _ -> error("no debe emitir") }
+            )
+            s.saveVisit(visit(id = "confirmada-vieja"))
+            db.visitDao().confirmar(listOf("confirmada-vieja"), "2026-09-01T00:00:00Z")
+            s.deleteUploadedVisits()
+            assertNull(db.visitDao().findVisitById("confirmada-vieja"))
+
+            val reventona = VisitsLocalDataSource(
+                db.visitDao(),
+                db.saleDao(),
+                enqueuer,
+                FakeClock(ahora),
+                MemoriaEnPrueba(),
+                telemetria = { _, _ -> error("boom") }
+            )
+            reventona.saveVisit(visit(id = "r-vieja"))
+            db.visitDao().resguardar("r-vieja", "2026-07-01T00:00:00Z")
+            reventona.deleteUploadedVisits() // no lanza
+        }
+
+    @Test
+    fun `sin memoria nunca se poda una resguardada`() = runTest {
+        val clock = FakeClock(ahora)
+        val s = storeCon(clock, MemoriaDePodaDeResguardadas.Ninguna)
+        s.saveVisit(visit(id = "r-vieja"))
+        db.visitDao().resguardar("r-vieja", "2026-01-01T00:00:00Z")
+        s.deleteUploadedVisits()
+        clock.setNow(ahora.plusSeconds(86_400))
+        s.deleteUploadedVisits()
+        assertNotNull(db.visitDao().findVisitById("r-vieja"))
+    }
+
+    @Test
+    fun `una resguardada reciente no se poda aunque haya memoria`() = runTest {
+        val s =
+            storeCon(
+                FakeClock(ahora),
+                MemoriaEnPrueba(valor = ReglaDePoda.limiteResguardadas(ahora))
+            )
+        s.saveVisit(visit(id = "r-reciente"))
+        db.visitDao().resguardar("r-reciente", "2026-09-01T00:00:00Z")
+        s.deleteUploadedVisits()
+        assertNotNull(db.visitDao().findVisitById("r-reciente"))
+    }
+
+    /** Si el reloj retrocedió, la memoria no autoriza podar más allá del límite de hoy. */
+    @Test
+    fun `una memoria en el futuro no adelanta la poda`() = runTest {
+        val s = storeCon(FakeClock(ahora), MemoriaEnPrueba(valor = "2099-01-01T00:00:00Z"))
+        s.saveVisit(visit(id = "r"))
+        db.visitDao().resguardar("r", "2026-08-01T00:00:00Z") // 77 días: aún dentro de los 90
+        s.deleteUploadedVisits()
+        assertNotNull(db.visitDao().findVisitById("r"))
     }
 
     @Test
@@ -712,5 +1020,10 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             contextForm.getPendingVisits().map { it.ID }
         )
         assertEquals(store.getVisitById("eq-sync"), contextForm.getVisitById("eq-sync"))
+    }
+
+    private companion object {
+        /** Una más que `VisitsLocalDataSource.MAX_PROTEGIDAS` (900). */
+        const val PROTEGIDAS_DE_MAS = 901
     }
 }

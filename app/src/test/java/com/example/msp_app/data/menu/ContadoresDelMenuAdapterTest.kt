@@ -15,7 +15,7 @@ class ContadoresDelMenuAdapterTest {
 
     private fun adaptador(porVolver: Int = 8, sinSubir: Int = 1, fallaCartera: Boolean = false) =
         ContadoresDelMenuAdapter(
-            clientesPorVolver = {
+            clientesPorVisitar = {
                 consultasDeCartera += 1
                 if (fallaCartera) error("cartera ilegible") else porVolver
             },
@@ -26,7 +26,7 @@ class ContadoresDelMenuAdapterTest {
     @Test
     fun `formatea los dos contadores con fuente`() = runTest {
         assertEquals(
-            mapOf(IdsDelMenu.CLIENTES to "8 por volver", IdsDelMenu.VENTAS to "1 sin subir"),
+            mapOf(IdsDelMenu.CLIENTES to "8 por visitar", IdsDelMenu.VENTAS to "1 sin subir"),
             adaptador().contadores(
                 setOf(IdsDelMenu.CLIENTES, IdsDelMenu.VENTAS, IdsDelMenu.TRASPASOS)
             )

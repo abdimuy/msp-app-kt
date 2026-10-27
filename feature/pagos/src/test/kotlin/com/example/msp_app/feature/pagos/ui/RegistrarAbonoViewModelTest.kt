@@ -107,21 +107,21 @@ class RegistrarAbonoViewModelTest {
         assertEquals(AbonoFixtures.SALDO, state.venta!!.saldo)
         assertEquals(AbonoFixtures.ESPERADO_HOY, state.monto.importe)
         assertTrue("el prellenado se reemplaza con la primera tecla", state.monto.sugerido)
-        // Los tres de la deuda y DOS redondos: el cliente del fixture no tiene
-        // historial de cobros, así que "lo de siempre" no se pinta, y el tope de
-        // cinco corta el tercer redondo ($150).
+        // Los dos de la deuda (sin "al corriente", que se retiró el 2026-10-16) y
+        // los TRES redondos: el cliente del fixture no tiene historial de
+        // cobros, así que "lo de siempre" no se pinta.
         assertEquals(
             listOf(
                 MontosSugeridos.Sugerencia.ESPERADO_HOY,
-                MontosSugeridos.Sugerencia.AL_CORRIENTE,
                 MontosSugeridos.Sugerencia.LIQUIDAR,
+                MontosSugeridos.Sugerencia.REDONDO,
                 MontosSugeridos.Sugerencia.REDONDO,
                 MontosSugeridos.Sugerencia.REDONDO
             ),
             state.sugeridos.map { it.cual }
         )
         assertEquals(
-            listOf("220", "440", "1290", "100", "200").map { dinero(it) },
+            listOf("220", "1290", "100", "200", "150").map { dinero(it) },
             state.sugeridos.map { it.importe }
         )
         assertTrue(state.sePuedeRegistrar)
@@ -790,7 +790,6 @@ class RegistrarAbonoViewModelTest {
         camara = camaraPort,
         tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
-        clock = clock,
         io = testDispatcher
     )
 

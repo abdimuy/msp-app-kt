@@ -1,0 +1,68 @@
+package com.example.msp_app.core.common.sync.pendingwork.fakes
+
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.DeliveredVisitsStore
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.FotoSinEnviar
+
+/**
+ * Fake escrito a mano del lado local de la reconciliación inversa: estado
+ * público y una lista por cada escritura, sin MockK (regla del repo).
+ *
+ * Como el DAO real, [confirmar] devuelve CUÁNTAS cambió de verdad: las de
+ * [retenidas] (comprobante sin subir) no cuentan. Un fake que devolviera
+ * siempre `ids.size` volvería inerte la aserción sobre `confirmadas`.
+ */
+class FakeDeliveredVisitsStore(
+    entregadas: List<String> = emptyList(),
+    private val failOnRead: Throwable? = null,
+    private val failOnConfirmar: Throwable? = null,
+    private val failOnDevolver: Throwable? = null,
+    private val retenidas: Set<String> = emptySet(),
+    /** Fotos sin `SUBIDA_EN` de visitas entregadas, con archivo (barrido E-APP-079, E-VIS-031). */
+    var fotosSinEnviar: List<FotoSinEnviar> = emptyList()
+) : DeliveredVisitsStore {
+
+    /** Si no es nulo, el barrido (E-APP-079) falla con esto. */
+    var failOnFotos: Throwable? = null
+
+    var entregadas: List<String> = entregadas
+
+    /** El `desde` que recibió cada lectura. */
+    val lecturas: MutableList<String> = mutableListOf()
+
+    /** Ids que de verdad quedaron confirmadas, en orden. */
+    val confirmadas: MutableList<String> = mutableListOf()
+
+    /** El `ahora` de cada llamada a [confirmar]. */
+    val confirmadasEn: MutableList<String> = mutableListOf()
+
+    /** Ids devueltas a pendiente, en orden. */
+    val devueltas: MutableList<String> = mutableListOf()
+
+    override suspend fun entregadasDesde(desde: String): List<String> {
+        lecturas += desde
+        failOnRead?.let { throw it }
+        return entregadas
+    }
+
+    override suspend fun confirmar(ids: List<String>, ahora: String): Int {
+        failOnConfirmar?.let { throw it }
+        confirmadasEn += ahora
+        val cambiadas = ids.filterNot { it in retenidas }
+        confirmadas += cambiadas
+        return cambiadas.size
+    }
+
+    override suspend fun devolverAPendiente(ids: List<String>): Int {
+        failOnDevolver?.let { throw it }
+        devueltas += ids
+        // Como el DAO: la devuelta ya no es una soltada ni una confirmada.
+        entregadas = entregadas - ids.toSet()
+        fotosSinEnviar = fotosSinEnviar.filterNot { it.visitaId in ids }
+        return ids.size
+    }
+
+    override suspend fun fotosSinEnviarDeEntregadas(): List<FotoSinEnviar> {
+        failOnFotos?.let { throw it }
+        return fotosSinEnviar
+    }
+}

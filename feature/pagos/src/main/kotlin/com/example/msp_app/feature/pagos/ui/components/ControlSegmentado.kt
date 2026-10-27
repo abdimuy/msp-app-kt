@@ -62,9 +62,9 @@ import kotlinx.coroutines.launch
  * ## Una sola fila, siempre — decisión del dueño, 2026-09-22
  *
  * Antes este control medía y, si los rótulos no cabían, pasaba a una **rejilla
- * de dos renglones**. Con cuatro opciones eso era un 2×2 que se comía un bloque
+ * de dos renglones**. Con cuatro opciones, entonces, eso era un 2×2 que se comía un bloque
  * entero de la pantalla antes de la primera tarjeta. El dueño lo vio en el
- * teléfono y pidió una fila de cuatro con deslizamiento, y esa decisión no se
+ * teléfono y pidió una fila con deslizamiento, y esa decisión no se
  * revisa aquí.
  *
  * Tres cosas hacen que el deslizamiento casi nunca haga falta a escala normal:
@@ -73,7 +73,7 @@ import kotlinx.coroutines.launch
  *    medía dos renglones de texto; en línea mide uno. El control pasó de ~110dp
  *    de alto a ~50.
  * 2. **Cada chip mide lo que su texto necesita**, no una porción igual. Antes
- *    "Pagados" recibía el mismo ancho que "Volver a visitar" y sobraba de un
+ *    "Pagados" recibía el mismo ancho que "Por visitar" y sobraba de un
  *    lado mientras faltaba del otro.
  * 3. **La `Surface` sigue llenando el ancho** ([fillMaxWidth] incondicional) y
  *    lo que rueda es la fila **dentro** de ella. Ese era el defecto real de la
@@ -83,7 +83,7 @@ import kotlinx.coroutines.launch
  *
  * ## El aviso contado, y por qué el degradado no era uno
  *
- * A letra grande las cuatro **no** caben, y comprimir no alcanza a salvarlo.
+ * A letra grande las tres **no** caben, y comprimir no alcanza a salvarlo.
  * Medido a `w360dp-xhdpi` con las etiquetas reales de la lista: a `GRANDE`
  * (1.5) la fila pide 428dp contra 325dp de ventana, y a `MUY_GRANDE` (2.0) pide
  * 542dp. Bajar el conteo debajo del rótulo —la forma anterior— ahorra ~12dp por
@@ -398,11 +398,11 @@ private suspend fun traeALaVista(
  * contra [anchoDisponible]:
  *
  * - **Si sobra espacio**, el sobrante se reparte **en partes iguales** entre los
- *   chips y la fila llena el ancho completo. Sin esto, los cuatro chips se
+ *   chips y la fila llena el ancho completo. Sin esto, los tres chips se
  *   apelotonan a la izquierda y queda un hueco muerto a la derecha que hace ver
  *   el control a medio terminar. El sobrante se reparte, en vez de forzar anchos
  *   iguales, porque anchos iguales le darían a "Pagados" tanto espacio como a
- *   "Sin visitar 268" y apretarían al más largo.
+ *   "Por visitar 268" y apretarían al más largo.
  * - **Si no cabe** —letra del sistema grande, sobre todo—, cada chip se queda
  *   con su ancho natural y la fila sale más ancha que la ventana. El
  *   `horizontalScroll` de quien la contiene se encarga del resto, y el aviso

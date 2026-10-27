@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
  *   lo que anuncia el aviso.
  *
  * La diferencia se vio en un golden y no se dedujo. A `GRANDE`, en la lista, la
- * caja del chip "Después" terminaba **dentro** de la ventana —así que por
+ * caja del chip "No paga" terminaba **dentro** de la ventana —así que por
  * geometría "se veía"— pero sus últimos 24dp caían bajo el degradado y su conteo
  * se desvanecía a blanco. El aviso decía "+1" (por "Pagados") mientras en
  * pantalla había **dos** datos que nadie podía leer. Un conteo desvanecido está

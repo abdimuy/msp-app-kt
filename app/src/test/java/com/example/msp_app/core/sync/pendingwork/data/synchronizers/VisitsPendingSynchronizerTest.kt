@@ -3,7 +3,6 @@ package com.example.msp_app.core.sync.pendingwork.data.synchronizers
 import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
-import com.example.msp_app.core.database.entities.VisitEntity
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -15,7 +14,7 @@ class VisitsPendingSynchronizerTest {
     @Test
     fun `empty pending returns NothingPending`() = runTest {
         val sync = VisitsPendingSynchronizer(
-            fetchPending = { emptyList() },
+            fetchPendingIds = { emptyList() },
             enqueuer = RecordingEnqueuer()
         )
         assertEquals(SyncResult.NothingPending, sync.sync(ctx))
@@ -25,7 +24,7 @@ class VisitsPendingSynchronizerTest {
     fun `enqueues each pending visit with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val sync = VisitsPendingSynchronizer(
-            fetchPending = { listOf(visitWithId("v1"), visitWithId("v2"), visitWithId("v3")) },
+            fetchPendingIds = { listOf("v1", "v2", "v3") },
             enqueuer = enqueuer
         )
 
@@ -39,25 +38,27 @@ class VisitsPendingSynchronizerTest {
         // reachable from this call at all (see SyncAllPendingWorkUseCase KDoc).
     }
 
+    /** E-APP-072 (plan visitas P1, Tarea 12): sin tope de 50, en el orden recibido. */
     @Test
-    fun `caps at 50`() = runTest {
-        val visits = (1..60).map { visitWithId("v$it") }
+    fun `E-APP-072 encola las 60 sin tope y en el orden recibido`() = runTest {
+        val ids = (1..60).map { "v%02d".format(it) }.reversed()
         val enqueuer = RecordingEnqueuer()
         val sync = VisitsPendingSynchronizer(
-            fetchPending = { visits },
+            fetchPendingIds = { ids },
             enqueuer = enqueuer
         )
 
         val result = sync.sync(ctx)
 
-        assertEquals(SyncResult.Enqueued(itemCount = 50, workRequestCount = 50), result)
+        assertEquals(SyncResult.Enqueued(itemCount = 60, workRequestCount = 60), result)
+        assertEquals(ids, enqueuer.calls)
     }
 
     @Test
     fun `partial failure counted accurately`() = runTest {
         val enqueuer = RecordingEnqueuer(failingIds = setOf("v1"))
         val sync = VisitsPendingSynchronizer(
-            fetchPending = { listOf(visitWithId("v1"), visitWithId("v2")) },
+            fetchPendingIds = { listOf("v1", "v2") },
             enqueuer = enqueuer
         )
 
@@ -65,22 +66,6 @@ class VisitsPendingSynchronizerTest {
 
         assertEquals(SyncResult.Enqueued(itemCount = 2, workRequestCount = 1), result)
     }
-
-    private fun visitWithId(id: String) = VisitEntity(
-        ID = id,
-        CLIENTE_ID = 0,
-        COBRADOR = "",
-        COBRADOR_ID = 0,
-        FECHA = "2026-04-15",
-        FORMA_COBRO_ID = 0,
-        LAT = 0.0,
-        LNG = 0.0,
-        NOTA = null,
-        TIPO_VISITA = "REGULAR",
-        ZONA_CLIENTE_ID = 0,
-        IMPTE_DOCTO_CC_ID = 0,
-        GUARDADO_EN_MICROSIP = 0
-    )
 
     private class RecordingEnqueuer(
         private val failingIds: Set<String> = emptySet()

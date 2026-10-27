@@ -177,7 +177,6 @@ class ElEsperadoSaleDeLaParcialidadTest {
         camara = camaraPort,
         tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
-        clock = clock,
         io = testDispatcher
     )
 

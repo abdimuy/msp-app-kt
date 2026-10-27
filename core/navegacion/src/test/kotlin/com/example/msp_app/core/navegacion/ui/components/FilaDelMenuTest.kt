@@ -20,7 +20,7 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * Ruling R13 del controlador (2026-10-06, revisión de la Task 5): la etiqueta
  * de una opción NUNCA se parte a media palabra. Hallazgo real: con el
- * contador "8 por volver" y poco ancho (escala de letra 2.0 en los goldens
+ * contador "8 por visitar" y poco ancho (escala de letra 2.0 en los goldens
  * `menu_*_2_0`), "Clientes" se partía en "Client" / "es" porque el contador —
  * hermano fijo de la etiqueta en el mismo `Row` — le quitaba ancho hasta que
  * Compose no tenía dónde meter la palabra completa.
@@ -62,14 +62,14 @@ class FilaDelMenuTest : RobolectricTestBase() {
     // (a) Poco ancho: la etiqueta no se parte y el contador baja de renglón.
     @Test
     fun `contador largo y poco ancho bajan el contador sin partir la palabra`() {
-        montar(ancho = 180.dp, contador = "8 por volver")
+        montar(ancho = 180.dp, contador = "8 por visitar")
 
         val limitesEtiqueta = compose.onNodeWithText(
             "Clientes",
             useUnmergedTree = true
         ).getBoundsInRoot()
         val limitesContador = compose.onNodeWithText(
-            "8 por volver",
+            "8 por visitar",
             useUnmergedTree = true
         ).getBoundsInRoot()
 
@@ -99,14 +99,14 @@ class FilaDelMenuTest : RobolectricTestBase() {
     // (b) Ancho de sobra (sin regresión): el contador sigue en la misma línea.
     @Test
     fun `con ancho sobrado el contador sigue junto a la etiqueta en la misma linea`() {
-        montar(ancho = 320.dp, contador = "8 por volver")
+        montar(ancho = 320.dp, contador = "8 por visitar")
 
         val limitesEtiqueta = compose.onNodeWithText(
             "Clientes",
             useUnmergedTree = true
         ).getBoundsInRoot()
         val limitesContador = compose.onNodeWithText(
-            "8 por volver",
+            "8 por visitar",
             useUnmergedTree = true
         ).getBoundsInRoot()
 

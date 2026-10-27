@@ -45,6 +45,12 @@ object VisitasTelemetria {
     /** No se pudo leer la recomendación del cliente. La pantalla sigue sin ella. */
     const val CODE_RECOMENDACION_FALLO: String = "visita_recomendacion_fallo"
 
+    /**
+     * No se pudieron contar los pendientes del aviso de Inicio (E-APP-096). El
+     * aviso conserva su último conteo; viaja solo el nombre de la clase.
+     */
+    const val CODE_AVISO_PENDIENTES_FALLO: String = "visita_aviso_pendientes_fallo"
+
     /** Id de pantalla del ticket de visita (Task 20). */
     const val PANTALLA_TICKET: String = "visitas_ticket"
 
@@ -196,6 +202,13 @@ object VisitasTelemetria {
      */
     const val CODE_VISITA_PARCIAL_POR_CUENTA: String = "visita_parcial_por_cuenta"
 
+    /**
+     * H-r4-5: un reintento con la selección congelada escribe cuentas que ya
+     * no están en el teléfono. [PROP_OCURRENCIAS] lleva cuántas, nunca cuáles.
+     */
+    const val CODE_VISITA_CUENTA_AUSENTE_AL_REINTENTAR: String =
+        "visita_cuenta_ausente_al_reintentar"
+
     /** Prop con CUÁNTAS cuentas llevaba la captura. Un conteo, nunca un id. */
     const val PROP_CUENTAS: String = "cuentas"
 
@@ -207,6 +220,32 @@ object VisitasTelemetria {
 
     /** Prop con el NOMBRE de la clase de la excepción — nunca su texto. */
     const val PROP_EXCEPCION: String = "exception"
+
+    /**
+     * **El guardado de una visita se canceló** (E-APP-078): el cobrador salió de
+     * la pantalla mientras se guardaba y el `viewModelScope` se canceló.
+     *
+     * Medido en el emulador sin red: Atrás durante la espera de la ubicación
+     * (~30 s sin fix) pierde la visita, 9 de 9, y antes no dejaba ningún rastro.
+     * Este evento NO cambia esa conducta: solo la hace visible. Lleva
+     * [PROP_ESCRITAS] de [PROP_CUENTAS] y [PROP_FASE].
+     */
+    const val CODE_VISITA_GUARDADO_CANCELADO: String = "visita_guardado_cancelado"
+
+    /** Prop con CUÁNTAS cuentas quedaron escritas antes de cortarse. Un conteo. */
+    const val PROP_ESCRITAS: String = "escritas"
+
+    /** Prop con la fase en que se canceló: [FASE_UBICACION] o [FASE_CUENTAS]. */
+    const val PROP_FASE: String = "fase"
+
+    /** Se canceló esperando la ubicación: no se intentó escribir nada. */
+    const val FASE_UBICACION: String = "ubicacion"
+
+    /** Se canceló escribiendo las cuentas. */
+    const val FASE_CUENTAS: String = "cuentas"
+
+    /** Valor de [PROP_RESULTADO] cuando el parcial lo cortó una cancelación. */
+    const val RESULTADO_CANCELADO: String = "CANCELADO"
 
     /** Prop que distingue por qué no hubo ubicación. */
     const val PROP_CAUSA: String = "causa"

@@ -9,12 +9,16 @@ import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.visitas.ComprobantesDeVisitaAdapter
 import com.example.msp_app.data.visitas.RegistroDeVisitaAdapter
 import com.example.msp_app.data.visitas.ThemeControllerTemaDeLaAppAdapter
 import com.example.msp_app.data.visitas.UbicacionDeVisitaAdapter
 import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
+import com.example.msp_app.feature.visitas.domain.port.CuentaAusentePort
+import com.example.msp_app.feature.visitas.domain.port.FaseDelGuardado
+import com.example.msp_app.feature.visitas.domain.port.GuardadoCanceladoPort
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.TemaDeLaAppPort
 import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
@@ -108,4 +112,35 @@ object VisitasPortsModule {
         telemetry = telemetry,
         clock = clock
     )
+
+    /**
+     * E-APP-078: el aviso de un guardado de visita cancelado sale por
+     * [TelemetriaDeVisitas] (`RemoteLogger`, lo único que llega a la oficina);
+     * el puerto `Telemetry` termina en `StubTelemetrySink` y no sale del
+     * teléfono. Solo conteos, filtrados por la lista blanca cerrada.
+     */
+    @Provides
+    fun provideGuardadoCanceladoPort(): GuardadoCanceladoPort =
+        GuardadoCanceladoPort { fase, escritas, cuentas ->
+            TelemetriaDeVisitas.emitir(
+                TelemetriaDeVisitas.EVENTO_GUARDADO_CANCELADO,
+                TelemetriaDeVisitas.guardadoCancelado(
+                    escritas = escritas,
+                    cuentas = cuentas,
+                    enUbicacion = fase == FaseDelGuardado.UBICACION
+                )
+            )
+        }
+
+    /**
+     * H-r4-5: el reintento congelado que escribe cuentas ausentes sale por
+     * [TelemetriaDeVisitas]. Solo el conteo, filtrado por la lista blanca.
+     */
+    @Provides
+    fun provideCuentaAusentePort(): CuentaAusentePort = CuentaAusentePort { cuantas ->
+        TelemetriaDeVisitas.emitir(
+            TelemetriaDeVisitas.EVENTO_CUENTA_AUSENTE,
+            TelemetriaDeVisitas.cuentaAusente(cuantas)
+        )
+    }
 }

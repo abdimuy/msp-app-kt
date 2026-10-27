@@ -54,10 +54,10 @@ class CatalogoDelMenuTest {
     fun `los contadores se pegan a su opcion`() {
         val secciones = CatalogoDelMenu.secciones(
             listOf("COBRO"),
-            mapOf(IdsDelMenu.CLIENTES to "8 por volver")
+            mapOf(IdsDelMenu.CLIENTES to "8 por visitar")
         )
         assertEquals(
-            "8 por volver",
+            "8 por visitar",
             secciones.single().items.single {
                 it.id == IdsDelMenu.CLIENTES
             }.contador

@@ -178,3 +178,39 @@ interface RecomendacionesPort {
 interface UbicacionPort {
     suspend fun ubicacionActual(): UbicacionDeLaVisita?
 }
+
+/** Dónde estaba el guardado cuando se canceló (E-APP-078). */
+enum class FaseDelGuardado {
+    /** Esperando la ubicación: todavía no se intentó escribir ninguna cuenta. */
+    UBICACION,
+
+    /** Escribiendo las cuentas: [GuardadoCanceladoPort.cancelado] dice cuántas quedaron. */
+    CUENTAS
+}
+
+/**
+ * Avisa a la oficina que un guardado de visita se canceló (E-APP-078).
+ *
+ * Existe porque el puerto `Telemetry` termina hoy en `StubTelemetrySink` y no
+ * sale del teléfono; lo que llega a la oficina es `RemoteLogger`, que vive en
+ * `:app` (`TelemetriaDeVisitas`). Solo conteos: nunca ids, nombres ni montos.
+ *
+ * **No es suspend y no lanza:** se llama desde el `catch` de una cancelación,
+ * donde suspender ya no es posible.
+ */
+fun interface GuardadoCanceladoPort {
+    fun cancelado(fase: FaseDelGuardado, escritas: Int, cuentas: Int)
+}
+
+/**
+ * Avisa a la oficina que un reintento con la selección congelada escribe
+ * cuentas que ya no están en el teléfono (H-r4-5): el sync las quitó después
+ * del primer guardado, la pantalla ya no las pinta y la visita se escribe igual.
+ * El comportamiento no cambia; esto deja el rastro.
+ *
+ * Mismo camino que [GuardadoCanceladoPort] (`TelemetriaDeVisitas`, `:app`).
+ * **Solo el conteo:** la lista blanca descarta ids por diseño. No lanza.
+ */
+fun interface CuentaAusentePort {
+    fun ausentes(cuantas: Int)
+}

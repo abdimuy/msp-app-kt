@@ -8,14 +8,16 @@ import org.junit.Rule
 import org.junit.Test
 
 private const val SCHEMA_TEST_DB = "schema-integrity-test.db"
-private const val LATEST_SCHEMA_VERSION = 33
+private const val LATEST_SCHEMA_VERSION = 35
 
 /**
- * Guardia de drift de esquema sobre v33 (buscador de clientes, ver el KDoc de
+ * Guardia de drift de esquema sobre v35 (`Visit.CONFIRMADA_EN`/`RESGUARDADA_EN`,
+ * ver el KDoc de `MIGRATION_34_35`; v34 `envio_diagnostico`, ver el KDoc de
+ * `MIGRATION_33_34`; v33 el buscador de clientes, ver el KDoc de
  * `MIGRATION_32_33`; v31 la trajo el candado único del nivel 1 — ver el KDoc
  * de `MIGRATION_30_31` —, v32 el estado del servidor y la cola de
  * correcciones remotas del nivel 2 — ver el KDoc de `MIGRATION_31_32`).
- * `MigrationTestHelper` lee `core/database/schemas/.../33.json` (el
+ * `MigrationTestHelper` lee `core/database/schemas/.../35.json` (el
  * commiteado por `exportSchema`, ver `build.gradle.kts` de este módulo para
  * el wiring de `sourceSets.test.assets`), crea una base a partir de ese JSON
  * y valida que "migrar" a la misma versión (sin migraciones,
@@ -44,7 +46,7 @@ class SchemaIntegrityTest : RobolectricTestBase() {
     )
 
     @Test
-    fun `el 33 json exportado coincide con el esquema real de AppDatabase`() {
+    fun `el 35 json exportado coincide con el esquema real de AppDatabase`() {
         migrationTestHelper.createDatabase(SCHEMA_TEST_DB, LATEST_SCHEMA_VERSION).close()
 
         migrationTestHelper.runMigrationsAndValidate(SCHEMA_TEST_DB, LATEST_SCHEMA_VERSION, true)

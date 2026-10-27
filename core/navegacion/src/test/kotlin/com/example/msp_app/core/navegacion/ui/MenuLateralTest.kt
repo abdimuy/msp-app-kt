@@ -165,7 +165,7 @@ class MenuLateralTest : RobolectricTestBase() {
     @Test
     fun `el contador se pinta junto a su opcion`() {
         montar()
-        compose.onNodeWithText("8 por volver").assertExists()
+        compose.onNodeWithText("8 por visitar").assertExists()
     }
 
     @Test

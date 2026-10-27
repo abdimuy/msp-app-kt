@@ -5,6 +5,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface VisitDao {
@@ -28,7 +30,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -68,7 +72,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -100,12 +106,22 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 0
         """
     )
     suspend fun getPendingVisits(): List<VisitEntity>
+
+    /**
+     * Cuántas visitas siguen sin enviar —el mismo filtro que [getPendingVisits]—,
+     * observadas. La lee el aviso de Inicio "N sin enviar · no cambies de
+     * teléfono" (E-APP-096). Solo lectura.
+     */
+    @Query("SELECT COUNT(*) FROM Visit WHERE GUARDADO_EN_MICROSIP = 0")
+    fun observarSinEnviar(): Flow<Int>
 
     @Query(
         """
@@ -127,7 +143,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE FECHA >= :start AND FECHA < :end
         ORDER BY FECHA DESC
@@ -169,7 +187,9 @@ interface VisitDao {
             PROMESA_FECHA,
             PROMESA_MONTO_CENTAVOS,
             CITA_FECHA,
-            CITA_HORA
+            CITA_HORA,
+            CONFIRMADA_EN,
+            RESGUARDADA_EN
         FROM Visit
         WHERE CLIENTE_ID = :clienteId
         ORDER BY FECHA DESC
@@ -235,12 +255,145 @@ interface VisitDao {
     )
     suspend fun markSyncedByIds(ids: List<String>): Int
 
+    // ─── Entrega con prueba del servidor (spec visitas §4.2-1/-7) ─────────────
+    // Estas cuatro son las ÚNICAS que escriben CONFIRMADA_EN/RESGUARDADA_EN con un
+    // valor (lo guarda EscritoresDeEntregaTest). Como markSyncedByIds, cada
+    // `IN (:ids)` liga un parámetro por id: el llamador acota la tanda por
+    // debajo de SQLITE_MAX_VARIABLE_NUMBER = 999.
+
+    /**
+     * El servidor CONFIRMÓ [ids] (by-ids o GET de existencia completa): suelta
+     * la visita y deja la prueba en `CONFIRMADA_EN`. Conserva la retención por
+     * foto de [markSyncedByIds]: una visita con un comprobante sin `SUBIDA_EN`
+     * no se toca.
+     *
+     * ## La marca es la PRIMERA prueba y no se rejuvenece (E-VIS-028)
+     *
+     * `COALESCE(CONFIRMADA_EN, :ahora)`: una visita que ya estaba confirmada
+     * conserva su instante. La reconciliación inversa (Tarea 13) vuelve a
+     * confirmar cada día las confirmadas de los últimos 30; con `SET
+     * CONFIRMADA_EN = :ahora` a secas la marca se movía a "hoy" en cada
+     * corrida, la visita nunca envejecía y la poda de [deleteUploadedVisits]
+     * no la borraba jamás. Se resolvió en la escritura y no filtrando con
+     * `CONFIRMADA_EN IS NULL` en el `WHERE` a propósito: así la fila sigue
+     * contando, y un conteo menor al pedido sigue significando solo
+     * "retenida por foto". El otro llamador, `RoomPendingVisitsStore
+     * .markSynced`, solo pasa pendientes (`CONFIRMADA_EN` nulo, lo limpia
+     * [devolverAPendiente]): para él no cambia nada.
+     *
+     * @return filas que tocó (las ya confirmadas cuentan).
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = COALESCE(CONFIRMADA_EN, :ahora),
+            RESGUARDADA_EN = NULL
+        WHERE ID IN (:ids)
+          AND ID NOT IN (SELECT VISITA_ID FROM visita_imagenes WHERE SUBIDA_EN IS NULL)
+        """
+    )
+    suspend fun confirmar(ids: List<String>, ahora: String): Int
+
+    /**
+     * Igual que [confirmar] para una sola visita, sin la retención por foto: el
+     * worker acaba de subir en el mismo request las fotos que viajaron.
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = :ahora, RESGUARDADA_EN = NULL
+        WHERE ID = :id
+        """
+    )
+    suspend fun confirmarTrasSubida(id: String, ahora: String): Int
+
+    /**
+     * [confirmarTrasSubida] con la carrera cerrada en el mismo UPDATE: no
+     * confirma si la visita tiene una foto pendiente que no está en
+     * [conocidas] (las pendientes que el worker leyó al empezar, omitidas
+     * incluidas). `RegistroDeVisitaAdapter.guardar` confirma la Visit y
+     * DESPUÉS inserta sus fotos, y con WAL una relectura previa no espera el
+     * candado de escritura: un `insertAll` encolado entra entre la relectura y
+     * esta marca. La condición la evalúa SQLite dentro de la escritura.
+     * `IN ()` con [conocidas] vacía es válido en SQLite (ninguna conocida).
+     *
+     * @return filas que cambiaron; 0 = no confirmó (el worker reintenta).
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, CONFIRMADA_EN = :ahora, RESGUARDADA_EN = NULL
+        WHERE ID = :id
+          AND NOT EXISTS (
+            SELECT 1 FROM visita_imagenes
+            WHERE VISITA_ID = :id AND SUBIDA_EN IS NULL AND ID NOT IN (:conocidas)
+          )
+        """
+    )
+    suspend fun confirmarTrasSubidaSiNoHayFotosNuevas(
+        id: String,
+        ahora: String,
+        conocidas: List<String>
+    ): Int
+
+    /**
+     * El servidor la RESGUARDÓ en la bandeja (`X-Intent-Captured`). Nunca pisa
+     * una visita ya confirmada.
+     */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1, RESGUARDADA_EN = :ahora
+        WHERE ID = :id AND CONFIRMADA_EN IS NULL
+        """
+    )
+    suspend fun resguardar(id: String, ahora: String): Int
+
+    /** La reconciliación inversa no la encontró en el servidor: vuelve a la cola. */
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 0, CONFIRMADA_EN = NULL, RESGUARDADA_EN = NULL
+        WHERE ID IN (:ids)
+        """
+    )
+    suspend fun devolverAPendiente(ids: List<String>): Int
+
+    /** Todas las pendientes, sin tope ni azar, de la más vieja a la más nueva. */
+    @Query("SELECT ID FROM Visit WHERE GUARDADO_EN_MICROSIP = 0 ORDER BY FECHA ASC, ID ASC")
+    suspend fun pendientesOrdenadas(): List<String>
+
+    /**
+     * Las soltadas que la reconciliación inversa debe revisar: las confirmadas
+     * en o después de [desde] y **todas** las legadas sin confirmar
+     * (`CONFIRMADA_EN` nulo tras la 34→35). Las resguardadas no: están en la
+     * bandeja, no en `MSP_VISITAS`.
+     */
+    @Query(
+        """
+        SELECT ID FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND RESGUARDADA_EN IS NULL
+          AND (CONFIRMADA_EN IS NULL OR CONFIRMADA_EN >= :desde)
+        ORDER BY FECHA ASC, ID ASC
+        """
+    )
+    suspend fun entregadasDesde(desde: String): List<String>
+
     @Query("DELETE FROM Visit")
     suspend fun deleteAllVisits()
 
     /**
-     * Prunes only visitas already confirmed by the server (GUARDADO_EN_MICROSIP = 1)
-     * **and that no longer carry a local-only commitment**.
+     * Prunes only visitas the server PROVED it has —`CONFIRMADA_EN` older than
+     * [confirmadasAntesDe]— or that it holds in the failed-intents tray
+     * —`RESGUARDADA_EN` older than [resguardadasAntesDe]— **and that no longer
+     * carry a local-only commitment**.
+     *
+     * ## Por qué exige la marca (spec visitas §4.2-8, cierra H2; plan P1 Tarea 12)
+     *
+     * `GUARDADO_EN_MICROSIP = 1` a secas NO prueba nada: el envío anterior a
+     * v35 lo ponía también tras respuestas que no traían la visita (E-VIS-001).
+     * Una legada con las dos marcas nulas no se poda aquí: la reconciliación
+     * inversa (Tarea 13) la confirma —y entonces corre la ventana de 30 días— o
+     * la devuelve a pendiente. Podarla antes borraba la única copia de una
+     * visita que el servidor quizá nunca recibió (Review Focus 2,
+     * `VisitDaoPodaTest.podaNoBorraEntregadaLegadaSinConfirmar`). Los límites
+     * los calcula `ReglaDePoda` (DA-4).
      * Unlike [deleteAllVisits], this never touches a visita still pending upload —
      * see [com.example.msp_app.features.sales.viewmodels.SalesViewModel.syncSales].
      *
@@ -257,7 +410,7 @@ interface VisitDao {
      * medir si se cumplió.
      *
      * La condición se lee: *"borra la visita subida cuyo compromiso más lejano
-     * ya quedó antes de [conservarDesde]"*. `MAX(...)` es el escalar de dos
+     * ya quedó antes de [conservarCompromisosDesde]"*. `MAX(...)` es el escalar de dos
      * argumentos de SQLite, y los `COALESCE(..., '')` hacen que una visita SIN
      * compromiso (las dos columnas en `NULL`) dé `''`, que es menor que
      * cualquier fecha `yyyy-MM-dd` — o sea que se poda igual que antes. **El
@@ -285,22 +438,104 @@ interface VisitDao {
      * nadie la reintenta— clavaría su visita en la tabla para siempre, que es un
      * defecto peor que el que se está cerrando.
      *
-     * @param conservarDesde fecha de corte en formato de cable (`yyyy-MM-dd`).
+     * @param confirmadasAntesDe instante de corte (`AppTime.toWireFormat`): una
+     *   confirmada en ese instante o después SOBREVIVE.
+     * @param resguardadasAntesDe instante de corte: una resguardada en ese
+     *   instante o después SOBREVIVE.
+     * @param conservarCompromisosDesde fecha de corte en formato de cable (`yyyy-MM-dd`).
      *   Una visita cuyo compromiso caiga en ese día o después SOBREVIVE.
      * @param comprobantesDesde instante de corte en formato de cable de `AppTime`
      *   (`ISO_INSTANT`, UTC, ancho fijo — comparable como texto). Una visita con
      *   un comprobante pendiente creado en ese instante o después SOBREVIVE.
+     * @param protegidas visitas que NO se podan, sea cual sea su edad: las que
+     *   tienen una foto sin subir con archivo local y no están resguardadas
+     *   (E-VIS-032, R2; la calcula `VisitsLocalDataSource`). El llamador la
+     *   mantiene por debajo del tope de 999 parámetros; `IN ()` vacío es válido.
      */
     @Query(
         """
         DELETE FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 1
-          AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarDesde
+          AND (
+                (CONFIRMADA_EN IS NOT NULL AND CONFIRMADA_EN < :confirmadasAntesDe)
+             OR (RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL
+                 AND RESGUARDADA_EN < :resguardadasAntesDe)
+          )
           AND ID NOT IN (
               SELECT VISITA_ID FROM visita_imagenes
               WHERE SUBIDA_EN IS NULL AND CREADA_EN >= :comprobantesDesde
           )
+          AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarCompromisosDesde
+          AND ID NOT IN (:protegidas)
         """
     )
-    suspend fun deleteUploadedVisits(conservarDesde: String, comprobantesDesde: String)
+    suspend fun deleteUploadedVisits(
+        confirmadasAntesDe: String,
+        resguardadasAntesDe: String,
+        comprobantesDesde: String,
+        conservarCompromisosDesde: String,
+        protegidas: List<String>
+    )
+
+    /**
+     * Las fotos sin `SUBIDA_EN` de visitas soltadas que NO están resguardadas
+     * (confirmadas y legadas). `VisitsLocalDataSource.deleteUploadedVisits`
+     * mira cuáles conservan su archivo y protege sus visitas de la poda sin
+     * importar la edad (E-VIS-032, R2). Solo lectura.
+     */
+    @Query(
+        """
+        SELECT i.* FROM visita_imagenes i JOIN Visit v ON v.ID = i.VISITA_ID
+        WHERE v.GUARDADO_EN_MICROSIP = 1 AND v.RESGUARDADA_EN IS NULL AND i.SUBIDA_EN IS NULL
+        """
+    )
+    suspend fun fotosSinSubirDeNoResguardadas(): List<VisitImageEntity>
+
+    /**
+     * Cuántas resguardadas ya rebasaron [antesDe] (la segunda rama de
+     * [deleteUploadedVisits]): se reportan ANTES de podarlas (spec visitas
+     * §4.2-8). Cuenta de más a propósito —ignora compromisos y fotos que la
+     * poda todavía respeta—: el reporte nunca se queda corto.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL
+          AND RESGUARDADA_EN < :antesDe
+        """
+    )
+    suspend fun resguardadasPorPodar(antesDe: String): Int
+
+    /**
+     * Conteos para la telemetría de visitas (plan visitas P1, Tarea 14, H14).
+     * Solo lectura; no participa en ninguna decisión de envío.
+     * [desde24h] en formato de cable de `AppTime`.
+     */
+    @Query(
+        """
+        SELECT
+            COALESCE(SUM(GUARDADO_EN_MICROSIP = 0), 0) AS pendientes,
+            MIN(CASE WHEN GUARDADO_EN_MICROSIP = 0 THEN FECHA END) AS masVieja,
+            COALESCE(SUM(RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL), 0) AS resguardadas,
+            COALESCE(SUM(CONFIRMADA_EN IS NOT NULL AND CONFIRMADA_EN >= :desde24h), 0) AS confirmadas24h
+        FROM Visit
+        """
+    )
+    suspend fun conteosDeEnvio(desde24h: String): ConteosDeEnvio
+
+    /**
+     * Lo que muestra la pantalla de pendientes (Tarea 14; spec §4.4): las
+     * pendientes y las resguardadas sin confirmar ("en revisión de oficina"),
+     * de la más vieja a la más nueva. Solo pinta.
+     */
+    @Query(
+        """
+        SELECT * FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 0
+           OR (RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL)
+        ORDER BY FECHA ASC, ID ASC
+        """
+    )
+    suspend fun paraPantallaDeEnvio(): List<VisitEntity>
 }

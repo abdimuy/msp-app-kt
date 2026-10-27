@@ -1,7 +1,6 @@
 package com.example.msp_app.core.logging
 
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.common.time.AppClock
@@ -77,19 +76,16 @@ class RemoteLogger private constructor(private val context: Context) {
                 val currentUser = auth.currentUser
                 val timestamp = remoteLoggerTimestampString(clock)
 
-                val logEntry = hashMapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "timestamp" to com.google.firebase.Timestamp.now(),
-                    "timestampString" to timestamp,
-                    "module" to module,
-                    "action" to action,
-                    "level" to level.name,
-                    "message" to message,
-                    "userId" to (currentUser?.uid ?: "anonymous"),
-                    "userEmail" to (currentUser?.email ?: "anonymous"),
-                    "deviceInfo" to getDeviceInfo(),
-                    "appVersion" to BuildConfig.VERSION_NAME,
-                    "data" to data.filterValues { it != null }
+                val logEntry = entradaDeLog(
+                    timestamp = com.google.firebase.Timestamp.now(),
+                    timestampString = timestamp,
+                    module = module,
+                    action = action,
+                    level = level,
+                    message = message,
+                    uid = currentUser?.uid,
+                    correo = currentUser?.email,
+                    data = data
                 )
 
                 // Agregar stack trace si hay error
@@ -132,17 +128,14 @@ class RemoteLogger private constructor(private val context: Context) {
             try {
                 val currentUser = auth.currentUser
 
-                val eventEntry = hashMapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "timestamp" to com.google.firebase.Timestamp.now(),
-                    "module" to module,
-                    "eventType" to eventType.name,
-                    "eventName" to eventName,
-                    "userId" to (currentUser?.uid ?: "anonymous"),
-                    "userEmail" to (currentUser?.email ?: "anonymous"),
-                    "deviceInfo" to getDeviceInfo(),
-                    "appVersion" to BuildConfig.VERSION_NAME,
-                    "data" to data.filterValues { it != null }
+                val eventEntry = entradaDeEvento(
+                    timestamp = com.google.firebase.Timestamp.now(),
+                    module = module,
+                    eventType = eventType,
+                    eventName = eventName,
+                    uid = currentUser?.uid,
+                    correo = currentUser?.email,
+                    data = data
                 )
 
                 firestore.collection(EVENTS_COLLECTION)
@@ -238,20 +231,6 @@ class RemoteLogger private constructor(private val context: Context) {
             eventType = EventType.USER_ACTION,
             eventName = action,
             data = data
-        )
-    }
-
-    /**
-     * Información del dispositivo
-     */
-    private fun getDeviceInfo(): Map<String, String> {
-        return mapOf(
-            "manufacturer" to Build.MANUFACTURER,
-            "model" to Build.MODEL,
-            "brand" to Build.BRAND,
-            "device" to Build.DEVICE,
-            "androidVersion" to Build.VERSION.RELEASE,
-            "sdkVersion" to Build.VERSION.SDK_INT.toString()
         )
     }
 
@@ -419,3 +398,68 @@ fun RemoteLogger.logReportSnapshot(
         )
     }
 }
+
+/**
+ * El sobre de identidad que [RemoteLogger] pone a TODO documento de
+ * `app_logs`, `app_errors` y `app_events` (decisión del coordinador,
+ * 2026-10-17, informada al dueño, que puede cambiarla; plan visitas P1,
+ * revisión de la Tarea 14):
+ *
+ * - `userId`: el uid de Firebase del empleado, como seudónimo.
+ * - `userEmail`: el correo del empleado. **Se conserva** porque hoy es la única
+ *   medida de adopción del canario: el runbook P1, paso 3, lee la versión por
+ *   correo en `app_logs`/`app_events`. Nota (no es tarea): en P3 se
+ *   reconsidera quitarlo junto con un tablero de adopción por uid.
+ * - `appVersion`.
+ *
+ * `deviceInfo` (fabricante, modelo, marca, versión de Android) **se quitó**: nadie
+ * lo leía (grep en msp-app-kt, msp-api, sistema-cobro-web y sys_msp_backend,
+ * 2026-10-17). `RemoteLoggerSobreTest` fija las claves exactas.
+ */
+internal fun sobreDeIdentidad(uid: String?, correo: String?): Map<String, Any> = linkedMapOf(
+    "userId" to (uid ?: "anonymous"),
+    "userEmail" to (correo ?: "anonymous"),
+    "appVersion" to BuildConfig.VERSION_NAME
+)
+
+/** Documento de `app_logs`/`app_errors`. Puro, para probar sus claves sin Firebase. */
+@Suppress("LongParameterList")
+internal fun entradaDeLog(
+    timestamp: Any,
+    timestampString: String,
+    module: String,
+    action: String,
+    level: RemoteLogger.LogLevel,
+    message: String,
+    uid: String?,
+    correo: String?,
+    data: Map<String, Any?>
+): HashMap<String, Any> = hashMapOf<String, Any>(
+    "id" to UUID.randomUUID().toString(),
+    "timestamp" to timestamp,
+    "timestampString" to timestampString,
+    "module" to module,
+    "action" to action,
+    "level" to level.name,
+    "message" to message,
+    "data" to data.filterValues { it != null }
+).apply { putAll(sobreDeIdentidad(uid, correo)) }
+
+/** Documento de `app_events`. Puro, para probar sus claves sin Firebase. */
+@Suppress("LongParameterList")
+internal fun entradaDeEvento(
+    timestamp: Any,
+    module: String,
+    eventType: RemoteLogger.EventType,
+    eventName: String,
+    uid: String?,
+    correo: String?,
+    data: Map<String, Any?>
+): HashMap<String, Any> = hashMapOf<String, Any>(
+    "id" to UUID.randomUUID().toString(),
+    "timestamp" to timestamp,
+    "module" to module,
+    "eventType" to eventType.name,
+    "eventName" to eventName,
+    "data" to data.filterValues { it != null }
+).apply { putAll(sobreDeIdentidad(uid, correo)) }

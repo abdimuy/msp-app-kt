@@ -114,37 +114,40 @@ class ListaDeClientesViewModelTest {
     )
 
     /**
-     * **La pantalla abre en *sin visitar*.**
+     * **La pantalla abre en *Por visitar*.**
      *
-     * No es cosmética: con `TODOS` retirado la lista arranca siempre filtrada, y
-     * el chip que la abre decide qué es lo primero que ve el cobrador al entrar.
-     * *Sin visitar* es "las puertas que nadie ha tocado esta semana", que es el
-     * trabajo con el que empieza el día.
+     * No es cosmética: la lista arranca siempre filtrada, y la pastilla que la
+     * abre decide qué es lo primero que ve el cobrador al entrar. *Por visitar*
+     * son las puertas a las que le toca pasar, que es el trabajo con el que
+     * empieza el día (E-APP-070).
      *
      * Se afirman las **dos** mitades —el chip y las filas que produce—: un default
      * puesto en el `UiState` pero no respetado por la proyección pintaría un chip
      * que no corresponde a la lista de abajo.
      */
     @Test
-    fun `arranca cargando, abre en sin visitar y termina con la ruta ordenada`() =
+    fun `arranca cargando, abre en Por visitar y termina con la ruta ordenada`() =
         runTest(testDispatcher) {
             val vm = viewModel()
             assertTrue(vm.state.value.cargando)
-            assertEquals(SegmentoDeCobranza.SIN_VISITAR, vm.state.value.segmento)
+            assertEquals(SegmentoDeCobranza.POR_VISITAR, vm.state.value.segmento)
 
             advanceUntilIdle()
             val state = vm.state.value
             assertFalse(state.cargando)
             assertFalse(state.fallo)
-            assertEquals(SegmentoDeCobranza.SIN_VISITAR, state.segmento)
+            assertEquals(SegmentoDeCobranza.POR_VISITAR, state.segmento)
             assertEquals(
-                listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+                listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA, ListaFixtures.GUADALUPE),
                 state.clientes.map { it.clienteId }
             )
             // Control positivo del filtro: la ruta entera SÍ se cargó. Lo que
-            // falta de la lista lo esconde el chip, no una lectura corta —
-            // Guadalupe se negó y vive en *después*.
-            assertEquals(1, state.conteos[SegmentoDeCobranza.YA_NO_ESTA_SEMANA])
+            // falta de la lista lo esconde la pastilla, no una lectura corta —
+            // Guadalupe se negó y también es Por visitar (E-APP-070). Este
+            // arnés no carga pagos, así que Pagados y No paga están vacías.
+            assertEquals(3, state.conteos[SegmentoDeCobranza.POR_VISITAR])
+            assertEquals(0, state.conteos[SegmentoDeCobranza.NO_PAGA])
+            assertEquals(0, state.conteos[SegmentoDeCobranza.PAGADOS])
         }
 
     @Test
@@ -170,11 +173,14 @@ class ListaDeClientesViewModelTest {
         val vm = viewModel()
         advanceUntilIdle()
 
-        vm.elegirSegmento(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        // Control positivo: la pastilla de arranque trae a las tres puertas.
+        assertEquals(3, vm.state.value.clientes.size)
+
+        vm.elegirSegmento(SegmentoDeCobranza.NO_PAGA)
         advanceUntilIdle() // ver el comentario del test de arriba (derivación de `state`)
-        assertEquals(SegmentoDeCobranza.YA_NO_ESTA_SEMANA, vm.state.value.segmento)
-        // Solo Guadalupe tiene una visita en la ventana, y dice que se negó.
-        assertEquals(listOf(ListaFixtures.GUADALUPE), vm.state.value.clientes.map { it.clienteId })
+        assertEquals(SegmentoDeCobranza.NO_PAGA, vm.state.value.segmento)
+        // Nadie de esta ruta prometió a futuro: el filtro vacía la lista.
+        assertEquals(emptyList<Int>(), vm.state.value.clientes.map { it.clienteId })
         assertEquals(1, ventasPort.lecturasDeTodas)
     }
 
@@ -197,20 +203,70 @@ class ListaDeClientesViewModelTest {
             io = testDispatcher
         )
         advanceUntilIdle()
-        // Control positivo: nada guardado todavía, así que el ordinal de abajo no
+        // Control positivo: nada guardado todavía, así que el nombre de abajo no
         // puede venir de un valor que ya estuviera ahí.
-        assertEquals(null, handle.get<Int>("pagos_lista_segmento"))
+        assertEquals(null, handle.get<String>("pagos_lista_columna"))
 
         vm.buscar("Flores")
-        // **No** `SIN_VISITAR`: es el chip por defecto y su `ordinal` es 0, así
-        // que guardarlo no distinguiría "se guardó" de "nunca se guardó nada".
+        // **No** `POR_VISITAR`: es la pastilla por defecto, y guardarla no
+        // distinguiría "se guardó" de "nunca se guardó nada".
         vm.elegirSegmento(SegmentoDeCobranza.PAGADOS)
 
         assertEquals("Flores", handle.get<String>("pagos_lista_query"))
-        assertEquals(
-            SegmentoDeCobranza.PAGADOS.ordinal,
-            handle.get<Int>("pagos_lista_segmento")
-        )
+        assertEquals("PAGADOS", handle.get<String>("pagos_lista_columna"))
+    }
+
+    private fun viewModelCon(handle: SavedStateHandle) = ListaDeClientesViewModel(
+        savedStateHandle = handle,
+        reunirCartera = ReunirCartera(
+            ventasPort = ventasPort,
+            pagosPort = pagosPort,
+            visitasPort = visitasPort,
+            resolverVentanaDeCobro = ResolverVentanaDeCobro(periodoPort, clock),
+            derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
+            telemetry = telemetria
+        ),
+        toggles = TogglesDeCabecera(temaPort, FakePrivacidadPort()),
+        controladorDeOrden = controladorDeOrden(),
+        telemetry = telemetria,
+        io = testDispatcher
+    )
+
+    /**
+     * E-APP-070 (Review Focus 5): 2.20.0 guardaba el ORDINAL del chip en
+     * `pagos_lista_segmento`; 3 era PAGADOS de cuatro chips y hoy no existe ese
+     * índice. La clave nueva es otra, así que el entero viejo no se lee.
+     */
+    @Test
+    fun `E-APP-070 un chip guardado por ordinal en la version anterior no restaura otra columna`() =
+        runTest(testDispatcher) {
+            for (ordinalViejo in 0..3) {
+                val handle = SavedStateHandle(mapOf("pagos_lista_segmento" to ordinalViejo))
+                val vm = viewModelCon(handle)
+                advanceUntilIdle()
+                assertEquals(SegmentoDeCobranza.POR_VISITAR, vm.state.value.segmento)
+            }
+        }
+
+    @Test
+    fun `E-APP-070 un nombre guardado desconocido cae en Por visitar`() = runTest(testDispatcher) {
+        val handle = SavedStateHandle(mapOf("pagos_lista_columna" to "VOLVER_A_VISITAR"))
+        val vm = viewModelCon(handle)
+        advanceUntilIdle()
+        assertEquals(SegmentoDeCobranza.POR_VISITAR, vm.state.value.segmento)
+    }
+
+    @Test
+    fun `E-APP-070 el chip elegido se guarda por nombre y se restaura`() = runTest(testDispatcher) {
+        val handle = SavedStateHandle()
+        val primero = viewModelCon(handle)
+        advanceUntilIdle()
+        primero.elegirSegmento(SegmentoDeCobranza.NO_PAGA)
+        assertEquals("NO_PAGA", handle.get<String>("pagos_lista_columna"))
+
+        val segundo = viewModelCon(handle)
+        advanceUntilIdle()
+        assertEquals(SegmentoDeCobranza.NO_PAGA, segundo.state.value.segmento)
     }
 
     @Test
@@ -241,9 +297,9 @@ class ListaDeClientesViewModelTest {
         vm.cargar()
         advanceUntilIdle()
         assertFalse(vm.state.value.fallo)
-        // Dos: la ruta tiene tres puertas y el chip de arranque —*sin visitar*—
-        // deja fuera a Guadalupe, que se negó.
-        assertEquals(2, vm.state.value.clientes.size)
+        // Tres: la ruta tiene tres puertas y las tres piden pasar (E-APP-070:
+        // Guadalupe, que se negó, también es Por visitar).
+        assertEquals(3, vm.state.value.clientes.size)
     }
 
     @Test
@@ -282,14 +338,14 @@ class ListaDeClientesViewModelTest {
     fun `recargar vuelve a leer la ruta`() = runTest(testDispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
-        assertEquals(2, vm.state.value.clientes.size)
+        assertEquals(3, vm.state.value.clientes.size)
 
         ventasPort.ventas = ventasPort.ventas + ventaDeEsperanza()
 
         vm.recargar()
         advanceUntilIdle()
 
-        assertEquals(3, vm.state.value.clientes.size)
+        assertEquals(4, vm.state.value.clientes.size)
     }
 
     /**
@@ -368,7 +424,7 @@ class ListaDeClientesViewModelTest {
     // --- Orden (hoja "Ordenar por", decisión del dueño 2026-10-05) -----------
 
     /**
-     * Bajo *sin visitar* cobranza pone a Ricardo primero (su venta es la más
+     * Bajo *Por visitar* cobranza pone a Ricardo primero (su venta es la más
      * vieja sin abonos). Victoria debe $7,600 contra los $4,300 de Ricardo, así
      * que "Mayor saldo" la pone primero — el control positivo de que SÍ
      * reproyectó con el orden nuevo, y no sólo cambió el campo del estado.
@@ -379,7 +435,7 @@ class ListaDeClientesViewModelTest {
         advanceUntilIdle()
         assertEquals(OrdenDeLaLista.COBRANZA, vm.state.value.orden)
         assertEquals(
-            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA, ListaFixtures.GUADALUPE),
             vm.state.value.clientes.map { it.clienteId }
         )
 
@@ -388,7 +444,7 @@ class ListaDeClientesViewModelTest {
 
         assertEquals(OrdenDeLaLista.MAYOR_SALDO, vm.state.value.orden)
         assertEquals(
-            listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO),
+            listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO, ListaFixtures.GUADALUPE),
             vm.state.value.clientes.map { it.clienteId }
         )
     }
@@ -544,7 +600,7 @@ class ListaDeClientesViewModelTest {
 
         assertTrue(vm.state.value.avisoSinUbicacion)
         assertEquals(
-            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA, ListaFixtures.GUADALUPE),
             vm.state.value.clientes.map { it.clienteId }
         )
     }
@@ -596,7 +652,7 @@ class ListaDeClientesViewModelTest {
         // aunque el GPS (el `espera` sin soltar) no haya contestado.
         assertFalse("no debe quedarse 'cargando' esperando al GPS", vm.state.value.cargando)
         assertEquals(
-            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA, ListaFixtures.GUADALUPE),
             vm.state.value.clientes.map { it.clienteId }
         )
 
@@ -609,7 +665,7 @@ class ListaDeClientesViewModelTest {
         assertFalse(vm.state.value.avisoSinUbicacion)
         assertEquals(1, cercaniaPort.lecturas)
         assertEquals(
-            listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO),
+            listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO, ListaFixtures.GUADALUPE),
             vm.state.value.clientes.map { it.clienteId }
         )
     }

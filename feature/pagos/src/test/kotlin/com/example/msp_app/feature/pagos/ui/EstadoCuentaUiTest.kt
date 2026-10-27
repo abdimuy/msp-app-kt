@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.ui.graphics.Color
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.money.Money
@@ -299,5 +300,66 @@ class EstadoCuentaUiTest {
             "Faltan 2 de 2",
             EstadoCuentaUi.avisoDeCuentas(listOf(promesa(null), promesa(null)))
         )
+    }
+
+    /**
+     * Decisión del dueño del 2026-10-16: sobre un badge sólido el texto y el
+     * ícono van **en blanco en los dos temas**. Antes era `surface`, casi negro
+     * en oscuro. "Falta pasar" no es sólido y conserva `onSurfaceMuted`.
+     */
+    @Test
+    fun `sobre el badge solido el texto va en blanco en los dos temas`() {
+        for (colores in listOf(mspLightColors(), mspDarkColors())) {
+            for (trato in TratoDelEstado.entries) {
+                val esperado =
+                    if (trato == TratoDelEstado.SIN_TRABAJAR) colores.onSurfaceMuted else Color.White
+                assertEquals("$trato", esperado, BadgeSolido.sobreSolidoDe(trato, colores))
+            }
+        }
+    }
+
+    /**
+     * Decisión del dueño del 2026-10-16 (opción B): el texto blanco sobre cada
+     * badge sólido alcanza **3:1** (WCAG, texto grande o negrita) en los dos
+     * temas. El contraste se calcula aquí con la fórmula de WCAG, no con la de
+     * Compose, para no medir el código con el código. Con los tokens pastel del
+     * tema oscuro (2.0–2.7:1) este test está en ROJO.
+     */
+    @Test
+    fun `el blanco sobre cada badge solido alcanza 3 a 1 en los dos temas`() {
+        for (colores in listOf(mspLightColors(), mspDarkColors())) {
+            for (trato in TratoDelEstado.entries - TratoDelEstado.SIN_TRABAJAR) {
+                val fondo = BadgeSolido.solidoDe(trato, colores)
+                val sobre = BadgeSolido.sobreSolidoDe(trato, colores)
+                val razon = contraste(sobre, fondo)
+                assertTrue("$trato: %.2f:1".format(razon), razon >= 3.0)
+            }
+        }
+    }
+
+    /** En claro el badge sigue usando los tokens del tema, sin tocar. */
+    @Test
+    fun `en claro el badge solido usa los tokens del tema`() {
+        val c = mspLightColors()
+        assertEquals(c.statusPaid, BadgeSolido.solidoDe(TratoDelEstado.PAGADO, c))
+        assertEquals(c.statusTeal, BadgeSolido.solidoDe(TratoDelEstado.PARCIAL, c))
+        assertEquals(c.statusPartial, BadgeSolido.solidoDe(TratoDelEstado.REGRESAS, c))
+        assertEquals(c.statusOverdue, BadgeSolido.solidoDe(TratoDelEstado.DIFERIDO, c))
+        assertEquals(c.danger, BadgeSolido.solidoDe(TratoDelEstado.ESCALAR, c))
+        assertEquals(c.promise, BadgeSolido.solidoDe(TratoDelEstado.CITA, c))
+        assertEquals(c.statusPending, BadgeSolido.solidoDe(TratoDelEstado.NADIE, c))
+        assertEquals(c.surface, BadgeSolido.solidoDe(TratoDelEstado.SIN_TRABAJAR, c))
+    }
+
+    private fun contraste(a: Color, b: Color): Double {
+        val la = luminanciaWcag(a)
+        val lb = luminanciaWcag(b)
+        return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+    }
+
+    private fun luminanciaWcag(c: Color): Double {
+        fun canal(v: Float): Double =
+            if (v <= 0.03928f) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
+        return 0.2126 * canal(c.red) + 0.7152 * canal(c.green) + 0.0722 * canal(c.blue)
     }
 }

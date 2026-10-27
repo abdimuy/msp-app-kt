@@ -1,18 +1,24 @@
 package com.example.msp_app.data.local.datasource.visit
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Transaction
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.visitas.envio.ReglaDePoda
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import com.example.msp_app.core.utils.VisitScope
 import com.example.msp_app.core.utils.VisitScopeMapper
+import com.example.msp_app.core.visitas.envio.FotoQueViaja
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
+import java.io.File
 import java.time.Duration
 import javax.inject.Inject
 
@@ -20,7 +26,12 @@ class VisitsLocalDataSource @Inject constructor(
     private val visitDao: VisitDao,
     private val saleDao: SaleDao,
     private val enqueuer: VisitsWorkEnqueuer,
-    private val clock: AppClock = AppClock.System
+    private val clock: AppClock = AppClock.System,
+    private val memoriaDePoda: MemoriaDePodaDeResguardadas = MemoriaDePodaDeResguardadas.Ninguna,
+    /** Telemetría de la poda (plan visitas P1, Tarea 14): solo el conteo. Nunca lanza. */
+    private val telemetria: (String, Map<String, Any>) -> Unit = TelemetriaDeVisitas::emitir,
+    /** E-VIS-032 (R2): si el archivo de una foto sin subir sigue en el disco. */
+    private val archivoExiste: (String) -> Boolean = { File(it).exists() }
 ) {
     /**
      * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
@@ -32,7 +43,9 @@ class VisitsLocalDataSource @Inject constructor(
     constructor(context: Context) : this(
         AppDatabase.getInstance(context).visitDao(),
         AppDatabase.getInstance(context).saleDao(),
-        VisitsWorkManagerEnqueuer(context)
+        VisitsWorkManagerEnqueuer(context),
+        AppClock.System,
+        PreferenciasDePodaDeResguardadas(context)
     )
 
     suspend fun getVisitById(id: String): VisitEntity {
@@ -46,6 +59,12 @@ class VisitsLocalDataSource @Inject constructor(
     suspend fun getPendingVisits(): List<VisitEntity> {
         return visitDao.getPendingVisits()
     }
+
+    /** Pendientes y resguardadas sin confirmar, para la pantalla de pendientes (Tarea 14). Solo pinta. */
+    suspend fun getVisitasParaPantallaDeEnvio(): List<VisitEntity> = visitDao.paraPantallaDeEnvio()
+
+    /** Ids de todas las pendientes, `FECHA ASC, ID ASC`, sin tope (E-APP-072). */
+    suspend fun getPendingVisitIdsOrdered(): List<String> = visitDao.pendientesOrdenadas()
 
     suspend fun getVisitsByDate(start: String, end: String): List<VisitEntity> {
         return visitDao.getVisitsByDate(start, end)
@@ -190,17 +209,103 @@ class VisitsLocalDataSource @Inject constructor(
      * A visita with neither promesa nor cita prunes exactly as before — the
      * `COALESCE(..., '')` in the query makes its commitment date the empty
      * string, which is below every real date.
+     *
+     * **Plan visitas P1, Tarea 12 (cierra H2).** Además, la fila tiene que estar
+     * PROBADA: confirmada por el servidor hace más de `ReglaDePoda.CONFIRMADAS_DIAS`
+     * o resguardada en la bandeja hace más de `ReglaDePoda.RESGUARDADAS_DIAS` y ya
+     * reportada en una corrida anterior ([MemoriaDePodaDeResguardadas]). Una
+     * legada con `GUARDADO_EN_MICROSIP = 1` y sin marca no se poda: espera a la
+     * reconciliación inversa.
      */
     suspend fun deleteUploadedVisits() {
+        val ahora = clock.now()
         val corte = AppTime.todayInBusinessZone(clock).minusDays(RETENCION_DE_COMPROMISOS_DIAS)
-        val corteDeComprobantes = clock.now().minus(RETENCION_DE_COMPROBANTES)
-        visitDao.deleteUploadedVisits(
-            conservarDesde = AppTime.toWireDate(corte),
-            comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes)
-        )
+        val corteDeComprobantes = ahora.minus(RETENCION_DE_COMPROBANTES)
+        val limiteResguardadas = ReglaDePoda.limiteResguardadas(ahora)
+
+        // Resguardadas: se reportan ANTES de podar (spec visitas §4.2-8). Esta
+        // corrida solo poda hasta lo que una corrida anterior ya reportó; lo
+        // que rebasa hoy se reporta y se poda en la siguiente. `minOf` evita
+        // podar más allá del límite de hoy si el reloj retrocedió.
+        val porPodar = visitDao.resguardadasPorPodar(limiteResguardadas)
+        val fotos = visitDao.fotosSinSubirDeNoResguardadas()
+        val protegidas = visitasConFotoPorSubir(fotos)
+        val queNoViajan = fotos.count {
+            FotoQueViaja.conArchivoQueNoViaja(
+                it.MIME,
+                it.URI,
+                archivoExiste
+            )
+        }
+        val pospuesta = if (protegidas.size > MAX_PROTEGIDAS) protegidas.size else 0
+        if (porPodar > 0 || queNoViajan > 0 || pospuesta > 0) {
+            // Solo conteos: ningún dato personal (Tarea 14, lista blanca de TelemetriaDeVisitas).
+            Log.w(
+                TAG,
+                "visitas.resguardadas_por_podar=$porPodar fotos_que_no_viajan=$queNoViajan " +
+                    "poda_pospuesta_protegidas=$pospuesta"
+            )
+            reportarPoda(TelemetriaDeVisitas.poda(porPodar, queNoViajan, pospuesta))
+        }
+        val reportadas = memoriaDePoda.reportadasHasta()
+        val resguardadasAntesDe = if (reportadas == null) {
+            NADA
+        } else {
+            minOf(
+                reportadas,
+                limiteResguardadas
+            )
+        }
+
+        // E-VIS-032 (R2): si las protegidas no caben en un `NOT IN`, antes que
+        // arriesgar una foto esta corrida no poda nada; se reportó arriba
+        // (visitas.poda.pospuesta_protegidas).
+        if (pospuesta == 0) {
+            visitDao.deleteUploadedVisits(
+                confirmadasAntesDe = ReglaDePoda.limiteConfirmadas(ahora),
+                resguardadasAntesDe = resguardadasAntesDe,
+                comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes),
+                conservarCompromisosDesde = AppTime.toWireDate(corte),
+                protegidas = protegidas
+            )
+        }
+        memoriaDePoda.anotarReportadasHasta(limiteResguardadas)
+    }
+
+    /**
+     * E-VIS-032 (R2): la poda NUNCA borra una visita no resguardada que tenga
+     * una foto sin `SUBIDA_EN` cuyo archivo sigue en el disco, sin importar
+     * la edad de la foto ni la de la confirmación. Antes la borraba cuando la
+     * confirmación pasaba de 30 días y la foto de 7 según el reloj del
+     * teléfono, y después el barrido de huérfanos se llevaba la fila y el
+     * archivo: la foto se perdía sin haber viajado. La foto sin archivo
+     * sigue como antes (la ventana de [RETENCION_DE_COMPROBANTES]). Desde la
+     * adenda de E-APP-079 "conserva su archivo" es [FotoQueViaja.viaja], el
+     * mismo predicado del barrido: tipo permitido Y archivo en el disco.
+     */
+    private fun visitasConFotoPorSubir(fotos: List<VisitImageEntity>): List<String> =
+        fotos.filter { FotoQueViaja.viaja(it.MIME, it.URI, archivoExiste) }
+            .map { it.VISITA_ID }
+            .distinct()
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun reportarPoda(datos: Map<String, Any>) {
+        try {
+            telemetria(TelemetriaDeVisitas.EVENTO_PODA, datos)
+        } catch (e: Exception) {
+            Log.w(TAG, "telemetria de la poda fallo; la poda sigue", e)
+        }
     }
 
     private companion object {
+        const val TAG = "VisitsLocalDataSource"
+
+        /** Ninguna marca de cable es menor que la cadena vacía: con esto no se poda ninguna resguardada. */
+        const val NADA = ""
+
+        /** Tope de `protegidas` en el `NOT IN` de la poda, por debajo de los 999 parámetros de SQLite. */
+        const val MAX_PROTEGIDAS = 900
+
         /**
          * Cuánto sobrevive una visita subida DESPUÉS de la fecha de su
          * compromiso. Noventa días cubren de sobra la ventana en que la promesa
@@ -219,7 +324,16 @@ class VisitsLocalDataSource @Inject constructor(
          * ya la puede recoger. Con dos números distintos habría un hueco en el
          * que la visita se poda y su archivo se queda, o uno en el que la visita
          * no se poda y nadie limpia nunca.
+         *
+         * Se DERIVA de [ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS]. Desde E-VIS-032 el
+         * barrido de la reconciliación inversa ya no usa esa semana para
+         * decidir (devuelve toda foto que pueda viajar, sin importar su edad);
+         * solo la usa como umbral de alerta. La poda sí la sigue usando: una
+         * confirmada con una foto sin enviar de más de una semana se poda si
+         * la inversa no la devolvió antes (residuo R2 de E-APP-079).
          */
-        val RETENCION_DE_COMPROBANTES: Duration = Duration.ofDays(7)
+        val RETENCION_DE_COMPROBANTES: Duration = Duration.ofDays(
+            ReglaDePoda.FOTOS_SIN_ENVIAR_DIAS.toLong()
+        )
     }
 }

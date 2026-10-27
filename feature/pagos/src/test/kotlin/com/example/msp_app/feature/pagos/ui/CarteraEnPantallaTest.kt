@@ -15,13 +15,12 @@ import org.junit.Test
  * El caso que manda es el de **un cliente con dos ventas que rankean
  * distinto**: es donde se decide si la lista es de puertas o de ventas.
  *
- * ## Por qué el chip por defecto de estas pruebas es *sin visitar*
+ * ## Por qué la pastilla por defecto de estas pruebas es *Por visitar*
  *
- * Porque desde que `TODOS` se retiró **no existe un chip que enseñe la ruta
- * entera**: los cuatro particionan el catálogo. *Sin visitar* es el que la
- * pantalla abre (`ListaDeClientesUiState.segmento`) y el que contiene a los dos
- * clientes de la ruta de prueba que todavía piden trabajo sin compromiso de por
- * medio, así que es el que deja comparar orden contra orden.
+ * Porque no existe una pastilla que enseñe la ruta entera: las tres particionan
+ * el catálogo (E-APP-070). *Por visitar* es la que la pantalla abre
+ * (`ListaDeClientesUiState.segmento`) y la que contiene casi toda la ruta de
+ * prueba, así que es la que deja comparar orden contra orden.
  */
 class CarteraEnPantallaTest {
 
@@ -29,7 +28,7 @@ class CarteraEnPantallaTest {
 
     private fun proyectar(
         clientes: List<ClienteEnLista> = ListaFixtures.ruta(),
-        segmento: SegmentoDeCobranza = SegmentoDeCobranza.SIN_VISITAR,
+        segmento: SegmentoDeCobranza = SegmentoDeCobranza.POR_VISITAR,
         query: String = "",
         hoy: LocalDate = hoyDePrueba
     ) = CarteraEnPantalla.proyectar(clientes, segmento, query, hoy)
@@ -50,11 +49,12 @@ class CarteraEnPantallaTest {
     @Test
     fun `el orden de cobranza se conserva dentro del chip`() {
         // Ricardo va antes que Victoria porque su venta sin abonos es de marzo y
-        // la de Victoria de agosto. Guadalupe no está: se negó, y eso vive en
-        // *después*. Que el cliente herede su posición de la MEJOR de sus ventas
-        // —y no de la peor— lo cobra el control positivo de abajo.
+        // la de Victoria de agosto; Guadalupe, que ya abonó y se negó, va al
+        // final (E-APP-070: "se negó" también es Por visitar). Que el cliente
+        // herede su posición de la MEJOR de sus ventas —y no de la peor— lo
+        // cobra el control positivo de abajo.
         assertEquals(
-            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA, ListaFixtures.GUADALUPE),
             ids(proyectar().clientes)
         )
     }
@@ -148,34 +148,47 @@ class CarteraEnPantallaTest {
 
         // Buscando, el orden es el de la FUENTE: Victoria antes que Ricardo.
         val todos = proyectar(query = "V-").clientes
-        assertEquals(listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO), ids(todos))
-        // Sin búsqueda, el mismo conjunto sale ordenado por cobranza — al revés.
         assertEquals(
-            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+            listOf(ListaFixtures.VICTORIA, ListaFixtures.RICARDO, ListaFixtures.GUADALUPE),
+            ids(todos)
+        )
+        // Sin búsqueda, el mismo conjunto sale ordenado por cobranza: Ricardo
+        // pasa a Victoria y Guadalupe queda al final.
+        assertEquals(
+            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA, ListaFixtures.GUADALUPE),
             ids(proyectar().clientes)
         )
     }
 
     /**
-     * **Los cuatro chips, sobre la misma ruta.** Es la partición vista desde la
-     * proyección: Victoria aparece en dos chips distintos —por dos ventas
-     * distintas— y nadie de la ruta se queda fuera de los cuatro.
+     * **Las tres pastillas, sobre la misma ruta** (E-APP-070). Es la partición
+     * vista desde la proyección: Victoria aparece en dos pastillas —por dos
+     * ventas distintas— y nadie de la ruta se queda fuera de las tres.
      */
     @Test
     fun `el chip filtra y el orden se conserva en cada segmento`() {
-        val sinVisitar = proyectar(segmento = SegmentoDeCobranza.SIN_VISITAR).clientes
-        assertEquals(listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA), ids(sinVisitar))
+        val ruta = ListaFixtures.rutaConTresPastillas()
 
-        // Nadie prometió ni abonó de menos en esta ruta.
-        val volver = proyectar(segmento = SegmentoDeCobranza.VOLVER_A_VISITAR).clientes
-        assertTrue(volver.isEmpty())
+        // Ricardo y Victoria sin trabajar, Esperanza con la promesa de hoy y
+        // Guadalupe, que se negó: las cuatro puertas que piden pasar.
+        val porVisitar = proyectar(ruta, SegmentoDeCobranza.POR_VISITAR).clientes
+        assertEquals(
+            setOf(
+                ListaFixtures.RICARDO,
+                ListaFixtures.VICTORIA,
+                ListaFixtures.GUADALUPE,
+                ListaFixtures.ESPERANZA
+            ),
+            ids(porVisitar).toSet()
+        )
+        assertEquals(ListaFixtures.RICARDO, porVisitar.first().clienteId)
 
-        // Guadalupe se negó.
-        val despues = proyectar(segmento = SegmentoDeCobranza.YA_NO_ESTA_SEMANA).clientes
-        assertEquals(listOf(ListaFixtures.GUADALUPE), ids(despues))
+        // Sólo la promesa con fecha posterior a hoy.
+        val noPaga = proyectar(ruta, SegmentoDeCobranza.NO_PAGA).clientes
+        assertEquals(listOf(ListaFixtures.OFELIA), ids(noPaga))
 
         // Victoria, por su OTRA venta: la que ya cobró esta semana.
-        val pagados = proyectar(segmento = SegmentoDeCobranza.PAGADOS).clientes
+        val pagados = proyectar(ruta, SegmentoDeCobranza.PAGADOS).clientes
         assertEquals(listOf(ListaFixtures.VICTORIA), ids(pagados))
     }
 
@@ -183,7 +196,7 @@ class CarteraEnPantallaTest {
     fun `el chip no recorta las ventas del cliente`() {
         // Victoria entra por su cuenta sin trabajar, pero se sigue viendo la
         // que ya cobró: el cobrador está frente a la puerta y necesita las dos.
-        val victoria = proyectar(segmento = SegmentoDeCobranza.SIN_VISITAR).clientes
+        val victoria = proyectar(segmento = SegmentoDeCobranza.POR_VISITAR).clientes
             .single { it.clienteId == ListaFixtures.VICTORIA }
         assertEquals(2, victoria.cuentas)
     }
@@ -198,9 +211,8 @@ class CarteraEnPantallaTest {
         val sinBuscar = proyectar().conteos
         assertEquals(
             mapOf(
-                SegmentoDeCobranza.SIN_VISITAR to 2,
-                SegmentoDeCobranza.VOLVER_A_VISITAR to 0,
-                SegmentoDeCobranza.YA_NO_ESTA_SEMANA to 1,
+                SegmentoDeCobranza.POR_VISITAR to 3,
+                SegmentoDeCobranza.NO_PAGA to 0,
                 SegmentoDeCobranza.PAGADOS to 1
             ),
             sinBuscar
@@ -210,12 +222,21 @@ class CarteraEnPantallaTest {
         val buscando = proyectar(query = "Zepeda").conteos
         assertEquals(
             mapOf(
-                SegmentoDeCobranza.SIN_VISITAR to 1,
-                SegmentoDeCobranza.VOLVER_A_VISITAR to 0,
-                SegmentoDeCobranza.YA_NO_ESTA_SEMANA to 0,
+                SegmentoDeCobranza.POR_VISITAR to 1,
+                SegmentoDeCobranza.NO_PAGA to 0,
                 SegmentoDeCobranza.PAGADOS to 0
             ),
             buscando
+        )
+
+        // Con la ruta de las tres pastillas, las tres cuentan.
+        assertEquals(
+            mapOf(
+                SegmentoDeCobranza.POR_VISITAR to 4,
+                SegmentoDeCobranza.NO_PAGA to 1,
+                SegmentoDeCobranza.PAGADOS to 1
+            ),
+            proyectar(ListaFixtures.rutaConTresPastillas()).conteos
         )
     }
 
@@ -230,24 +251,25 @@ class CarteraEnPantallaTest {
     }
 
     /**
-     * El contador "N por volver" del menú lateral es EL MISMO número que el chip
-     * "Volver" de la lista con la búsqueda vacía — si alguna vez divergen, el
+     * El contador "N por visitar" del menú lateral es EL MISMO número que la
+     * pastilla "Por visitar" de la lista con la búsqueda vacía (E-APP-070) — si alguna vez divergen, el
      * cobrador ve dos verdades.
      */
     @Test
-    fun `clientes por volver es el conteo del chip volver sin busqueda`() {
+    fun `clientes por visitar es el conteo de la pastilla Por visitar sin busqueda`() {
         val clientes = ListaFixtures.rutaConPromesaDeHoy()
-        val delChip = proyectar(clientes = clientes, segmento = SegmentoDeCobranza.VOLVER_A_VISITAR)
-            .conteos[SegmentoDeCobranza.VOLVER_A_VISITAR]
+        val delChip = proyectar(clientes = clientes, segmento = SegmentoDeCobranza.POR_VISITAR)
+            .conteos[SegmentoDeCobranza.POR_VISITAR]
 
-        assertEquals(delChip, CarteraEnPantalla.clientesPorVolver(clientes, hoyDePrueba))
+        assertEquals(4, delChip)
+        assertEquals(delChip, CarteraEnPantalla.clientesPorVisitar(clientes, hoyDePrueba))
     }
 
-    /** Control positivo: la promesa de hoy de Esperanza cae en VOLVER, así que el número no es un cero vacío. */
+    /** Control positivo: la promesa de hoy de Esperanza cae en Por visitar, así que el número no es un cero vacío. */
     @Test
-    fun `control positivo, la ruta con promesa de hoy tiene alguien por volver`() {
+    fun `control positivo, la ruta con promesa de hoy tiene alguien por visitar`() {
         assertTrue(
-            CarteraEnPantalla.clientesPorVolver(ListaFixtures.rutaConPromesaDeHoy(), hoyDePrueba) > 0
+            CarteraEnPantalla.clientesPorVisitar(ListaFixtures.rutaConPromesaDeHoy(), hoyDePrueba) > 0
         )
     }
 }

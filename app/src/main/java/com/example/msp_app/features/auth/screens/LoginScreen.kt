@@ -28,8 +28,40 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.ui.theme.ThemeController
 import com.google.firebase.auth.FirebaseAuth
 
+/**
+ * Mensaje cuando falta el correo o la contraseña. Sin esta validación el botón
+ * mandaba "" a `signInWithEmailAndPassword`, que lanza
+ * `IllegalArgumentException` ("Given String is empty or null") y tumba la app.
+ */
+internal const val MENSAJE_FALTAN_CREDENCIALES = "escribe tu correo y contraseña"
+
+/** Verdadero si el correo o la contraseña vienen vacíos o sólo con espacios. */
+internal fun faltanCredenciales(correo: String, contrasena: String): Boolean =
+    correo.isBlank() || contrasena.isBlank()
+
+/**
+ * Inicia sesión con [correo] y [contrasena] ya recortados, y avisa a
+ * [alTerminar] con `null` si entró o con el mensaje de error si no.
+ */
+fun interface IniciarSesion {
+    fun iniciar(correo: String, contrasena: String, alTerminar: (String?) -> Unit)
+}
+
+private val iniciarSesionConFirebase = IniciarSesion { correo, contrasena, alTerminar ->
+    FirebaseAuth.getInstance()
+        .signInWithEmailAndPassword(correo, contrasena)
+        .addOnCompleteListener { task ->
+            alTerminar(
+                if (task.isSuccessful) null else task.exception?.message ?: "Error al iniciar sesión"
+            )
+        }
+}
+
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    iniciarSesion: IniciarSesion = iniciarSesionConFirebase
+) {
     val isDark = ThemeController.isDarkMode
 
     var email by remember { mutableStateOf("") }
@@ -82,19 +114,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
         Button(
             onClick = {
+                if (faltanCredenciales(email, password)) {
+                    errorMessage = MENSAJE_FALTAN_CREDENCIALES
+                    return@Button
+                }
                 isLoading = true
                 errorMessage = null
 
-                FirebaseAuth.getInstance()
-                    .signInWithEmailAndPassword(email.trim(), password.trim())
-                    .addOnCompleteListener { task ->
-                        isLoading = false
-                        if (task.isSuccessful) {
-                            onLoginSuccess()
-                        } else {
-                            errorMessage = task.exception?.message ?: "Error al iniciar sesión"
-                        }
+                iniciarSesion.iniciar(email.trim(), password.trim()) { error ->
+                    isLoading = false
+                    if (error == null) {
+                        onLoginSuccess()
+                    } else {
+                        errorMessage = error
                     }
+                }
             },
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth()

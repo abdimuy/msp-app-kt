@@ -308,7 +308,7 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
     private fun estado(query: String): ListaDeClientesUiState {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientesDePrueba(),
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = query,
             hoy = ListaFixtures.HOY
         )
@@ -316,7 +316,7 @@ class ListaDeClientesHeaderTest : RobolectricTestBase() {
             cargando = false,
             clientes = proyeccion.clientes,
             conteos = proyeccion.conteos,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = query,
             hoy = ListaFixtures.HOY
         )

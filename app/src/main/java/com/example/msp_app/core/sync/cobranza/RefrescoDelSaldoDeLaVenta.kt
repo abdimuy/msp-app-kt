@@ -64,10 +64,9 @@ enum class ResultadoDelRefresco {
  * MISMA función que usa `mergeVentas` (`CobranzaSyncManager.kt`, rama del
  * upsert): este refresco no agrega una segunda definición de "saldo mostrado".
  *
- * **Excepción preexistente, no cerrada aquí:**
- * `CobranzaReconciler.reconcileSaldosViaIds` inserta las ventas que le faltan
- * al teléfono con `toEntity()` a secas, sin restar lo que sigue en vuelo. Es
- * un camino de escritura de saldo que NO aplica la fórmula; queda como deuda.
+ * `CobranzaReconciler.reconcileSaldosViaIds`, al reinsertar las ventas que le
+ * faltan al teléfono, también aplica esta fórmula (E-APP-081); antes insertaba
+ * con `toEntity()` a secas, sin restar lo que sigue en vuelo.
  *
  * El canal es `GET /v2/cobranza/sync/saldos/by-ids`, el que ya usa
  * `CobranzaReconciler.reconcileSaldosViaIds`. La zona es la columna por la que

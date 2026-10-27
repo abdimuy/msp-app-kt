@@ -20,12 +20,12 @@ import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.models.sale.localsale.LocalSaleMappers
 import com.example.msp_app.features.camionetaAssignment.data.repository.CamionetaAssignmentRepository
+import com.example.msp_app.features.sales.upload.data.ProblemaDelServidor
 import com.example.msp_app.features.sales.upload.data.RoomUploadFailureRepository
 import com.example.msp_app.features.sales.upload.domain.UploadFailure
 import com.example.msp_app.features.sales.upload.domain.UploadFailureClassification
 import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
 import com.google.gson.Gson
-import com.google.gson.JsonParser
 import java.io.File
 import java.io.IOException
 import java.net.ConnectException
@@ -473,7 +473,7 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             } catch (_: Exception) {
                 null
             }
-            val parsed = parseProblemDetails(errBody)
+            val parsed = ProblemaDelServidor.leer(errBody)
             Log.e(
                 "PendingLocalSalesWorker",
                 "Error HTTP ${e.code()} al enviar venta $saleId  body=$errBody",
@@ -791,29 +791,6 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             trabajo()
         } finally {
             latido?.cancel()
-        }
-    }
-
-    /** Parsed Problem-Details fragment from an RFC 7807-style error response. */
-    private data class ProblemDetails(val code: String?, val detail: String?)
-
-    /**
-     * Best-effort parse of an `application/problem+json` body. Returns
-     * (null, null) if the body is missing, malformed, or doesn't carry
-     * the expected fields. Never throws — diagnostic parsing must not
-     * upstage the original HTTP error.
-     */
-    private fun parseProblemDetails(body: String?): ProblemDetails {
-        if (body.isNullOrBlank()) return ProblemDetails(null, null)
-        return try {
-            val obj = JsonParser.parseString(body).asJsonObject
-            ProblemDetails(
-                code = obj["code"]?.takeUnless { it.isJsonNull }?.asString,
-                detail = obj["detail"]?.takeUnless { it.isJsonNull }?.asString
-                    ?: obj["message"]?.takeUnless { it.isJsonNull }?.asString
-            )
-        } catch (_: Exception) {
-            ProblemDetails(null, null)
         }
     }
 }

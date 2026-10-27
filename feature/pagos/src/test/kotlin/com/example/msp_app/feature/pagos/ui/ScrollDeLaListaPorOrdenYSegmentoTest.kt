@@ -21,6 +21,7 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -105,10 +106,10 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         montarConDosSegmentos()
 
         bajarLaLista()
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertDoesNotExist()
 
         composeTestRule.onNodeWithTag(
-            CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.YA_NO_ESTA_SEMANA.name.lowercase()
+            CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.NO_PAGA.name.lowercase()
         )
             .performClick()
         composeTestRule.mainClock.advanceTimeBy(2_000)
@@ -117,14 +118,14 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             .assertIsDisplayed() // un segmento recién visitado arranca en el tope
 
         composeTestRule.onNodeWithTag(
-            CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.SIN_VISITAR.name.lowercase()
+            CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.POR_VISITAR.name.lowercase()
         )
             .performClick()
         composeTestRule.mainClock.advanceTimeBy(2_000)
         composeTestRule.waitForIdle()
 
-        // "sin visitar" debe seguir en la posición donde se dejó, no reiniciar.
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+        // "Por visitar" debe seguir en la posición donde se dejó, no reiniciar.
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertDoesNotExist()
     }
 
     /**
@@ -133,8 +134,8 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
      * salir de la lista y volver (navegar a registrar un abono y regresar, o
      * que Android recree la actividad). Al volver, el único estado que sí se
      * restauraba era el `listState` hospedado —el del PRIMER segmento que se
-     * mostró—, y el mapa nuevo se lo asignaba al segmento VISIBLE: "Después"
-     * aparecía con el scroll de "Sin visitar", y "Sin visitar" volvía al tope.
+     * mostró—, y el mapa nuevo se lo asignaba al segmento VISIBLE: "No paga"
+     * aparecía con el scroll de "Por visitar", y "Por visitar" volvía al tope.
      *
      * El segmento vive FUERA de la composición (como en el ViewModel, que sí
      * sobrevive), así que tras la restauración la pantalla vuelve al mismo
@@ -143,7 +144,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
     @Test
     fun `al volver a la lista cada segmento recupera su propio scroll`() {
         val restaurador = StateRestorationTester(composeTestRule)
-        var segmento by mutableStateOf(SegmentoDeCobranza.SIN_VISITAR)
+        var segmento by mutableStateOf(SegmentoDeCobranza.POR_VISITAR)
         restaurador.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
                 ListaDeClientesContent(
@@ -162,8 +163,8 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         }
 
         bajarLaLista()
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
-        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertDoesNotExist()
+        elegirChip(SegmentoDeCobranza.NO_PAGA)
         composeTestRule.onNodeWithText(PRIMER_CLIENTE_DESPUES).assertIsDisplayed()
 
         restaurador.emulateSavedInstanceStateRestore()
@@ -171,9 +172,9 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
 
         // El segmento visible al volver sigue en SU tope, no hereda el de "sin visitar".
         composeTestRule.onNodeWithText(PRIMER_CLIENTE_DESPUES).assertIsDisplayed()
-        elegirChip(SegmentoDeCobranza.SIN_VISITAR)
+        elegirChip(SegmentoDeCobranza.POR_VISITAR)
         // Y "sin visitar" sigue donde se dejó, no reinicia en el tope.
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertDoesNotExist()
     }
 
     /**
@@ -216,7 +217,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             }
         }
         bajarLaLista()
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertDoesNotExist()
 
         restaurador.emulateSavedInstanceStateRestore()
         composeTestRule.waitForIdle()
@@ -224,7 +225,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         estadoDelViewModelNuevo = estadoDeUnSegmento(OrdenDeLaLista.VENTAS_NUEVAS)
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertDoesNotExist()
     }
 
     /**
@@ -236,7 +237,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
      */
     @Test
     fun `cambiar el orden tambien regresa al tope a los otros segmentos`() {
-        var segmento by mutableStateOf(SegmentoDeCobranza.SIN_VISITAR)
+        var segmento by mutableStateOf(SegmentoDeCobranza.POR_VISITAR)
         var orden by mutableStateOf(OrdenDeLaLista.COBRANZA)
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
@@ -255,20 +256,20 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             }
         }
         bajarLaLista()
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertDoesNotExist()
-        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertDoesNotExist()
+        elegirChip(SegmentoDeCobranza.NO_PAGA)
 
         orden = OrdenDeLaLista.VENTAS_NUEVAS
         composeTestRule.waitForIdle()
-        elegirChip(SegmentoDeCobranza.SIN_VISITAR)
+        elegirChip(SegmentoDeCobranza.POR_VISITAR)
 
-        composeTestRule.onNodeWithText(PRIMER_CLIENTE_SIN_VISITAR).assertIsDisplayed()
+        composeTestRule.onNodeWithText(PRIMER_CLIENTE_POR_VISITAR).assertIsDisplayed()
     }
 
     /**
-     * **La cabecera tiene UN solo estado para los cuatro segmentos** (decisión del
+     * **La cabecera tiene UN solo estado para los tres segmentos** (decisión del
      * dueño, 2026-10-07; sustituye a "la cabecera grande sigue el scroll del segmento
-     * visible", e9d93f40). Bajar en "Sin visitar" la encoge; cambiar a "Después", que
+     * visible", e9d93f40). Bajar en "Por visitar" la encoge; cambiar a "No paga", que
      * está en su tope, la deja encogida — y al regresar, sigue igual.
      */
     @Test
@@ -277,11 +278,11 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         bajarLaLista()
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
 
-        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        elegirChip(SegmentoDeCobranza.NO_PAGA)
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
         composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertIsDisplayed()
 
-        elegirChip(SegmentoDeCobranza.SIN_VISITAR)
+        elegirChip(SegmentoDeCobranza.POR_VISITAR)
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
     }
 
@@ -295,7 +296,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
     fun `con la cabecera compacta y un segmento corto jalar hacia abajo la abre`() {
         montarConDosSegmentos(cantidadDespues = 1)
         bajarLaLista()
-        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        elegirChip(SegmentoDeCobranza.NO_PAGA)
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertDoesNotExist()
 
         composeTestRule.onNodeWithTag(LISTA_DE_CLIENTES_TAG).performTouchInput { swipeDown() }
@@ -308,7 +309,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
     fun `cambiar de segmento con la cabecera abierta la deja abierta`() {
         montarConDosSegmentos()
 
-        elegirChip(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
+        elegirChip(SegmentoDeCobranza.NO_PAGA)
 
         composeTestRule.onNodeWithTag(TITULO_GRANDE_TAG).assertIsDisplayed()
         composeTestRule.onNodeWithTag(TITULO_COMPACTO_TAG).assertDoesNotExist()
@@ -358,7 +359,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
     private fun montarConDosSegmentos(cantidadDespues: Int = CUARENTA) {
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
-                var segmento by remember { mutableStateOf(SegmentoDeCobranza.SIN_VISITAR) }
+                var segmento by remember { mutableStateOf(SegmentoDeCobranza.POR_VISITAR) }
                 ListaDeClientesContent(
                     state = estadoDeDosSegmentos(segmento, cantidadDespues = cantidadDespues),
                     onBuscar = {},
@@ -377,10 +378,10 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
 
     private fun estadoDeUnSegmento(orden: OrdenDeLaLista): ListaDeClientesUiState {
         val clientes =
-            clientesDePrueba(SegmentoDeCobranza.SIN_VISITAR, EstadoCuenta.SIN_TOCAR, CUARENTA, 0)
+            clientesDePrueba(SegmentoDeCobranza.POR_VISITAR, EstadoCuenta.SIN_TOCAR, CUARENTA, 0)
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY,
             orden = orden
@@ -389,7 +390,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
             cargando = false,
             clientes = proyeccion.clientes,
             conteos = proyeccion.conteos,
-            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            segmento = SegmentoDeCobranza.POR_VISITAR,
             hoy = ListaFixtures.HOY,
             orden = orden
         )
@@ -400,8 +401,15 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         orden: OrdenDeLaLista = OrdenDeLaLista.COBRANZA,
         cantidadDespues: Int = CUARENTA
     ): ListaDeClientesUiState {
-        val clientes = clientesDePrueba(SegmentoDeCobranza.SIN_VISITAR, EstadoCuenta.SIN_TOCAR, CUARENTA, 0) +
-            clientesDePrueba(SegmentoDeCobranza.YA_NO_ESTA_SEMANA, EstadoCuenta.SE_NEGO, cantidadDespues, 1000)
+        val clientes = clientesDePrueba(SegmentoDeCobranza.POR_VISITAR, EstadoCuenta.SIN_TOCAR, CUARENTA, 0) +
+            clientesDePrueba(
+                SegmentoDeCobranza.NO_PAGA,
+                EstadoCuenta.PROMETIO_PROXIMA,
+                cantidadDespues,
+                1000,
+                // E-APP-070: sólo una promesa con fecha posterior a hoy cae en No paga.
+                fechaPromesa = ListaFixtures.HOY.plusDays(3)
+            )
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
             segmento = segmento,
@@ -432,7 +440,8 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
         segmento: SegmentoDeCobranza,
         estadoCuenta: EstadoCuenta,
         cantidad: Int,
-        base: Int
+        base: Int,
+        fechaPromesa: LocalDate? = null
     ): List<ClienteEnLista> = (1..cantidad).map { n ->
         ListaFixtures.cliente(
             clienteId = 40_000 + base + n,
@@ -446,7 +455,7 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
                     totalVenta = ListaFixtures.dinero("2000"),
                     enganche = ListaFixtures.dinero("200"),
                     fechaVenta = ListaFixtures.HOY.minusDays(FECHA_VENTA_FIJA),
-                    estado = ListaFixtures.estado(estadoCuenta)
+                    estado = ListaFixtures.estado(estadoCuenta, fechaPromesa = fechaPromesa)
                 )
             )
         )
@@ -455,8 +464,8 @@ class ScrollDeLaListaPorOrdenYSegmentoTest : RobolectricTestBase() {
     private companion object {
         const val CUARENTA = 40
         const val REPETICIONES_DEL_SWIPE = 6
-        const val PRIMER_CLIENTE_SIN_VISITAR = "Cliente SIN_VISITAR Número 1"
-        const val PRIMER_CLIENTE_DESPUES = "Cliente YA_NO_ESTA_SEMANA Número 1"
+        const val PRIMER_CLIENTE_POR_VISITAR = "Cliente POR_VISITAR Número 1"
+        const val PRIMER_CLIENTE_DESPUES = "Cliente NO_PAGA Número 1"
         const val FECHA_VENTA_FIJA = 10L
     }
 }

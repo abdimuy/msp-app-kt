@@ -25,15 +25,15 @@ data class CarteraProyectada(
  *
  * ## A qué segmentos aplica el orden (decisión de esta tarea)
  *
- * A **los cuatro**. La pantalla vieja ordenaba solo la pestaña `POR VISITAR` y
+ * A **las tres** (E-APP-070). La pantalla vieja ordenaba solo la pestaña `POR VISITAR` y
  * dejaba `VISITADOS`/`PAGADOS` sin orden explícito, y con pestañas eso no se
  * notaba: eran tres listas distintas. Con chips es UNA lista que se filtra, y
  * las mismas filas aparecen bajo *todos*; si el orden dependiera del chip, una
  * fila cambiaría de lugar al tocar un chip sin que nada de esa fila hubiera
  * cambiado. Un chip filtra, no reordena.
  *
- * El conjunto que heredó la pestaña ordenada —`vencidos ∪ sin visitar`, ver
- * [SegmentoDeCobranza]— conserva exactamente el orden que ya tenía.
+ * Por visitar —el conjunto que heredó la pestaña ordenada, ver
+ * [SegmentoDeCobranza]— conserva el orden de cobranza de siempre.
  *
  * ## La búsqueda apaga el orden (heredado, tal cual)
  *
@@ -58,7 +58,7 @@ data class CarteraProyectada(
  */
 @Suppress(
     "TooManyFunctions"
-) // clientesPorVolver (Task 8) cruzó el umbral; son helpers de UN solo algoritmo (orden/filtro)
+) // clientesPorVisitar (Task 8) cruzó el umbral; son helpers de UN solo algoritmo (orden/filtro)
 object CarteraEnPantalla {
 
     fun proyectar(
@@ -84,13 +84,14 @@ object CarteraEnPantalla {
     }
 
     /**
-     * Cuántos clientes caen en el chip "Volver" con la búsqueda vacía: el
-     * contador "N por volver" del menú lateral (spec §4). Es [proyectar] mismo,
+     * Cuántos clientes caen en la pastilla "Por visitar" con la búsqueda vacía:
+     * el contador "N por visitar" del menú lateral (spec §4; decisión del dueño
+     * 2026-10-17, E-APP-070). Es [proyectar] mismo,
      * no una copia de la regla — así el menú y la lista no pueden diferir.
      */
-    fun clientesPorVolver(clientes: List<ClienteEnLista>, hoy: LocalDate): Int =
-        proyectar(clientes, SegmentoDeCobranza.VOLVER_A_VISITAR, query = "", hoy = hoy)
-            .conteos[SegmentoDeCobranza.VOLVER_A_VISITAR] ?: 0
+    fun clientesPorVisitar(clientes: List<ClienteEnLista>, hoy: LocalDate): Int =
+        proyectar(clientes, SegmentoDeCobranza.POR_VISITAR, query = "", hoy = hoy)
+            .conteos[SegmentoDeCobranza.POR_VISITAR] ?: 0
 
     private fun tieneVentasDe(
         cliente: ClienteEnLista,

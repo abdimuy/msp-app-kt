@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.MainActivity
-import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
@@ -14,14 +13,11 @@ import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.cache.ProductsCache
 import com.example.msp_app.data.cache.ZonesCache
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
-import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
+import com.example.msp_app.data.local.datasource.sale.InicioDeSemanaDeVentas
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
 import com.example.msp_app.data.local.repository.WarehouseRepository
 import com.example.msp_app.data.models.auth.User
-import com.example.msp_app.data.models.sale.toDomain
-import com.example.msp_app.data.models.sale.toEntity
-import com.example.msp_app.data.models.sale.toSale
 import com.example.msp_app.features.zones.ZonesRepository
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -42,7 +38,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
-    private val salesStore = SalesLocalDataSource(application.applicationContext)
+    private val inicioDeSemana = InicioDeSemanaDeVentas(application.applicationContext)
     private val productsCache = ProductsCache(application.applicationContext)
     private val zonesCache = ZonesCache.getInstance(application.applicationContext)
     private val zonesRepository = ZonesRepository()
@@ -141,15 +137,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         .update(Constants.START_OF_WEEK_DATE_FIELD, startOfWeekDate)
                         .await()
 
-                    val sales = salesStore.getAll().map {
-                        it.toDomain()
-                    }
-                    val salesWithoutStatus = sales.map {
-                        it.copy(
-                            ESTADO_COBRANZA = EstadoCobranza.PENDIENTE
-                        ).toSale().toEntity()
-                    }
-                    salesStore.saveAll(salesWithoutStatus)
+                    inicioDeSemana.reiniciarEstadosDeCobranza()
 
                     _userData.value = ResultState.Success(
                         current.data.copy(FECHA_CARGA_INICIAL = startOfWeekDate)

@@ -9,6 +9,8 @@ import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.CitaEstructurada
+import com.example.msp_app.feature.visitas.domain.port.FaseDelGuardado
+import com.example.msp_app.feature.visitas.domain.port.GuardadoCanceladoPort
 import com.example.msp_app.feature.visitas.domain.port.PromesaEstructurada
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
@@ -58,12 +60,35 @@ import kotlinx.coroutines.CancellationException
  *
  * Los N ids salen de [IdsDeLaVisita] — derivados, nunca acuñados al azar. El
  * porqué completo y la propiedad de idempotencia están en su KDoc.
+ *
+ * ## La cancelación deja rastro (E-APP-078)
+ *
+ * El caso de uso corre bajo el `viewModelScope` de la pantalla. Si el cobrador
+ * sale mientras se espera la ubicación (sin red, ~30 s sin fix), la cancelación
+ * llega antes de cualquier escritura y la visita no se guarda — medido, 9 de 9,
+ * y hasta hoy sin ningún evento. Aquí **la conducta no cambia**: la cancelación
+ * se relanza, la MISMA instancia, y lo único nuevo es que antes se anota
+ * [VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO] (local) y se avisa por
+ * [avisoDeCancelacion] (lo que llega a la oficina). El arreglo de fondo es otra
+ * tarea.
  */
+@Suppress(
+    // Cada paso del guardado (cancelacion, parcial, telemetria total) es su
+    // propia funcion; juntarlos para detekt mezclaria caminos de guardado.
+    "TooManyFunctions"
+)
 class RegistrarVisita @Inject constructor(
     private val registro: RegistroDeVisitaPort,
     private val ubicacion: UbicacionPort,
-    private val telemetry: Telemetry
+    private val telemetry: Telemetry,
+    private val avisoDeCancelacion: GuardadoCanceladoPort = GuardadoCanceladoPort { _, _, _ -> }
 ) {
+
+    /** Hasta dónde llegó un guardado, para contarlo si se cancela. */
+    private class Avance(var cuentas: Int) {
+        var fase: FaseDelGuardado = FaseDelGuardado.UBICACION
+        var escritas: Int = 0
+    }
 
     /**
      * @param visitaId el id de la visita, acuñado una vez por la pantalla y
@@ -75,6 +100,10 @@ class RegistrarVisita @Inject constructor(
      *   Viajan hasta el puerto **sin pasar por [ReglasDeLaVisita]**: ninguna
      *   regla las mira y ninguna las puede convertir en un bloqueo. Es la
      *   traducción literal de "la foto nunca bloquea el guardado".
+     * @param alEscribir se llama una vez por cada visita que QUEDÓ escrita, en
+     *   el momento en que quedó. Es lo único que deja a la pantalla distinguir un
+     *   fallo que no escribió nada de un parcial (E-VIS-055): el desenlace es el
+     *   mismo [ResultadoDelRegistro] en los dos casos.
      */
     @Suppress("LongParameterList") // los comprobantes son el septimo dato del hecho, no una opcion.
     suspend operator fun invoke(
@@ -84,13 +113,14 @@ class RegistrarVisita @Inject constructor(
         captura: CapturaDeVisita,
         hoy: LocalDate,
         recomendacionId: String? = null,
-        comprobantes: List<ComprobanteDeVisita> = emptyList()
+        comprobantes: List<ComprobanteDeVisita> = emptyList(),
+        alEscribir: () -> Unit = {}
     ): ResultadoDelRegistro {
         val bloqueos = ReglasDeLaVisita.bloqueosDe(captura, hoy)
         if (bloqueos.isNotEmpty()) {
             // Anti-PII: viajan los NOMBRES de los bloqueos, nunca la fecha, el
             // monto ni la nota.
-            telemetry.error(
+            reportarSinLanzar(
                 code = VisitasTelemetria.CODE_CAPTURA_BLOQUEADA_EN_APLICACION,
                 message = "una captura bloqueada llego al caso de uso; la pantalla dejo pasar algo",
                 props = mapOf(
@@ -102,11 +132,46 @@ class RegistrarVisita @Inject constructor(
         val resultado = requireNotNull(captura.resultado) {
             "sin resultado no hay bloqueos vacios: ReglasDeLaVisita lo garantiza"
         }
+        val avance = Avance(
+            cuentas = if (resultado.alcance == VisitScope.CLIENTE) 1 else captura.cuentas.size
+        )
+        return try {
+            registrarConAvance(
+                visitaId = visitaId,
+                clienteId = clienteId,
+                ventaId = ventaId,
+                captura = captura,
+                resultado = resultado,
+                recomendacionId = recomendacionId,
+                comprobantes = comprobantes,
+                avance = avance,
+                alEscribir = alEscribir
+            )
+        } catch (cancelada: CancellationException) {
+            reportarCancelado(avance)
+            // E-APP-078: la MISMA instancia, sin envolver.
+            throw cancelada
+        }
+    }
+
+    @Suppress("LongParameterList") // los datos del hecho mas el avance que se cuenta.
+    private suspend fun registrarConAvance(
+        visitaId: String,
+        clienteId: Int,
+        ventaId: Int?,
+        captura: CapturaDeVisita,
+        resultado: ResultadoDeVisita,
+        recomendacionId: String?,
+        comprobantes: List<ComprobanteDeVisita>,
+        avance: Avance,
+        alEscribir: () -> Unit
+    ): ResultadoDelRegistro {
         // UNA sola lectura de la ubicación para las N filas: son el mismo hecho,
         // en el mismo instante y en la misma puerta. Pedirla N veces daría N
         // coordenadas distintas de un cobrador que no se movió, y N eventos de
         // telemetría por un solo permiso negado.
         val donde = ubicacionActual()
+        avance.fase = FaseDelGuardado.CUENTAS
         val plantilla = VisitaARegistrar(
             visitaId = visitaId,
             clienteId = clienteId,
@@ -122,9 +187,43 @@ class RegistrarVisita @Inject constructor(
             // El hecho es de la puerta entera y la base lo propaga sola a todas
             // las cuentas activas del cliente. Una fila, con la semilla de id
             // tal cual.
-            return registro.registrar(plantilla)
+            return registro.registrar(plantilla).also {
+                if (it == ResultadoDelRegistro.REGISTRADA) alEscribir()
+            }
         }
-        return registrarUnaPorCuenta(plantilla, resultado, captura)
+        return registrarUnaPorCuenta(plantilla, resultado, captura, avance, alEscribir)
+    }
+
+    /**
+     * Anota la cancelación. Cada una de sus dos salidas (la telemetría local y el
+     * aviso a la oficina) va en su propio `try`: si una lanza, la otra se intenta
+     * igual y la excepción que sale sigue siendo la cancelación. Lo mismo vale
+     * para el parcial del `catch` de [registrarUnaPorCuenta] (C1 de la compuerta
+     * DESPUÉS). Anti-PII: solo conteos y la fase.
+     */
+    @Suppress("TooGenericExceptionCaught") // la telemetria nunca reemplaza a la cancelacion.
+    private fun reportarCancelado(avance: Avance) {
+        try {
+            telemetry.error(
+                code = VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO,
+                message = "el guardado de la visita se cancelo al salir de la pantalla",
+                props = mapOf(
+                    VisitasTelemetria.PROP_ESCRITAS to avance.escritas.toString(),
+                    VisitasTelemetria.PROP_CUENTAS to avance.cuentas.toString(),
+                    VisitasTelemetria.PROP_FASE to when (avance.fase) {
+                        FaseDelGuardado.UBICACION -> VisitasTelemetria.FASE_UBICACION
+                        FaseDelGuardado.CUENTAS -> VisitasTelemetria.FASE_CUENTAS
+                    }
+                )
+            )
+        } catch (_: Throwable) {
+            // Sin telemetría local; el aviso a la oficina se intenta igual.
+        }
+        try {
+            avisoDeCancelacion.cancelado(avance.fase, avance.escritas, avance.cuentas)
+        } catch (_: Throwable) {
+            // Idem: la cancelación sale intacta.
+        }
     }
 
     /**
@@ -147,37 +246,67 @@ class RegistrarVisita @Inject constructor(
      *   el cobrador" es UN hecho; `ligarConVisita` es un `UPDATE` sobre la fila
      *   de la recomendación, así que ligarla N veces solo dejaría la última y
      *   haría ilegible la evaluación.
+     *   Que el ancla no cambie entre un parcial y su reintento lo sostiene la
+     *   pantalla, que congela el desenlace y las cuentas (E-VIS-055): con otras
+     *   cuentas el ancla sería otra visita y el `REPLACE` sobre el id de la foto
+     *   la mudaría.
      * - **La promesa** solo puede existir sobre una cuenta, y por eso
      *   [ResultadoDeVisita.admiteVariasCuentas] la deja fuera de la selección
      *   múltiple: aquí su lista trae exactamente una.
      */
+    @Suppress("TooGenericExceptionCaught") // el parcial de una cancelacion nunca la reemplaza (C1).
     private suspend fun registrarUnaPorCuenta(
         plantilla: VisitaARegistrar,
         resultado: ResultadoDeVisita,
-        captura: CapturaDeVisita
+        captura: CapturaDeVisita,
+        avance: Avance,
+        alEscribir: () -> Unit
     ): ResultadoDelRegistro {
         val ids = IdsDeLaVisita.paraCuentas(plantilla.visitaId, captura.cuentas)
+        avance.cuentas = ids.size
         val ancla = ids.keys.first()
         var escritas = 0
         var primerFallo: ResultadoDelRegistro? = null
-        ids.forEach { (cuenta, id) ->
-            val desenlace = registro.registrar(
-                plantilla.copy(
-                    visitaId = id,
-                    ventaId = cuenta,
-                    promesa = promesaDe(resultado, captura, cuenta),
-                    recomendacionId = plantilla.recomendacionId.takeIf { cuenta == ancla },
-                    comprobantes = if (cuenta == ancla) plantilla.comprobantes else emptyList()
+        try {
+            ids.forEach { (cuenta, id) ->
+                val desenlace = registro.registrar(
+                    plantilla.copy(
+                        visitaId = id,
+                        ventaId = cuenta,
+                        promesa = promesaDe(resultado, captura, cuenta),
+                        recomendacionId = plantilla.recomendacionId.takeIf { cuenta == ancla },
+                        comprobantes = if (cuenta == ancla) plantilla.comprobantes else emptyList()
+                    )
                 )
-            )
-            if (desenlace == ResultadoDelRegistro.REGISTRADA) {
-                escritas++
-            } else if (primerFallo == null) {
-                primerFallo = desenlace
+                if (desenlace == ResultadoDelRegistro.REGISTRADA) {
+                    escritas++
+                    avance.escritas = escritas
+                    alEscribir()
+                } else if (primerFallo == null) {
+                    primerFallo = desenlace
+                }
             }
+        } catch (cancelada: CancellationException) {
+            // E-APP-078: cortada entre cuentas. El parcial se reporta igual que
+            // un fallo y la cancelación sigue su camino. Envuelto (C1): si la
+            // telemetría lanza —`DurableTelemetry.error` inserta en Room de forma
+            // síncrona—, su excepción reemplazaría a la cancelación y se saltaría
+            // [reportarCancelado].
+            if (escritas > 0) {
+                try {
+                    reportarParcial(
+                        escritas = escritas,
+                        total = ids.size,
+                        fallo = VisitasTelemetria.RESULTADO_CANCELADO
+                    )
+                } catch (_: Throwable) {
+                    // La cancelación sale intacta; el aviso lo intenta reportarCancelado.
+                }
+            }
+            throw cancelada
         }
         val fallo = primerFallo ?: return ResultadoDelRegistro.REGISTRADA
-        if (escritas > 0) reportarParcial(escritas, ids.size, fallo)
+        if (escritas > 0) reportarParcial(escritas, ids.size, fallo.name)
         return fallo
     }
 
@@ -189,14 +318,14 @@ class RegistrarVisita @Inject constructor(
      * Anti-PII: viajan dos CONTEOS y el nombre del desenlace. Ni ids de cuenta,
      * ni nombres, ni montos.
      */
-    private fun reportarParcial(escritas: Int, total: Int, fallo: ResultadoDelRegistro) {
-        telemetry.error(
+    private fun reportarParcial(escritas: Int, total: Int, fallo: String) {
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA,
             message = "unas cuentas de la captura quedaron escritas y otras no",
             props = mapOf(
                 VisitasTelemetria.PROP_OCURRENCIAS to escritas.toString(),
                 VisitasTelemetria.PROP_CUENTAS to total.toString(),
-                VisitasTelemetria.PROP_RESULTADO to fallo.name
+                VisitasTelemetria.PROP_RESULTADO to fallo
             )
         )
     }
@@ -273,7 +402,7 @@ class RegistrarVisita @Inject constructor(
     }
 
     private fun reportarSinUbicacion(causa: String, excepcion: String? = null) {
-        telemetry.error(
+        reportarSinLanzar(
             code = VisitasTelemetria.CODE_UBICACION_NO_DISPONIBLE,
             message = "no se pudo obtener la ubicacion; la visita se registra igual",
             props = buildMap {
@@ -281,5 +410,22 @@ class RegistrarVisita @Inject constructor(
                 excepcion?.let { put(VisitasTelemetria.PROP_EXCEPCION, it) }
             }
         )
+    }
+
+    /**
+     * E-VIS-074: la salida a `telemetry.error` de los reportes del registro.
+     * **Total: no lanza.** `DurableTelemetry.error` inserta en Room de forma
+     * síncrona y puede fallar. Si su excepción saliera del caso de uso (el
+     * parcial corre con el ancla YA escrita), la pantalla nunca llegaría a
+     * `aplicar`: se quedaría en "guardando" y la corrutina del `viewModelScope`
+     * moriría sin manejador. El desenlace del registro es lo que se contesta.
+     */
+    @Suppress("TooGenericExceptionCaught") // la telemetria caida no cambia el desenlace.
+    private fun reportarSinLanzar(code: String, message: String, props: Map<String, String>) {
+        try {
+            telemetry.error(code = code, message = message, props = props)
+        } catch (_: Throwable) {
+            // Sin reporte: el desenlace sigue su camino.
+        }
     }
 }

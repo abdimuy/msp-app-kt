@@ -32,12 +32,21 @@ data class CuentaDelPeriodo(
  *
  * [formaCobroId] se filtra contra [VentanaCobro.FORMAS_COBRO_COBRANZA]: la
  * condonación no es cobranza.
+ *
+ * [rechazado] es `DOCTO_CC_ID = -1` (`DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR`):
+ * el servidor no tiene ese pago, así que no es dinero y no entra al abono,
+ * aunque sí cuenta como cobertura ([CoberturaDelPeriodo]). Hoy el adaptador del
+ * teléfono (`RoomPagosAdapter.aHistorial`) ya los descarta antes de llegar aquí
+ * y nunca pasa `true`. El campo existe para que el juego de casos compartido con
+ * el servidor (E-APP-057) pueda expresar la regla con las mismas entradas en
+ * Go y en Kotlin.
  */
 data class PagoEnVentana(
     val ventaId: Int,
     val importe: BigDecimal,
     val formaCobroId: Int,
-    val fechaHora: Instant
+    val fechaHora: Instant,
+    val rechazado: Boolean = false
 )
 
 /**

@@ -60,7 +60,7 @@ class ReunirCartera @Inject constructor(
     /**
      * [reportarIncidencias] en `false` arma la MISMA cartera sin emitir
      * [PagosTelemetria.CODE_VENTA_SIN_FECHA_LEGIBLE] (ruling R6 del plan
-     * `2026-10-06-menu-lateral`): el contador "N por volver" del menú lateral
+     * `2026-10-06-menu-lateral`): el contador "N por visitar" del menú lateral
      * llama a [invoke] en cada apertura del cajón, y esa apertura no es una
      * carga nueva de datos — es la MISMA condición que ya reportó (o reportará)
      * la lista de clientes. Sin este apagador, abrir el menú repetidas veces
