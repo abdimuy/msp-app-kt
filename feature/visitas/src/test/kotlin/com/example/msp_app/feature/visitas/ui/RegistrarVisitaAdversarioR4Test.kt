@@ -233,7 +233,7 @@ class RegistrarVisitaAdversarioR4Test {
     fun `E-VIS-073 tras morir antes de escribir la pantalla vuelve congelada sin fallo y sin nada escrito`() =
         runTest(testDispatcher) {
             val handle = handle()
-            val muerto = viewModel(handle, ubicacion = UbicacionQueNoContesta)
+            val muerto = viewModel(handle, registro = PuertoQueNoContesta)
             advanceUntilIdle()
             muerto.onResultado(ResultadoDeVisita.VISITE_VUELVO)
             muerto.guardar()
@@ -406,11 +406,12 @@ class RegistrarVisitaAdversarioR4Test {
 
     private fun viewModel(
         savedStateHandle: SavedStateHandle = handle(),
-        ubicacion: UbicacionPort = FakeUbicacionPort()
+        ubicacion: UbicacionPort = FakeUbicacionPort(),
+        registro: RegistroDeVisitaPort = puerto
     ) = RegistrarVisitaViewModel(
         savedStateHandle = savedStateHandle,
         abrirRegistro = AbrirRegistroDeVisita(contextoPort, recomendacionesPort, telemetria),
-        registrarVisita = RegistrarVisita(puerto, ubicacion, telemetria),
+        registrarVisita = RegistrarVisita(registro, ubicacion, telemetria),
         camara = camaraPort,
         dictado = DictadoFalso(),
         tema = FakeTemaDeLaAppPort(),
@@ -444,6 +445,16 @@ class RegistrarVisitaAdversarioR4Test {
                 ResultadoDelRegistro.REGISTRADA
             }
         }
+    }
+
+    /**
+     * E-APP-127: la ubicación ya no va antes de escribir, así que un GPS sin fix
+     * no detiene la escritura. "El proceso muere antes o durante la escritura"
+     * se modela con el puerto colgado: la escritura queda en vuelo ahí.
+     */
+    private object PuertoQueNoContesta : RegistroDeVisitaPort {
+        override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro =
+            awaitCancellation()
     }
 
     private object UbicacionQueNoContesta : UbicacionPort {

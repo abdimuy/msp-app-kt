@@ -24,6 +24,7 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
+import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
 import com.example.msp_app.feature.visitas.domain.port.VisitaARegistrar
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -149,6 +150,24 @@ class RegistroDeVisitaAdapter(
             }
         }
         return reanudadas
+    }
+
+    /**
+     * E-APP-127: la ubicación que llega DESPUÉS del guardado se parcha sólo en
+     * `Visit.LAT/LNG` (`VisitDao.updateLocation`). No toca `GUARDADO_EN_MICROSIP`,
+     * ni el marcador, ni `sales`, ni re-encola: si el envío ya salió con 0,0, el
+     * servidor se queda con 0,0 (los lectores ya filtran el 0,0).
+     */
+    override suspend fun anotarUbicacion(visitaIds: List<String>, ubicacion: UbicacionDeLaVisita) {
+        sinCancelar {
+            visitaIds.forEach { id ->
+                visitas.updateVisitLocation(
+                    id,
+                    ubicacion.lat,
+                    ubicacion.lng
+                )
+            }
+        }
     }
 
     @Suppress("TooGenericExceptionCaught") // Room/Firestore pueden fallar; nada queda a medias.

@@ -125,36 +125,88 @@ class GuardadoDeVisitaCanceladoTest : RoomTestBase() {
     private fun evento(code: String) = telemetry.recorded.single { it.name == code }
 
     /**
-     * El caso medido en el emulador (9 de 9): Atrás mientras se espera la
-     * ubicación. No se escribe NADA —ni `Visit` ni `sales`— igual que hoy, y
-     * ahora queda el evento con 0 de 2 en la fase de ubicación.
+     * E-APP-127 (decisión del coordinador 2026-10-27; medición MB de la compuerta
+     * DESPUÉS): Atrás mientras se espera la ubicación ya NO pierde la visita. El
+     * caso medido en el emulador (E-APP-078, 9 de 9) perdía las dos cuentas
+     * porque la ubicación iba antes de escribir. Ahora las dos quedan escritas,
+     * encoladas y sin coordenadas, y el evento dice 2 de 2 en la fase de
+     * ubicación.
      */
     @Test
-    fun `E-APP-078 cancelada esperando la ubicacion no escribe nada y deja el evento`() = runTest {
-        val esperando = CompletableDeferred<Unit>()
-        val ubicacionQueEspera = object : UbicacionPort {
-            override suspend fun ubicacionActual(): UbicacionDeLaVisita? {
-                esperando.complete(Unit)
-                awaitCancellation()
+    fun `E-APP-127 cancelada esperando la ubicacion la visita ya quedo escrita y encolada`() =
+        runTest {
+            val esperando = CompletableDeferred<Unit>()
+            val ubicacionQueEspera = object : UbicacionPort {
+                override suspend fun ubicacionActual(): UbicacionDeLaVisita? {
+                    esperando.complete(Unit)
+                    awaitCancellation()
+                }
             }
-        }
-        val ventasAntes = ventas()
+            val ventasAntes = ventas()
 
-        val job = launch {
-            casoDeUso(ubicacionQueEspera).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
-        }
-        esperando.await()
-        job.cancelAndJoin()
+            val job = launch {
+                casoDeUso(ubicacionQueEspera).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+            }
+            esperando.await()
+            job.cancelAndJoin()
 
-        assertEquals("la conducta de hoy: ninguna visita", 0, visitas())
-        assertEquals("sales sin tocar", ventasAntes, ventas())
-        assertTrue(encoladas.isEmpty())
-        val e = evento(VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO)
-        assertEquals("0", e.props[VisitasTelemetria.PROP_ESCRITAS])
-        assertEquals("2", e.props[VisitasTelemetria.PROP_CUENTAS])
-        assertEquals(VisitasTelemetria.FASE_UBICACION, e.props[VisitasTelemetria.PROP_FASE])
-        assertEquals(listOf(Triple(FaseDelGuardado.UBICACION, 0, 2)), avisos)
-    }
+            assertEquals("las dos cuentas quedaron", 2, visitas())
+            assertTrue("y movieron su estado de cobranza", ventasAntes != ventas())
+            assertEquals(2, encoladas.size)
+            assertEquals("sin coordenadas: 0,0", listOf("0.0,0.0", "0.0,0.0"), coordenadas())
+            val e = evento(VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO)
+            assertEquals("2", e.props[VisitasTelemetria.PROP_ESCRITAS])
+            assertEquals("2", e.props[VisitasTelemetria.PROP_CUENTAS])
+            assertEquals(VisitasTelemetria.FASE_UBICACION, e.props[VisitasTelemetria.PROP_FASE])
+            assertEquals(listOf(Triple(FaseDelGuardado.UBICACION, 2, 2)), avisos)
+        }
+
+    /**
+     * E-APP-127: la ubicación que llega después del guardado se parcha sobre las
+     * visitas ya escritas. Sólo LAT/LNG: ni reabre (GUARDADO sigue en 0, no se
+     * duplica ninguna fila) ni re-encola (el envío no la esperó).
+     */
+    @Test
+    fun `E-APP-127 la ubicacion que llega despues se parcha sin reabrir ni duplicar ni reencolar`() =
+        runTest {
+            val pedida = CompletableDeferred<Unit>()
+            val suelta = CompletableDeferred<Unit>()
+            val ubicacionTardia = object : UbicacionPort {
+                override suspend fun ubicacionActual(): UbicacionDeLaVisita {
+                    pedida.complete(Unit)
+                    suelta.await()
+                    return UbicacionDeLaVisita(18.4617, -97.3928)
+                }
+            }
+            val job = launch {
+                casoDeUso(ubicacionTardia).invoke("visita-1", CLIENTE_ID, null, dosCuentas, hoy)
+            }
+            pedida.await()
+            assertEquals("escrita y encolada antes de tener ubicación", 2, encoladas.size)
+            assertEquals(listOf("0.0,0.0", "0.0,0.0"), coordenadas())
+
+            suelta.complete(Unit)
+            job.join()
+
+            assertEquals(listOf("18.4617,-97.3928", "18.4617,-97.3928"), coordenadas())
+            assertEquals("no duplica", 2, visitas())
+            assertEquals("no re-encola", 2, encoladas.size)
+            assertEquals(
+                "no reabre",
+                0,
+                db.openHelper.readableDatabase.query(
+                    "SELECT COUNT(*) FROM Visit WHERE GUARDADO_EN_MICROSIP <> 0"
+                ).use {
+                    it.moveToFirst()
+                    it.getInt(0)
+                }
+            )
+        }
+
+    private fun coordenadas(): List<String> =
+        db.openHelper.readableDatabase.query("SELECT LAT, LNG FROM Visit ORDER BY ID").use { c ->
+            buildList { while (c.moveToNext()) add("${c.getDouble(0)},${c.getDouble(1)}") }
+        }
 
     /**
      * E-APP-087 (decisión 3 del dueño 2026-10-20, todo o nada): cancelada en la

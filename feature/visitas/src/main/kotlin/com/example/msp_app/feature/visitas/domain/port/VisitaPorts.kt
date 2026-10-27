@@ -160,6 +160,13 @@ interface RegistroDeVisitaPort {
      * adaptador de `:app` lo reemplaza.
      */
     suspend fun reanudarPendientes(): Int = 0
+
+    /**
+     * E-APP-127: parcha LAT/LNG de visitas YA escritas cuando la ubicación llega
+     * después del guardado. Sólo coordenadas: no reabre, no duplica, no
+     * re-encola. Este default (nada) existe para los fakes; `:app` lo reemplaza.
+     */
+    suspend fun anotarUbicacion(visitaIds: List<String>, ubicacion: UbicacionDeLaVisita) {}
 }
 
 /**

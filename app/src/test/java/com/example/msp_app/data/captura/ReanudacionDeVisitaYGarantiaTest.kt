@@ -11,6 +11,7 @@ import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.visitas.RegistroDeVisitaAdapter
 import com.example.msp_app.feature.visitas.application.RegistrarVisita
+import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
@@ -51,6 +52,12 @@ class ReanudacionDeVisitaYGarantiaTest : RoomTestBase() {
         cuentas = setOf(VENTA_A, VENTA_B)
     )
 
+    private val noEstaba = CapturaDeVisita(
+        resultado = ResultadoDeVisita.NO_ESTABA,
+        etiqueta = CatalogoDeResultados.etiquetaPorDefecto(ResultadoDeVisita.NO_ESTABA),
+        cuentas = emptySet()
+    )
+
     @Before
     fun sembrar() = runTest {
         db.saleDao().insertAll(listOf(venta(VENTA_A), venta(VENTA_B)))
@@ -78,6 +85,33 @@ class ReanudacionDeVisitaYGarantiaTest : RoomTestBase() {
                 listOf("2026-10-20T15:52:00Z", "2026-10-20T15:52:00Z"),
                 fechasDeVisitas()
             )
+        }
+
+    /**
+     * E-APP-126 (medición MA de la compuerta DESPUÉS 2026-10-27): la visita de
+     * alcance CLIENTE ("no estaba") iba por `registrar`, sin marcador; cancelada
+     * esperando al cobrador se perdía sin aviso. Ahora escribe su marcador como
+     * las demás, cuenta en el aviso y se reanuda al volver.
+     */
+    @Test
+    fun `E-APP-126 una visita de alcance cliente cancelada esperando al cobrador cuenta en el aviso y se reanuda`() =
+        runTest {
+            val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+                casoDeUso(adaptador(traerUsuario = { awaitCancellation() }))
+                    .invoke(SEMILLA, CLIENTE_ID, null, noEstaba, hoy)
+            }
+            job.cancel()
+            job.join()
+
+            assertEquals(CapturaEnCursoEntity.CAPTURADA, marcador(SEMILLA).ESTADO)
+            assertEquals(0, visitas())
+            assertEquals("visible mientras tanto", 1, aviso())
+
+            reanudador().reanudar()
+
+            assertEquals(1, visitas())
+            assertEquals(CapturaEnCursoEntity.CERRADA, marcador(SEMILLA).ESTADO)
+            assertEquals(0, aviso())
         }
 
     @Test
