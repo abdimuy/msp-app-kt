@@ -78,6 +78,11 @@ const val FORMA_COBRO_CONDONACION: Int = 137026
 /**
  * Single source of truth for the overdue_payments_view SQL.
  * Used by both @DatabaseView and migrations to prevent whitespace mismatches.
+ *
+ * E-APP-092: el abono con `DOCTO_CC_ID = -2` ("no se aplicó": el servidor lo
+ * rechazó por saldo y nunca llegó a Microsip) NO cuenta como pago de la venta;
+ * contarlo adelantaba `FECHA_ULT_PAGO` y subía `NUM_IMPORTES`. La 36→37 recrea
+ * la vista con este SQL.
  */
 const val OVERDUE_PAYMENTS_VIEW_SQL = """
     SELECT
@@ -118,6 +123,7 @@ const val OVERDUE_PAYMENTS_VIEW_SQL = """
             END AS PARCIALIDADES_TRANSCURRIDAS
         FROM sales AS s
         LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID
+            AND p.DOCTO_CC_ID <> -2
         GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO
     ) AS base
 """

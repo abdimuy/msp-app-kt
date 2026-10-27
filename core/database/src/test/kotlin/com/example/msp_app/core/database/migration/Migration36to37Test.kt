@@ -103,6 +103,35 @@ class Migration36to37Test : RobolectricTestBase() {
         assertEquals(listOf("m-1:CAPTURADA"), marcadores)
     }
 
+    /**
+     * E-APP-092: la 36→37 recrea `overdue_payments_view` sin el abono -2. La 36
+     * trae la vista vieja (sin el filtro); si la migración no la recrea, la base
+     * migrada la conserva y el abono "no se aplicó" vuelve a contar.
+     */
+    @Test
+    fun `E-APP-092 la 36 a 37 recrea overdue_payments_view sin contar el abono -2`() {
+        val antes = migrationTestHelper.createDatabase(MIGRATION_DB, OLD_VERSION).use { db ->
+            sqlDeLaVista(db)
+        }
+        assertEquals(false, antes.contains("<> -2"))
+
+        val migrada = migrationTestHelper.runMigrationsAndValidate(
+            MIGRATION_DB,
+            NEW_VERSION,
+            true,
+            MIGRATION_36_37
+        )
+        val despues = sqlDeLaVista(migrada)
+        migrada.close()
+
+        assertEquals(true, despues.contains("p.DOCTO_CC_ID <> -2"))
+    }
+
+    private fun sqlDeLaVista(db: androidx.sqlite.db.SupportSQLiteDatabase): String = db.query(
+        "SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'overdue_payments_view'"
+    )
+        .use { c -> if (c.moveToFirst()) c.getString(0) else "" }
+
     private fun pagos(db: androidx.sqlite.db.SupportSQLiteDatabase): List<String> =
         db.query("SELECT * FROM Payment ORDER BY ID").use { c ->
             buildList {

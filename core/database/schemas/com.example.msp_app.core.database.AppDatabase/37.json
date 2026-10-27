@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 37,
-    "identityHash": "92f8232249d18e1b761ace6b7f2ff5b2",
+    "identityHash": "2e653f6a2e174f8777d31b1a6b9feaa5",
     "entities": [
       {
         "tableName": "sales",
@@ -2283,12 +2283,12 @@
     "views": [
       {
         "viewName": "overdue_payments_view",
-        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT\n        base.DOCTO_CC_ID,\n        base.FECHA_ULT_PAGO,\n        base.NUM_IMPORTES,\n        base.PARCIALIDADES_TRANSCURRIDAS,\n        CASE\n            WHEN ((base.PARCIALIDADES_TRANSCURRIDAS * base.PARCIALIDAD\n                  - (base.PRECIO_TOTAL - base.SALDO_REST)) / base.PARCIALIDAD)\n                > (base.SALDO_REST / base.PARCIALIDAD)\n            THEN (base.SALDO_REST / base.PARCIALIDAD)\n            ELSE ((base.PARCIALIDADES_TRANSCURRIDAS * base.PARCIALIDAD\n                  - (base.PRECIO_TOTAL - base.SALDO_REST - base.ENGANCHE)) / base.PARCIALIDAD)\n        END AS NUM_PAGOS_ATRASADOS\n    FROM (\n        SELECT\n            s.DOCTO_CC_ID,\n            COALESCE(MAX(p.FECHA_HORA_PAGO), s.FECHA) AS FECHA_ULT_PAGO,\n            COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,\n            s.SALDO_REST,\n            s.PRECIO_TOTAL,\n            s.ENGANCHE,\n            s.PARCIALIDAD,\n            s.FREC_PAGO,\n            (\n                JULIANDAY(\n                    CASE\n                        WHEN s.SALDO_REST = 0 THEN MAX(p.FECHA_HORA_PAGO)\n                        ELSE DATE('now')\n                    END\n                ) - JULIANDAY(s.FECHA)\n            ) / CASE\n                WHEN s.FREC_PAGO = 'SEMANAL' THEN 7\n                WHEN s.FREC_PAGO = 'QUINCENAL' THEN 15\n                WHEN s.FREC_PAGO = 'MENSUAL' THEN 30\n                ELSE 1\n            END AS PARCIALIDADES_TRANSCURRIDAS\n        FROM sales AS s\n        LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID\n        GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO\n    ) AS base"
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT\n        base.DOCTO_CC_ID,\n        base.FECHA_ULT_PAGO,\n        base.NUM_IMPORTES,\n        base.PARCIALIDADES_TRANSCURRIDAS,\n        CASE\n            WHEN ((base.PARCIALIDADES_TRANSCURRIDAS * base.PARCIALIDAD\n                  - (base.PRECIO_TOTAL - base.SALDO_REST)) / base.PARCIALIDAD)\n                > (base.SALDO_REST / base.PARCIALIDAD)\n            THEN (base.SALDO_REST / base.PARCIALIDAD)\n            ELSE ((base.PARCIALIDADES_TRANSCURRIDAS * base.PARCIALIDAD\n                  - (base.PRECIO_TOTAL - base.SALDO_REST - base.ENGANCHE)) / base.PARCIALIDAD)\n        END AS NUM_PAGOS_ATRASADOS\n    FROM (\n        SELECT\n            s.DOCTO_CC_ID,\n            COALESCE(MAX(p.FECHA_HORA_PAGO), s.FECHA) AS FECHA_ULT_PAGO,\n            COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,\n            s.SALDO_REST,\n            s.PRECIO_TOTAL,\n            s.ENGANCHE,\n            s.PARCIALIDAD,\n            s.FREC_PAGO,\n            (\n                JULIANDAY(\n                    CASE\n                        WHEN s.SALDO_REST = 0 THEN MAX(p.FECHA_HORA_PAGO)\n                        ELSE DATE('now')\n                    END\n                ) - JULIANDAY(s.FECHA)\n            ) / CASE\n                WHEN s.FREC_PAGO = 'SEMANAL' THEN 7\n                WHEN s.FREC_PAGO = 'QUINCENAL' THEN 15\n                WHEN s.FREC_PAGO = 'MENSUAL' THEN 30\n                ELSE 1\n            END AS PARCIALIDADES_TRANSCURRIDAS\n        FROM sales AS s\n        LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID\n            AND p.DOCTO_CC_ID <> -2\n        GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO\n    ) AS base"
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '92f8232249d18e1b761ace6b7f2ff5b2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2e653f6a2e174f8777d31b1a6b9feaa5')"
     ]
   }
 }

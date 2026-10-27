@@ -2,10 +2,14 @@ package com.example.msp_app.core.database.migrations
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.msp_app.core.database.entities.OVERDUE_PAYMENTS_VIEW_SQL
 
 /**
  * 36 → 37 (E-APP-084): crea `capturas_en_curso`, el marcador de "captura nunca
  * se pierde". Sólo crea; no toca ninguna fila existente.
+ *
+ * También recrea `overdue_payments_view` para que no cuente el abono -2
+ * ("no se aplicó", E-APP-092); la vista no guarda filas, sólo cambia su SQL.
  *
  * Era la 35 → 36 de Captura; se renumeró por la secuencia única de versiones
  * Room (coordinador, 2026-10-26: P2 = 36, Captura = 37, P3 = 38).
@@ -42,5 +46,7 @@ val MIGRATION_36_37 = object : Migration(36, 37) {
             "CREATE INDEX IF NOT EXISTS `index_capturas_en_curso_tipo_llave_estado` " +
                 "ON `capturas_en_curso` (`TIPO`, `LLAVE`, `ESTADO`)"
         )
+        db.execSQL("DROP VIEW IF EXISTS `overdue_payments_view`")
+        db.execSQL("CREATE VIEW `overdue_payments_view` AS ${OVERDUE_PAYMENTS_VIEW_SQL.trim()}")
     }
 }
