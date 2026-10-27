@@ -150,6 +150,23 @@ interface RegistroDeVisitaPort {
         }
         return ResultadoDelRegistro.REGISTRADA
     }
+
+    /**
+     * E-APP-119 (D15): reanuda las visitas que el cobrador capturó y que no
+     * llegaron a escribirse (la pantalla se cerró o el proceso murió mientras
+     * esperaba). Total: no lanza. Devuelve cuántas quedaron escritas.
+     *
+     * Este default (nada que reanudar) existe sólo para los fakes de prueba; el
+     * adaptador de `:app` lo reemplaza.
+     */
+    suspend fun reanudarPendientes(): Int = 0
+
+    /**
+     * E-APP-127: parcha LAT/LNG de visitas YA escritas cuando la ubicación llega
+     * después del guardado. Sólo coordenadas: no reabre, no duplica, no
+     * re-encola. Este default (nada) existe para los fakes; `:app` lo reemplaza.
+     */
+    suspend fun anotarUbicacion(visitaIds: List<String>, ubicacion: UbicacionDeLaVisita) {}
 }
 
 /**

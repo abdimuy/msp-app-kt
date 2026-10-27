@@ -7,6 +7,7 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
@@ -16,6 +17,7 @@ import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.api.services.payment.V2PaymentsApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import java.time.Instant
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -115,6 +117,67 @@ class ReconciliacionDelPagoPorUuidTest : RoomTestBase() {
         assertTrue(pagos.getPaymentById(ID)!!.GUARDADO_EN_MICROSIP)
     }
 
+    /**
+     * E-APP-117 (medición M2 de la compuerta DESPUÉS 2026-10-26): en el flujo
+     * normal la pantalla ya cerró el marcador (`terminarComoRegistrado`) cuando
+     * el worker recibe el 409/422. La discrepancia se anota sobre ese marcador
+     * CERRADA y tiene que contar en "N capturas sin terminar".
+     */
+    @Test
+    fun `E-APP-117 409 con otro cliente sobre el marcador ya CERRADA cuenta en el aviso`() =
+        runTest {
+            cerradoPorLaPantalla()
+            val api =
+                api(obtener = { PagoRecibidoDTO(id = ID, cliente_id = 9999) }) { throw http(409) }
+
+            correr(api)
+
+            val marcador = db.capturaEnCursoDao().obtener(ID)!!
+            assertEquals(CapturaEnCursoEntity.CERRADA, marcador.ESTADO)
+            assertEquals("contenido_no_coincide", marcador.DISCREPANCIA)
+            assertEquals(1, db.capturaEnCursoDao().observarSinTerminar(USUARIO).first())
+        }
+
+    @Test
+    fun `E-APP-117 422 resguardado con GET 404 sobre el marcador ya CERRADA cuenta en el aviso`() =
+        runTest {
+            cerradoPorLaPantalla()
+            val api = api(obtener = { throw http(404) }) { throw http(422, capturada = true) }
+
+            correr(api)
+
+            assertEquals("no_existe_en_servidor", db.capturaEnCursoDao().obtener(ID)!!.DISCREPANCIA)
+            assertEquals(1, db.capturaEnCursoDao().observarSinTerminar(USUARIO).first())
+        }
+
+    @Test
+    fun `E-APP-117 control positivo, el marcador CERRADA sin discrepancia no cuenta`() = runTest {
+        cerradoPorLaPantalla()
+        val api = api(obtener = {
+            PagoRecibidoDTO(id = ID, cliente_id = CLIENTE)
+        }) { throw http(409) }
+
+        correr(api)
+
+        assertNull(db.capturaEnCursoDao().obtener(ID)!!.DISCREPANCIA)
+        assertEquals(0, db.capturaEnCursoDao().observarSinTerminar(USUARIO).first())
+    }
+
+    private suspend fun cerradoPorLaPantalla() {
+        db.capturaEnCursoDao().capturar(
+            CapturaEnCursoEntity(
+                ID = ID,
+                TIPO = CapturaEnCursoEntity.TIPO_ABONO,
+                LLAVE = "77188",
+                USUARIO = USUARIO,
+                ESTADO = CapturaEnCursoEntity.CERRADA,
+                RESUMEN = "{}",
+                CREADA_EN = "2026-10-20T15:04:05Z",
+                ACTUALIZADA_EN = "2026-10-20T15:04:09Z"
+            )
+        )
+    }
+
     // --- plomería ---------------------------------------------------------------
 
     private fun correr(api: V2PaymentsApi): ListenableWorker.Result {
@@ -140,7 +203,7 @@ class ReconciliacionDelPagoPorUuidTest : RoomTestBase() {
                 clock = clock,
                 encolarRefrescoDeSaldo = { _, _ -> },
                 capturas = db.capturaEnCursoDao(),
-                emailEnSesion = { "rosa@example.com" },
+                emailEnSesion = { USUARIO },
                 avisarDiscrepancia = { avisos += it }
             )
         }).build()
@@ -200,5 +263,6 @@ class ReconciliacionDelPagoPorUuidTest : RoomTestBase() {
     private companion object {
         const val ID = "3b1f5a0e-7d2c-4c8e-9a41-5e6f7a8b9c0d"
         const val CLIENTE = 5021
+        const val USUARIO = "rosa@example.com"
     }
 }

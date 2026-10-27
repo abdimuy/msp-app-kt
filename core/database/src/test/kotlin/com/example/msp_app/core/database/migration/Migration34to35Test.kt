@@ -15,6 +15,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-34-35-test.db"
 private const val OLD_VERSION = 34
 private const val NEW_VERSION = 35
+private const val ULTIMA_VERSION = 36
 
 /**
  * Spec visitas §4.2-7: la 34→35 agrega `Visit.CONFIRMADA_EN` y
@@ -113,7 +114,11 @@ class Migration34to35Test : RobolectricTestBase() {
         )
     }
 
-    /** Camino real de producción: `buildDatabase` debe tener registrada la 34→35. */
+    /**
+     * Camino real de producción: `buildDatabase` debe tener registrada la 34→35.
+     * La cadena sigue hasta la última versión (v36 crea `capturas_en_curso`,
+     * E-APP-084), así que se comparan las columnas que la fila ya tenía en v34.
+     */
     @Test
     fun `MIGRATION_34_35 esta registrada en la configuracion real que usa produccion`() {
         val antes = migrationTestHelper.createDatabase(MIGRATION_DB, OLD_VERSION).use { db ->
@@ -126,7 +131,7 @@ class Migration34to35Test : RobolectricTestBase() {
             .build()
         try {
             val db = abierta.openHelper.readableDatabase
-            assertEquals(NEW_VERSION, db.version)
+            assertEquals(ULTIMA_VERSION, db.version)
             assertEquals(antes, volcado(db, "Visit", antes.first().keys.toList()))
             db.query(
                 "SELECT COUNT(*) FROM Visit WHERE CONFIRMADA_EN IS NULL AND RESGUARDADA_EN IS NULL"

@@ -86,7 +86,7 @@ class RegistrarVisita @Inject constructor(
 
     /** Hasta dónde llegó un guardado, para contarlo si se cancela. */
     private class Avance(var cuentas: Int) {
-        var fase: FaseDelGuardado = FaseDelGuardado.UBICACION
+        var fase: FaseDelGuardado = FaseDelGuardado.CUENTAS
         var escritas: Int = 0
     }
 
@@ -166,11 +166,11 @@ class RegistrarVisita @Inject constructor(
         avance: Avance,
         alEscribir: () -> Unit
     ): ResultadoDelRegistro {
-        // UNA sola lectura de la ubicación para las N filas: son el mismo hecho,
-        // en el mismo instante y en la misma puerta. Pedirla N veces daría N
-        // coordenadas distintas de un cobrador que no se movió, y N eventos de
-        // telemetría por un solo permiso negado.
-        val donde = ubicacionActual()
+        // E-APP-127: la ubicación ya NO va antes de escribir. Esperarla (hasta
+        // ~30 s sin señal) antes del marcador perdía la visita si el cobrador
+        // salía de la pantalla (medición MB de la compuerta DESPUÉS 2026-10-27).
+        // Se escribe sin coordenadas (0,0, que los lectores ya filtran) y se
+        // parcha después en [anotarUbicacion].
         avance.fase = FaseDelGuardado.CUENTAS
         val plantilla = VisitaARegistrar(
             visitaId = visitaId,
@@ -179,19 +179,53 @@ class RegistrarVisita @Inject constructor(
             tipoVisita = tipoVisitaDe(resultado, captura),
             nota = captura.nota.trim().takeIf { it.isNotBlank() },
             cita = citaDe(resultado, captura),
-            ubicacion = donde,
+            ubicacion = null,
             recomendacionId = recomendacionId,
             comprobantes = comprobantes
         )
-        if (resultado.alcance == VisitScope.CLIENTE) {
+        val visitas = if (resultado.alcance == VisitScope.CLIENTE) {
             // El hecho es de la puerta entera y la base lo propaga sola a todas
             // las cuentas activas del cliente. Una fila, con la semilla de id
             // tal cual.
-            return registro.registrar(plantilla).also {
-                if (it == ResultadoDelRegistro.REGISTRADA) alEscribir()
-            }
+            listOf(plantilla)
+        } else {
+            visitasPorCuenta(plantilla, resultado, captura)
         }
-        return registrarUnaPorCuenta(plantilla, resultado, captura, avance, alEscribir)
+        avance.cuentas = visitas.size
+        // E-APP-126: el alcance CLIENTE también va por `registrarTodas`, que
+        // escribe el marcador VISITA como primera operación; antes iba por
+        // `registrar`, sin marcador, y una cancelación esperando al cobrador la
+        // perdía sin aviso (medición MA de la compuerta DESPUÉS 2026-10-27).
+        val desenlace = registro.registrarTodas(plantilla.visitaId, visitas)
+        if (desenlace != ResultadoDelRegistro.REGISTRADA) return desenlace
+        avance.escritas = visitas.size
+        repeat(visitas.size) { alEscribir() }
+        avance.fase = FaseDelGuardado.UBICACION
+        anotarUbicacion(visitas.map { it.visitaId })
+        return desenlace
+    }
+
+    /**
+     * E-APP-127: con la visita YA escrita y encolada, la ubicación se pide una
+     * sola vez para las N filas (son el mismo hecho, en la misma puerta) y, si
+     * llega, se parcha sobre ellas. El parche sólo toca LAT/LNG: no reabre ni
+     * duplica la visita, y el envío no la espera (ya está encolado). Un fallo
+     * aquí no cambia el desenlace. Una cancelación sí sale, pero la visita ya
+     * quedó.
+     */
+    @Suppress("TooGenericExceptionCaught") // el parche de ubicación nunca deshace la visita.
+    private suspend fun anotarUbicacion(visitaIds: List<String>) {
+        val donde = ubicacionActual() ?: return
+        try {
+            registro.anotarUbicacion(visitaIds, donde)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            reportarSinUbicacion(
+                causa = VisitasTelemetria.CAUSA_EXCEPCION,
+                excepcion = fallo.javaClass.simpleName
+            )
+        }
     }
 
     /**
@@ -250,17 +284,14 @@ class RegistrarVisita @Inject constructor(
      *   [ResultadoDeVisita.admiteVariasCuentas] la deja fuera de la selección
      *   múltiple: aquí su lista trae exactamente una.
      */
-    private suspend fun registrarUnaPorCuenta(
+    private fun visitasPorCuenta(
         plantilla: VisitaARegistrar,
         resultado: ResultadoDeVisita,
-        captura: CapturaDeVisita,
-        avance: Avance,
-        alEscribir: () -> Unit
-    ): ResultadoDelRegistro {
+        captura: CapturaDeVisita
+    ): List<VisitaARegistrar> {
         val ids = IdsDeLaVisita.paraCuentas(plantilla.visitaId, captura.cuentas)
-        avance.cuentas = ids.size
         val ancla = ids.keys.first()
-        val visitas = ids.map { (cuenta, id) ->
+        return ids.map { (cuenta, id) ->
             plantilla.copy(
                 visitaId = id,
                 ventaId = cuenta,
@@ -269,12 +300,6 @@ class RegistrarVisita @Inject constructor(
                 comprobantes = if (cuenta == ancla) plantilla.comprobantes else emptyList()
             )
         }
-        val desenlace = registro.registrarTodas(plantilla.visitaId, visitas)
-        if (desenlace == ResultadoDelRegistro.REGISTRADA) {
-            avance.escritas = ids.size
-            repeat(ids.size) { alEscribir() }
-        }
-        return desenlace
     }
 
     private fun tipoVisitaDe(resultado: ResultadoDeVisita, captura: CapturaDeVisita): String {

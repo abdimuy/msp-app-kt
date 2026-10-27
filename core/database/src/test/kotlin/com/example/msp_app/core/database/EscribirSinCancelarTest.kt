@@ -1,5 +1,6 @@
 package com.example.msp_app.core.database
 
+import androidx.room.withTransaction
 import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import kotlinx.coroutines.CancellationException
@@ -84,5 +85,34 @@ class EscribirSinCancelarTest : RoomTestBase() {
             job.join()
             assertEquals(7, resultado)
             assertNotNull(db.capturaEnCursoDao().obtener("c"))
+        }
+
+    /**
+     * X1b (compuerta DESPUÉS 2026-10-26): la guarda `terminado` de [sinCancelar]
+     * sólo se ejerce cuando el bloque deja un job HIJO que termina después que
+     * el bloque — es lo que hace `withTransaction` de Room 2.6.1 (su
+     * `runBlocking` hereda el job). Entonces `withContext` reanuda por
+     * `afterCompletion`, de forma cancelable, y lanza la cancelación tardía con
+     * todo ya escrito. Sin la guarda, el llamador leería "no se hizo".
+     */
+    @Test
+    fun `E-APP-084 sinCancelar con una transaccion adentro devuelve su resultado aunque la cancelacion llegue tarde`() =
+        runTest {
+            lateinit var job: Job
+            var resultado: Int? = null
+            job = launch(UnconfinedTestDispatcher(testScheduler)) {
+                resultado = sinCancelar {
+                    db.withTransaction {
+                        db.capturaEnCursoDao().capturar(marcador("d"))
+                        job.cancel()
+                        db.capturaEnCursoDao().marcarEscrita("d", "2026-10-20T10:00:01Z")
+                    }
+                    7
+                }
+            }
+            job.join()
+
+            assertEquals(7, resultado)
+            assertEquals(CapturaEnCursoEntity.ESCRITA, db.capturaEnCursoDao().obtener("d")!!.ESTADO)
         }
 }

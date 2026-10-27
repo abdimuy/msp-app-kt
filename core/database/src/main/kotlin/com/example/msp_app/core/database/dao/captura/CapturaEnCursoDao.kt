@@ -76,15 +76,32 @@ interface CapturaEnCursoDao {
     suspend fun todasLasAbiertas(): List<CapturaEnCursoEntity>
 
     /**
-     * "N capturas sin terminar": abonos CAPTURADA (los únicos con pantalla que
-     * los reanuda, "Guardar") o cualquier captura con discrepancia sin cerrar,
-     * del usuario. Una visita o garantía CAPTURADA no cuenta todavía: no hay
-     * pantalla que la reanude y el aviso no se apagaría nunca.
+     * "N capturas sin terminar": abonos, visitas, garantías y ventas locales
+     * CAPTURADA del usuario (todavía sin escribir) o cualquier captura con
+     * discrepancia. La condonación queda fuera hasta que su arreglo (D4)
+     * decida qué la reanuda.
+     *
+     * E-APP-119 (ampliado por el coordinador 2026-10-26): la venta local
+     * CAPTURADA que nunca llegó a escribirse (foto fallida, borrador
+     * descartado; medido por el autor de D5) también cuenta, y el toque lleva
+     * al borrador o a la venta ([observarVentaLocalSinTerminar]).
+     *
+     * E-APP-119 (D15, regla del dueño "nada se pierde"): una visita o garantía
+     * CAPTURADA con 0 escrituras también cuenta. Se reanuda al volver a la app
+     * y el toque del aviso la reanuda; mientras tanto se ve aquí. Antes sólo
+     * contaba el abono (medición M4 de la compuerta DESPUÉS: visita CAPTURADA,
+     * 0 visitas y aviso 0).
+     *
+     * E-APP-117: la discrepancia cuenta **en cualquier estado**. En el flujo
+     * normal la pantalla ya cerró el marcador (CERRADA) cuando el worker recibe
+     * el 409/422 y anota la discrepancia sobre ese mismo marcador; filtrar
+     * `ESTADO <> 'CERRADA'` dejaba "Un envío no coincide con la oficina" con
+     * aviso 0 (medición M2 de la compuerta DESPUÉS, 2026-10-26).
      */
     @Query(
         "SELECT COUNT(*) FROM capturas_en_curso WHERE USUARIO = :usuario " +
-            "AND ((ESTADO = 'CAPTURADA' AND TIPO = 'ABONO') " +
-            "OR (DISCREPANCIA IS NOT NULL AND ESTADO <> 'CERRADA'))"
+            "AND ((ESTADO = 'CAPTURADA' AND TIPO IN ('ABONO', 'VISITA', 'GARANTIA', 'VENTA_LOCAL')) " +
+            "OR DISCREPANCIA IS NOT NULL)"
     )
     fun observarSinTerminar(usuario: String): Flow<Int>
 
@@ -94,6 +111,43 @@ interface CapturaEnCursoDao {
             "AND ESTADO = 'CAPTURADA' ORDER BY CREADA_EN ASC, ID ASC LIMIT 1"
     )
     fun observarVentaDelPrimerAbonoSinGuardar(usuario: String): Flow<String?>
+
+    /**
+     * E-APP-118: cuántos envíos del usuario no coinciden con la oficina
+     * ("Un envío no coincide con la oficina", decisión 4 del dueño). Abonos y
+     * condonaciones por igual, en cualquier estado del marcador (E-APP-117).
+     */
+    @Query(
+        "SELECT COUNT(*) FROM capturas_en_curso WHERE USUARIO = :usuario " +
+            "AND DISCREPANCIA IS NOT NULL"
+    )
+    fun observarEnviosQueNoCoinciden(usuario: String): Flow<Int>
+
+    /**
+     * E-APP-118: la venta a la que lleva el aviso: la del abono sin guardar o
+     * la del pago o condonación que no coincide, el más viejo. `LLAVE` de un
+     * marcador de pago es la venta (`DOCTO_CC_ACR_ID`).
+     */
+    @Query(
+        "SELECT LLAVE FROM capturas_en_curso WHERE USUARIO = :usuario " +
+            "AND TIPO IN ('ABONO', 'CONDONACION') " +
+            "AND ((ESTADO = 'CAPTURADA' AND TIPO = 'ABONO') OR DISCREPANCIA IS NOT NULL) " +
+            "ORDER BY CREADA_EN ASC, ID ASC LIMIT 1"
+    )
+    fun observarVentaDelAviso(usuario: String): Flow<String?>
+
+    /**
+     * E-APP-119: la venta local CAPTURADA más vieja del usuario y si ya está en
+     * `local_sale` (entonces el toque abre la venta; si no, el borrador). Sólo
+     * lectura. Se compone con D5: su marcador lleva `ID` = saleId y
+     * `TIPO` = VENTA_LOCAL, que es todo lo que esta consulta lee.
+     */
+    @Query(
+        "SELECT c.ID AS ID, EXISTS(SELECT 1 FROM local_sale s WHERE s.LOCAL_SALE_ID = c.ID) AS ESCRITA " +
+            "FROM capturas_en_curso c WHERE c.USUARIO = :usuario AND c.TIPO = 'VENTA_LOCAL' " +
+            "AND c.ESTADO = 'CAPTURADA' ORDER BY c.CREADA_EN ASC, c.ID ASC LIMIT 1"
+    )
+    fun observarVentaLocalSinTerminar(usuario: String): Flow<VentaLocalSinTerminarFila?>
 
     /** El único borrado: CERRADA, sin discrepancia, anterior a [antesDe]. */
     @Query(
@@ -110,3 +164,6 @@ interface CapturaEnCursoDao {
     @Query("SELECT ID FROM pago_imagenes WHERE ID IN (:ids)")
     suspend fun comprobantesDePagoPresentes(ids: List<String>): List<String>
 }
+
+/** E-APP-119: la venta local sin terminar del aviso; [ESCRITA] = ya está en `local_sale`. */
+data class VentaLocalSinTerminarFila(val ID: String, val ESCRITA: Boolean)

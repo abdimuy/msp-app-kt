@@ -122,7 +122,9 @@ class RegistrarVisitaTest {
         val resultado = registrar(promesa())
 
         assertEquals(ResultadoDelRegistro.REGISTRADA, resultado)
-        assertEquals(18.46, requireNotNull(registro.registradas.single().ubicacion).lat, 0.0001)
+        // E-APP-127: se escribe sin coordenadas y la ubicación se parcha después.
+        assertEquals(null, registro.registradas.single().ubicacion)
+        assertEquals(18.46, registro.ubicacionesAnotadas.single().second.lat, 0.0001)
         assertTrue(
             telemetry.recorded.none { it.name == VisitasTelemetria.CODE_UBICACION_NO_DISPONIBLE }
         )
@@ -487,13 +489,14 @@ class RegistrarVisitaTest {
     }
 
     /**
-     * Medido en el emulador (E-APP-078): Atrás durante la espera de la ubicación
-     * pierde la visita sin dejar rastro. La conducta NO cambia —no se escribe
-     * nada— pero ahora queda el evento, y la cancelación sale intacta: la MISMA
-     * instancia, para que el `viewModelScope` la reconozca como suya.
+     * E-APP-127 (decisión del coordinador 2026-10-27, tras la medición MB de la
+     * compuerta DESPUÉS): Atrás durante la espera de la ubicación ya NO pierde la
+     * visita. Antes (E-APP-078, 9 de 9 en emulador) la ubicación iba antes de
+     * escribir y no quedaba nada; ahora la visita ya está escrita cuando se pide
+     * la ubicación. La cancelación sigue saliendo intacta, con el evento.
      */
     @Test
-    fun `E-APP-078 cancelada en la ubicacion emite el evento y relanza la misma instancia`() =
+    fun `E-APP-127 cancelada en la ubicacion la visita ya quedo escrita y la cancelacion sale intacta`() =
         runTest {
             val cancelacion = CancellationException("el cobrador salio de la pantalla")
             val caso = RegistrarVisita(
@@ -509,19 +512,19 @@ class RegistrarVisitaTest {
             )
 
             assertSame(cancelacion, atrapada)
-            assertEquals("la conducta de hoy: no se escribe nada", 0, registro.registradas.size)
+            assertEquals("las dos cuentas ya quedaron escritas", 2, registro.registradas.size)
             val evento = telemetry.recorded.single {
                 it.name == VisitasTelemetria.CODE_VISITA_GUARDADO_CANCELADO
             }
-            assertEquals("0", evento.props[VisitasTelemetria.PROP_ESCRITAS])
+            assertEquals("2", evento.props[VisitasTelemetria.PROP_ESCRITAS])
             assertEquals("2", evento.props[VisitasTelemetria.PROP_CUENTAS])
             assertEquals(
                 VisitasTelemetria.FASE_UBICACION,
                 evento.props[VisitasTelemetria.PROP_FASE]
             )
-            assertEquals(listOf(Triple(FaseDelGuardado.UBICACION, 0, 2)), avisos)
+            assertEquals(listOf(Triple(FaseDelGuardado.UBICACION, 2, 2)), avisos)
             assertTrue(
-                "sin escrituras no hay parcial",
+                "todo o nada: no hay parcial",
                 telemetry.recorded.none { it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA }
             )
         }

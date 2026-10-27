@@ -65,6 +65,19 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Co
     destinoDeListaDeClientes(
         onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) },
         onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) },
+        // E-APP-119: la venta local sin terminar abre la venta si ya se
+        // escribió y, si no, la pantalla de venta nueva (donde vive el borrador).
+        onAbrirVentaLocal = { saleId ->
+            navController.navigate(
+                if (saleId != null) {
+                    Screen.SaleDescripction.creatRoute(
+                        saleId
+                    )
+                } else {
+                    Screen.NewSale.route
+                }
+            )
+        },
         // ÚNICO punto de cableado del menú de la lista: el menú lateral nuevo
         // (docs/superpowers/specs/2026-10-05-menu-lateral-design.md), ver el KDoc
         // de `destinoDeListaDeClientes.envoltura`.

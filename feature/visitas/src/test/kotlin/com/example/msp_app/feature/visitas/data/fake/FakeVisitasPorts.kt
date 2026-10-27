@@ -154,6 +154,13 @@ class FakeRegistroDeVisitaPort(
      */
     val fallidas: MutableSet<Int> = mutableSetOf()
 
+    /** E-APP-127: las ubicaciones parchadas después del guardado, en orden. */
+    val ubicacionesAnotadas: MutableList<Pair<List<String>, UbicacionDeLaVisita>> = mutableListOf()
+
+    override suspend fun anotarUbicacion(visitaIds: List<String>, ubicacion: UbicacionDeLaVisita) {
+        ubicacionesAnotadas += visitaIds to ubicacion
+    }
+
     override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro {
         val indice = registradas.size
         registradas += visita
