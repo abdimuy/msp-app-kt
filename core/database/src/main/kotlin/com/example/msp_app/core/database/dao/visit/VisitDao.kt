@@ -32,7 +32,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -74,7 +76,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE ID = :id
         """
@@ -108,7 +112,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 0
         """
@@ -145,7 +151,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE FECHA >= :start AND FECHA < :end
         ORDER BY FECHA DESC
@@ -189,7 +197,9 @@ interface VisitDao {
             CITA_FECHA,
             CITA_HORA,
             CONFIRMADA_EN,
-            RESGUARDADA_EN
+            RESGUARDADA_EN,
+            COMPROMISO_CONFIRMADO_EN,
+            COMPROMISO_RESGUARDADO_EN
         FROM Visit
         WHERE CLIENTE_ID = :clienteId
         ORDER BY FECHA DESC
@@ -345,14 +355,71 @@ interface VisitDao {
     )
     suspend fun resguardar(id: String, ahora: String): Int
 
-    /** La reconciliación inversa no la encontró en el servidor: vuelve a la cola. */
+    /**
+     * La reconciliación inversa no la encontró en el servidor: vuelve a la cola.
+     *
+     * Limpia también las marcas del compromiso (E-APP-099, observación A del
+     * revisor de la Tarea 14 de P2): si el servidor perdió la visita, perdió su
+     * compromiso, y si se reenvía por contrato 2 la marca seguiría afirmándolo
+     * y el relleno nunca lo volvería a mandar.
+     */
     @Query(
         """
-        UPDATE Visit SET GUARDADO_EN_MICROSIP = 0, CONFIRMADA_EN = NULL, RESGUARDADA_EN = NULL
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 0, CONFIRMADA_EN = NULL, RESGUARDADA_EN = NULL,
+            COMPROMISO_CONFIRMADO_EN = NULL, COMPROMISO_RESGUARDADO_EN = NULL
         WHERE ID IN (:ids)
         """
     )
     suspend fun devolverAPendiente(ids: List<String>): Int
+
+    // ─── Relleno del compromiso (spec visitas §5.2.5) ────────────────────────
+    // Las dos ÚNICAS que escriben COMPROMISO_CONFIRMADO_EN/COMPROMISO_RESGUARDADO_EN
+    // con un valor (las limpia además devolverAPendiente, E-APP-099). Ninguna toca
+    // la entrega de la visita base.
+
+    /**
+     * El servidor devolvió el bloque de promesa/cita igual al local: deja la
+     * prueba y limpia un resguardo previo. Conserva la PRIMERA prueba
+     * (`COALESCE`), como [confirmar] (E-VIS-028).
+     *
+     * @return filas que tocó; 0 = el id no existe.
+     */
+    @Query(
+        """
+        UPDATE Visit SET COMPROMISO_CONFIRMADO_EN = COALESCE(COMPROMISO_CONFIRMADO_EN, :ahora),
+            COMPROMISO_RESGUARDADO_EN = NULL
+        WHERE ID = :id
+        """
+    )
+    suspend fun confirmarCompromiso(id: String, ahora: String): Int
+
+    /**
+     * El servidor resguardó el compromiso distinto en la bandeja. Nunca pisa un
+     * compromiso ya confirmado.
+     */
+    @Query(
+        """
+        UPDATE Visit SET COMPROMISO_RESGUARDADO_EN = :ahora
+        WHERE ID = :id AND COMPROMISO_CONFIRMADO_EN IS NULL
+        """
+    )
+    suspend fun resguardarCompromiso(id: String, ahora: String): Int
+
+    /**
+     * Las visitas con promesa o cita cuyo compromiso el servidor todavía no
+     * probó ni resguardó: lo que el relleno reenvía con el mismo id, de la más
+     * vieja a la más nueva. Incluye las de visita base ya confirmada.
+     */
+    @Query(
+        """
+        SELECT ID FROM Visit
+        WHERE (PROMESA_FECHA IS NOT NULL OR CITA_FECHA IS NOT NULL)
+          AND COMPROMISO_CONFIRMADO_EN IS NULL
+          AND COMPROMISO_RESGUARDADO_EN IS NULL
+        ORDER BY FECHA, ID
+        """
+    )
+    suspend fun compromisosPorRellenar(): List<String>
 
     /** Todas las pendientes, sin tope ni azar, de la más vieja a la más nueva. */
     @Query("SELECT ID FROM Visit WHERE GUARDADO_EN_MICROSIP = 0 ORDER BY FECHA ASC, ID ASC")
@@ -438,6 +505,17 @@ interface VisitDao {
      * nadie la reintenta— clavaría su visita en la tabla para siempre, que es un
      * defecto peor que el que se está cerrando.
      *
+     * ## Por qué la CUARTA condición (plan visitas P2, Tarea 15b; E-APP-100)
+     *
+     * Con contrato 3 la promesa y la cita sí viajan al servidor (lo de arriba
+     * sobre Ruling V describe el contrato 2), pero solo están a salvo cuando el
+     * servidor las PROBÓ (`COMPROMISO_CONFIRMADO_EN`) o las RESGUARDÓ
+     * (`COMPROMISO_RESGUARDADO_EN`). Mientras no, esta fila es la única copia y
+     * no se poda, pase la ventana que pase. El predicado de "tiene compromiso"
+     * es el mismo de [compromisosPorRellenar]. Lo que esta condición retiene lo
+     * cuenta [compromisosRetenidosPorPoda] para la telemetría: con un servidor
+     * sin contrato 3 no se libera nunca, y eso tiene que verse.
+     *
      * @param confirmadasAntesDe instante de corte (`AppTime.toWireFormat`): una
      *   confirmada en ese instante o después SOBREVIVE.
      * @param resguardadasAntesDe instante de corte: una resguardada en ese
@@ -467,6 +545,10 @@ interface VisitDao {
           )
           AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarCompromisosDesde
           AND ID NOT IN (:protegidas)
+          AND NOT (
+                (PROMESA_FECHA IS NOT NULL OR CITA_FECHA IS NOT NULL)
+            AND COMPROMISO_CONFIRMADO_EN IS NULL AND COMPROMISO_RESGUARDADO_EN IS NULL
+          )
         """
     )
     suspend fun deleteUploadedVisits(
@@ -490,6 +572,40 @@ interface VisitDao {
         """
     )
     suspend fun fotosSinSubirDeNoResguardadas(): List<VisitImageEntity>
+
+    /**
+     * E-APP-100: cuántas visitas borraría [deleteUploadedVisits] con estos
+     * mismos cortes si no fuera por un compromiso local sin probar ni
+     * resguardar. Con un servidor sin contrato 3 esas filas no se podan nunca;
+     * este conteo es la clave de telemetría que lo hace visible. Mismo `WHERE`
+     * que la poda salvo la última condición, que va invertida.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND (
+                (CONFIRMADA_EN IS NOT NULL AND CONFIRMADA_EN < :confirmadasAntesDe)
+             OR (RESGUARDADA_EN IS NOT NULL AND CONFIRMADA_EN IS NULL
+                 AND RESGUARDADA_EN < :resguardadasAntesDe)
+          )
+          AND ID NOT IN (
+              SELECT VISITA_ID FROM visita_imagenes
+              WHERE SUBIDA_EN IS NULL AND CREADA_EN >= :comprobantesDesde
+          )
+          AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarCompromisosDesde
+          AND ID NOT IN (:protegidas)
+          AND (PROMESA_FECHA IS NOT NULL OR CITA_FECHA IS NOT NULL)
+          AND COMPROMISO_CONFIRMADO_EN IS NULL AND COMPROMISO_RESGUARDADO_EN IS NULL
+        """
+    )
+    suspend fun compromisosRetenidosPorPoda(
+        confirmadasAntesDe: String,
+        resguardadasAntesDe: String,
+        comprobantesDesde: String,
+        conservarCompromisosDesde: String,
+        protegidas: List<String>
+    ): Int
 
     /**
      * Cuántas resguardadas ya rebasaron [antesDe] (la segunda rama de

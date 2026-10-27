@@ -156,9 +156,17 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
     fun `pasada la ventana de retencion la promesa si se poda`() = runTest {
         adaptador.registrar(visitaConPromesa())
         confirmarHaceMucho()
-
         // 2026-09-04 + 90 días = 2026-12-03; un día más y el corte la rebasa.
         clock.setNow(Instant.parse("2026-12-04T15:00:00Z"))
+
+        // E-APP-100: sin la prueba del compromiso en el servidor no se poda.
+        visitas.deleteUploadedVisits()
+        assertNotNull(
+            "el compromiso sin probar no se poda",
+            runCatching { db.visitDao().getVisitById(VISITA_ID) }.getOrNull()
+        )
+
+        db.visitDao().confirmarCompromiso(VISITA_ID, "2026-01-01T00:00:00Z")
         visitas.deleteUploadedVisits()
 
         assertNull(

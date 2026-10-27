@@ -19,4 +19,6 @@
          aparato que la ganó. Exclusión conservadora: el salto del bloqueo no se
          midió; un teléfono nuevo se vuelve a autorizar. -->
     <exclude domain="sharedpref" path="device_protection.xml"/>
+    <!-- P2 Tarea 15 (E-APP-097): ver data_extraction_rules.xml. -->
+    <exclude domain="sharedpref" path="visitas_capacidades.xml"/>
 </full-backup-content>

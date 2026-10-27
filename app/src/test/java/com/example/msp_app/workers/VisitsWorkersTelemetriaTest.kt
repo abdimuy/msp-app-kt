@@ -40,6 +40,7 @@ class VisitsWorkersTelemetriaTest : RoomTestBase() {
                 pendientes = { emptyList() },
                 encolar = {},
                 trigger = trigger,
+                refrescarCapacidades = {},
                 reportarEstado = reportarEstado
             )
         })

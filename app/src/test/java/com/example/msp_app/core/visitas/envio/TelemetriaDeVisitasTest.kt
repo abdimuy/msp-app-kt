@@ -70,6 +70,7 @@ class TelemetriaDeVisitasTest {
             "visitas.resguardadas_por_podar",
             "visitas.poda.fotos_con_archivo_que_no_viajan",
             "visitas.poda.pospuesta_protegidas",
+            "visitas.compromisos_retenidos_en_poda",
             "visitas.guardado_cancelado.escritas",
             "visitas.guardado_cancelado.cuentas",
             "visitas.guardado_cancelado.en_ubicacion",
@@ -195,10 +196,13 @@ class TelemetriaDeVisitasTest {
     }
 
     @Test
-    fun `H14 la poda reporta solo el conteo de resguardadas por podar`() {
+    fun `H14 la poda reporta solo conteos de resguardadas y de compromisos retenidos`() {
         assertEquals(
-            mapOf<String, Any>("visitas.resguardadas_por_podar" to 9),
-            TelemetriaDeVisitas.poda(9)
+            mapOf<String, Any>(
+                "visitas.resguardadas_por_podar" to 9,
+                "visitas.compromisos_retenidos_en_poda" to 4
+            ),
+            TelemetriaDeVisitas.poda(9, 4)
         )
     }
 

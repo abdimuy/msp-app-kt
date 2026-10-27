@@ -19,10 +19,12 @@ import com.example.msp_app.core.sync.pendingwork.data.visits.V2VisitCustodyRegis
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import com.example.msp_app.data.api.services.visits.CapacidadesDTO
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
 import com.example.msp_app.data.api.services.visits.VisitaDetalleDTO
+import com.example.msp_app.data.api.services.visits.VisitaExistenteDTO
 import com.example.msp_app.data.local.datasource.visit.MemoriaDePodaDeResguardadas
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.workers.construirPendingVisitsWorker
@@ -718,6 +720,15 @@ class MundoSimulado(
             )
             return visitaDetalle(id, imgs)
         }
+
+        override suspend fun capacidades(): CapacidadesDTO =
+            throw AssertionError("sim: el worker de subida no negocia capacidades")
+
+        override suspend fun visitasExistentesPorIdsDetalle(
+            ids: String,
+            detalle: Int
+        ): List<VisitaExistenteDTO> =
+            throw AssertionError("sim: el worker de subida no usa by-ids con detalle")
     }
 
     // ─── costuras de los DAO ───────────────────────────────────────────────

@@ -806,6 +806,7 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
                 listOf(
                     "visitas_poda" to mapOf<String, Any>(
                         "visitas.resguardadas_por_podar" to 0,
+                        "visitas.compromisos_retenidos_en_poda" to 0,
                         "visitas.poda.fotos_con_archivo_que_no_viajan" to 1
                     )
                 ),
@@ -857,6 +858,7 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             listOf(
                 "visitas_poda" to mapOf<String, Any>(
                     "visitas.resguardadas_por_podar" to 0,
+                    "visitas.compromisos_retenidos_en_poda" to 0,
                     "visitas.poda.pospuesta_protegidas" to PROTEGIDAS_DE_MAS
                 )
             ),
@@ -924,7 +926,12 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         s.deleteUploadedVisits()
 
         assertEquals(
-            listOf("visitas_poda" to mapOf<String, Any>("visitas.resguardadas_por_podar" to 2)),
+            listOf(
+                "visitas_poda" to mapOf<String, Any>(
+                    "visitas.resguardadas_por_podar" to 2,
+                    "visitas.compromisos_retenidos_en_poda" to 0
+                )
+            ),
             emitidos
         )
         assertNotNull("se reporta antes de podar", db.visitDao().findVisitById("r-vieja-1"))
@@ -958,6 +965,49 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             db.visitDao().resguardar("r-vieja", "2026-07-01T00:00:00Z")
             reventona.deleteUploadedVisits() // no lanza
         }
+
+    /**
+     * E-APP-100: la poda real no borra la visita cuyo compromiso el servidor no
+     * probó, y lo cuenta por telemetría (con un servidor sin contrato 3 esa
+     * retención no termina nunca). Control: sin compromiso, la misma corrida poda.
+     */
+    @Test
+    fun `E-APP-100 la poda real retiene el compromiso sin probar y lo reporta`() = runTest {
+        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
+        val s = VisitsLocalDataSource(
+            db.visitDao(),
+            db.saleDao(),
+            enqueuer,
+            FakeClock(ahora),
+            MemoriaEnPrueba(),
+            telemetria = { e, m -> emitidos += e to m }
+        )
+        s.saveVisit(visit(id = "con-promesa").copy(PROMESA_FECHA = "2026-01-05"))
+        db.visitDao().confirmar(listOf("con-promesa"), "2026-09-01T00:00:00Z")
+        s.saveVisit(visit(id = "sin-compromiso"))
+        db.visitDao().confirmar(listOf("sin-compromiso"), "2026-09-01T00:00:00Z")
+
+        s.deleteUploadedVisits()
+
+        assertNotNull(db.visitDao().findVisitById("con-promesa"))
+        assertNull("control positivo", db.visitDao().findVisitById("sin-compromiso"))
+        assertEquals(
+            listOf(
+                "visitas_poda" to mapOf<String, Any>(
+                    "visitas.resguardadas_por_podar" to 0,
+                    "visitas.compromisos_retenidos_en_poda" to 1
+                )
+            ),
+            emitidos
+        )
+
+        // Probado el compromiso, la siguiente corrida la poda y ya no la cuenta.
+        db.visitDao().confirmarCompromiso("con-promesa", "2026-09-02T00:00:00Z")
+        emitidos.clear()
+        s.deleteUploadedVisits()
+        assertNull(db.visitDao().findVisitById("con-promesa"))
+        assertEquals(emptyList<Pair<String, Map<String, Any>>>(), emitidos)
+    }
 
     @Test
     fun `sin memoria nunca se poda una resguardada`() = runTest {

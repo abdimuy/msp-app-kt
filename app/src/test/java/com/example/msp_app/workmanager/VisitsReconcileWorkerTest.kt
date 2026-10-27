@@ -125,7 +125,8 @@ class VisitsReconcileWorkerTest {
                         appContext,
                         workerParameters,
                         pendientes = { emptyList() },
-                        encolar = {}
+                        encolar = {},
+                        refrescarCapacidades = {}
                     ) { throw IllegalStateException("grafo de Hilt no listo") }
                 }
             )
@@ -155,7 +156,8 @@ class VisitsReconcileWorkerTest {
                 appContext,
                 workerParameters,
                 pendientes = { emptyList() },
-                encolar = {}
+                encolar = {},
+                refrescarCapacidades = {}
             ) {
                 corridas.incrementAndGet()
             }

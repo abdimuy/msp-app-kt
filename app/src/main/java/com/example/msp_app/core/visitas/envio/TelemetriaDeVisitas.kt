@@ -145,6 +145,13 @@ object TelemetriaDeVisitas {
      */
     const val PODA_POSPUESTA_PROTEGIDAS = "visitas.poda.pospuesta_protegidas"
 
+    /**
+     * E-APP-100 (P2 Tarea 15b): visitas que la poda borraría si no fuera por un
+     * compromiso local sin probar ni resguardar en el servidor. Con un servidor
+     * sin contrato 3 no bajan nunca: este conteo hace visible esa retención.
+     */
+    const val COMPROMISOS_RETENIDOS_EN_PODA = "visitas.compromisos_retenidos_en_poda"
+
     /** E-APP-078: cuentas escritas antes del corte, de [GC_CUENTAS]. */
     const val GC_ESCRITAS = "visitas.guardado_cancelado.escritas"
     const val GC_CUENTAS = "visitas.guardado_cancelado.cuentas"
@@ -176,6 +183,9 @@ object TelemetriaDeVisitas {
         "visita_confirmada_por_otro_camino_con_foto_nueva",
         "visita_sin_marca",
         "visita_fotos_sin_confirmar",
+        // Worker de visitas, relleno del compromiso (P2 Tarea 15, E-APP-098).
+        "visita_compromiso_sin_confirmar",
+        "visita_compromiso_sin_marca",
         // Red (ClasificadorDeFalloDeEnvio).
         "cancelado",
         "timeout",
@@ -215,6 +225,21 @@ object TelemetriaDeVisitas {
         "visita_imagen_no_encontrada",
         "visita_imagen_descripcion_demasiado_larga",
         "visitas_imagenes_no_configurado",
+        // Servidor: contrato de visitas 3 (msp-api feat/visitas-p2-t10, spec §5.2.2,
+        // E-VIS-046, E-VIS-047, E-VIS-051).
+        "visita_promesa_fecha_invalida",
+        "visita_promesa_incompleta",
+        "visita_promesa_monto_invalido",
+        "visita_promesa_venta_invalida",
+        "visita_cita_incompleta",
+        "visita_cita_invalida",
+        "visita_compromiso_distinto",
+        "visita_cliente_id_out_of_range",
+        "visita_cobrador_id_out_of_range",
+        "visita_forma_cobro_id_out_of_range",
+        "visita_zona_cliente_id_out_of_range",
+        "visita_impte_docto_cc_id_out_of_range",
+        "visita_imagen_id_de_otra_visita",
         // Servidor: plataforma.
         "idempotency_key_mismatch",
         "validation_failed",
@@ -260,6 +285,7 @@ object TelemetriaDeVisitas {
         RESGUARDADAS_POR_PODAR,
         PODA_FOTOS_QUE_NO_VIAJAN,
         PODA_POSPUESTA_PROTEGIDAS,
+        COMPROMISOS_RETENIDOS_EN_PODA,
         GC_ESCRITAS,
         GC_CUENTAS,
         GC_EN_UBICACION,
@@ -328,13 +354,20 @@ object TelemetriaDeVisitas {
         CONC_BARRIDO_POR_VALVULA to if (r.barridoPorValvula) 1 else 0
     )
 
-    /** Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas. */
+    /**
+     * Poda (Tarea 12): cuántas resguardadas se reportan antes de podarlas;
+     * desde E-APP-100, cuántas retiene un compromiso sin probar (siempre
+     * presente, también en 0) y, desde E-APP-079, las fotos que no viajan y la
+     * poda pospuesta (solo si pasan). Solo conteos.
+     */
     fun poda(
         resguardadasPorPodar: Int,
+        compromisosRetenidos: Int,
         fotosQueNoViajan: Int = 0,
         pospuestaProtegidas: Int = 0
     ): Map<String, Any> = buildMap {
         put(RESGUARDADAS_POR_PODAR, resguardadasPorPodar)
+        put(COMPROMISOS_RETENIDOS_EN_PODA, compromisosRetenidos)
         if (fotosQueNoViajan > 0) put(PODA_FOTOS_QUE_NO_VIAJAN, fotosQueNoViajan)
         if (pospuestaProtegidas > 0) put(PODA_POSPUESTA_PROTEGIDAS, pospuestaProtegidas)
     }

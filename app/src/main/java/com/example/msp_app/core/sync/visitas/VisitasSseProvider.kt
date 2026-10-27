@@ -97,6 +97,10 @@ object VisitasSseProvider {
             handler = HandleVisitsPushEventUseCase(
                 triggerReconciliation = {
                     VisitsReconcileTriggerProvider.get(appContext).execute()
+                    // Plan visitas P2, Tarea 16: el aviso también baja la
+                    // agenda de la zona. Nunca lanza salvo cancelación, así que
+                    // no convierte un aviso sano en FALLO_AL_DISPARAR.
+                    VisitasZonaSyncProvider.sincronizar(appContext)
                 },
                 errorReporter = object : SyncErrorReporter {
                     override fun report(code: String, message: String, props: Map<String, String>) {

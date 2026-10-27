@@ -7,7 +7,10 @@
      Las marcas de visitas solo valen junto a la base que las escribió: sin ella,
      `visitas_poda` dejaría podar resguardadas que este teléfono no reportó.
      Tarea 14 (visitas P1, E-VIS-029): `visitas_telemetria` es lo último que este
-     aparato mandó de visitas_estado; en otro aparato no significa nada. -->
+     aparato mandó de visitas_estado; en otro aparato no significa nada.
+     P2 Tarea 15 (E-APP-097): `visitas_capacidades` es el contrato que anunció
+     el servidor al que habla ESTE aparato; restaurada en otro, con su marca de
+     refresco, mandaría campos que su servidor podría rechazar. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="database" path="."/>
@@ -26,6 +29,7 @@
              aparato que la ganó. Exclusión conservadora: el salto del bloqueo no se
              midió; un teléfono nuevo se vuelve a autorizar. -->
         <exclude domain="sharedpref" path="device_protection.xml"/>
+        <exclude domain="sharedpref" path="visitas_capacidades.xml"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="database" path="."/>
@@ -44,5 +48,6 @@
              aparato que la ganó. Exclusión conservadora: el salto del bloqueo no se
              midió; un teléfono nuevo se vuelve a autorizar. -->
         <exclude domain="sharedpref" path="device_protection.xml"/>
+        <exclude domain="sharedpref" path="visitas_capacidades.xml"/>
     </device-transfer>
 </data-extraction-rules>
