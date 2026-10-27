@@ -287,7 +287,9 @@ class SimulacionBajadaVisitasTest : RoomTestBase() {
                             "$defecto semilla=$s rompió ${v.inv}, se esperaba $quiere: ${v.message}",
                             v.inv in quiere
                         )
-                        println("SIM E-APP-116 control $defecto cazado en semilla=$s: ${v.message}")
+                        println(
+                            "SIM E-APP-116 control $defecto cazado en semilla=$s por ${v.inv}: ${v.message}"
+                        )
                         return@runBlocking
                     }
                 }
@@ -318,7 +320,7 @@ class SimulacionBajadaVisitasTest : RoomTestBase() {
 
     @Test
     fun `E-APP-116 control positivo el cursor solo por tiempo lo caza I4`() =
-        cazadoEnSemillas(DefectosBajada(cursorSoloTiempo = true), setOf("I4", "I-bajada"))
+        cazadoEnSemillas(DefectosBajada(cursorSoloTiempo = true), setOf("I4"))
 
     private companion object {
         const val SEMILLAS = 150L
