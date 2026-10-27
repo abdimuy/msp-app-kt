@@ -110,16 +110,21 @@ class ReceptoresTest : RoomTestBase() {
     /** E-APP-134 (revision de T15): el trabajo emite `visitas_avisos`; si quitan reportarAvisos, se pone roja. */
     @Test
     fun `reprogramar por omision emite la telemetria de avisos - E-APP-134`() = runTest {
-        val emitidos = mutableListOf<Pair<String, Map<String, Any>>>()
-        TelemetriaDeVisitas.sinkParaPrueba = { e, d -> emitidos += e to d }
+        // El sink es global: en la suite completa otro trabajo de avisos puede emitir a la vez
+        // desde otro hilo. Se cuenta solo lo emitido desde este hilo, que es lo de esta llamada.
+        val hiloDePrueba = Thread.currentThread()
+        val emitidos = java.util.Collections.synchronizedList(
+            mutableListOf<Triple<String, Map<String, Any>, Thread>>()
+        )
+        TelemetriaDeVisitas.sinkParaPrueba = { e, d -> emitidos += Triple(e, d, Thread.currentThread()) }
         try {
             ReprogramarAvisosWorker.reprogramarPorOmision(context)
         } finally {
             TelemetriaDeVisitas.sinkParaPrueba = null
         }
         val avisos = emitidos.filter { it.first == TelemetriaDeVisitas.EVENTO_AVISOS }
-        // Al menos uno: otro trabajo de avisos puede correr a la vez en la suite completa.
-        assertTrue(avisos.isNotEmpty())
-        assertTrue(avisos.all { it.second.containsKey(TelemetriaDeVisitas.AVISOS_PROGRAMADOS) })
+        val propios = avisos.filter { it.third === hiloDePrueba }
+        assertEquals("hilos: ${avisos.map { it.third.name }}", 1, propios.size)
+        assertTrue(propios.single().second.containsKey(TelemetriaDeVisitas.AVISOS_PROGRAMADOS))
     }
 }
