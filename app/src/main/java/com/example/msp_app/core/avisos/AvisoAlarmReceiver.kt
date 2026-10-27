@@ -50,6 +50,7 @@ class AvisoAlarmReceiver : BroadcastReceiver() {
                 id.hashCode(),
                 CanalesDeNotificacion.AVISOS_COMPROMISOS
             )
+            ContadorDeDisparos.de(context).registrar(java.time.Instant.now())
         }
 
         /** Título y texto por tipo; sin datos del cliente (se verían en la pantalla bloqueada). */

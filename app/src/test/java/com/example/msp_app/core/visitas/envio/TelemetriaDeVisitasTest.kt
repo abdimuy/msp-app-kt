@@ -80,7 +80,12 @@ class TelemetriaDeVisitasTest {
             "visitas.inventario.rescatadas",
             "visitas.inventario.borradas",
             "visitas.inventario.fallido",
-            "visitas_sync.cursor_stalled"
+            "visitas_sync.cursor_stalled",
+            "permiso.notificaciones",
+            "permiso.alarmas_exactas",
+            "bateria.sin_optimizar",
+            "avisos.programados",
+            "avisos.disparados_24h"
         )
         val fallos = TelemetriaDeVisitas.CODIGOS_DE_FALLO.map { "visitas.fallos.$it" }.toSet()
         assertEquals(base + fallos, TelemetriaDeVisitas.CLAVES)
@@ -92,7 +97,8 @@ class TelemetriaDeVisitasTest {
                 "visitas_guardado_cancelado",
                 "visitas_cuenta_ausente_al_reintentar",
                 "visitas_inventario",
-                "visitas_sync"
+                "visitas_sync",
+                "visitas_avisos"
             ),
             TelemetriaDeVisitas.EVENTOS
         )

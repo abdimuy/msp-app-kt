@@ -13,6 +13,7 @@ import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.visitas.agenda.AgendaLocal
 import com.example.msp_app.core.visitas.agenda.RoomFuenteDeAgenda
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -61,6 +62,31 @@ class ReprogramarAvisosWorker @JvmOverloads constructor(
 
         @VisibleForTesting
         internal suspend fun reprogramarPorOmision(context: Context) {
+            proyectar(context)
+            reportarAvisos(context)
+        }
+
+        /** E-APP-134: permisos y conteos a la telemetría; nunca lanza ni cambia lo programado. */
+        @Suppress("TooGenericExceptionCaught")
+        private suspend fun reportarAvisos(context: Context) {
+            try {
+                val programados = AppDatabase.getInstance(context).avisosDao().programados().size
+                TelemetriaDeVisitas.emitir(
+                    TelemetriaDeVisitas.EVENTO_AVISOS,
+                    TelemetriaDeVisitas.avisos(
+                        EstadoDePermisos.leer(context),
+                        programados,
+                        ContadorDeDisparos.de(context).ultimas24h(Instant.now())
+                    )
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "la telemetria de avisos no se pudo armar", e)
+            }
+        }
+
+        private suspend fun proyectar(context: Context) {
             val db = AppDatabase.getInstance(context)
             val reprogramador = ReprogramadorDeAlarmas(
                 context = context,

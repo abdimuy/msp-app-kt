@@ -40,4 +40,9 @@ class ManifiestoDeAvisosTest {
             "SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
         ).forEach { assertTrue(it, manifiesto.contains("action.$it")) }
     }
+
+    @Test
+    fun `no declara el permiso restringido de bateria sino que abre la lista del sistema - E-APP-134`() {
+        assertFalse(manifiesto.contains("REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"))
+    }
 }

@@ -73,6 +73,9 @@ object TelemetriaDeVisitas {
 
     /** P2 Tarea 18 (E-APP-110): salud de la bajada de la agenda. */
     const val EVENTO_SYNC = "visitas_sync"
+
+    /** E-APP-134: permisos y conteos de los avisos de la agenda (P3, Tarea 15). */
+    const val EVENTO_AVISOS = "visitas_avisos"
     val EVENTOS: Set<String> = setOf(
         EVENTO_ESTADO,
         EVENTO_CONCILIACION,
@@ -80,7 +83,8 @@ object TelemetriaDeVisitas {
         EVENTO_GUARDADO_CANCELADO,
         EVENTO_CUENTA_AUSENTE,
         EVENTO_INVENTARIO,
-        EVENTO_SYNC
+        EVENTO_SYNC,
+        EVENTO_AVISOS
     )
 
     const val APP_VERSION = "app.version"
@@ -184,6 +188,12 @@ object TelemetriaDeVisitas {
 
     /** E-APP-110: corridas seguidas de la bajada que cerraron en la misma posición aplicando filas. */
     const val SYNC_CURSOR_STALLED = "visitas_sync.cursor_stalled"
+
+    const val PERMISO_NOTIFICACIONES = "permiso.notificaciones"
+    const val PERMISO_ALARMAS_EXACTAS = "permiso.alarmas_exactas"
+    const val BATERIA_SIN_OPTIMIZAR = "bateria.sin_optimizar"
+    const val AVISOS_PROGRAMADOS = "avisos.programados"
+    const val AVISOS_DISPARADOS_24H = "avisos.disparados_24h"
 
     private val HTTP_CONOCIDOS = listOf(
         400, 401, 403, 404, 405, 408, 409, 410, 413, 415, 422, 425, 429, 500, 502, 503, 504
@@ -317,7 +327,12 @@ object TelemetriaDeVisitas {
         INV_RESCATADAS,
         INV_BORRADAS,
         INV_FALLIDO,
-        SYNC_CURSOR_STALLED
+        SYNC_CURSOR_STALLED,
+        PERMISO_NOTIFICACIONES,
+        PERMISO_ALARMAS_EXACTAS,
+        BATERIA_SIN_OPTIMIZAR,
+        AVISOS_PROGRAMADOS,
+        AVISOS_DISPARADOS_24H
     ) + CODIGOS_DE_FALLO.map { PREFIJO_FALLOS + it }
 
     private val FORMA_DE_VERSION = Regex("^[0-9][0-9A-Za-z._+-]{0,39}$")
@@ -421,6 +436,19 @@ object TelemetriaDeVisitas {
 
     /** Cuenta ausente al reintentar (H-r4-5): solo el conteo. */
     fun cuentaAusente(ausentes: Int): Map<String, Any> = mapOf(CA_AUSENTES to ausentes)
+
+    /** Avisos (E-APP-134): los tres permisos como 0/1 y dos conteos; nada del cliente. */
+    fun avisos(
+        permisos: com.example.msp_app.core.avisos.EstadoDePermisos,
+        programados: Int,
+        disparados24h: Int
+    ): Map<String, Any> = mapOf(
+        PERMISO_NOTIFICACIONES to if (permisos.notificaciones) 1 else 0,
+        PERMISO_ALARMAS_EXACTAS to if (permisos.alarmasExactas) 1 else 0,
+        BATERIA_SIN_OPTIMIZAR to if (permisos.bateriaSinOptimizar) 1 else 0,
+        AVISOS_PROGRAMADOS to programados,
+        AVISOS_DISPARADOS_24H to disparados24h
+    )
 
     /** Solo pruebas: reemplaza el envío a `RemoteLogger`. */
     @VisibleForTesting

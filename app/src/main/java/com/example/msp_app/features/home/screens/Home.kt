@@ -44,9 +44,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.UpdateBanner
+import com.example.msp_app.core.avisos.EstadoDePermisos
+import com.example.msp_app.core.avisos.GuiaDePermisos
+import com.example.msp_app.core.avisos.MemoriaDeLaPregunta
+import com.example.msp_app.core.avisos.PasoDePermiso
 import com.example.msp_app.core.common.location.label
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
@@ -67,6 +72,7 @@ import com.example.msp_app.feature.visitas.ui.AvisoDePendientesViewModel
 import com.example.msp_app.feature.visitas.ui.components.AvisoDePendientes
 import com.example.msp_app.feature.visitas.ui.components.irAPendientes
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
+import com.example.msp_app.features.home.components.avisos.AvisosPermisosDialog
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.home.components.homenearbyclientssection.HomeNearbyClientsSection
@@ -86,12 +92,15 @@ import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val NOTIFICACIONES_PERMISO = Manifest.permission.POST_NOTIFICATIONS
 
@@ -247,6 +256,28 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
         ) {
             notificacionesState.launchPermissionRequest()
         }
+    }
+
+    // Permisos de los avisos (plan P3, Tarea 15): solo cuando ya hay avisos
+    // programados, con texto que explica por qué; "Ahora no" no bloquea nada.
+    val scope = rememberCoroutineScope()
+    var pasosDeAvisos by remember { mutableStateOf(emptyList<PasoDePermiso>()) }
+    LifecycleResumeEffect(Unit) {
+        val job = scope.launch {
+            pasosDeAvisos = runCatching {
+                val hay = withContext(Dispatchers.IO) {
+                    AppDatabase.getInstance(context).avisosDao().programados().isNotEmpty()
+                }
+                GuiaDePermisos.pasosPendientes(
+                    EstadoDePermisos.leer(context),
+                    Build.VERSION.SDK_INT,
+                    hay,
+                    MemoriaDeLaPregunta.de(context).ultima(),
+                    Instant.now()
+                )
+            }.getOrDefault(emptyList())
+        }
+        onPauseOrDispose { job.cancel() }
     }
 
     LaunchedEffect(Unit) {
@@ -545,6 +576,21 @@ fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion?
                 }
             )
         }
+    }
+
+    if (pasosDeAvisos.isNotEmpty()) {
+        AvisosPermisosDialog(
+            pasos = pasosDeAvisos,
+            onAbrir = { paso ->
+                MemoriaDeLaPregunta.de(context).marcar(Instant.now())
+                GuiaDePermisos.abrir(context, paso)
+                pasosDeAvisos = pasosDeAvisos - paso
+            },
+            onAhoraNo = {
+                MemoriaDeLaPregunta.de(context).marcar(Instant.now())
+                pasosDeAvisos = emptyList()
+            }
+        )
     }
 
     if (showUpdateDialog) {
