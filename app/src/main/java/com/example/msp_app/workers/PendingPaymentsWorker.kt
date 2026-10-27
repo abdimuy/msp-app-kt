@@ -32,6 +32,9 @@ import com.example.msp_app.data.pagos.PartesDeComprobantes
 import com.example.msp_app.data.pagos.partesDeComprobantes
 import com.example.msp_app.workmanager.enqueueRefrescoDeSaldo
 import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.io.File
 import java.io.IOException
@@ -258,7 +261,20 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         return when (classifyUpload(e.code(), reachedMspApi, captureConfirmed)) {
             UploadDecision.RELEASE -> {
                 if (esCondonacionRechazadaPorSaldo(payment, e, captureConfirmed)) {
-                    return soltarCondonacionRechazada(payment, e.code())
+                    // E-APP-108: el 422 de saldo es TAMBIÉN la respuesta normal al
+                    // reintento de una condonación que sí llegó (el servidor valida
+                    // el saldo antes del replay idempotente; MEDIDO por la compuerta
+                    // DESPUÉS del 2026-10-26). Sólo el 404 del GET prueba que no
+                    // llegó; si el GET no contestó, se reintenta con la misma clave.
+                    if (enServidor == EnServidor.NoExiste) {
+                        return soltarCondonacionRechazada(payment, e.code())
+                    }
+                    Log.w(
+                        TAG,
+                        "Condonacion ${payment.ID}: 422 por saldo sin prueba de que no " +
+                            "llego (GET sin respuesta); reintentando"
+                    )
+                    return Result.retry()
                 }
                 // `> 0` y no `!= 0`: -1 es la marca de condonación rechazada.
                 val documento: Int = payment.DOCTO_CC_ID
@@ -379,14 +395,37 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         captureConfirmed &&
         codigoDelProblema(e) == CODIGO_SALDO_INSUFICIENTE
 
-    /** El `code` del `problem+json`, o `null` si no se puede leer. */
+    /**
+     * El `code` del `problem+json`, o `null` si no se puede leer (E-APP-108).
+     *
+     * El servidor NO lo manda en la raíz: `huma.ErrorModel` no tiene miembro
+     * `code`, así que `mapAppError` lo pone en `errors[].message = "code=<código>"`
+     * (`internal/cobranza/infra/cobranzahttp/auth.go:59-71`, msp-api @ab6a19d;
+     * cuerpo real MEDIDO 2026-10-26). Leer sólo la raíz dejaba esta rama muerta.
+     * Mismo criterio que `parseProblemJSON` del servidor: la raíz gana si viene;
+     * si no, el PRIMER `errors[].message` con el prefijo EXACTO `code=` (un
+     * error de validación de Huma trae `errors[]` sin prefijo y no es un código).
+     */
     @Suppress("TooGenericExceptionCaught") // un cuerpo ilegible no es un rechazo por saldo
     private fun codigoDelProblema(e: HttpException): String? = try {
-        e.response()?.errorBody()?.string()
-            ?.let { JsonParser.parseString(it).asJsonObject.get("code")?.asString }
+        e.response()?.errorBody()?.string()?.let { cuerpo ->
+            val raiz = JsonParser.parseString(cuerpo).asJsonObject
+            raiz.get("code")?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotEmpty() }
+                ?: codigoEnDetalles(raiz.get("errors"))
+        }
     } catch (_: Exception) {
         null
     }
+
+    /** El primer `errors[].message` de la forma `code=<código>`, sin el prefijo. */
+    private fun codigoEnDetalles(errores: JsonElement?): String? =
+        (errores as? JsonArray)?.firstNotNullOfOrNull { detalle ->
+            (detalle as? JsonObject)?.get("message")
+                ?.takeIf { it.isJsonPrimitive }?.asString
+                ?.takeIf { it.startsWith(PREFIJO_CODIGO_HUMA) }
+                ?.removePrefix(PREFIJO_CODIGO_HUMA)
+                ?.takeIf { it.isNotEmpty() }
+        }
 
     /**
      * Suelta la condonación rechazada y la marca rechazada
@@ -568,6 +607,10 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         private const val HTTP_UNPROCESSABLE = 422
 
         private const val CODIGO_SALDO_INSUFICIENTE = "pago_saldo_insuficiente"
+
+        /** Prefijo con el que `mapAppError` del servidor mete el código en `errors[]`. */
+        private const val PREFIJO_CODIGO_HUMA = "code="
+
         private const val HTTP_NOT_FOUND = 404
 
         /** E-APP-088: resguardado (X-Intent-Captured) pero el GET por UUID da 404. */
