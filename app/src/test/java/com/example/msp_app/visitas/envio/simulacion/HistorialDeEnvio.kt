@@ -3,6 +3,7 @@ package com.example.msp_app.visitas.envio.simulacion
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
 import java.io.File
+import java.time.Instant
 
 /*
  * Historial de la simulación Kotlin del envío de visitas (plan visitas P1,
@@ -42,6 +43,20 @@ internal object TipoEvento {
     const val RESGUARDADA = "marca_resguardada"
     const val DEVUELTA = "devuelta"
     const val FINAL = "final"
+
+    // Bajada de la agenda por zona (plan visitas P2, Tarea 19; E-APP-116).
+    const val PULL = "pull"
+    const val CURSOR = "cursor"
+    const val EPOCH = "epoch"
+    const val SALIDA = "salida"
+    const val ACCION = "accion"
+}
+
+/** Motivos del evento `cursor`: una página aplicada o un reinicio de la posición. */
+internal object MotivoCursor {
+    const val PAGINA = "pagina"
+    const val REINICIO_ZONA = "reinicio_zona"
+    const val REINICIO_EPOCH = "reinicio_epoch"
 }
 
 /** Detalle de la falla que emite el INYECTOR al borrar el archivo local de una foto pendiente. */
@@ -88,6 +103,7 @@ fun verificar(
     permitirDeuda: Boolean = false
 ): InvarianteError? {
     val vs = linkedMapOf<String, Vista>()
+    val bajada = VistaBajada()
     fun get(e: Evento): Vista? = vs[e.visitaId]
     fun nunca(e: Evento) =
         InvarianteError("I2", e.paso, e.visitaId, "evento ${e.tipo} de una visita nunca capturada")
@@ -237,7 +253,9 @@ fun verificar(
                     v.deuda.removeAll { it == c["foto"] }
                 }
             }
-            TipoEvento.ENVIO, TipoEvento.RESPUESTA, TipoEvento.GET -> Unit
+            TipoEvento.PULL, TipoEvento.CURSOR, TipoEvento.EPOCH, TipoEvento.SALIDA ->
+                bajada.aplicar(e, c)?.let { return it }
+            TipoEvento.ENVIO, TipoEvento.RESPUESTA, TipoEvento.GET, TipoEvento.ACCION -> Unit
             else -> return InvarianteError(
                 "formato",
                 e.paso,
@@ -250,6 +268,113 @@ fun verificar(
         if (!v.finalVisto) return InvarianteError("I1", 0, id, "capturada y sin estado final")
     }
     return null
+}
+
+private fun dato(v: String?): String? = v?.takeUnless { it.isEmpty() || it == "-" }
+
+/** `(u1, id1) < (u2, id2)` en el orden de la bajada: `UPDATED_AT` y luego id en bytes. */
+private fun antes(u1: Instant, id1: String, u2: Instant, id2: String): Boolean =
+    if (u1 != u2) u1.isBefore(u2) else id1 < id2
+
+/**
+ * Las reglas de la bajada que se leen solo del historial (plan visitas P2,
+ * Tarea 19; E-APP-116). Traducción línea por línea de `vistaBajada` de Go
+ * (msp-api `internal/visitas/sim/historial_test.go`):
+ *
+ *  - `pull` (`zona= filas=id|updated_at,… has_more=0|1 epoch=N|-`): las filas
+ *    de una página que el teléfono aplicó a `visita_zona` (ya confirmada).
+ *  - `cursor` (`zona= cursor= after_id= motivo=`): la posición PERSISTIDA tras
+ *    una página o un reinicio. **I6**: el par se escribe junto (los dos o
+ *    ninguno); no retrocede salvo reinicio; su fila está aplicada; un reinicio
+ *    deja los dos nulos.
+ *  - `epoch` (`zona= epoch=`): la generación persistida. Solo al terminar el
+ *    replay: la última página de esa zona trajo `has_more=0` y esa generación.
+ *  - `salida` (`fase=antes|despues huella=`): la huella de la tabla `Visit`
+ *    alrededor de una acción de bajada. **I8**: la de después es la de antes.
+ *
+ * Un reinicio de zona borra lo bajado de las demás zonas y deja sin posición a
+ * todas (`VisitaZonaDao.reiniciarZona`); uno por generación borra todo.
+ */
+private class VistaBajada {
+    private val aplicadas = mutableMapOf<String, MutableSet<String>>()
+    private val ultimoPar = mutableMapOf<String, Pair<Instant, String>>()
+    private val ultimoPull = mutableMapOf<String, Pair<String?, Boolean>>()
+    private var huellaAntes: String? = null
+
+    @Suppress("ReturnCount", "CyclomaticComplexMethod")
+    fun aplicar(e: Evento, c: Map<String, String>): InvarianteError? {
+        val zona = c["zona"].orEmpty()
+        fun mal(inv: String, msg: String) = InvarianteError(inv, e.paso, e.visitaId, msg)
+        when (e.tipo) {
+            TipoEvento.PULL -> {
+                val ids = lista(c["filas"]).map { it.substringBefore('|') }
+                aplicadas.getOrPut(zona) { mutableSetOf() }.addAll(ids)
+                ultimoPull[zona] = dato(c["epoch"]) to (c["has_more"] == "1")
+            }
+            TipoEvento.CURSOR -> {
+                val cursor = dato(c["cursor"])
+                val after = dato(c["after_id"])
+                when (c["motivo"]) {
+                    MotivoCursor.REINICIO_ZONA, MotivoCursor.REINICIO_EPOCH -> {
+                        if (cursor != null || after != null) {
+                            return mal("I6", "un reinicio debe dejar CURSOR y AFTER_ID nulos")
+                        }
+                        if (c["motivo"] == MotivoCursor.REINICIO_ZONA) {
+                            aplicadas.keys.retainAll { it == zona }
+                        } else {
+                            aplicadas.clear()
+                        }
+                        ultimoPar.clear()
+                        ultimoPull.clear()
+                    }
+                    MotivoCursor.PAGINA -> {
+                        if ((cursor == null) != (after == null)) {
+                            return mal(
+                                "I6",
+                                "el cursor no es par: CURSOR y AFTER_ID deben escribirse juntos"
+                            )
+                        }
+                        if (cursor == null || after == null) return null
+                        val u = runCatching { Instant.parse(cursor) }.getOrNull()
+                            ?: return mal("formato", "cursor ilegible \"$cursor\"")
+                        val previo = ultimoPar[zona]
+                        if (previo != null && antes(u, after, previo.first, previo.second)) {
+                            return mal("I6", "el cursor retrocedió sin reinicio")
+                        }
+                        if (after !in aplicadas[zona].orEmpty()) {
+                            return mal(
+                                "I6",
+                                "el cursor va por delante de lo aplicado en visita_zona"
+                            )
+                        }
+                        ultimoPar[zona] = u to after
+                    }
+                    else -> return mal("formato", "motivo de cursor desconocido \"${c["motivo"]}\"")
+                }
+            }
+            TipoEvento.EPOCH -> {
+                val ultimo = ultimoPull[zona]
+                if (ultimo == null || ultimo.second || ultimo.first != dato(c["epoch"])) {
+                    return mal(
+                        "epoch",
+                        "generación persistida sin que el replay terminara con ella"
+                    )
+                }
+            }
+            TipoEvento.SALIDA -> when (c["fase"]) {
+                "antes" -> huellaAntes = c["huella"]
+                "despues" -> {
+                    val previa = huellaAntes ?: return mal("formato", "salida despues sin antes")
+                    huellaAntes = null
+                    if (previa != c["huella"]) {
+                        return mal("I8", "una acción de bajada cambió la tabla de salida Visit")
+                    }
+                }
+                else -> return mal("formato", "fase de salida desconocida \"${c["fase"]}\"")
+            }
+        }
+        return null
+    }
 }
 
 private val gson = GsonBuilder().disableHtmlEscaping().create()
