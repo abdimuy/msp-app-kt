@@ -100,6 +100,30 @@ interface CapturaEnCursoDao {
     )
     fun observarVentaDelPrimerAbonoSinGuardar(usuario: String): Flow<String?>
 
+    /**
+     * E-APP-118: cuántos envíos del usuario no coinciden con la oficina
+     * ("Un envío no coincide con la oficina", decisión 4 del dueño). Abonos y
+     * condonaciones por igual, en cualquier estado del marcador (E-APP-117).
+     */
+    @Query(
+        "SELECT COUNT(*) FROM capturas_en_curso WHERE USUARIO = :usuario " +
+            "AND DISCREPANCIA IS NOT NULL"
+    )
+    fun observarEnviosQueNoCoinciden(usuario: String): Flow<Int>
+
+    /**
+     * E-APP-118: la venta a la que lleva el aviso: la del abono sin guardar o
+     * la del pago o condonación que no coincide, el más viejo. `LLAVE` de un
+     * marcador de pago es la venta (`DOCTO_CC_ACR_ID`).
+     */
+    @Query(
+        "SELECT LLAVE FROM capturas_en_curso WHERE USUARIO = :usuario " +
+            "AND TIPO IN ('ABONO', 'CONDONACION') " +
+            "AND ((ESTADO = 'CAPTURADA' AND TIPO = 'ABONO') OR DISCREPANCIA IS NOT NULL) " +
+            "ORDER BY CREADA_EN ASC, ID ASC LIMIT 1"
+    )
+    fun observarVentaDelAviso(usuario: String): Flow<String?>
+
     /** El único borrado: CERRADA, sin discrepancia, anterior a [antesDe]. */
     @Query(
         "DELETE FROM capturas_en_curso WHERE ESTADO = 'CERRADA' AND DISCREPANCIA IS NULL " +

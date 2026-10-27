@@ -10,8 +10,17 @@ import kotlinx.coroutines.flow.flowOf
  */
 data class CapturasSinTerminar(
     val cuantas: Int,
-    /** La venta del abono sin guardar más viejo, para el enlace; `null` si no hay. */
-    val ventaId: Int?
+    /**
+     * La venta a la que lleva el aviso: la del abono sin guardar o la del pago o
+     * condonación que no coincide, el más viejo; `null` si no hay.
+     */
+    val ventaId: Int?,
+    /**
+     * E-APP-118: cuántos envíos (abonos y condonaciones) no coinciden con la
+     * oficina. Con uno o más, el aviso dice "Un envío no coincide con la
+     * oficina" (decisión 4 del dueño 2026-10-20).
+     */
+    val noCoinciden: Int = 0
 ) {
     companion object {
         val NINGUNA = CapturasSinTerminar(cuantas = 0, ventaId = null)

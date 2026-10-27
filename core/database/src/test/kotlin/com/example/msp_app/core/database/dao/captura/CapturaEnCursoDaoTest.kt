@@ -113,6 +113,43 @@ class CapturaEnCursoDaoTest : RoomTestBase() {
         assertEquals(1, dao.observarSinTerminar(USUARIO).first())
     }
 
+    @Test
+    fun `E-APP-118 los envios que no coinciden cuentan abonos y condonaciones en cualquier estado`() =
+        runTest {
+            dao.capturar(marcador("abono-cerrado", CapturaEnCursoEntity.CERRADA))
+            dao.marcarDiscrepancia("abono-cerrado", "contenido_no_coincide", HOY)
+            dao.capturar(
+                marcador("condonacion", CapturaEnCursoEntity.ESCRITA)
+                    .copy(TIPO = CapturaEnCursoEntity.TIPO_CONDONACION, LLAVE = "77021")
+            )
+            dao.marcarDiscrepancia("condonacion", "no_existe_en_servidor", HOY)
+            dao.capturar(marcador("sin-discrepancia", CapturaEnCursoEntity.ESCRITA))
+            dao.capturar(marcador("de-otro").copy(USUARIO = "otro@example.com"))
+            dao.marcarDiscrepancia("de-otro", "contenido_no_coincide", HOY)
+
+            assertEquals(2, dao.observarEnviosQueNoCoinciden(USUARIO).first())
+        }
+
+    @Test
+    fun `E-APP-118 la venta del aviso es la del pago o condonacion que no coincide si no hay abono sin guardar`() =
+        runTest {
+            assertNull("sin nada, sin destino", dao.observarVentaDelAviso(USUARIO).first())
+            dao.capturar(
+                marcador("condonacion", CapturaEnCursoEntity.ESCRITA, VIEJA)
+                    .copy(TIPO = CapturaEnCursoEntity.TIPO_CONDONACION, LLAVE = "77021")
+            )
+            dao.marcarDiscrepancia("condonacion", "contenido_no_coincide", HOY)
+
+            assertEquals("77021", dao.observarVentaDelAviso(USUARIO).first())
+
+            dao.capturar(marcador("abono-viejo", en = "2026-09-01T10:00:00Z").copy(LLAVE = "88001"))
+            assertEquals(
+                "el mas viejo manda: el abono sin guardar",
+                "88001",
+                dao.observarVentaDelAviso(USUARIO).first()
+            )
+        }
+
     private companion object {
         const val USUARIO = "rosa@example.com"
         const val VIEJA = "2026-10-01T10:00:00Z"
