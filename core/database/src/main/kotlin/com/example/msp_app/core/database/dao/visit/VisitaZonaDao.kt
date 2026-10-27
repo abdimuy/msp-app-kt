@@ -84,6 +84,17 @@ abstract class VisitaZonaDao {
         crearEstadoSiFalta(zona)
     }
 
+    /**
+     * Rescate del inventario (Tarea 18, E-APP-109): guarda [items] que el
+     * servidor entregó por `by-ids` SIN tocar `visitas_sync_state`. La
+     * posición solo sale de la respuesta del sync (E-VIS-070): una fila
+     * rescatada está fuera del orden del cursor y no dice nada de él.
+     */
+    @Transaction
+    open suspend fun rescatar(items: List<VisitaZonaEntity>) {
+        if (items.isNotEmpty()) upsertAll(items)
+    }
+
     /** Persiste la generación de [zona] sin mover su posición. */
     @Transaction
     open suspend fun guardarEpoch(zona: Int, epoch: Int) {
@@ -114,9 +125,11 @@ abstract class VisitaZonaDao {
     abstract suspend fun deZona(zona: Int): List<VisitaZonaEntity>
 
     /**
-     * El inventario local de [zona] con `FECHA` en o después de [desde]
-     * (`yyyy-MM-dd`; compara como texto contra el RFC3339 del servidor, así que
-     * el día [desde] entero entra), ordenado por id.
+     * El inventario local de [zona] con `FECHA` en o después de [desde],
+     * ordenado por id. Compara como texto contra el RFC3339 UTC del servidor:
+     * con `yyyy-MM-dd` entra el día [desde] entero; con el instante del sync
+     * (`2026-07-19T06:00:00Z`) el borde es el mismo que el `FECHA >= desde` del
+     * servidor, que es como lo llama el inventario (Tarea 18, E-APP-109).
      */
     @Query(
         """

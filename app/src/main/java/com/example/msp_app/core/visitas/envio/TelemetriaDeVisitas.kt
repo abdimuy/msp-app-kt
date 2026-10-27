@@ -67,12 +67,20 @@ object TelemetriaDeVisitas {
 
     /** H-r4-5: un reintento congelado escribe cuentas que ya no están en el teléfono. */
     const val EVENTO_CUENTA_AUSENTE = "visitas_cuenta_ausente_al_reintentar"
+
+    /** P2 Tarea 18 (E-APP-109): inventario diario de la agenda bajada. */
+    const val EVENTO_INVENTARIO = "visitas_inventario"
+
+    /** P2 Tarea 18 (E-APP-110): salud de la bajada de la agenda. */
+    const val EVENTO_SYNC = "visitas_sync"
     val EVENTOS: Set<String> = setOf(
         EVENTO_ESTADO,
         EVENTO_CONCILIACION,
         EVENTO_PODA,
         EVENTO_GUARDADO_CANCELADO,
-        EVENTO_CUENTA_AUSENTE
+        EVENTO_CUENTA_AUSENTE,
+        EVENTO_INVENTARIO,
+        EVENTO_SYNC
     )
 
     const val APP_VERSION = "app.version"
@@ -161,6 +169,21 @@ object TelemetriaDeVisitas {
 
     /** H-r4-5: cuántas cuentas ausentes escribió el reintento. Nunca cuáles. */
     const val CA_AUSENTES = "visitas.guardado.cuenta_ausente_al_reintentar"
+
+    /** E-APP-109: filas locales dentro de la ventana que el inventario comparó. */
+    const val INV_REVISADAS = "visitas.inventario.revisadas"
+
+    /** E-APP-109: filas que faltaban en el teléfono y llegaron por `by-ids`. */
+    const val INV_RESCATADAS = "visitas.inventario.rescatadas"
+
+    /** E-APP-109: filas que el servidor ya no entrega y salieron de `visita_zona`. */
+    const val INV_BORRADAS = "visitas.inventario.borradas"
+
+    /** E-APP-109: 1 si alguna consulta falló (no se borró nada), 0 si no. */
+    const val INV_FALLIDO = "visitas.inventario.fallido"
+
+    /** E-APP-110: corridas seguidas de la bajada que cerraron en la misma posición aplicando filas. */
+    const val SYNC_CURSOR_STALLED = "visitas_sync.cursor_stalled"
 
     private val HTTP_CONOCIDOS = listOf(
         400, 401, 403, 404, 405, 408, 409, 410, 413, 415, 422, 425, 429, 500, 502, 503, 504
@@ -289,7 +312,12 @@ object TelemetriaDeVisitas {
         GC_ESCRITAS,
         GC_CUENTAS,
         GC_EN_UBICACION,
-        CA_AUSENTES
+        CA_AUSENTES,
+        INV_REVISADAS,
+        INV_RESCATADAS,
+        INV_BORRADAS,
+        INV_FALLIDO,
+        SYNC_CURSOR_STALLED
     ) + CODIGOS_DE_FALLO.map { PREFIJO_FALLOS + it }
 
     private val FORMA_DE_VERSION = Regex("^[0-9][0-9A-Za-z._+-]{0,39}$")
@@ -372,6 +400,17 @@ object TelemetriaDeVisitas {
         if (pospuestaProtegidas > 0) put(PODA_POSPUESTA_PROTEGIDAS, pospuestaProtegidas)
     }
 
+    /**
+     * Inventario de la agenda (Tarea 18, E-APP-109): solo conteos. Sin ids: ni
+     * de visita ni de cliente.
+     */
+    fun inventario(r: ResultadoInventarioConteos): Map<String, Any> = mapOf(
+        INV_REVISADAS to r.revisadas,
+        INV_RESCATADAS to r.rescatadas,
+        INV_BORRADAS to r.borradas,
+        INV_FALLIDO to if (r.fallido) 1 else 0
+    )
+
     /** Guardado cancelado (E-APP-078): solo conteos. */
     fun guardadoCancelado(escritas: Int, cuentas: Int, enUbicacion: Boolean): Map<String, Any> =
         mapOf(
@@ -423,3 +462,14 @@ object TelemetriaDeVisitas {
 
     private const val TAG = "TelemetriaDeVisitas"
 }
+
+/**
+ * Los conteos de una corrida del inventario de la agenda, sin depender de la
+ * clase que la hace (esta telemetría vive en `core/visitas/envio`).
+ */
+data class ResultadoInventarioConteos(
+    val revisadas: Int,
+    val rescatadas: Int,
+    val borradas: Int,
+    val fallido: Boolean
+)

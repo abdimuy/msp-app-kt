@@ -10,6 +10,8 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.Concilia
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.sync.pendingwork.di.VisitsReconcileEntryPoint
+import com.example.msp_app.core.sync.visitas.ResultadoInventario
+import com.example.msp_app.core.sync.visitas.VisitasZonaSyncProvider
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
@@ -81,7 +83,16 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
      * `TelemetriaDeVisitas.emitir` nunca lanza; igual va aislada.
      */
     @VisibleForTesting
-    internal val telemetria: (String, Map<String, Any>) -> Unit = TelemetriaDeVisitas::emitir
+    internal val telemetria: (String, Map<String, Any>) -> Unit = TelemetriaDeVisitas::emitir,
+    /**
+     * Inventario de la agenda bajada (P2 Tarea 18, E-APP-109). `null` = no
+     * corrió: su interruptor es el de la bajada (`config/visitas_compromisos`),
+     * no el del envío.
+     */
+    @VisibleForTesting
+    internal val inventariar: suspend () -> ResultadoInventario? = {
+        VisitasZonaSyncProvider.inventariar(appContext, clock.now())
+    }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -93,8 +104,39 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
         }
         if (modo() == ModoEnvioVisitas.V2_ACTUAL) {
             Log.i(TAG, "modo v2_actual: la reconciliacion inversa no corre")
-            return Result.success()
+        } else {
+            conciliacionInversa()
         }
+        inventarioDeLaAgenda()
+        return Result.success()
+    }
+
+    /**
+     * El modo del envío no lo apaga: la agenda bajada se rige por su propio
+     * interruptor, que [inventariar] ya consulta. Nunca tumba la corrida.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun inventarioDeLaAgenda() {
+        val r = try {
+            inventariar() ?: return
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "inventario de la agenda fallo de forma inesperada", e)
+            return
+        }
+        Log.i(TAG, "inventario de la agenda: $r")
+        try {
+            telemetria(
+                TelemetriaDeVisitas.EVENTO_INVENTARIO,
+                TelemetriaDeVisitas.inventario(r.conteos())
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "telemetria del inventario fallo; la corrida sigue", e)
+        }
+    }
+
+    private suspend fun conciliacionInversa() {
         try {
             val r = conciliar()
             Log.i(
@@ -114,7 +156,6 @@ class VisitsDailyReconcileWorker @JvmOverloads constructor(
             // cubre un escape inesperado (p. ej. el grafo de Hilt).
             Log.w(TAG, "reconciliacion inversa de visitas fallo de forma inesperada", e)
         }
-        return Result.success()
     }
 
     @Suppress("TooGenericExceptionCaught")

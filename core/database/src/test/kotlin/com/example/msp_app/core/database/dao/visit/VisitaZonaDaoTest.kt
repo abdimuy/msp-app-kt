@@ -306,6 +306,53 @@ class VisitaZonaDaoTest : RoomTestBase() {
         assertEquals(listOf(minima), dao.deZona(ZONA))
     }
 
+    // ─── rescatar (Tarea 18, E-APP-109) ─────────────────────────────────────
+
+    /**
+     * El rescate del inventario guarda filas fuera del orden del cursor: la
+     * posición solo la escribe la respuesta del sync (E-VIS-070), así que
+     * rescatar no la mueve ni la crea.
+     */
+    @Test
+    fun `E-APP-109 rescatar guarda las filas sin mover ni crear la posicion`() = runTest {
+        dao.aplicarPagina(ZONA, listOf(item("v-1")), C1, "v-1")
+        dao.guardarEpoch(ZONA, 7)
+
+        dao.rescatar(
+            listOf(item("v-0", updatedAt = C2), item("v-1", nota = "rescatada", updatedAt = C2))
+        )
+
+        assertEquals(listOf("v-0", "v-1"), dao.deZona(ZONA).map { it.ID })
+        assertEquals("rescatada", dao.deZona(ZONA).single { it.ID == "v-1" }.NOTA)
+        assertEquals(VisitasSyncStateEntity(ZONA, C1, "v-1", 7), dao.estado(ZONA))
+
+        dao.rescatar(listOf(item("w-9", zona = OTRA_ZONA)))
+        assertNull("rescatar no crea la posición de otra zona", dao.estado(OTRA_ZONA))
+    }
+
+    /**
+     * El inventario compara con el MISMO `desde` instante que el servidor
+     * (`FECHA >= desde`): el texto RFC3339 en UTC ordena igual que el instante.
+     */
+    @Test
+    fun `E-APP-109 idsYUpdatedAt con desde instante deja fuera lo anterior al borde`() = runTest {
+        dao.aplicarPagina(
+            ZONA,
+            listOf(
+                item("antes", fecha = "2026-07-19T05:59:59Z"),
+                item("borde", fecha = "2026-07-19T06:00:00Z"),
+                item("despues", fecha = "2026-07-19T06:00:01Z")
+            ),
+            C1,
+            "despues"
+        )
+
+        assertEquals(
+            listOf("borde", "despues"),
+            dao.idsYUpdatedAt(ZONA, "2026-07-19T06:00:00Z").map { it.id }
+        )
+    }
+
     // ─── apoyo ──────────────────────────────────────────────────────────────
 
     /** La última sentencia de cada operación escribe `visitas_sync_state`. */

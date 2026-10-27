@@ -7,6 +7,7 @@ import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.visitas.agenda.KillSwitchAgenda
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.visits.VisitasZonaSyncApi
+import java.time.Instant
 
 /**
  * Arma un [VisitasZonaSyncManager] por corrida (plan visitas P2, Tarea 16).
@@ -27,8 +28,41 @@ object VisitasZonaSyncProvider {
         dao = AppDatabase.getInstance(context.applicationContext).visitaZonaDao(),
         zonaActual = { CobranzaSyncProvider.userContextFlow.value?.zona },
         killSwitch = { KillSwitchAgenda.bajada },
-        telemetria = { r -> Log.i(TAG, "bajada de visitas: ${r.resumen()}") }
+        telemetria = { r ->
+            Log.i(TAG, "bajada de visitas: ${r.resumen()}")
+            CobranzaSyncProvider.userContextFlow.value?.zona?.let {
+                reportarBajada(
+                    detector,
+                    it,
+                    r
+                )
+            }
+        }
     )
+
+    /**
+     * Memoria del proceso para `visitas_sync.cursor_stalled` (E-APP-110): el
+     * manager se arma por corrida, así que la posición de cierre de la corrida
+     * anterior tiene que vivir aquí.
+     */
+    private val detector = DetectorDeCursorAtorado()
+
+    /**
+     * Inventario de la agenda (Tarea 18, E-APP-109), con el MISMO interruptor
+     * y la MISMA zona que la bajada: apagada la bajada, no se toca
+     * `visita_zona`. `null` = no corrió (interruptor apagado o sin zona).
+     */
+    suspend fun inventariar(
+        context: Context,
+        ahora: Instant = Instant.now()
+    ): ResultadoInventario? {
+        if (!KillSwitchAgenda.bajada) return null
+        val zona = CobranzaSyncProvider.userContextFlow.value?.zona ?: return null
+        return VisitasZonaReconciler(
+            api = V2ApiProvider.create(VisitasZonaSyncApi::class.java),
+            dao = AppDatabase.getInstance(context.applicationContext).visitaZonaDao()
+        ).reconciliar(zona, VisitasZonaSyncManager.desdeDeLaVentana(ahora))
+    }
 
     /**
      * Una corrida; nunca lanza salvo cancelación (ver [VisitasZonaSyncManager]).

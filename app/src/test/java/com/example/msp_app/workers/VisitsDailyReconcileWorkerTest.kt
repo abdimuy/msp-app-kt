@@ -11,9 +11,11 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustod
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ConciliacionInversa
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileDeliveredVisitsUseCase
 import com.example.msp_app.core.sync.pendingwork.data.visits.RoomDeliveredVisitsStore
+import com.example.msp_app.core.sync.visitas.ResultadoInventario
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
+import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -68,12 +70,14 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
     private class Registro {
         val encoladas = mutableListOf<String>()
         val corridas = mutableListOf<Instant>()
+        val eventos = mutableListOf<Pair<String, Map<String, Any>>>()
     }
 
     private fun construir(
         registro: Registro,
         modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
         useV2: Boolean = true,
+        inventariar: suspend () -> ResultadoInventario? = { null },
         conciliar: suspend () -> ConciliacionInversa
     ): VisitsDailyReconcileWorker = TestListenableWorkerBuilder<VisitsDailyReconcileWorker>(context)
         .setWorkerFactory(object : WorkerFactory() {
@@ -90,7 +94,9 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
                 pendientes = { db.visitDao().pendientesOrdenadas() },
                 encolar = { registro.encoladas += it },
                 anotarCorrida = { registro.corridas += it },
-                clock = FakeClock(ahora)
+                clock = FakeClock(ahora),
+                telemetria = { e, d -> registro.eventos += e to d },
+                inventariar = inventariar
             )
         })
         .build()
@@ -244,5 +250,79 @@ class VisitsDailyReconcileWorkerTest : RoomTestBase() {
 
         assertEquals(ListenableWorker.Result.success(), r)
         assertEquals(emptyList<Instant>(), registro.corridas)
+    }
+
+    // ─── P2 Tarea 18: inventario de la agenda (E-APP-109) ──────────────────
+
+    @Test
+    fun `E-APP-109 la corrida diaria hace el inventario y reporta solo conteos`() = runBlocking {
+        val registro = Registro()
+        var inventarios = 0
+
+        construir(registro, inventariar = {
+            inventarios++
+            ResultadoInventario.Reconciliado(revisadas = 40, rescatadas = 2, borradas = 1)
+        }) { ConciliacionInversa(3, 0, 3, 0) }.doWork()
+
+        assertEquals(1, inventarios)
+        assertEquals(
+            mapOf<String, Any>(
+                "visitas.inventario.revisadas" to 40,
+                "visitas.inventario.rescatadas" to 2,
+                "visitas.inventario.borradas" to 1,
+                "visitas.inventario.fallido" to 0
+            ),
+            registro.eventos.single { it.first == TelemetriaDeVisitas.EVENTO_INVENTARIO }.second
+        )
+    }
+
+    /** El inventario tiene el interruptor de la bajada, no el del envío. */
+    @Test
+    fun `E-APP-109 en modo v2_actual el inventario si corre`() = runBlocking {
+        val registro = Registro()
+        var inventarios = 0
+        var inversas = 0
+
+        construir(registro, modo = ModoEnvioVisitas.V2_ACTUAL, inventariar = {
+            inventarios++
+            ResultadoInventario.Igual(revisadas = 5)
+        }) {
+            inversas++
+            ConciliacionInversa(0, 0, 0, 0)
+        }.doWork()
+
+        assertEquals(0, inversas)
+        assertEquals(1, inventarios)
+    }
+
+    @Test
+    fun `E-APP-109 un inventario que revienta no tumba la corrida ni la inversa`() = runBlocking {
+        val registro = Registro()
+
+        val r = construir(registro, inventariar = { throw IllegalStateException("grafo") }) {
+            ConciliacionInversa(3, 0, 3, 0)
+        }.doWork()
+
+        assertEquals(ListenableWorker.Result.success(), r)
+        assertEquals(listOf(ahora), registro.corridas)
+        assertEquals(
+            emptyList<String>(),
+            registro.eventos.map { it.first }.filter { it == TelemetriaDeVisitas.EVENTO_INVENTARIO }
+        )
+    }
+
+    @Test
+    fun `E-APP-109 inventario fallido se reporta como fallido`() = runBlocking {
+        val registro = Registro()
+
+        construir(registro, inventariar = { ResultadoInventario.Fallido(7, "ids incompletos") }) {
+            ConciliacionInversa(0, 0, 0, 0)
+        }.doWork()
+
+        assertEquals(
+            1,
+            registro.eventos.single { it.first == TelemetriaDeVisitas.EVENTO_INVENTARIO }
+                .second["visitas.inventario.fallido"]
+        )
     }
 }

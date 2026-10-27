@@ -95,12 +95,7 @@ class VisitasZonaSyncManager(
         }
     }
 
-    /** hoy − [VENTANA_DIAS] a las 00:00 de la zona del negocio, como instante RFC3339. */
-    private fun desdeDeLaCorrida(): String {
-        val hoy = reloj().atZone(BUSINESS_ZONE).toLocalDate()
-        val inicio = hoy.minusDays(VENTANA_DIAS).atStartOfDay(BUSINESS_ZONE).toInstant()
-        return DateTimeFormatter.ISO_INSTANT.format(inicio)
-    }
+    private fun desdeDeLaCorrida(): String = desdeDeLaVentana(reloj())
 
     private suspend fun bajar(zona: Int, desde: String): ResultadoSync.Ok {
         val cambioDeZona = dao.restosDeOtraZona(zona) > 0
@@ -182,7 +177,9 @@ class VisitasZonaSyncManager(
             aplicadas = aplicadas,
             descartadas = descartadas,
             replayPorEpoch = replayPorEpoch,
-            cambioDeZona = cambioDeZona
+            cambioDeZona = cambioDeZona,
+            cursor = cursor,
+            afterId = afterId
         )
     }
 
@@ -192,7 +189,25 @@ class VisitasZonaSyncManager(
 
         private const val TAG = "VisitasZonaSync"
 
-        private val MUTEX_DEL_PROCESO = Mutex()
+        /**
+         * Serializa todo lo que escribe `visita_zona` en el proceso: la bajada
+         * y el inventario de la Tarea 18 (E-APP-109). Si el inventario corriera
+         * a media bajada, borraría una fila que el sync acaba de aplicar y que el
+         * servidor no listó en sus `ids` porque llegó después, y el cursor ya
+         * estaría más allá de ella.
+         */
+        internal val MUTEX_DEL_PROCESO = Mutex()
+
+        /**
+         * hoy − [VENTANA_DIAS] a las 00:00 de la zona del negocio, como instante
+         * RFC3339: el `desde` de los cuatro canales (I4). La bajada y el
+         * inventario lo sacan de aquí para mandar exactamente el mismo.
+         */
+        fun desdeDeLaVentana(ahora: Instant): String {
+            val hoy = ahora.atZone(BUSINESS_ZONE).toLocalDate()
+            val inicio = hoy.minusDays(VENTANA_DIAS).atStartOfDay(BUSINESS_ZONE).toInstant()
+            return DateTimeFormatter.ISO_INSTANT.format(inicio)
+        }
     }
 }
 
@@ -235,12 +250,19 @@ sealed class ResultadoSync {
     /** Sin zona del cobrador todavía. */
     object SinZona : ResultadoSync()
 
+    /**
+     * [cursor] y [afterId]: la posición en la que CERRÓ la corrida, la misma
+     * que quedó guardada. Solo la usa la telemetría de cursor atorado
+     * (E-APP-110), que compara cierre contra cierre entre corridas.
+     */
     data class Ok(
         val paginas: Int,
         val aplicadas: Int,
         val descartadas: Int,
         val replayPorEpoch: Boolean,
-        val cambioDeZona: Boolean
+        val cambioDeZona: Boolean,
+        val cursor: String? = null,
+        val afterId: String? = null
     ) : ResultadoSync()
 
     data class Error(val causa: Throwable) : ResultadoSync()
