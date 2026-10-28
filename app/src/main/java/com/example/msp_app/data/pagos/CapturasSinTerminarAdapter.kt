@@ -9,8 +9,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 
 /**
- * "N capturas sin terminar" del cobrador en sesión, leído de
- * `capturas_en_curso` (E-APP-084). Sólo lectura.
+ * "N capturas sin terminar" y "Un envío no coincide con la oficina" del
+ * cobrador en sesión, leídos de `capturas_en_curso` (E-APP-084, E-APP-118).
+ * Sólo lectura.
  */
 class CapturasSinTerminarAdapter(
     private val capturas: CapturaEnCursoDao,
@@ -20,11 +21,18 @@ class CapturasSinTerminarAdapter(
     override fun observar(): Flow<CapturasSinTerminar> {
         val usuario = emailEnSesion()?.takeIf { it.isNotBlank() }
             ?: return flowOf(CapturasSinTerminar.NINGUNA)
+        // E-APP-118: además del conteo, cuántos envíos no coinciden con la
+        // oficina (pagos y condonaciones) y la venta a la que lleva el toque.
         return combine(
             capturas.observarSinTerminar(usuario),
-            capturas.observarVentaDelPrimerAbonoSinGuardar(usuario)
-        ) { cuantas, llave ->
-            CapturasSinTerminar(cuantas = cuantas, ventaId = llave?.toIntOrNull())
+            capturas.observarVentaDelAviso(usuario),
+            capturas.observarEnviosQueNoCoinciden(usuario)
+        ) { cuantas, llave, noCoinciden ->
+            CapturasSinTerminar(
+                cuantas = cuantas,
+                ventaId = llave?.toIntOrNull(),
+                noCoinciden = noCoinciden
+            )
         }
     }
 }
