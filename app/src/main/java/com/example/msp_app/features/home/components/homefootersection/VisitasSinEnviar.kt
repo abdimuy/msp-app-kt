@@ -59,13 +59,13 @@ fun VisitasSinEnviar(
         aviso?.invoke()
         if (fallo) {
             Text(
-                "no se pudieron leer las visitas",
+                "No se pudieron leer las visitas",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
         }
         if (envios == null) {
-            if (!fallo) Text("cargando visitas")
+            if (!fallo) Text("Cargando visitas")
             return@Column
         }
         if (envios.isEmpty()) {
