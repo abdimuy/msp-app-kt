@@ -120,7 +120,8 @@ class MigracionDeP3Test : RobolectricTestBase() {
             .build()
         try {
             val db = abierta.openHelper.readableDatabase
-            assertEquals(VERSION_P3, db.version)
+            // Desde E-APP-145 la configuración real sigue hasta la 39 (la 38→39 de ubicación).
+            assertTrue(db.version >= VERSION_P3)
             assertEquals(antes, volcado(db, "Visit", antes.first().keys.filter { it != "rowid" }))
             assertTrue(tablasDeUsuario(db).containsAll(TABLAS_P3))
         } finally {

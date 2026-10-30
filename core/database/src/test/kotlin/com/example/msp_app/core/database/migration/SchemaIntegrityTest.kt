@@ -8,10 +8,10 @@ import org.junit.Rule
 import org.junit.Test
 
 private const val SCHEMA_TEST_DB = "schema-integrity-test.db"
-private const val LATEST_SCHEMA_VERSION = 38
+private const val LATEST_SCHEMA_VERSION = 39
 
 /**
- * Guardia de drift de esquema sobre v38 (`tarea_zona`, `tareas_sync_state`, `aviso_emitido` y
+ * Guardia de drift de esquema sobre v39 (`ubicacion_de_captura`, E-APP-145, ver el KDoc de `MIGRATION_38_39`; v38 `tarea_zona`, `tareas_sync_state`, `aviso_emitido` y
  * `aviso_programado`, E-APP-121, ver el KDoc de `MIGRATION_P3`; v37
  * `capturas_en_curso`, E-APP-084, ver el KDoc de `MIGRATION_36_37`; v36 de P2, ver el KDoc de
  * `MIGRATION_35_36`; v35 `Visit.CONFIRMADA_EN`/`RESGUARDADA_EN`,
@@ -20,7 +20,7 @@ private const val LATEST_SCHEMA_VERSION = 38
  * `MIGRATION_32_33`; v31 la trajo el candado único del nivel 1 — ver el KDoc
  * de `MIGRATION_30_31` —, v32 el estado del servidor y la cola de
  * correcciones remotas del nivel 2 — ver el KDoc de `MIGRATION_31_32`).
- * `MigrationTestHelper` lee `core/database/schemas/.../38.json` (el
+ * `MigrationTestHelper` lee `core/database/schemas/.../39.json` (el
  * commiteado por `exportSchema`, ver `build.gradle.kts` de este módulo para
  * el wiring de `sourceSets.test.assets`), crea una base a partir de ese JSON
  * y valida que "migrar" a la misma versión (sin migraciones,
@@ -49,7 +49,7 @@ class SchemaIntegrityTest : RobolectricTestBase() {
     )
 
     @Test
-    fun `el 38 json exportado coincide con el esquema real de AppDatabase`() {
+    fun `el 39 json exportado coincide con el esquema real de AppDatabase`() {
         migrationTestHelper.createDatabase(SCHEMA_TEST_DB, LATEST_SCHEMA_VERSION).close()
 
         migrationTestHelper.runMigrationsAndValidate(SCHEMA_TEST_DB, LATEST_SCHEMA_VERSION, true)

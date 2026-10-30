@@ -12,12 +12,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-private const val ULTIMA_VERSION = 38
+private const val ULTIMA_VERSION = 39
 
 /**
  * E-APP-063: un teléfono con una base de cualquier versión exportada (v27, v28,
- * v29, v33, v34, v35, v36, v37) abre por el camino REAL de producción (`AppDatabase.buildDatabase`)
- * hasta la última versión, **exactamente** v38 (la 37→38 crea las tablas de P3, E-APP-121;
+ * v29, v33, v34, v35, v36, v37, v38) abre por el camino REAL de producción (`AppDatabase.buildDatabase`)
+ * hasta la última versión, **exactamente** v39 (la 38→39 crea `ubicacion_de_captura`, E-APP-145; la 37→38 crea las tablas de P3, E-APP-121;
  * la 36→37 crea `capturas_en_curso`, E-APP-084; la 35→36 es de P2, E-APP-080), y cada columna que las filas de
  * **todas** sus tablas de datos (`Payment`, `Visit`, `sales`, `local_sale`…) ya
  * tenían conserva valor y tipo de almacenamiento (`typeof` + `quote`).
@@ -26,7 +26,7 @@ private const val ULTIMA_VERSION = 38
  * table_info`): toda columna recibe un valor, y las que admiten nulo alternan
  * con `NULL`, así que ninguna columna existente queda sin cubrir.
  */
-class MigracionDesde27y28HastaV38Test : RobolectricTestBase() {
+class MigracionDesde27y28HastaV39Test : RobolectricTestBase() {
 
     @get:Rule
     val migrationTestHelper = MigrationTestHelper(
@@ -35,48 +35,54 @@ class MigracionDesde27y28HastaV38Test : RobolectricTestBase() {
     )
 
     @Test
-    fun `E-APP-063 desde v27 por buildDatabase llega a v38 con todas las tablas intactas`() =
+    fun `E-APP-063 desde v27 por buildDatabase llega a v39 con todas las tablas intactas`() =
         verificarDesde(
             27
         )
 
     @Test
-    fun `E-APP-063 desde v28 por buildDatabase llega a v38 con todas las tablas intactas`() =
+    fun `E-APP-063 desde v28 por buildDatabase llega a v39 con todas las tablas intactas`() =
         verificarDesde(
             28
         )
 
     @Test
-    fun `desde v29 por buildDatabase llega a v38 con todas las tablas intactas`() = verificarDesde(
+    fun `desde v29 por buildDatabase llega a v39 con todas las tablas intactas`() = verificarDesde(
         29
     )
 
     @Test
-    fun `desde v33 por buildDatabase llega a v38 con todas las tablas intactas`() = verificarDesde(
+    fun `desde v33 por buildDatabase llega a v39 con todas las tablas intactas`() = verificarDesde(
         33
     )
 
     @Test
-    fun `desde v34 por buildDatabase llega a v38 con todas las tablas intactas`() = verificarDesde(
+    fun `desde v34 por buildDatabase llega a v39 con todas las tablas intactas`() = verificarDesde(
         34
     )
 
     @Test
-    fun `E-APP-084 desde v35 por buildDatabase llega a v38 con todas las tablas intactas`() =
+    fun `E-APP-084 desde v35 por buildDatabase llega a v39 con todas las tablas intactas`() =
         verificarDesde(
             35
         )
 
     @Test
-    fun `E-APP-084 desde v36 por buildDatabase llega a v38 con todas las tablas intactas`() =
+    fun `E-APP-084 desde v36 por buildDatabase llega a v39 con todas las tablas intactas`() =
         verificarDesde(
             36
         )
 
     @Test
-    fun `E-APP-121 desde v37 por buildDatabase llega a v38 con todas las tablas intactas`() =
+    fun `E-APP-121 desde v37 por buildDatabase llega a v39 con todas las tablas intactas`() =
         verificarDesde(
             37
+        )
+
+    @Test
+    fun `E-APP-145 desde v38 por buildDatabase llega a v39 con todas las tablas intactas`() =
+        verificarDesde(
+            38
         )
 
     private fun verificarDesde(version: Int) {

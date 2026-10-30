@@ -16,7 +16,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-33-34-test.db"
 private const val OLD_VERSION = 33
 private const val NEW_VERSION = 34
-private const val ULTIMA_VERSION = 38
+private const val ULTIMA_VERSION = 39
 
 /**
  * E-APP-063: la 33→34 solo crea `envio_diagnostico`. Lo que se prueba aquí, y

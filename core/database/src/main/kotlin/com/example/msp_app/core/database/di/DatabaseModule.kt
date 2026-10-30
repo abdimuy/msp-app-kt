@@ -16,6 +16,7 @@ import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.dao.ubicacion.UbicacionDeCapturaDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
@@ -121,4 +122,8 @@ object DatabaseModule {
 
     @Provides
     fun provideCapturaEnCursoDao(db: AppDatabase): CapturaEnCursoDao = db.capturaEnCursoDao()
+
+    @Provides
+    fun provideUbicacionDeCapturaDao(db: AppDatabase): UbicacionDeCapturaDao =
+        db.ubicacionDeCapturaDao()
 }

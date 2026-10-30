@@ -15,7 +15,7 @@ import org.junit.Test
 private const val MIGRATION_DB = "migration-34-35-test.db"
 private const val OLD_VERSION = 34
 private const val NEW_VERSION = 35
-private const val ULTIMA_VERSION = 38
+private const val ULTIMA_VERSION = 39
 
 /**
  * Spec visitas §4.2-7: la 34→35 agrega `Visit.CONFIRMADA_EN` y

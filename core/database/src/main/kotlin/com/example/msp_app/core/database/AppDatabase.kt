@@ -22,6 +22,7 @@ import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDa
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.tareas.TareaZonaDao
+import com.example.msp_app.core.database.dao.ubicacion.UbicacionDeCapturaDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
@@ -50,6 +51,7 @@ import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.TareaZonaEntity
 import com.example.msp_app.core.database.entities.TareasSyncStateEntity
+import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.database.entities.VisitRecommendationEntity
@@ -72,6 +74,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_33_34
 import com.example.msp_app.core.database.migrations.MIGRATION_34_35
 import com.example.msp_app.core.database.migrations.MIGRATION_35_36
 import com.example.msp_app.core.database.migrations.MIGRATION_36_37
+import com.example.msp_app.core.database.migrations.MIGRATION_38_39
 import com.example.msp_app.core.database.migrations.MIGRATION_P3
 
 @Database(
@@ -103,10 +106,11 @@ import com.example.msp_app.core.database.migrations.MIGRATION_P3
         TareaZonaEntity::class,
         TareasSyncStateEntity::class,
         AvisoEmitidoEntity::class,
-        AvisoProgramadoEntity::class
+        AvisoProgramadoEntity::class,
+        UbicacionDeCapturaEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 38,
+    version = 39,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -154,6 +158,9 @@ abstract class AppDatabase : RoomDatabase() {
 
     /** `aviso_emitido` + `aviso_programado` — idempotencia de avisos y alarmas (E-APP-121). */
     abstract fun avisosDao(): AvisosDao
+
+    /** `ubicacion_de_captura` — la ubicacion de cada captura y el estado de su envio (E-APP-145). */
+    abstract fun ubicacionDeCapturaDao(): UbicacionDeCapturaDao
 
     companion object {
         @Volatile
@@ -208,7 +215,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_34_35,
                     MIGRATION_35_36,
                     MIGRATION_36_37,
-                    MIGRATION_P3
+                    MIGRATION_P3,
+                    MIGRATION_38_39
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

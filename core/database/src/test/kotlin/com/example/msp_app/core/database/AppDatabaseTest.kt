@@ -9,7 +9,7 @@ import org.junit.Test
 
 /**
  * Prueba trivial post-hoist: [AppDatabase] compila y vive en `:core:database`,
- * y reporta la version de esquema vigente (v38 —la 37->38 crea
+ * y reporta la version de esquema vigente (v39 —la 38->39 crea `ubicacion_de_captura`, E-APP-145; antes v38 —la 37->38 crea
  * `tarea_zona`, `tareas_sync_state`, `aviso_emitido` y `aviso_programado`, E-APP-121;
  * antes v37 —la 36->37 crea
  * `capturas_en_curso`, E-APP-084; la 35->36 es de visitas P2, E-APP-080—;
@@ -36,7 +36,7 @@ import org.junit.Test
 class AppDatabaseTest : RobolectricTestBase() {
 
     @Test
-    fun `AppDatabase se instancia in-memory y reporta version 38`() {
+    fun `AppDatabase se instancia in-memory y reporta version 39`() {
         val db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
@@ -45,7 +45,7 @@ class AppDatabaseTest : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(38, db.openHelper.readableDatabase.version)
+            assertEquals(39, db.openHelper.readableDatabase.version)
         } finally {
             db.close()
         }
