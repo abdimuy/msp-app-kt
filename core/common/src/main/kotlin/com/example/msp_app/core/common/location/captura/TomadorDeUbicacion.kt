@@ -90,7 +90,14 @@ class TomadorDeUbicacion(
     private val reloj: RelojMonotono,
     private val config: () -> ConfigDeAceptacion = { ConfigDeAceptacion.POR_DEFECTO },
     private val ventanaMs: Long = VENTANA_POR_DEFECTO_MS,
-    private val reporte: ReporteDelTomador = ReporteDelTomador.Nulo
+    private val reporte: ReporteDelTomador = ReporteDelTomador.Nulo,
+    /**
+     * E-APP-146 (K5): se avisa en CUANTO llega un fix al buffer (no al cerrar la ventana), con el
+     * instante monotono y una copia de los fixes recordados. Corre dentro del cerrojo del tomador:
+     * no debe suspender ni tardar (lo que escribe en Room se lanza en otro alcance). Si lanza, el
+     * tomador sigue como si nada.
+     */
+    private val alRecibirFix: (ahoraNanos: Long, fixes: List<FixDeUbicacion>) -> Unit = { _, _ -> }
 ) {
     init {
         require(ventanaMs > 0) { "ventanaMs debe ser positiva: $ventanaMs" }
@@ -118,6 +125,39 @@ class TomadorDeUbicacion(
     /** Cancela la toma en curso. El buffer se conserva. */
     fun detener() {
         jobActual.getAndSet(null)?.cancel()
+    }
+
+    /** Copia de los fixes que el tomador recuerda, en orden de llegada al reloj monótono. */
+    fun fixesRecibidos(): List<FixDeUbicacion> = buffer.get()
+
+    /**
+     * Escucha al proveedor en [scope] durante [ventanaMs] SIN tocar la toma de la pantalla ni su
+     * estado: los fixes caen en el mismo buffer y avisan igual a `alRecibirFix`. Es lo que mantiene
+     * viva la toma cuando el cobrador guarda y sale de la pantalla (cuyo alcance se cancela) mientras
+     * un envío espera su ubicación (E-APP-146). Termina sola al vencer la ventana o al cancelarse
+     * [scope]; no lanza.
+     */
+    fun extender(scope: CoroutineScope, ventanaMs: Long): Job {
+        require(ventanaMs > 0) { "ventanaMs debe ser positiva: $ventanaMs" }
+        val inicio = reloj.elapsedNanos()
+        return scope.launch { escucharSinEstado(inicio, ventanaMs) }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun escucharSinEstado(inicioNanos: Long, ventanaMs: Long) {
+        try {
+            if (proveedor.acceso() != AccesoAUbicacion.OK) return
+            withTimeoutOrNull(ventanaMs) {
+                coroutineScope {
+                    launch { leerUltimaConocida(inicioNanos) }
+                    proveedor.actualizaciones().collect { recibir(it, inicioNanos, false) }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Sin proveedor no hay ubicación tardía; la captura sale sin ella.
+        }
     }
 
     /**
@@ -195,6 +235,7 @@ class TomadorDeUbicacion(
             }.takeLast(CAPACIDAD)
         }
         val ahora = reloj.elapsedNanos()
+        avisar(ahora)
         val decision = AceptacionDeUbicacion.decidir(
             ahora,
             buffer.get().filter { it.elapsedRealtimeNanos <= ahora },
@@ -209,6 +250,15 @@ class TomadorDeUbicacion(
                 precisionM = decision.fix.precisionM.toInt(),
                 deUltimaConocida = deUltima
             )
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun avisar(ahoraNanos: Long) {
+        try {
+            alRecibirFix(ahoraNanos, buffer.get())
+        } catch (_: Exception) {
+            // Quien escribe la ubicación de una captura no puede tumbar la toma.
         }
     }
 

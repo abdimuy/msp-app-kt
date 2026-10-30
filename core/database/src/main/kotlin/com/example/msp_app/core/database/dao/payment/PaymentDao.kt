@@ -671,6 +671,22 @@ interface PaymentDao {
     suspend fun updateLocation(id: String, lat: Double, lng: Double)
 
     /**
+     * La ubicación que llega con la captura ya guardada (E-APP-146, K5): escribe `LAT`/`LNG` en UN
+     * solo UPDATE (nunca una sin la otra) y solo si siguen en 0,0 o nulos, y devuelve cuántas filas
+     * tocó. Nunca sobrescribe una ubicación existente, ni la tomada antes de guardar ni la que ya
+     * bajó del servidor.
+     */
+    @Query(
+        """
+        UPDATE Payment SET LAT = :lat, LNG = :lng
+        WHERE id = :id
+          AND COALESCE(LAT, 0.0) = 0.0
+          AND COALESCE(LNG, 0.0) = 0.0
+        """
+    )
+    suspend fun updateLocationIfEmpty(id: String, lat: Double, lng: Double): Int
+
+    /**
      * Marca una condonación PENDIENTE como rechazada por el servidor: la suelta
      * (`GUARDADO_EN_MICROSIP = 1`) y le pone
      * [DOCTO_CC_ID_RECHAZADO_POR_EL_SERVIDOR]. Devuelve cuántas filas tocó.

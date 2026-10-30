@@ -354,6 +354,115 @@ class TomadorDeUbicacionTest {
         assertTrue(lanzo)
     }
 
+    // ─── E-APP-146 (K5): avisar en cuanto llega un fix, y extender sin tocar la pantalla ───
+
+    @Test
+    fun `E-APP-146 el tomador avisa en cuanto llega cada fix, no al cerrar la ventana`() = runTest {
+        val p = ProveedorFalso()
+        val avisos = mutableListOf<Pair<Long, Int>>()
+        val t = TomadorDeUbicacion(
+            p,
+            reloj(),
+            ventanaMs = 60_000,
+            alRecibirFix = { ahora, fixes -> avisos += (ahora - BASE) / 1_000_000L to fixes.size }
+        )
+        val job = t.iniciar(this)
+        runCurrent()
+        advanceTimeBy(5_000)
+        p.flujo.emit(fixAhora())
+        runCurrent()
+        // Aviso a los 5 s exactos: la ventana (60 s) sigue abierta.
+        assertEquals(listOf(5_000L to 1), avisos)
+        advanceTimeBy(3_000)
+        p.flujo.emit(fixAhora())
+        runCurrent()
+        assertEquals(listOf(5_000L to 1, 8_000L to 2), avisos)
+        job.cancel()
+    }
+
+    @Test
+    fun `E-APP-146 si quien escribe lanza, el tomador sigue recibiendo`() = runTest {
+        val p = ProveedorFalso()
+        val t = TomadorDeUbicacion(
+            p,
+            reloj(),
+            ventanaMs = 60_000,
+            alRecibirFix = { _, _ -> error("Room cerrado") }
+        )
+        val job = t.iniciar(this)
+        runCurrent()
+        p.flujo.emit(fixAhora())
+        runCurrent()
+        assertTrue(t.estado.value is EstadoDeUbicacion.Disponible)
+        assertEquals(1, t.fixesRecibidos().size)
+        job.cancel()
+    }
+
+    @Test
+    fun `E-APP-146 extender sigue recibiendo aunque el alcance de la pantalla ya no exista`() =
+        runTest {
+            val p = ProveedorFalso()
+            val avisos = mutableListOf<Int>()
+            val t =
+                TomadorDeUbicacion(p, reloj(), alRecibirFix = { _, fixes -> avisos += fixes.size })
+            val pantalla = t.iniciar(this)
+            runCurrent()
+            pantalla.cancel() // el cobrador guardo y salio de la pantalla
+            runCurrent()
+            assertEquals(0, p.suscripciones.get())
+
+            val extension = t.extender(this, 35_000)
+            runCurrent()
+            assertEquals(1, p.suscripciones.get())
+            advanceTimeBy(12_000)
+            p.flujo.emit(fixAhora())
+            runCurrent()
+
+            assertEquals(listOf(1), avisos)
+            extension.cancel()
+            runCurrent()
+            assertEquals("la extension quita su peticion al sistema", 0, p.suscripciones.get())
+        }
+
+    @Test
+    fun `E-APP-146 extender termina sola al vencer su ventana`() = runTest {
+        val p = ProveedorFalso()
+        val t = tomador(p)
+        val extension = t.extender(this, 35_000)
+        runCurrent()
+        assertEquals(1, p.suscripciones.get())
+        advanceTimeBy(35_001)
+        runCurrent()
+        assertTrue(extension.isCompleted)
+        assertEquals(0, p.suscripciones.get())
+    }
+
+    @Test
+    fun `E-APP-146 extender no cambia el estado que ve la pantalla`() = runTest {
+        val p = ProveedorFalso()
+        val t = tomador(p)
+        val extension = t.extender(this, 10_000)
+        runCurrent()
+        advanceTimeBy(10_001)
+        runCurrent()
+        assertEquals(
+            "sin ventana propia: no publica SinFix",
+            EstadoDeUbicacion.Esperando,
+            t.estado.value
+        )
+        extension.cancel()
+    }
+
+    @Test
+    fun `E-APP-146 extender con permiso negado no suscribe nada`() = runTest {
+        val p = ProveedorFalso(acceso = AccesoAUbicacion.SIN_PERMISO)
+        val t = tomador(p)
+        val extension = t.extender(this, 35_000)
+        runCurrent()
+        assertTrue(extension.isCompleted)
+        assertEquals(0, p.suscripciones.get())
+    }
+
     private companion object {
         const val BASE = 5_000_000_000_000L
     }

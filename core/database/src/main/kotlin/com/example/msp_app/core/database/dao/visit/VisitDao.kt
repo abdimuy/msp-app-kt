@@ -240,6 +240,19 @@ interface VisitDao {
     suspend fun updateLocation(id: String, lat: Double, lng: Double)
 
     /**
+     * La ubicación que llega con la visita ya guardada (E-APP-148, K6): un solo UPDATE de `LAT` y
+     * `LNG`, solo si siguen en 0,0, y devuelve cuántas filas tocó. Nunca sobrescribe una ubicación
+     * existente ni toca `GUARDADO_EN_MICROSIP`.
+     */
+    @Query(
+        """
+        UPDATE Visit SET LAT = :lat, LNG = :lng
+        WHERE id = :id AND LAT = 0.0 AND LNG = 0.0
+        """
+    )
+    suspend fun updateLocationIfEmpty(id: String, lat: Double, lng: Double): Int
+
+    /**
      * Flips `GUARDADO_EN_MICROSIP` to 1 for [ids] — and only for [ids].
      *
      * The caller is the visitas reconciler
