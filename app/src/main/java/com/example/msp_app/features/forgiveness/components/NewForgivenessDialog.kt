@@ -2,7 +2,6 @@ package com.example.msp_app.features.forgiveness.components
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +42,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.ubicacion.iniciarUbicacionAnticipada
@@ -60,7 +58,6 @@ import com.example.msp_app.features.forgiveness.viewmodels.CondonacionViewModel
 import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.SaleIdSpaces
-import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import java.util.UUID
@@ -89,8 +86,9 @@ import java.util.UUID
  *   segundo toque (E-APP-043, #2). Si la escritura falla, el error se queda
  *   visible y no se navega.
  * - **Encola la subida en la misma corrutina** que ve la escritura terminada
- *   (E-APP-046): hasta ahora el único encolado de la condonación era el efecto
- *   secundario del servicio de ubicación.
+ *   (E-APP-046). Desde E-APP-146 la ubicación ya no pasa por el servicio de
+ *   ubicación: la condonación se guarda con la que el tomador ya tenía o la
+ *   espera, y el worker retiene el envío hasta tenerla o 30 s.
  *
  * [sale] sigue siendo la fuente de los datos de atribución (cliente, cobrador,
  * zona), que no cambian entre la carga y el toque.
@@ -106,7 +104,8 @@ fun NewForgivenessDialog(
     if (!show) return
 
     val context = LocalContext.current
-    // E-APP-142: la ubicacion se toma desde que se abre el dialogo; guardar no la espera.
+    // E-APP-142: la ubicacion se toma desde que se abre el dialogo; guardar no la espera
+    // (E-APP-146: la lee `RegistroDeCondonacion` al guardar y el worker retiene el envio, E-APP-147).
     iniciarUbicacionAnticipada()
 
     val activity = LocalContext.current as ComponentActivity
@@ -132,7 +131,6 @@ fun NewForgivenessDialog(
         onGuardada = onGuardada,
         efectosTrasGuardar = { pagoId ->
             encolarSubida(context, pagoId)
-            pedirUbicacion(context, pagoId)
             paymentsViewModel.getGroupedPaymentsBySaleId(SaleIdSpaces.forSalePayments(sale))
         }
     )
@@ -142,7 +140,7 @@ fun NewForgivenessDialog(
  * El formulario de la condonación, sin Firebase ni servicios: todo lo que decide
  * qué se puede tocar y cuándo vive aquí, para poder medirlo en una prueba de
  * Compose. [efectosTrasGuardar] son los efectos de la puerta real (encolar la
- * subida, pedir la ubicación, recargar el historial legado).
+ * subida, recargar el historial legado).
  */
 @Composable
 internal fun CondonacionEnPantalla(
@@ -470,23 +468,6 @@ private fun encolarSubida(context: Context, pagoId: String) {
         enqueuePendingPaymentsWorker(context, pagoId)
     } catch (fallo: Exception) {
         Log.w(TAG_CONDONACION, "no se pudo encolar la condonacion; queda pendiente", fallo)
-    }
-}
-
-/**
- * Pide la ubicación de la condonación ya escrita (y, como efecto de
- * `UpdateLocationHandler`, un segundo encolado). Android 12+ puede negar el
- * arranque de un servicio en primer plano; eso no toca el dinero ya escrito.
- */
-@Suppress("TooGenericExceptionCaught")
-private fun pedirUbicacion(context: Context, pagoId: String) {
-    try {
-        val intent = Intent(context, UpdateLocationService::class.java).apply {
-            putExtra("payment_id", pagoId)
-        }
-        ContextCompat.startForegroundService(context, intent)
-    } catch (fallo: Exception) {
-        Log.w(TAG_CONDONACION, "no se pudo pedir la ubicacion de la condonacion", fallo)
     }
 }
 

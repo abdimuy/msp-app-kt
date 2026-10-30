@@ -1,13 +1,17 @@
 package com.example.msp_app.data.pagos
 
+import com.example.msp_app.core.common.location.captura.FixDeUbicacion
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.ubicacion.MomentoDeGuardado
+import com.example.msp_app.core.ubicacion.UbicacionAlGuardar
 import com.example.msp_app.data.pagos.CondonacionFixtures.EFECTIVO
 import com.example.msp_app.data.pagos.CondonacionFixtures.condonacion
 import com.example.msp_app.data.pagos.CondonacionFixtures.condonacionesEn
 import com.example.msp_app.data.pagos.CondonacionFixtures.saldoDe
 import com.example.msp_app.data.pagos.CondonacionFixtures.venta
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -170,5 +174,95 @@ class RegistroDeCondonacionTest : RoomTestBase() {
             monto: Double,
             estadoCobranza: EstadoCobranza
         ): Int = 0
+    }
+
+    // ─── E-APP-145 / E-APP-146 (K8): la ubicacion de la condonacion, igual que el abono ───
+
+    private class UbicacionGrabadora(
+        private val antes: FixDeUbicacion? = null,
+        private val falla: Boolean = false
+    ) : UbicacionAlGuardar {
+        val anotadas = mutableListOf<String>()
+        val esperando = mutableListOf<String>()
+
+        override fun alGuardar() = MomentoDeGuardado(elapsedNanos = 1L, antes = antes)
+
+        override suspend fun anotarEnLaTransaccion(
+            id: String,
+            tipo: String,
+            momento: MomentoDeGuardado
+        ) {
+            anotadas += id
+            if (falla) error("plazo roto")
+        }
+
+        override fun despuesDeGuardar(id: String, tipo: String, momento: MomentoDeGuardado) {
+            esperando += id
+            if (falla) error("espera rota")
+        }
+    }
+
+    private val fixAntes = FixDeUbicacion(
+        lat = 20.5888,
+        lon = -100.3899,
+        precisionM = 9.0,
+        hora = Instant.parse("2026-09-26T21:27:20Z"),
+        elapsedRealtimeNanos = 0L
+    )
+
+    /** **Control de reversion:** quitar `conLaUbicacionDeAntes` deja la condonacion en 0,0. */
+    @Test
+    fun `E-APP-146 la condonacion nace con la ubicacion que el tomador ya tenia`() = runTest {
+        db.saleDao().insertAll(listOf(venta(saldo = 2300.0)))
+        val ubicacion = UbicacionGrabadora(antes = fixAntes)
+
+        val resultado = RegistroDeCondonacion(db, ubicacion = ubicacion)
+            .condonar(condonacion("cond-1", 500.0))
+
+        assertEquals(ResultadoDeLaCondonacion.GUARDADA, resultado)
+        val fila = db.paymentDao().getPaymentById("cond-1")!!
+        assertEquals(20.5888, fila.LAT!!, 0.0)
+        assertEquals(-100.3899, fila.LNG!!, 0.0)
+    }
+
+    /** **Control de reversion:** mover la anotacion fuera de la transaccion la deja en la excedida. */
+    @Test
+    fun `E-APP-145 la anotacion va dentro de la transaccion y solo si la condonacion se escribe`() =
+        runTest {
+            db.saleDao().insertAll(listOf(venta(saldo = 2300.0)))
+            val ubicacion = UbicacionGrabadora()
+            val registro = RegistroDeCondonacion(db, ubicacion = ubicacion)
+
+            registro.condonar(condonacion("cond-ok", 500.0))
+            registro.condonar(condonacion("cond-excede", 99_999.0))
+
+            assertEquals(listOf("cond-ok"), ubicacion.anotadas)
+            assertEquals("y queda esperando su ubicacion", listOf("cond-ok"), ubicacion.esperando)
+        }
+
+    /** **Control de reversion:** quitar el `try/catch` de `anotarLaUbicacion` revierte el dinero. */
+    @Test
+    fun `E-APP-145 si anotar o esperar la ubicacion lanza, la condonacion se guarda igual`() =
+        runTest {
+            db.saleDao().insertAll(listOf(venta(saldo = 2300.0)))
+
+            val resultado = RegistroDeCondonacion(db, ubicacion = UbicacionGrabadora(falla = true))
+                .condonar(condonacion("cond-1", 500.0))
+
+            assertEquals(ResultadoDeLaCondonacion.GUARDADA, resultado)
+            assertEquals(listOf("cond-1"), condonacionesEn(db).map { it.ID })
+            assertEquals("el saldo bajo", 1800.0, saldoDe(db), 1e-9)
+        }
+
+    @Test
+    fun `E-APP-146 sin ubicacion antes la condonacion nace en 0,0 y no espera`() = runTest {
+        db.saleDao().insertAll(listOf(venta(saldo = 2300.0)))
+        RegistroDeCondonacion(
+            db,
+            ubicacion = UbicacionGrabadora()
+        ).condonar(condonacion("cond-1", 500.0))
+        val fila = db.paymentDao().getPaymentById("cond-1")!!
+        assertEquals(0.0, fila.LAT!!, 0.0)
+        assertEquals(0.0, fila.LNG!!, 0.0)
     }
 }

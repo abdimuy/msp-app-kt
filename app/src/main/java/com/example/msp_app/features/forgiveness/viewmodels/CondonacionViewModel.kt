@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.ubicacion.UbicacionAnticipada
 import com.example.msp_app.data.pagos.RegistroDeCondonacion
 import com.example.msp_app.data.pagos.ResultadoDeLaCondonacion
 import kotlinx.coroutines.CancellationException
@@ -145,7 +146,10 @@ class CondonacionViewModel(
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T = CondonacionViewModel(
-            RegistroDeCondonacion(AppDatabase.getInstance(context.applicationContext))
+            RegistroDeCondonacion(
+                db = AppDatabase.getInstance(context.applicationContext),
+                ubicacion = UbicacionAnticipada.deCaptura(context.applicationContext)
+            )
         ) as T
     }
 }

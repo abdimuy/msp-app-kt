@@ -250,6 +250,32 @@ class PendingPaymentsWorkerRetencionTest : RoomTestBase() {
             job2.cancel()
         }
 
+    /** K8: la condonacion es un `Payment` con FORMA_COBRO de condonacion y se retiene igual. */
+    @Test
+    fun `E-APP-147 una condonacion se retiene igual que un abono`() = runTest {
+        db.paymentDao().savePayment(pago(0.0, 0.0).copy(FORMA_COBRO_ID = 137_026))
+        db.plazoDeEnvioDao().anotar(
+            PlazoDeEnvioEntity(
+                PAGO,
+                UbicacionDeCapturaEntity.TIPO_PAGO,
+                T0,
+                PlazoDeEnvioEntity.PLAZO_MS
+            )
+        )
+        val (job, resultado) = arrancar()
+        advanceTimeBy(4_000)
+        assertTrue("retenida", envios.isEmpty())
+
+        llegaElFix()
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertEquals(1, envios.size)
+        assertEquals(LAT.toString(), envios.single().lat)
+        job.cancel()
+    }
+
     @Test
     fun `E-APP-147 permiso negado o GPS apagado - el worker no espera nada`() = runTest {
         guardarSinUbicacion()

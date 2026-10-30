@@ -7,8 +7,12 @@ import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.FORMA_COBRO_CONDONACION
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
+import com.example.msp_app.core.ubicacion.MomentoDeGuardado
+import com.example.msp_app.core.ubicacion.UbicacionAlGuardar
 import java.math.BigDecimal
 import java.math.RoundingMode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
@@ -70,11 +74,21 @@ enum class ResultadoDeLaCondonacion {
  *
  * El abono y la visita **no** pasan por aquí y no cambian: siguen con
  * `updateTotal` (ver el KDoc de [SaleDao.descontarSiAlcanza]).
+ *
+ * ## La ubicación (E-APP-145, E-APP-146, E-APP-148 K8): igual que el abono
+ *
+ * Guardar NUNCA espera al GPS: antes de la transacción se lee, sin suspender, la mejor ubicación
+ * que el tomador ya tenía. Con ubicación ANTES la condonación nace con ella (solo si llegó en 0,0);
+ * sin ella, en la MISMA transacción se anota el plazo de envío y, ya commiteada, queda esperando el
+ * primer fix válido. El worker retiene el envío hasta tener ubicación o 30 s. Nada de esto puede
+ * fallar hacia el dinero: lo que lanza se traga y la condonación se guarda igual.
+ * `UpdateLocationService` ya no se arranca para las condonaciones.
  */
 class RegistroDeCondonacion(
     private val db: AppDatabase,
     private val saleDao: SaleDao = db.saleDao(),
-    private val paymentDao: PaymentDao = db.paymentDao()
+    private val paymentDao: PaymentDao = db.paymentDao(),
+    private val ubicacion: UbicacionAlGuardar = UbicacionAlGuardar.Ninguna
 ) {
 
     /** El `SALDO_REST` que la venta tiene AHORA en Room, o `null` si no está. */
@@ -88,15 +102,69 @@ class RegistroDeCondonacion(
             return ResultadoDeLaCondonacion.MONTO_INVALIDO
         }
         return withContext(NonCancellable) {
-            try {
-                db.withTransaction { escribir(condonacion) }
+            val momento = momentoDeGuardado()
+            val conUbicacion = conLaUbicacionDeAntes(condonacion, momento)
+            val resultado = try {
+                db.withTransaction { escribir(conUbicacion, momento) }
             } catch (_: SaldoQueNoAlcanza) {
                 ResultadoDeLaCondonacion.EXCEDE_EL_SALDO
             }
+            if (resultado == ResultadoDeLaCondonacion.GUARDADA) {
+                ubicarLaCondonacion(condonacion.ID, momento)
+            }
+            resultado
         }
     }
 
-    private suspend fun escribir(condonacion: PaymentEntity): ResultadoDeLaCondonacion {
+    /** Lo que el telefono sabe de la ubicacion AL GUARDAR. Total: si lanza, se guarda sin ubicacion. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun momentoDeGuardado(): MomentoDeGuardado = try {
+        ubicacion.alGuardar()
+    } catch (e: Throwable) {
+        MomentoDeGuardado.SinUbicacion
+    }
+
+    /** La condonacion nace con la ubicacion de ANTES, solo si llego sin ninguna (0,0 o nula). */
+    private fun conLaUbicacionDeAntes(
+        condonacion: PaymentEntity,
+        momento: MomentoDeGuardado
+    ): PaymentEntity {
+        val fix = momento.antes ?: return condonacion
+        val vacia = (condonacion.LAT ?: 0.0) == 0.0 && (condonacion.LNG ?: 0.0) == 0.0
+        return if (vacia) condonacion.copy(LAT = fix.lat, LNG = fix.lon) else condonacion
+    }
+
+    /** Tras el commit. Total: ninguna falla de ubicacion cambia el resultado de la condonacion. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun ubicarLaCondonacion(id: String, momento: MomentoDeGuardado) {
+        try {
+            ubicacion.despuesDeGuardar(id, UbicacionDeCapturaEntity.TIPO_PAGO, momento)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            // La condonacion ya esta escrita; sin ubicacion sale al vencer su plazo.
+        }
+    }
+
+    /**
+     * Dentro de la transaccion: la fila de ubicacion de ANTES o el plazo de envio. **Total** (K1):
+     * si lanza, la condonacion se guarda igual y su envio sale sin retencion.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun anotarLaUbicacion(id: String, momento: MomentoDeGuardado) {
+        try {
+            ubicacion.anotarEnLaTransaccion(id, UbicacionDeCapturaEntity.TIPO_PAGO, momento)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            // El dinero manda.
+        }
+    }
+
+    private suspend fun escribir(
+        condonacion: PaymentEntity,
+        momento: MomentoDeGuardado
+    ): ResultadoDeLaCondonacion {
         // `Payment.DOCTO_CC_ACR_ID` es el CARGO (= `sales.DOCTO_CC_ID`, ver
         // `SaleIdSpaces`): la venta se resuelve por esa columna, y el descuento va
         // por la PK de la fila que se encontró.
@@ -107,6 +175,7 @@ class RegistroDeCondonacion(
             return ResultadoDeLaCondonacion.EXCEDE_EL_SALDO
         }
         paymentDao.savePayment(condonacion)
+        anotarLaUbicacion(condonacion.ID, momento)
         val descontadas = saleDao.descontarSiAlcanza(
             saleId = venta.DOCTO_CC_ACR_ID,
             monto = condonacion.IMPORTE,
