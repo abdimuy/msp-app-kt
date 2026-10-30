@@ -115,7 +115,7 @@ class VisitasSinEnviarTest {
                 )
             }
         }
-        compose.onNodeWithText("no hay visitas pendientes").assertIsDisplayed()
+        compose.onNodeWithText("No hay visitas pendientes").assertIsDisplayed()
         compose.onNodeWithText("enviar ahora").assertDoesNotExist()
         guardarPng("visitas_sin_enviar_vacia")
     }
@@ -178,7 +178,7 @@ class VisitasSinEnviarTest {
             MaterialTheme { VisitasSinEnviar(envios = null, motivos = emptyMap(), onEnviar = {}) }
         }
         compose.onNodeWithText("cargando visitas").assertIsDisplayed()
-        compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
+        compose.onNodeWithText("No hay visitas pendientes").assertDoesNotExist()
         guardarPng("visitas_sin_enviar_cargando")
     }
 
@@ -199,7 +199,7 @@ class VisitasSinEnviarTest {
         }
         compose.onNodeWithText("no se pudieron leer las visitas").assertIsDisplayed()
         compose.onNodeWithText("15/10/2026 09:00 · pendiente de envío").assertIsDisplayed()
-        compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
+        compose.onNodeWithText("No hay visitas pendientes").assertDoesNotExist()
         guardarPng("visitas_sin_enviar_fallo_de_lectura")
     }
 
@@ -217,7 +217,7 @@ class VisitasSinEnviarTest {
         }
         compose.onNodeWithText("no se pudieron leer las visitas").assertIsDisplayed()
         compose.onNodeWithText("cargando visitas").assertDoesNotExist()
-        compose.onNodeWithText("no hay visitas pendientes").assertDoesNotExist()
+        compose.onNodeWithText("No hay visitas pendientes").assertDoesNotExist()
         guardarPng("visitas_sin_enviar_fallo_sin_lista")
     }
 }

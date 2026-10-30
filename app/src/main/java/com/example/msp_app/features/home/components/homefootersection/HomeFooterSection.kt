@@ -137,7 +137,7 @@ fun HomeFooterSection(
                             if (pending.isEmpty()) {
                                 "No hay pagos pendientes"
                             } else {
-                                "Pagos Pendientes: ${pending.size}"
+                                "Pagos pendientes: ${pending.size}"
                             }
                         )
                         if (pending.isNotEmpty() && motivoPagos != null) {

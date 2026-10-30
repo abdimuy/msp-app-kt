@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.domain
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
+import com.example.msp_app.core.common.visitas.domain.TextoDeCita
 import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
@@ -78,7 +79,7 @@ object BitacoraDelCliente {
                 // (TipoVisitaCatalogoTest) — normalizarlo aquí sería repartir la
                 // regla en la mezcla en vez de dejarla en el catálogo (Task 1,
                 // principio 10).
-                etiqueta = visita.tipoVisita,
+                etiqueta = etiquetaDeLaVisita(visita),
                 nota = visita.nota?.takeIf { it.isNotBlank() },
                 tipo = TipoDeContacto.VISITA,
                 // `metodo` se queda en null A PROPÓSITO: ver su KDoc. La columna
@@ -117,6 +118,15 @@ object BitacoraDelCliente {
         return (deVisitas + dePagos + deCondonaciones(condonaciones, cuentas))
             .sortedByDescending { it.fecha }
     }
+
+    /**
+     * Una visita con cita se rotula `Cita: <día> <hora>` (decisión del dueño,
+     * 2026-10-30), no con el literal de cable ("Pidió que regrese otro día").
+     * Solo cuando trae día de cita: las demás conservan su literal.
+     */
+    private fun etiquetaDeLaVisita(visita: VisitaDelCliente): String =
+        visita.fechaCita?.let { TextoDeCita.etiquetaDelHistorial(it, visita.horaCita) }
+            ?: visita.tipoVisita
 
     /**
      * Las condonaciones como contactos de tipo [TipoDeContacto.CONDONACION].

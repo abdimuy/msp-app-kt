@@ -69,7 +69,7 @@ fun VisitasSinEnviar(
             return@Column
         }
         if (envios.isEmpty()) {
-            Text("no hay visitas pendientes")
+            Text("No hay visitas pendientes")
             return@Column
         }
         Text(resumenDeEnvio(envios), style = MaterialTheme.typography.bodyMedium)

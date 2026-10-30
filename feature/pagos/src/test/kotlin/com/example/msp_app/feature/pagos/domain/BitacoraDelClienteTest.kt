@@ -254,6 +254,21 @@ class BitacoraDelClienteTest {
             ubicacion = ubicacion
         )
 
+    @Test
+    fun `una visita con cita se rotula Cita con dia y hora y la demas conserva su texto`() {
+        val conCita = visita("v-cita", "2026-10-26T18:00:00Z", null).copy(
+            tipoVisita = "Pidió que regrese otro día",
+            fechaCita = java.time.LocalDate.of(2026, 10, 29),
+            horaCita = java.time.LocalTime.of(16, 30)
+        )
+        val sinCita = visita("v-sin", "2026-10-25T18:00:00Z", null).copy(
+            tipoVisita = "Pidió que regrese otro día"
+        )
+        val r = BitacoraDelCliente.de(listOf(conCita, sinCita), emptyList())
+        assertEquals("Cita: jueves 4:30 p. m.", r.first { it.id == "v-cita" }.etiqueta)
+        assertEquals("Pidió que regrese otro día", r.first { it.id == "v-sin" }.etiqueta)
+    }
+
     private fun pago(id: String, fechaIso: String, ubicacion: UbicacionDelCobro?) =
         PagoDelHistorial(
             pagoId = id,

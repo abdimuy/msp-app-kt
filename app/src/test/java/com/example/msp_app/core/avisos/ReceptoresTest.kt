@@ -90,6 +90,18 @@ class ReceptoresTest : RoomTestBase() {
             assertEquals(1, notificaciones().size)
         }
 
+    @Test
+    fun `el aviso de cita dice el cliente y la hora y sin datos no inventa`() {
+        assertEquals(
+            "Cita con Josefa Temoxtle a las 4:30 p. m." to "Por visitar",
+            AvisoAlarmReceiver.textoDeCita("Josefa Temoxtle", java.time.LocalTime.of(16, 30))
+        )
+        assertEquals(
+            "Cita con el cliente" to "Por visitar",
+            AvisoAlarmReceiver.textoDeCita(null, null)
+        )
+    }
+
     /** E-APP-134 (revision de T15): el receptor cuenta el disparo; si deja de llamarlo, esta prueba se pone roja. */
     @Test
     fun `la alarma que notifica queda contada en las ultimas 24 horas - E-APP-134`() = runTest {
