@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.os.Build
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
@@ -74,5 +75,34 @@ internal fun Location.aFix(): FixDeUbicacion = FixDeUbicacion(
     hora = Instant.ofEpochMilli(time),
     elapsedRealtimeNanos = elapsedRealtimeNanos,
     velocidadMs = if (hasSpeed()) speed.toDouble() else null,
-    esMock = isMock
+    esMock = esSimulada()
 )
+
+/**
+ * `Location.isMock` existe desde API 31 y `minSdk` es 24: en Android 7 a 11 llamarlo lanza
+ * NoSuchMethodError (E-APP-149, H1). Por debajo de 31 se lee `isFromMockProvider`.
+ */
+@SuppressLint("NewApi")
+@Suppress("DEPRECATION")
+internal fun Location.esSimulada(sdkInt: Int = Build.VERSION.SDK_INT): Boolean = leerSimulada(
+    sdkInt = sdkInt,
+    desdeApi31 = { isMock },
+    antesDeApi31 = { isFromMockProvider }
+)
+
+/**
+ * Elige la lectura según la versión y, si falla por una causa no fatal, devuelve `true`: ante la duda,
+ * el fix no se acepta (el error de la máquina virtual sí se propaga).
+ */
+@Suppress("TooGenericExceptionCaught")
+internal fun leerSimulada(
+    sdkInt: Int,
+    desdeApi31: () -> Boolean,
+    antesDeApi31: () -> Boolean
+): Boolean = try {
+    if (sdkInt >= Build.VERSION_CODES.S) desdeApi31() else antesDeApi31()
+} catch (e: VirtualMachineError) {
+    throw e
+} catch (_: Throwable) {
+    true
+}

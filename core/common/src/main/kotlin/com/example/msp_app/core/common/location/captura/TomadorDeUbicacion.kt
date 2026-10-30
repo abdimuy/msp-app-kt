@@ -4,6 +4,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -99,12 +100,16 @@ class TomadorDeUbicacion(
     val estado: StateFlow<EstadoDeUbicacion> = _estado.asStateFlow()
 
     private val buffer = AtomicReference<List<FixDeUbicacion>>(emptyList())
+
+    @Volatile
+    private var primerFixReportado = false
     private val jobActual = AtomicReference<Job?>(null)
 
     /** Arranca (o reinicia) la toma en [scope]. Devuelve el trabajo, que se cancela con el alcance. */
     fun iniciar(scope: CoroutineScope): Job {
         jobActual.get()?.cancel()
         val inicio = reloj.elapsedNanos()
+        primerFixReportado = false
         val job = scope.launch { correr(inicio) }
         jobActual.set(job)
         return job
@@ -141,18 +146,13 @@ class TomadorDeUbicacion(
             AccesoAUbicacion.OK -> Unit
         }
         _estado.value = EstadoDeUbicacion.Esperando
-        var primero = true
         try {
             withTimeoutOrNull(ventanaMs) {
-                val ultima = try {
-                    proveedor.ultimaConocida()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    null
+                // E-APP-149 (H4): las dos fuentes corren en paralelo; una colgada no bloquea a la otra.
+                coroutineScope {
+                    launch { leerUltimaConocida(inicioNanos) }
+                    proveedor.actualizaciones().collect { recibir(it, inicioNanos, false) }
                 }
-                if (ultima != null) primero = recibir(ultima, inicioNanos, true, primero)
-                proveedor.actualizaciones().collect { primero = recibir(it, inicioNanos, false, primero) }
             }
             if (_estado.value is EstadoDeUbicacion.Esperando) {
                 terminarSin(EstadoDeUbicacion.SinFix, MotivoSinUbicacion.SIN_FIX)
@@ -168,18 +168,27 @@ class TomadorDeUbicacion(
         }
     }
 
+    /** La última conocida tiene su propio tope ([ULTIMA_CONOCIDA_MAX_MS]); su fallo o demora no estorba. */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun leerUltimaConocida(inicioNanos: Long) {
+        val ultima = try {
+            withTimeoutOrNull(ULTIMA_CONOCIDA_MAX_MS) { proveedor.ultimaConocida() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        if (ultima != null) recibir(ultima, inicioNanos, true)
+    }
+
     private fun terminarSin(estado: EstadoDeUbicacion, motivo: MotivoSinUbicacion) {
         _estado.value = estado
         reporte.sinUbicacion(motivo)
     }
 
-    /** Guarda el fix y, si ahora sirve, lo publica. Devuelve si todavía falta el primer fix útil. */
-    private fun recibir(
-        fix: FixDeUbicacion,
-        inicioNanos: Long,
-        deUltima: Boolean,
-        esperandoPrimero: Boolean
-    ): Boolean {
+    /** Guarda el fix y, si ahora sirve, lo publica. Serializado: las dos fuentes pueden llegar a la vez. */
+    @Synchronized
+    private fun recibir(fix: FixDeUbicacion, inicioNanos: Long, deUltima: Boolean) {
         buffer.updateAndGet { actual ->
             (actual + fix).sortedBy {
                 it.elapsedRealtimeNanos
@@ -191,16 +200,16 @@ class TomadorDeUbicacion(
             buffer.get().filter { it.elapsedRealtimeNanos <= ahora },
             config()
         )
-        if (decision !is DecisionDeUbicacion.AceptarAntes) return esperandoPrimero
+        if (decision !is DecisionDeUbicacion.AceptarAntes) return
         _estado.value = EstadoDeUbicacion.Disponible(decision.fix)
-        if (esperandoPrimero) {
+        if (!primerFixReportado) {
+            primerFixReportado = true
             reporte.primerFix(
                 msDesdeInicio = (ahora - inicioNanos).coerceAtLeast(0L) / NANOS_POR_MS,
                 precisionM = decision.fix.precisionM.toInt(),
                 deUltimaConocida = deUltima
             )
         }
-        return false
     }
 
     companion object {
@@ -209,6 +218,9 @@ class TomadorDeUbicacion(
 
         /** Ventana de actualizaciones: 3 minutos (la pantalla suele cerrarse antes). */
         const val VENTANA_POR_DEFECTO_MS = 180_000L
+
+        /** Tope de la última conocida: si el sistema no responde, se sigue solo con las actualizaciones. */
+        const val ULTIMA_CONOCIDA_MAX_MS = 5_000L
         private const val NANOS_POR_MS = 1_000_000L
     }
 }

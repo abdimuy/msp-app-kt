@@ -124,10 +124,12 @@ data class ConfigDeAceptacion(
         const val DEF_MIN_MOVIMIENTO_M = 15.0
         const val DEF_MAX_VELOCIDAD_MS = 1.0
 
-        val RANGO_EDAD: LongRange = 1L..600L
-        val RANGO_PRECISION: ClosedFloatingPointRange<Double> = 1.0..500.0
-        val RANGO_MOVIMIENTO: ClosedFloatingPointRange<Double> = 1.0..200.0
-        val RANGO_VELOCIDAD: ClosedFloatingPointRange<Double> = 0.1..10.0
+        // Topes superiores = lo máximo que el dueño tolera (E-APP-149, H5): un documento remoto mal
+        // escrito no puede aflojar la regla más allá de esto.
+        val RANGO_EDAD: LongRange = 1L..60L
+        val RANGO_PRECISION: ClosedFloatingPointRange<Double> = 1.0..50.0
+        val RANGO_MOVIMIENTO: ClosedFloatingPointRange<Double> = 1.0..50.0
+        val RANGO_VELOCIDAD: ClosedFloatingPointRange<Double> = 0.1..3.0
 
         /** Config por defecto. */
         val POR_DEFECTO = ConfigDeAceptacion()
@@ -278,7 +280,11 @@ object AceptacionDeUbicacion {
         b: FixDeUbicacion,
         config: ConfigDeAceptacion
     ): Boolean {
-        val combinada = sqrt(a.precisionM * a.precisionM + b.precisionM * b.precisionM)
+        // E-APP-149 (H3): una precisión peor que el máximo aceptable no ensancha la tolerancia (se
+        // cuenta como el máximo); si no, una referencia de 400 m escondería 166 m de movimiento.
+        val pa = minOf(a.precisionM, config.maxPrecisionM)
+        val pb = minOf(b.precisionM, config.maxPrecisionM)
+        val combinada = sqrt(pa * pa + pb * pb)
         return distanciaM(a, b) > maxOf(combinada, config.minMovimientoM)
     }
 

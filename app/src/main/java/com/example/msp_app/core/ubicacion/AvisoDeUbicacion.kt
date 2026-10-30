@@ -4,21 +4,25 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -37,40 +41,95 @@ fun textoDelAviso(estado: EstadoDeUbicacion): String? = when (estado) {
 const val TEXTO_SIN_PERMISO = "Activa la ubicación para registrar dónde cobras"
 const val TEXTO_GPS_APAGADO = "Enciende el GPS para registrar dónde cobras"
 
-/** Sin estado propio: pinta el aviso o nada. Nunca bloquea; tocarlo abre el ajuste que corresponde. */
+const val TEXTO_ACTIVAR = "Activar"
+const val TEXTO_AHORA_NO = "Ahora no"
+const val TAG_AVISO_UBICACION = "aviso_ubicacion"
+
+/** Si el cobrador ya dijo «Ahora no» en esta sesión de la app (no se persiste: reaparece al reabrirla). */
+class DescarteDelAviso {
+    var descartado by mutableStateOf(false)
+        private set
+
+    fun descartar() {
+        descartado = true
+    }
+
+    companion object {
+        /** La instancia de la sesión del proceso. */
+        val Sesion = DescarteDelAviso()
+    }
+}
+
+/** Sin estado propio: pinta el aviso o nada. Nunca bloquea; ocupa solo su tarjeta y no intercepta otros toques. */
 @Composable
 fun AvisoDeUbicacion(
     estado: EstadoDeUbicacion,
-    alTocar: () -> Unit,
+    alActivar: () -> Unit,
+    alDescartar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val texto = textoDelAviso(estado) ?: return
-    Row(
-        modifier = modifier.fillMaxWidth().clickable(
-            onClick = alTocar
-        ).padding(horizontal = 16.dp, vertical = 8.dp)
+    Surface(
+        modifier = modifier.testTag(TAG_AVISO_UBICACION),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        shadowElevation = 6.dp
     ) {
-        Text(
-            text = texto,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error
-        )
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = texto,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f).padding(vertical = 8.dp)
+            )
+            TextButton(onClick = alDescartar) {
+                Text(TEXTO_AHORA_NO, color = MaterialTheme.colorScheme.inverseOnSurface)
+            }
+            TextButton(onClick = alActivar) {
+                Text(TEXTO_ACTIVAR, color = MaterialTheme.colorScheme.inversePrimary)
+            }
+        }
     }
 }
 
 /**
- * Pon esto en la pantalla del cliente / captura de abono / diálogo de condonación. Inicia la toma
- * anticipada con el alcance de la pantalla (se cancela con ella), la reintenta al volver a primer plano
- * (por si el cobrador acaba de dar el permiso) y muestra el aviso si falta permiso o GPS.
+ * El aviso como tarjeta flotante abajo (E-APP-149, H2): no toca la barra superior ni intercepta toques
+ * fuera de sí misma. Se oculta al tocar «Ahora no» durante la sesión.
  */
 @Composable
-fun UbicacionAnticipadaEfecto(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val estado = iniciarUbicacionAnticipada()
+fun BoxScope.AvisoFlotanteDeUbicacion(
+    estado: EstadoDeUbicacion,
+    descarte: DescarteDelAviso,
+    alActivar: () -> Unit
+) {
+    if (descarte.descartado) return
     AvisoDeUbicacion(
         estado = estado,
-        alTocar = { abrirAjuste(context, estado) },
-        modifier = modifier
+        alActivar = alActivar,
+        alDescartar = descarte::descartar,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 16.dp)
+    )
+}
+
+/**
+ * Pon esto dentro del `Box` raíz. Inicia la toma anticipada con el alcance de la pantalla (se cancela con
+ * ella), la reintenta al volver a primer plano (por si el cobrador acaba de dar el permiso) y muestra el
+ * aviso si falta permiso o GPS.
+ */
+@Composable
+fun BoxScope.UbicacionAnticipadaEfecto(descarte: DescarteDelAviso = DescarteDelAviso.Sesion) {
+    val context = LocalContext.current
+    val estado = iniciarUbicacionAnticipada()
+    AvisoFlotanteDeUbicacion(
+        estado = estado,
+        descarte = descarte,
+        alActivar = { abrirAjuste(context, estado) }
     )
 }
 
@@ -94,16 +153,12 @@ private val RUTAS_QUE_PIDEN_UBICACION = setOf(
     PagosRutas.REGISTRAR_ABONO
 )
 
-/** Se monta sobre el NavHost: solo hace algo en las rutas de [rutaPideUbicacion]. */
+/** Se monta dentro del `Box` del NavHost: solo hace algo en las rutas de [rutaPideUbicacion]. */
 @Composable
-fun UbicacionPorRuta(navController: NavController) {
+fun BoxScope.UbicacionPorRuta(navController: NavController) {
     val entrada by navController.currentBackStackEntryAsState()
     if (rutaPideUbicacion(entrada?.destination?.route)) {
-        UbicacionAnticipadaEfecto(
-            modifier = Modifier
-                .statusBarsPadding()
-                .background(MaterialTheme.colorScheme.surface)
-        )
+        UbicacionAnticipadaEfecto()
     }
 }
 

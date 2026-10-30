@@ -372,13 +372,13 @@ class AceptacionDeUbicacionTest {
     fun `E-APP-140 desdeMapa toma los valores validos`() {
         val c = ConfigDeAceptacion.desdeMapa(
             mapOf(
-                ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 90,
+                ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 45,
                 ConfigDeAceptacion.CLAVE_MAX_PRECISION_M to 35.5,
                 ConfigDeAceptacion.CLAVE_MIN_MOVIMIENTO_M to 20L,
                 ConfigDeAceptacion.CLAVE_MAX_VELOCIDAD_MS to 2.0f
             )
         )
-        assertEquals(ConfigDeAceptacion(90, 35.5, 20.0, 2.0), c)
+        assertEquals(ConfigDeAceptacion(45, 35.5, 20.0, 2.0), c)
     }
 
     @Test
@@ -419,7 +419,7 @@ class AceptacionDeUbicacionTest {
             )
         val nueva = vigente.actualizadaCon(
             mapOf(
-                ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 601L,
+                ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 61L,
                 ConfigDeAceptacion.CLAVE_MAX_PRECISION_M to "20",
                 ConfigDeAceptacion.CLAVE_MIN_MOVIMIENTO_M to Double.NaN,
                 ConfigDeAceptacion.CLAVE_MAX_VELOCIDAD_MS to true
@@ -433,12 +433,13 @@ class AceptacionDeUbicacionTest {
         fun con(clave: String, v: Any) =
             ConfigDeAceptacion.POR_DEFECTO.actualizadaCon(mapOf(clave to v))
         assertEquals(1L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 1L).maxEdadSeg)
-        assertEquals(600L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 600L).maxEdadSeg)
+        assertEquals(60L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 60L).maxEdadSeg)
+        assertEquals(30L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 61L).maxEdadSeg)
         assertEquals(30L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 0L).maxEdadSeg)
         assertEquals(30L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, -5L).maxEdadSeg)
         assertEquals(1.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 1.0).maxPrecisionM, 0.0)
-        assertEquals(500.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 500.0).maxPrecisionM, 0.0)
-        assertEquals(30.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 500.1).maxPrecisionM, 0.0)
+        assertEquals(50.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 50.0).maxPrecisionM, 0.0)
+        assertEquals(30.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 50.1).maxPrecisionM, 0.0)
         assertEquals(30.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 0.99).maxPrecisionM, 0.0)
         assertEquals(
             30.0,
