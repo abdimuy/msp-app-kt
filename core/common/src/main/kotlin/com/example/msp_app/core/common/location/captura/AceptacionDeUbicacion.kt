@@ -93,7 +93,7 @@ sealed interface DecisionDeUbicacion {
 data class ConfigDeAceptacion(
     /** Edad máxima, INCLUSIVA: un fix a exactamente este número de segundos del guardado sirve. */
     val maxEdadSeg: Long = DEF_MAX_EDAD_SEG,
-    /** Precisión máxima, EXCLUSIVA: un fix de exactamente este radio NO sirve ("menos de 50 m"). */
+    /** Precisión máxima, EXCLUSIVA: un fix de exactamente este radio NO sirve ("menos de 30 m"). */
     val maxPrecisionM: Double = DEF_MAX_PRECISION_M,
     /** Piso del umbral de movimiento: por debajo de esto el desplazamiento es ruido del GPS. */
     val minMovimientoM: Double = DEF_MIN_MOVIMIENTO_M,
@@ -133,43 +133,56 @@ data class ConfigDeAceptacion(
         val POR_DEFECTO = ConfigDeAceptacion()
 
         /** Construye desde un mapa de claves (p. ej. un documento remoto). No lanza. */
-        fun desdeMapa(mapa: Map<String, Any?>): ConfigDeAceptacion {
-            val edad = (mapa[CLAVE_MAX_EDAD_SEG] as? Number)?.let(::enteroExacto)
-                ?.takeIf { it in RANGO_EDAD } ?: DEF_MAX_EDAD_SEG
-            return ConfigDeAceptacion(
-                maxEdadSeg = edad,
-                maxPrecisionM = decimalEnRango(
-                    mapa[CLAVE_MAX_PRECISION_M],
-                    RANGO_PRECISION,
-                    DEF_MAX_PRECISION_M
-                ),
-                minMovimientoM = decimalEnRango(
-                    mapa[CLAVE_MIN_MOVIMIENTO_M],
-                    RANGO_MOVIMIENTO,
-                    DEF_MIN_MOVIMIENTO_M
-                ),
-                maxVelocidadMs = decimalEnRango(
-                    mapa[CLAVE_MAX_VELOCIDAD_MS],
-                    RANGO_VELOCIDAD,
-                    DEF_MAX_VELOCIDAD_MS
-                )
-            )
+        fun desdeMapa(mapa: Map<String, Any?>): ConfigDeAceptacion =
+            POR_DEFECTO.actualizadaCon(mapa)
+
+        private fun enteroExacto(valor: Any?): Long? = when (valor) {
+            is Long -> valor
+            is Int -> valor.toLong()
+            else -> null
         }
 
-        private fun enteroExacto(n: Number): Long? {
-            val d = n.toDouble()
-            return if (d.isFinite() && d == Math.floor(d)) n.toLong() else null
+        private fun decimalExacto(valor: Any?): Double? = when (valor) {
+            is Double -> valor
+            is Long -> valor.toDouble()
+            is Int -> valor.toDouble()
+            is Float -> valor.toDouble()
+            else -> null
         }
 
-        private fun decimalEnRango(
-            valor: Any?,
-            rango: ClosedFloatingPointRange<Double>,
-            defecto: Double
-        ): Double {
-            val d = (valor as? Number)?.toDouble()
-            return if (d != null && d.isFinite() && d in rango) d else defecto
+        private fun <T> campo(
+            mapa: Map<String, Any?>,
+            clave: String,
+            vigente: T,
+            defecto: T,
+            leer: (Any?) -> T?
+        ): T {
+            if (!mapa.containsKey(clave) || mapa[clave] == null) return defecto
+            return leer(mapa[clave]) ?: vigente
         }
     }
+
+    /**
+     * Aplica un documento remoto sobre esta config, campo por campo (E-APP-141):
+     * - clave ausente (o `null`): vuelve al valor por defecto (quitar la clave quita el ajuste);
+     * - valor del tipo exacto y dentro del rango seguro: lo toma;
+     * - valor de otro tipo, no finito o fuera de rango: CONSERVA el vigente de este campo.
+     * No lanza nunca.
+     */
+    fun actualizadaCon(mapa: Map<String, Any?>): ConfigDeAceptacion = ConfigDeAceptacion(
+        maxEdadSeg = campo(mapa, CLAVE_MAX_EDAD_SEG, maxEdadSeg, DEF_MAX_EDAD_SEG) {
+            enteroExacto(it)?.takeIf { v -> v in RANGO_EDAD }
+        },
+        maxPrecisionM = campo(mapa, CLAVE_MAX_PRECISION_M, maxPrecisionM, DEF_MAX_PRECISION_M) {
+            decimalExacto(it)?.takeIf { v -> v.isFinite() && v in RANGO_PRECISION }
+        },
+        minMovimientoM = campo(mapa, CLAVE_MIN_MOVIMIENTO_M, minMovimientoM, DEF_MIN_MOVIMIENTO_M) {
+            decimalExacto(it)?.takeIf { v -> v.isFinite() && v in RANGO_MOVIMIENTO }
+        },
+        maxVelocidadMs = campo(mapa, CLAVE_MAX_VELOCIDAD_MS, maxVelocidadMs, DEF_MAX_VELOCIDAD_MS) {
+            decimalExacto(it)?.takeIf { v -> v.isFinite() && v in RANGO_VELOCIDAD }
+        }
+    )
 }
 
 /**

@@ -399,12 +399,96 @@ class AceptacionDeUbicacionTest {
                 mapOf(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 1.5, "otra" to null)
             )
         )
+        // Tipo exacto: la edad es entera; un decimal (aunque sea 60.0) no se acepta.
         assertEquals(
-            ConfigDeAceptacion(maxEdadSeg = 60),
+            ConfigDeAceptacion.POR_DEFECTO,
             ConfigDeAceptacion.desdeMapa(
                 mapOf(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 60.0, "x" to 1)
             )
         )
+    }
+
+    @Test
+    fun `E-APP-141 un valor invalido o fuera de rango conserva el vigente de ese campo`() {
+        val vigente =
+            ConfigDeAceptacion(
+                maxEdadSeg = 45,
+                maxPrecisionM = 25.0,
+                minMovimientoM = 10.0,
+                maxVelocidadMs = 2.0
+            )
+        val nueva = vigente.actualizadaCon(
+            mapOf(
+                ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 601L,
+                ConfigDeAceptacion.CLAVE_MAX_PRECISION_M to "20",
+                ConfigDeAceptacion.CLAVE_MIN_MOVIMIENTO_M to Double.NaN,
+                ConfigDeAceptacion.CLAVE_MAX_VELOCIDAD_MS to true
+            )
+        )
+        assertEquals(vigente, nueva)
+    }
+
+    @Test
+    fun `E-APP-141 los limites del rango seguro son inclusivos y lo de afuera se rechaza`() {
+        fun con(clave: String, v: Any) =
+            ConfigDeAceptacion.POR_DEFECTO.actualizadaCon(mapOf(clave to v))
+        assertEquals(1L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 1L).maxEdadSeg)
+        assertEquals(600L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 600L).maxEdadSeg)
+        assertEquals(30L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, 0L).maxEdadSeg)
+        assertEquals(30L, con(ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG, -5L).maxEdadSeg)
+        assertEquals(1.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 1.0).maxPrecisionM, 0.0)
+        assertEquals(500.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 500.0).maxPrecisionM, 0.0)
+        assertEquals(30.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 500.1).maxPrecisionM, 0.0)
+        assertEquals(30.0, con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, 0.99).maxPrecisionM, 0.0)
+        assertEquals(
+            30.0,
+            con(ConfigDeAceptacion.CLAVE_MAX_PRECISION_M, Double.POSITIVE_INFINITY).maxPrecisionM,
+            0.0
+        )
+    }
+
+    @Test
+    fun `E-APP-141 quitar una clave del documento devuelve ese campo al defecto`() {
+        val vigente = ConfigDeAceptacion(maxEdadSeg = 45, maxPrecisionM = 25.0)
+        assertEquals(ConfigDeAceptacion.POR_DEFECTO, vigente.actualizadaCon(emptyMap()))
+        assertEquals(
+            ConfigDeAceptacion(maxEdadSeg = 45),
+            vigente.actualizadaCon(
+                mapOf(
+                    ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG to 45L,
+                    ConfigDeAceptacion.CLAVE_MAX_PRECISION_M to null
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `E-APP-141 propiedad actualizadaCon nunca lanza y siempre produce una config dentro de rango`() {
+        val rnd = Random(SEMILLA + 11)
+        val claves = listOf(
+            ConfigDeAceptacion.CLAVE_MAX_EDAD_SEG,
+            ConfigDeAceptacion.CLAVE_MAX_PRECISION_M,
+            ConfigDeAceptacion.CLAVE_MIN_MOVIMIENTO_M,
+            ConfigDeAceptacion.CLAVE_MAX_VELOCIDAD_MS
+        )
+        repeat(ITERACIONES) {
+            val mapa = claves.associateWith<String, Any?> {
+                when (rnd.nextInt(8)) {
+                    0 -> null
+                    1 -> "x"
+                    2 -> Double.NaN
+                    3 -> rnd.nextLong(-1000, 1000)
+                    4 -> rnd.nextDouble(-1000.0, 1000.0)
+                    5 -> rnd.nextInt(-5, 700)
+                    6 -> Double.NEGATIVE_INFINITY
+                    else -> rnd.nextBoolean()
+                }
+            }
+            val c = ConfigDeAceptacion.POR_DEFECTO.actualizadaCon(mapa)
+            assertTrue(c.maxEdadSeg in ConfigDeAceptacion.RANGO_EDAD)
+            assertTrue(c.maxPrecisionM in ConfigDeAceptacion.RANGO_PRECISION)
+            assertEquals(c, c.actualizadaCon(mapa))
+        }
     }
 
     // ---- Propiedades ----------------------------------------------------------------------
