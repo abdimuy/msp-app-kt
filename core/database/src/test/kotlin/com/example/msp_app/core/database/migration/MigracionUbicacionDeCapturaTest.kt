@@ -22,10 +22,10 @@ private val MIGRACION_NUEVA = MIGRATION_38_39
 private const val TABLAS_ANTES = 28
 private const val MIGRATION_DB = "migration-ubicacion-test.db"
 private val TABLAS_NUEVAS =
-    listOf("ubicacion_de_captura")
+    listOf("plazo_de_envio", "ubicacion_de_captura")
 
 /**
- * E-APP-145: la migración 38→39 crea `ubicacion_de_captura`, vacía, y no toca
+ * E-APP-145: la migración 38→39 crea `ubicacion_de_captura` y `plazo_de_envio` (K1), vacías, y no toca
  * nada más: cada fila preexistente de cada tabla queda byte-idéntica (`rowid`,
  * `typeof`, `quote`) y el SQL de toda tabla e índice previo no cambia.
  *
@@ -41,7 +41,7 @@ class MigracionUbicacionDeCapturaTest : RobolectricTestBase() {
     )
 
     @Test
-    fun `E-APP-145 nace ubicacion_de_captura vacia y validan contra el esquema de Room`() {
+    fun `E-APP-145 nacen ubicacion_de_captura y plazo_de_envio vacias y validan contra el esquema de Room`() {
         migrationTestHelper.createDatabase(MIGRATION_DB, VERSION_ANTERIOR).close()
 
         val migrada = migrationTestHelper.runMigrationsAndValidate(
@@ -62,7 +62,7 @@ class MigracionUbicacionDeCapturaTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `E-APP-145 ninguna fila ni tabla previa cambia y solo nace ubicacion_de_captura`() {
+    fun `E-APP-145 ninguna fila ni tabla previa cambia y solo nacen ubicacion_de_captura y plazo_de_envio`() {
         val (columnasAntes, filasAntes, sqlAntes) =
             migrationTestHelper.createDatabase(MIGRATION_DB, VERSION_ANTERIOR).use { db ->
                 val tablas = tablasDeUsuario(db)

@@ -22,6 +22,7 @@ import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDa
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.tareas.TareaZonaDao
+import com.example.msp_app.core.database.dao.ubicacion.PlazoDeEnvioDao
 import com.example.msp_app.core.database.dao.ubicacion.UbicacionDeCapturaDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
@@ -45,6 +46,7 @@ import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.PaymentImageEntity
+import com.example.msp_app.core.database.entities.PlazoDeEnvioEntity
 import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
@@ -107,7 +109,8 @@ import com.example.msp_app.core.database.migrations.MIGRATION_P3
         TareasSyncStateEntity::class,
         AvisoEmitidoEntity::class,
         AvisoProgramadoEntity::class,
-        UbicacionDeCapturaEntity::class
+        UbicacionDeCapturaEntity::class,
+        PlazoDeEnvioEntity::class
     ],
     views = [OverduePaymentsEntity::class],
     version = 39,
@@ -161,6 +164,9 @@ abstract class AppDatabase : RoomDatabase() {
 
     /** `ubicacion_de_captura` — la ubicacion de cada captura y el estado de su envio (E-APP-145). */
     abstract fun ubicacionDeCapturaDao(): UbicacionDeCapturaDao
+
+    /** `plazo_de_envio` — hasta cuando el worker puede retener el envio de una captura (E-APP-145). */
+    abstract fun plazoDeEnvioDao(): PlazoDeEnvioDao
 
     companion object {
         @Volatile
