@@ -12,6 +12,7 @@ import com.example.msp_app.core.fcm.SuscripcionDeZonaProvider
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
+import com.example.msp_app.core.ubicacion.ConfigDeUbicacion
 import com.example.msp_app.core.visitas.agenda.KillSwitchAgenda
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
@@ -78,6 +79,7 @@ class MspApplication : Application(), Configuration.Provider {
 
         // Interruptor de los avisos: config/visitas_avisos (apagado por omisión)
         KillSwitchAvisos.instalar()
+        ConfigDeUbicacion.instalar()
 
         // Las alarmas se reconstruyen al abrir la app (plan visitas P3, Tarea 13)
         encolarReprogramacionDeAvisos(this)

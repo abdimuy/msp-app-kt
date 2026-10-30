@@ -34,6 +34,7 @@ import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.cobranza.UserContext
 import com.example.msp_app.core.sync.pendingwork.VisitsReconcileObserver
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
+import com.example.msp_app.core.ubicacion.UbicacionPorRuta
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.captura.ReanudarCapturasAlVolver
 import com.example.msp_app.data.models.auth.User
@@ -379,48 +380,88 @@ fun AppNavigation() {
     }
 
     CompositionLocalProvider(LocalAuthViewModel provides authViewModel) {
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Loading.route
-        ) {
-            composable(Screen.Loading.route) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    ModernSpinner(size = 80.dp)
-                }
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Loading.route
+            ) {
+                composable(Screen.Loading.route) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ModernSpinner(size = 80.dp)
+                    }
 
-                LaunchedEffect(currentUser, userDataState) {
-                    when {
-                        currentUser == null -> {
-                            navController.navigate(Screen.Login.route) {
-                                popUpTo(Screen.Loading.route) { inclusive = true }
-                            }
-                        }
-
-                        userDataState is ResultState.Success -> {
-                            val userData = (userDataState as ResultState.Success<User?>).data
-
-                            // Device protection check
-                            if (userData != null && userData.DEVICE_PROTECTION_ENABLED) {
-                                val isAuthorized = deviceProtection.isDeviceAuthorized(userData)
-                                if (!isAuthorized) {
-                                    // Check local cache for offline support
-                                    val locallyAuthorized =
-                                        deviceProtection.isLocallyAuthorized(userData.ID)
-                                    if (!locallyAuthorized) {
-                                        deviceProtection.registerAsPending(userData)
-                                        navController.navigate(Screen.DeviceBlocked.route) {
-                                            popUpTo(Screen.Loading.route) { inclusive = true }
-                                        }
-                                        return@LaunchedEffect
-                                    }
+                    LaunchedEffect(currentUser, userDataState) {
+                        when {
+                            currentUser == null -> {
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(Screen.Loading.route) { inclusive = true }
                                 }
                             }
 
-                            val modulos = userData?.MODULOS ?: emptyList()
+                            userDataState is ResultState.Success -> {
+                                val userData = (userDataState as ResultState.Success<User?>).data
 
+                                // Device protection check
+                                if (userData != null && userData.DEVICE_PROTECTION_ENABLED) {
+                                    val isAuthorized = deviceProtection.isDeviceAuthorized(userData)
+                                    if (!isAuthorized) {
+                                        // Check local cache for offline support
+                                        val locallyAuthorized =
+                                            deviceProtection.isLocallyAuthorized(userData.ID)
+                                        if (!locallyAuthorized) {
+                                            deviceProtection.registerAsPending(userData)
+                                            navController.navigate(Screen.DeviceBlocked.route) {
+                                                popUpTo(Screen.Loading.route) { inclusive = true }
+                                            }
+                                            return@LaunchedEffect
+                                        }
+                                    }
+                                }
+
+                                val modulos = userData?.MODULOS ?: emptyList()
+
+                                val destination = when {
+                                    modulos.isEmpty() -> Screen.NoModules.route
+                                    modulos.contains("COBRO") -> Screen.Home.route
+                                    modulos.contains("VENTAS") -> Screen.SaleHome.route
+                                    modulos.contains("ALMACEN") -> Screen.TransfersList.route
+                                    modulos.contains("GARANTIAS") -> Screen.GuaranteeList.route
+                                    else -> Screen.NoModules.route
+                                }
+
+                                navController.navigate(destination) {
+                                    popUpTo(Screen.Loading.route) { inclusive = true }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                composable(Screen.NoModules.route) {
+                    NoModulesScreen(navController = navController)
+                }
+
+                composable(Screen.DeviceBlocked.route) {
+                    DeviceBlockedScreen(
+                        deviceLabel = deviceProtection.deviceLabel,
+                        onLogout = {
+                            val userData = (userDataState as? ResultState.Success<User?>)?.data
+                            userData?.let { deviceProtection.clearLocalAuthorization(it.ID) }
+                            authViewModel.logout()
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                    )
+
+                    // Listen for authorization changes in real-time
+                    LaunchedEffect(userDataState) {
+                        val userData = (userDataState as? ResultState.Success<User?>)?.data
+                        if (userData != null && deviceProtection.isDeviceAuthorized(userData)) {
+                            val modulos = userData.MODULOS
                             val destination = when {
                                 modulos.isEmpty() -> Screen.NoModules.route
                                 modulos.contains("COBRO") -> Screen.Home.route
@@ -429,307 +470,274 @@ fun AppNavigation() {
                                 modulos.contains("GARANTIAS") -> Screen.GuaranteeList.route
                                 else -> Screen.NoModules.route
                             }
-
                             navController.navigate(destination) {
-                                popUpTo(Screen.Loading.route) { inclusive = true }
+                                popUpTo(Screen.DeviceBlocked.route) { inclusive = true }
                             }
                         }
                     }
                 }
-            }
 
-            composable(Screen.NoModules.route) {
-                NoModulesScreen(navController = navController)
-            }
+                composable(Screen.VersionBlocked.route) {
+                    // Se pasa la MISMA instancia que usa el watcher de arriba (la de
+                    // la Activity): un `hiltViewModel()` aquí adentro se acotaría al
+                    // `NavBackStackEntry` y crearía un segundo ViewModel que
+                    // reencolaría la descarga por su cuenta.
+                    VersionBlockedScreen(viewModel = versionGateViewModel)
 
-            composable(Screen.DeviceBlocked.route) {
-                DeviceBlockedScreen(
-                    deviceLabel = deviceProtection.deviceLabel,
-                    onLogout = {
-                        val userData = (userDataState as? ResultState.Success<User?>)?.data
-                        userData?.let { deviceProtection.clearLocalAuthorization(it.ID) }
-                        authViewModel.logout()
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    }
-                )
-
-                // Listen for authorization changes in real-time
-                LaunchedEffect(userDataState) {
-                    val userData = (userDataState as? ResultState.Success<User?>)?.data
-                    if (userData != null && deviceProtection.isDeviceAuthorized(userData)) {
-                        val modulos = userData.MODULOS
-                        val destination = when {
-                            modulos.isEmpty() -> Screen.NoModules.route
-                            modulos.contains("COBRO") -> Screen.Home.route
-                            modulos.contains("VENTAS") -> Screen.SaleHome.route
-                            modulos.contains("ALMACEN") -> Screen.TransfersList.route
-                            modulos.contains("GARANTIAS") -> Screen.GuaranteeList.route
-                            else -> Screen.NoModules.route
-                        }
-                        navController.navigate(destination) {
-                            popUpTo(Screen.DeviceBlocked.route) { inclusive = true }
+                    // Salida legítima sin cerrar sesión: la oficina agregó este
+                    // teléfono a la lista de exentos, o retiró el mínimo. Mismo
+                    // patrón que el listener de autorización de [DeviceBlocked].
+                    LaunchedEffect(versionVerdict) {
+                        if (versionVerdict != null && versionVerdict != VersionVerdict.BLOCKED) {
+                            navController.navigate(Screen.Loading.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 }
-            }
 
-            composable(Screen.VersionBlocked.route) {
-                // Se pasa la MISMA instancia que usa el watcher de arriba (la de
-                // la Activity): un `hiltViewModel()` aquí adentro se acotaría al
-                // `NavBackStackEntry` y crearía un segundo ViewModel que
-                // reencolaría la descarga por su cuenta.
-                VersionBlockedScreen(viewModel = versionGateViewModel)
-
-                // Salida legítima sin cerrar sesión: la oficina agregó este
-                // teléfono a la lista de exentos, o retiró el mínimo. Mismo
-                // patrón que el listener de autorización de [DeviceBlocked].
-                LaunchedEffect(versionVerdict) {
-                    if (versionVerdict != null && versionVerdict != VersionVerdict.BLOCKED) {
-                        navController.navigate(Screen.Loading.route) {
-                            popUpTo(0) { inclusive = true }
+                composable(Screen.Login.route) {
+                    LoginScreen(
+                        onLoginSuccess = {
+                            navController.navigate(Screen.Loading.route) {
+                                popUpTo(Screen.Login.route) { inclusive = true }
+                            }
                         }
-                    }
-                }
-            }
-
-            composable(Screen.Login.route) {
-                LoginScreen(
-                    onLoginSuccess = {
-                        navController.navigate(Screen.Loading.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            composable(Screen.Home.route) {
-                HomeScreen(navController = navController)
-            }
-
-            composable(Screen.SaleDetails.route) { backStackEntry ->
-                val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
-                if (saleId != null) {
-                    SaleDetailsScreen(
-                        saleId = saleId,
-                        navController = navController
                     )
-                } else {
-                    // Sin argumento no hay venta que pintar: se vuelve por donde
-                    // se entró en vez de mandar a una lista que ya no existe.
-                    navController.popBackStack()
                 }
-            }
 
-            composable(Screen.DailyReport.route) {
-                // Reporte de cobranza unificado (Día/Semana en un solo tablero). El menú
-                // lateral se cablea aquí: `MenuDeLaApp` provee `openDrawer`, que se pasa como
-                // `onMenuClick` al botón de menú del propio encabezado del reporte. La
-                // selección Tier 1 / Tier 2 sigue el `fontScale` del SO (accesibilidad "Muy
-                // grande") vía [rememberReportTier].
-                //
-                // `onThemeChanged` (fix defecto visual, íconos de barra de estado): el reporte
-                // tiene su PROPIO tema local (`state.darkTheme`, desacoplado de
-                // `ThemeController` por diseño — ver KDoc de `CollectionReportScreen`); sin
-                // este cableo la barra de sistema se queda con la apariencia de ANTES de
-                // entrar al reporte y los íconos se vuelven invisibles si el reporte cambia a
-                // oscuro mientras el resto de la app sigue en claro. `DisposableEffect`
-                // restaura la apariencia al tema real de la app (`isDarkMode`) al SALIR de esta
-                // ruta, para que el reporte no deje los íconos "pegados" a su último estado al
-                // navegar a otra pantalla.
-                DisposableEffect(Unit) {
-                    onDispose {
-                        ThemeController.reportStatusBarAppearanceDark(ThemeController.isDarkMode)
+                composable(Screen.Home.route) {
+                    HomeScreen(navController = navController)
+                }
+
+                composable(Screen.SaleDetails.route) { backStackEntry ->
+                    val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
+                    if (saleId != null) {
+                        SaleDetailsScreen(
+                            saleId = saleId,
+                            navController = navController
+                        )
+                    } else {
+                        // Sin argumento no hay venta que pintar: se vuelve por donde
+                        // se entró en vez de mandar a una lista que ya no existe.
+                        navController.popBackStack()
                     }
                 }
-                MenuDeLaApp(navController = navController) { openDrawer ->
-                    when (rememberReportTier()) {
-                        ReportTier.TIER_2 -> CollectionReportScreenTier2(
-                            navController = navController,
-                            onMenuClick = openDrawer,
-                            onThemeChanged = ThemeController::reportStatusBarAppearanceDark
-                        )
 
-                        ReportTier.TIER_1 -> CollectionReportScreen(
-                            navController = navController,
-                            onMenuClick = openDrawer,
-                            onThemeChanged = ThemeController::reportStatusBarAppearanceDark
+                composable(Screen.DailyReport.route) {
+                    // Reporte de cobranza unificado (Día/Semana en un solo tablero). El menú
+                    // lateral se cablea aquí: `MenuDeLaApp` provee `openDrawer`, que se pasa como
+                    // `onMenuClick` al botón de menú del propio encabezado del reporte. La
+                    // selección Tier 1 / Tier 2 sigue el `fontScale` del SO (accesibilidad "Muy
+                    // grande") vía [rememberReportTier].
+                    //
+                    // `onThemeChanged` (fix defecto visual, íconos de barra de estado): el reporte
+                    // tiene su PROPIO tema local (`state.darkTheme`, desacoplado de
+                    // `ThemeController` por diseño — ver KDoc de `CollectionReportScreen`); sin
+                    // este cableo la barra de sistema se queda con la apariencia de ANTES de
+                    // entrar al reporte y los íconos se vuelven invisibles si el reporte cambia a
+                    // oscuro mientras el resto de la app sigue en claro. `DisposableEffect`
+                    // restaura la apariencia al tema real de la app (`isDarkMode`) al SALIR de esta
+                    // ruta, para que el reporte no deje los íconos "pegados" a su último estado al
+                    // navegar a otra pantalla.
+                    DisposableEffect(Unit) {
+                        onDispose {
+                            ThemeController.reportStatusBarAppearanceDark(
+                                ThemeController.isDarkMode
+                            )
+                        }
+                    }
+                    MenuDeLaApp(navController = navController) { openDrawer ->
+                        when (rememberReportTier()) {
+                            ReportTier.TIER_2 -> CollectionReportScreenTier2(
+                                navController = navController,
+                                onMenuClick = openDrawer,
+                                onThemeChanged = ThemeController::reportStatusBarAppearanceDark
+                            )
+
+                            ReportTier.TIER_1 -> CollectionReportScreen(
+                                navController = navController,
+                                onMenuClick = openDrawer,
+                                onThemeChanged = ThemeController::reportStatusBarAppearanceDark
+                            )
+                        }
+                    }
+                }
+
+                composable(Screen.SaleMap.route) { backStackEntry ->
+                    val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
+                    if (saleId != null) {
+                        SaleMapScreen(navController = navController, saleId = saleId)
+                    }
+                }
+
+                composable(Screen.PaymentTicket.route) { backStackEntry ->
+                    val paymentId = backStackEntry.arguments?.getString("paymentId")
+                    if (paymentId != null) {
+                        PaymentTicketScreen(
+                            paymentId = paymentId,
+                            navController = navController
                         )
                     }
                 }
-            }
 
-            composable(Screen.SaleMap.route) { backStackEntry ->
-                val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
-                if (saleId != null) {
-                    SaleMapScreen(navController = navController, saleId = saleId)
-                }
-            }
-
-            composable(Screen.PaymentTicket.route) { backStackEntry ->
-                val paymentId = backStackEntry.arguments?.getString("paymentId")
-                if (paymentId != null) {
-                    PaymentTicketScreen(
-                        paymentId = paymentId,
-                        navController = navController
-                    )
-                }
-            }
-
-            composable(Screen.VisitTicket.route) { backStackEntry ->
-                val saleIdString = backStackEntry.arguments?.getString("saleId")
-                val saleId = saleIdString?.toIntOrNull()
-                if (saleId != null) {
-                    VisitTicketScreen(saleId = saleId, navController = navController)
-                }
-            }
-
-            composable(Screen.Guarantee.route) { backStackEntry ->
-                val saleIdString = backStackEntry.arguments?.getString("saleId")
-                val saleId = saleIdString?.toIntOrNull()
-                if (saleId != null) {
-                    GuaranteeScreen(saleId = saleId, navController = navController)
-                }
-            }
-
-            composable(Screen.RouteMap.route) {
-                RouteMapScreen(navController = navController)
-            }
-
-            composable(Screen.ProductsCatalog.route) {
-                ProductsCatalogScreen(navController = navController)
-            }
-
-            composable(Screen.SaleHome.route) {
-                UnifiedSalesScreen(navController = navController)
-            }
-
-            composable("productDetails/{productId}") { backStackEntry ->
-                val productId = backStackEntry.arguments?.getString("productId")
-                ProductDetailsScreen(
-                    productId = productId.toString(),
-                    navController = navController
-                )
-            }
-
-            composable(Screen.NewSale.route) {
-                NewSaleScreen(navController = navController)
-            }
-
-            composable(Screen.SaleDetailsList.route) {
-                SaleDetailsListScreen(navController = navController)
-            }
-
-            composable("saleDescription/{localSaleId}") { backStackEntry ->
-                val localSaleId = backStackEntry.arguments?.getString("localSaleId")
-                SaleDescriptionScreen(
-                    localSaleId = localSaleId.toString(),
-                    navController = navController
-                )
-            }
-
-            composable(Screen.EditSale.route) { backStackEntry ->
-                val localSaleId = backStackEntry.arguments?.getString("localSaleId")
-                if (localSaleId != null) {
-                    EditSaleScreen(
-                        localSaleId = localSaleId,
-                        navController = navController
-                    )
-                }
-            }
-
-            composable(Screen.Cart.route) {
-                CartScreen(
-                    navController = navController
-                )
-            }
-
-            // Transfers routes
-            composable(Screen.TransfersList.route) {
-                val viewModel: TransfersListViewModel = viewModel()
-                TransfersListScreen(
-                    viewModel = viewModel,
-                    navController = navController,
-                    onTransferClick = { transferId ->
-                        navController.navigate(Screen.TransferDetail.createRoute(transferId))
-                    },
-                    onCreateTransferClick = { warehouseId ->
-                        navController.navigate(Screen.NewTransfer.createRoute(warehouseId))
+                composable(Screen.VisitTicket.route) { backStackEntry ->
+                    val saleIdString = backStackEntry.arguments?.getString("saleId")
+                    val saleId = saleIdString?.toIntOrNull()
+                    if (saleId != null) {
+                        VisitTicketScreen(saleId = saleId, navController = navController)
                     }
-                )
-            }
+                }
 
-            composable(Screen.NewTransfer.route) { backStackEntry ->
-                val warehouseId = backStackEntry.arguments?.getString("warehouseId")?.toIntOrNull() ?: 0
-                val viewModel: NewTransferViewModel = viewModel()
-                NewTransferScreen(
-                    viewModel = viewModel,
-                    navController = navController,
-                    preselectedWarehouseId = warehouseId
-                )
-            }
+                composable(Screen.Guarantee.route) { backStackEntry ->
+                    val saleIdString = backStackEntry.arguments?.getString("saleId")
+                    val saleId = saleIdString?.toIntOrNull()
+                    if (saleId != null) {
+                        GuaranteeScreen(saleId = saleId, navController = navController)
+                    }
+                }
 
-            composable(Screen.TransferDetail.route) { backStackEntry ->
-                val transferId = backStackEntry.arguments?.getString("transferId")?.toIntOrNull()
-                if (transferId != null) {
-                    val viewModel: TransferDetailViewModel = viewModel()
-                    TransferDetailScreen(
-                        transferId = transferId,
+                composable(Screen.RouteMap.route) {
+                    RouteMapScreen(navController = navController)
+                }
+
+                composable(Screen.ProductsCatalog.route) {
+                    ProductsCatalogScreen(navController = navController)
+                }
+
+                composable(Screen.SaleHome.route) {
+                    UnifiedSalesScreen(navController = navController)
+                }
+
+                composable("productDetails/{productId}") { backStackEntry ->
+                    val productId = backStackEntry.arguments?.getString("productId")
+                    ProductDetailsScreen(
+                        productId = productId.toString(),
+                        navController = navController
+                    )
+                }
+
+                composable(Screen.NewSale.route) {
+                    NewSaleScreen(navController = navController)
+                }
+
+                composable(Screen.SaleDetailsList.route) {
+                    SaleDetailsListScreen(navController = navController)
+                }
+
+                composable("saleDescription/{localSaleId}") { backStackEntry ->
+                    val localSaleId = backStackEntry.arguments?.getString("localSaleId")
+                    SaleDescriptionScreen(
+                        localSaleId = localSaleId.toString(),
+                        navController = navController
+                    )
+                }
+
+                composable(Screen.EditSale.route) { backStackEntry ->
+                    val localSaleId = backStackEntry.arguments?.getString("localSaleId")
+                    if (localSaleId != null) {
+                        EditSaleScreen(
+                            localSaleId = localSaleId,
+                            navController = navController
+                        )
+                    }
+                }
+
+                composable(Screen.Cart.route) {
+                    CartScreen(
+                        navController = navController
+                    )
+                }
+
+                // Transfers routes
+                composable(Screen.TransfersList.route) {
+                    val viewModel: TransfersListViewModel = viewModel()
+                    TransfersListScreen(
                         viewModel = viewModel,
-                        navController = navController
+                        navController = navController,
+                        onTransferClick = { transferId ->
+                            navController.navigate(Screen.TransferDetail.createRoute(transferId))
+                        },
+                        onCreateTransferClick = { warehouseId ->
+                            navController.navigate(Screen.NewTransfer.createRoute(warehouseId))
+                        }
+                    )
+                }
+
+                composable(Screen.NewTransfer.route) { backStackEntry ->
+                    val warehouseId = backStackEntry.arguments?.getString("warehouseId")?.toIntOrNull() ?: 0
+                    val viewModel: NewTransferViewModel = viewModel()
+                    NewTransferScreen(
+                        viewModel = viewModel,
+                        navController = navController,
+                        preselectedWarehouseId = warehouseId
+                    )
+                }
+
+                composable(Screen.TransferDetail.route) { backStackEntry ->
+                    val transferId = backStackEntry.arguments?.getString(
+                        "transferId"
+                    )?.toIntOrNull()
+                    if (transferId != null) {
+                        val viewModel: TransferDetailViewModel = viewModel()
+                        TransferDetailScreen(
+                            transferId = transferId,
+                            viewModel = viewModel,
+                            navController = navController
+                        )
+                    }
+                }
+
+                // Guarantee routes
+                composable(Screen.GuaranteeList.route) {
+                    GuaranteeListScreen(navController = navController)
+                }
+
+                composable(Screen.CreateGuarantee.route) {
+                    CreateGuaranteeScreen(navController = navController)
+                }
+
+                composable(Screen.GuaranteeDetail.route) { backStackEntry ->
+                    val guaranteeId =
+                        backStackEntry.arguments?.getString("guaranteeId")?.toIntOrNull()
+                    if (guaranteeId != null) {
+                        GuaranteeDetailScreen(
+                            guaranteeId = guaranteeId,
+                            navController = navController
+                        )
+                    }
+                }
+
+                // Camioneta Assignment route
+                composable(Screen.CamionetaAssignment.route) {
+                    val viewModel: CamionetaAssignmentViewModel = viewModel()
+                    CamionetaAssignmentScreen(
+                        navController = navController,
+                        viewModel = viewModel
+                    )
+                }
+
+                // Cobranza y visitas (Tasks 16-20), cableadas por la Task 21.
+                // El grafo vive en `DestinosDeCobranzaGraph.kt` para que un test
+                // pueda montarlo con un `TestNavHostController` y afirmar destino y
+                // argumentos sobre EL MISMO código que corre en la app.
+                destinosDeCobranza(navController, context)
+
+                // Pantalla de Configuración (Task 3, spec
+                // 2026-08-10-configuracion-tamano-letra-design.md). Se apila sobre la pantalla
+                // vigente (sin `popUpTo`) — su propio header lleva el affordance de regreso
+                // (`navController.popBackStack()`), no un drawer/hamburguesa, así que no se envuelve
+                // en `MenuDeLaApp` (mismo criterio que `RouteMapScreen`/`GuaranteeListScreen`,
+                // pantallas simples que no re-abren el menú).
+                composable(Screen.Configuracion.route) {
+                    ConfiguracionScreen(
+                        navController = navController,
+                        // "Cerrar sesión" vive aquí desde el menú lateral nuevo (spec §2.1.4).
+                        onCerrarSesion = { authViewModel.logout() }
                     )
                 }
             }
-
-            // Guarantee routes
-            composable(Screen.GuaranteeList.route) {
-                GuaranteeListScreen(navController = navController)
-            }
-
-            composable(Screen.CreateGuarantee.route) {
-                CreateGuaranteeScreen(navController = navController)
-            }
-
-            composable(Screen.GuaranteeDetail.route) { backStackEntry ->
-                val guaranteeId =
-                    backStackEntry.arguments?.getString("guaranteeId")?.toIntOrNull()
-                if (guaranteeId != null) {
-                    GuaranteeDetailScreen(
-                        guaranteeId = guaranteeId,
-                        navController = navController
-                    )
-                }
-            }
-
-            // Camioneta Assignment route
-            composable(Screen.CamionetaAssignment.route) {
-                val viewModel: CamionetaAssignmentViewModel = viewModel()
-                CamionetaAssignmentScreen(
-                    navController = navController,
-                    viewModel = viewModel
-                )
-            }
-
-            // Cobranza y visitas (Tasks 16-20), cableadas por la Task 21.
-            // El grafo vive en `DestinosDeCobranzaGraph.kt` para que un test
-            // pueda montarlo con un `TestNavHostController` y afirmar destino y
-            // argumentos sobre EL MISMO código que corre en la app.
-            destinosDeCobranza(navController, context)
-
-            // Pantalla de Configuración (Task 3, spec
-            // 2026-08-10-configuracion-tamano-letra-design.md). Se apila sobre la pantalla
-            // vigente (sin `popUpTo`) — su propio header lleva el affordance de regreso
-            // (`navController.popBackStack()`), no un drawer/hamburguesa, así que no se envuelve
-            // en `MenuDeLaApp` (mismo criterio que `RouteMapScreen`/`GuaranteeListScreen`,
-            // pantallas simples que no re-abren el menú).
-            composable(Screen.Configuracion.route) {
-                ConfiguracionScreen(
-                    navController = navController,
-                    // "Cerrar sesión" vive aquí desde el menú lateral nuevo (spec §2.1.4).
-                    onCerrarSesion = { authViewModel.logout() }
-                )
-            }
+            UbicacionPorRuta(navController)
         }
     }
 }

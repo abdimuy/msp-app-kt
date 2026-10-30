@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
+import com.example.msp_app.core.ubicacion.iniciarUbicacionAnticipada
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
@@ -105,6 +106,8 @@ fun NewForgivenessDialog(
     if (!show) return
 
     val context = LocalContext.current
+    // E-APP-142: la ubicacion se toma desde que se abre el dialogo; guardar no la espera.
+    iniciarUbicacionAnticipada()
 
     val activity = LocalContext.current as ComponentActivity
     val authViewModel: AuthViewModel = viewModel(activity)
