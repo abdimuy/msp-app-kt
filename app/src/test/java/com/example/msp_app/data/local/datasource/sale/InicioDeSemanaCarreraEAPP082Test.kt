@@ -188,7 +188,6 @@ class InicioDeSemanaCarreraEAPP082Test : RobolectricTestBase() {
             encolador = NoEncola,
             clock = clock,
             traerUsuario = { COBRADOR },
-            pedirUbicacion = {},
             emailEnSesion = { "rosa@example.com" }
         ).registrar(
             AbonoARegistrar(

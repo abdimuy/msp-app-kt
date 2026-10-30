@@ -6,14 +6,19 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.common.location.captura.EsperaDeEnvio
+import com.example.msp_app.core.common.location.captura.RelojMonotono
+import com.example.msp_app.core.common.location.captura.SalidaDeLaEspera
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.captura.CapturaEnCursoDao
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
+import com.example.msp_app.core.database.dao.ubicacion.PlazoDeEnvioDao
 import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.ubicacion.UbicacionAnticipada
 import com.example.msp_app.core.upload.ExistenceVerifier
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.upload.UploadDecision
@@ -100,6 +105,20 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         AppDatabase.getInstance(appContext).capturaEnCursoDao(),
     @VisibleForTesting
     internal val emailEnSesion: () -> String? = ::emailDeLaSesion,
+    /**
+     * E-APP-147: el plazo de retencion del envio (`plazo_de_envio`). Sin fila no se espera.
+     */
+    @VisibleForTesting
+    internal val plazos: PlazoDeEnvioDao = AppDatabase.getInstance(appContext).plazoDeEnvioDao(),
+    /** E-APP-147: la espera de la ubicacion, con reloj de pared y reloj monotono inyectables. */
+    @VisibleForTesting
+    internal val espera: EsperaDeEnvio = EsperaDeEnvio(
+        reloj = clock,
+        monotono = RelojMonotono { android.os.SystemClock.elapsedRealtimeNanos() }
+    ),
+    /** E-APP-147: la toma ya informo permiso negado o GPS apagado, asi que no espera. */
+    @VisibleForTesting
+    internal val tomaNoVaALlegar: () -> Boolean = { UbicacionAnticipada.noVaALlegar(appContext) },
     /** El aviso `captura_contenido_no_coincide` (tipo, motivo, http; sin PII). */
     @VisibleForTesting
     internal val avisarDiscrepancia: (Map<String, Any?>) -> Unit = { datos ->
@@ -143,8 +162,50 @@ class PendingPaymentsWorker @JvmOverloads constructor(
             return Result.success()
         }
 
-        return if (useV2) uploadV2(payment) else uploadLegacy(payment)
+        // E-APP-147: el envio se RETIENE hasta tener ubicacion o 30 s desde que se guardo. Va antes
+        // de armar el cuerpo y de `uploadV2` (que atrapa `Exception` y se tragaria una cancelacion).
+        val aEnviar = esperarLaUbicacion(payment) ?: return Result.success()
+
+        return if (useV2) uploadV2(aEnviar) else uploadLegacy(aEnviar)
     }
+
+    /**
+     * La retencion de E-APP-147 (condiciones K2..K4 de la compuerta ANTES c2). SIN efectos: solo lee
+     * Room y duerme. Devuelve el pago a enviar, releido DESPUES de esperar (con la ubicacion que el
+     * tomador haya escrito: `LAT` y `LNG` juntas, en un solo UPDATE), o `null` si ya no hay nada que
+     * mandar (la fila desaparecio o quedo soltada mientras esperaba).
+     *
+     * - Sin fila en `plazo_de_envio` (pagos viejos, el barrido, un fallo al anotar) NO se retiene.
+     * - La espera propaga la cancelacion: una parada de WorkManager (red perdida, limite) vuelve el
+     *   trabajo a ENQUEUED SIN haber mandado nada, y la corrida nueva empieza de cero.
+     * - Lo que resta se mide con el reloj monotono; el plazo de pared solo decide si se espera.
+     */
+    @Suppress("TooGenericExceptionCaught") // leer el plazo nunca debe frenar el dinero.
+    private suspend fun esperarLaUbicacion(payment: PaymentEntity): PaymentEntity? {
+        if (tieneUbicacion(payment)) return payment
+        val plazo = try {
+            plazos.obtener(payment.ID)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (e: Exception) {
+            Log.w(TAG, "Pago ${payment.ID}: no se pudo leer el plazo; se envia sin retener", e)
+            null
+        } ?: return payment
+        val salida = espera.esperar(
+            guardadoEpochMs = plazo.guardadoEnEpochMs,
+            plazoMs = plazo.plazoMs,
+            hayUbicacion = { paymentsStore.getPaymentById(payment.ID)?.let(::tieneUbicacion) ?: true },
+            noVaALlegar = tomaNoVaALlegar
+        )
+        Log.i(TAG, "Pago ${payment.ID}: espera de ubicacion termino en $salida")
+        if (salida == SalidaDeLaEspera.SIN_ESPERA) return payment
+        val fresco = paymentsStore.getPaymentById(payment.ID) ?: return null
+        return fresco.takeUnless { it.GUARDADO_EN_MICROSIP }
+    }
+
+    /** El par lat/lng no es 0,0 (nulo cuenta como 0). Nunca una sola de las dos. */
+    private fun tieneUbicacion(pago: PaymentEntity): Boolean =
+        (pago.LAT ?: 0.0) != 0.0 || (pago.LNG ?: 0.0) != 0.0
 
     /**
      * Verificador de existencia contra `GET /v2/cobranza/pagos/{id}`.

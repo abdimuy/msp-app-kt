@@ -8,6 +8,8 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.testing.outbox.ContratoDelOutbox
+import com.example.msp_app.core.ubicacion.MomentoDeGuardado
+import com.example.msp_app.core.ubicacion.UbicacionAlGuardar
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
@@ -48,11 +50,10 @@ class ContratoDelOutboxDelAbonoTest : ContratoDelOutbox() {
     override fun caminosConAcompananteRoto(): List<CaminoDeEscritura> = listOf(
         // La foto: escribir la fila de comprobante truena DESPUES del commit.
         Sujeto(imagenes = { DaoDeImagenesQueTruena(db.paymentImageDao()) }),
-        // La ubicacion: arrancar `UpdateLocationService` puede lanzar en
-        // Android 12+ con la app en segundo plano. Hasta el Arreglo C ese fallo
-        // se llevaba puesto el encolado del pago, porque el encolado colgaba de
-        // que el servicio arrancara.
-        Sujeto(pedirUbicacion = { error("startForegroundService rechazado") })
+        // La ubicacion (E-APP-146): leer el tomador, anotar el plazo o dejar la captura
+        // esperando pueden lanzar. Hasta el Arreglo C ese fallo se llevaba puesto el
+        // encolado del pago; ahora tampoco puede revertir el dinero ni frenar el encolado.
+        Sujeto(ubicacion = UbicacionQueTruena)
     )
 
     override fun caminoConEncoladorQueTruena(): CaminoDeEscritura =
@@ -94,7 +95,7 @@ class ContratoDelOutboxDelAbonoTest : ContratoDelOutbox() {
         private val encolador: PaymentsWorkEnqueuer = EncoladorQueGraba(),
         imagenes: () -> PaymentImageDao = { db.paymentImageDao() },
         saleDao: () -> SaleDao = { db.saleDao() },
-        pedirUbicacion: (String) -> Unit = {}
+        ubicacion: UbicacionAlGuardar = UbicacionAlGuardar.Ninguna
     ) : CaminoDeEscritura {
 
         private val adaptador = RegistroDeAbonoAdapter(
@@ -106,7 +107,7 @@ class ContratoDelOutboxDelAbonoTest : ContratoDelOutbox() {
             encolador = encolador,
             clock = clock,
             traerUsuario = { COBRADOR },
-            pedirUbicacion = pedirUbicacion,
+            ubicacion = ubicacion,
             emailEnSesion = { "rosa@example.com" }
         )
 
@@ -136,6 +137,20 @@ class ContratoDelOutboxDelAbonoTest : ContratoDelOutbox() {
     }
 
     /** Fake a mano (sin MockK): lista pública de lo encolado, en orden. */
+    /** Toda la ubicacion truena: leer el tomador, anotar el plazo y dejar la captura esperando. */
+    private object UbicacionQueTruena : UbicacionAlGuardar {
+        override fun alGuardar(): MomentoDeGuardado = error("tomador roto")
+
+        override suspend fun anotarEnLaTransaccion(
+            id: String,
+            tipo: String,
+            momento: MomentoDeGuardado
+        ): Unit = error("plazo roto")
+
+        override fun despuesDeGuardar(id: String, tipo: String, momento: MomentoDeGuardado): Unit =
+            error("espera rota")
+    }
+
     private class EncoladorQueGraba : PaymentsWorkEnqueuer {
         val encolados: MutableList<String> = mutableListOf()
 

@@ -1,5 +1,6 @@
 package com.example.msp_app.data.pagos
 
+import com.example.msp_app.core.common.location.captura.FixDeUbicacion
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
@@ -11,6 +12,8 @@ import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.core.ubicacion.MomentoDeGuardado
+import com.example.msp_app.core.ubicacion.UbicacionAlGuardar
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
@@ -46,11 +49,31 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
 
     private var usuario: User? = COBRADOR
 
-    /** Los `Payment.ID` con los que se pidio la ubicacion, en orden. */
+    /** Los `Payment.ID` que quedaron esperando ubicacion tras el commit, en orden. */
     private val ubicacionesPedidas = mutableListOf<String>()
 
-    /** Lo que hace la lambda de ubicacion. Por defecto, grabar y volver. */
+    /** Los `Payment.ID` cuya anotacion de ubicacion (plazo) se hizo DENTRO de la transaccion. */
+    private val anotadasEnLaTransaccion = mutableListOf<String>()
+
+    /** Lo que hace la ubicacion al quedar la captura esperando. Por defecto, grabar y volver. */
     private var alPedirUbicacion: (String) -> Unit = { ubicacionesPedidas += it }
+
+    /** La ubicacion del tomador, sin GPS: nunca hay fix antes y graba lo que le piden. */
+    private inner class UbicacionFalsa : UbicacionAlGuardar {
+        override fun alGuardar() = MomentoDeGuardado(elapsedNanos = 1L, antes = null)
+
+        override suspend fun anotarEnLaTransaccion(
+            id: String,
+            tipo: String,
+            momento: MomentoDeGuardado
+        ) {
+            anotadasEnLaTransaccion += id
+        }
+
+        override fun despuesDeGuardar(id: String, tipo: String, momento: MomentoDeGuardado) {
+            alPedirUbicacion(id)
+        }
+    }
 
     /** Fake a mano (sin MockK): los `Payment.ID` encolados, en orden. */
     private val encolador = EncoladorQueGraba()
@@ -77,7 +100,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         encolador = encolador,
         clock = clock,
         traerUsuario = { usuario },
-        pedirUbicacion = { alPedirUbicacion(it) },
+        ubicacion = UbicacionFalsa(),
         emailEnSesion = { "rosa@example.com" }
     )
 
@@ -146,7 +169,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             encolador = encolador,
             clock = clock,
             traerUsuario = { error("firestore caido cobrando a Victoria Flores") },
-            pedirUbicacion = { ubicacionesPedidas += it },
+            ubicacion = UbicacionFalsa(),
             emailEnSesion = { "rosa@example.com" }
         )
 
@@ -194,7 +217,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
                 encolador = encolador,
                 clock = clock,
                 traerUsuario = { usuario },
-                pedirUbicacion = { ubicacionesPedidas += it },
+                ubicacion = UbicacionFalsa(),
                 emailEnSesion = { "rosa@example.com" }
             )
 
@@ -286,13 +309,14 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
      * mapa**. El legado sí la hacía (el retirado `NewPaymentDialog` arrancaba
      * `UpdateLocationService`); el camino que la Task 21 volvió principal, no.
      *
-     * **Control de reversión:** borrar `pedirUbicacionDelAbono(abono.abonoId)`
-     * de `RegistroDeAbonoAdapter.guardar` pone este test en ROJO. (El Arreglo C
-     * mudó la llamada de `registrar` a `guardar`, dentro del `NonCancellable`;
-     * esta línea decía `registrar` y era una instrucción que ya no aplicaba.)
+     * Desde E-APP-146 la ubicacion ya no arranca `UpdateLocationService`: el abono queda
+     * esperando el primer fix valido del tomador.
+     *
+     * **Control de reversión:** borrar `ubicarElAbono(abono.abonoId, momento)` de
+     * `RegistroDeAbonoAdapter.escribir` pone este test en ROJO.
      */
     @Test
-    fun `un abono registrado pide su ubicacion`() = runTest {
+    fun `un abono registrado queda esperando su ubicacion`() = runTest {
         assertEquals(ResultadoDelAbono.REGISTRADO, adaptador().registrar(abono(dinero("220"))))
         assertEquals(listOf(ABONO_ID), ubicacionesPedidas)
     }
@@ -300,8 +324,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     /**
      * **El id que viaja es el del PAGO, no el de la venta ni el del cliente.**
      *
-     * `UpdateLocationService` mete ese id en `PaymentDao.updateLocation`, que
-     * filtra `Payment.id`. Este plan ya cazó seis defectos de la familia "un id
+     * `PaymentDao.updateLocationIfEmpty` filtra `Payment.id`. Este plan ya cazó seis defectos de la familia "un id
      * donde iba el otro", y sin esta afirmación mandar `ventaId` habría dejado
      * el mapa igual de vacío y todos los demás tests en verde.
      */
@@ -322,12 +345,12 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
      * haría que la pantalla ofreciera reintentar un cobro que ya ocurrió.
      *
      * **Control de reversión:** quitar el `try/catch` de
-     * `pedirUbicacionDelAbono` propaga la excepción al `catch` general y el
+     * `ubicarElAbono` propaga la excepción al `catch` general y el
      * resultado se vuelve `FALLO_EL_GUARDADO` — este test se pone ROJO.
      */
     @Test
-    fun `si arrancar la ubicacion falla, el abono sigue registrado y se reporta`() = runTest {
-        alPedirUbicacion = { error("startForegroundService rechazado para Victoria Flores") }
+    fun `si atender la ubicacion falla, el abono sigue registrado y se reporta`() = runTest {
+        alPedirUbicacion = { error("el tomador se rompio para Victoria Flores") }
 
         assertEquals(ResultadoDelAbono.REGISTRADO, adaptador().registrar(abono(dinero("220"))))
         assertEquals("el pago quedo escrito", 220.0, pagos.getPaymentById(ABONO_ID)!!.IMPORTE, 0.0)
@@ -386,12 +409,141 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             encolador = encolador,
             clock = clock,
             traerUsuario = { usuario },
-            pedirUbicacion = { ubicacionesPedidas += it },
+            ubicacion = UbicacionFalsa(),
             emailEnSesion = { "rosa@example.com" }
         )
 
         assertEquals(ResultadoDelAbono.FALLO_EL_GUARDADO, fragil.registrar(abono(dinero("220"))))
         assertTrue(ubicacionesPedidas.isEmpty())
+    }
+
+    // --- E-APP-145 / E-APP-146 / E-APP-147: la retencion del envio por ubicacion ---
+
+    /** Una ubicacion que SI tenia fix antes de guardar (la de la prueba). */
+    private inner class UbicacionConFixAntes : UbicacionAlGuardar {
+        override fun alGuardar() = MomentoDeGuardado(
+            elapsedNanos = 1L,
+            antes = FixDeUbicacion(
+                lat = 20.5888,
+                lon = -100.3899,
+                precisionM = 12.0,
+                hora = Instant.parse("2026-09-01T17:59:50Z"),
+                elapsedRealtimeNanos = 0L
+            )
+        )
+
+        override suspend fun anotarEnLaTransaccion(
+            id: String,
+            tipo: String,
+            momento: MomentoDeGuardado
+        ) {
+            anotadasEnLaTransaccion += id
+        }
+
+        override fun despuesDeGuardar(id: String, tipo: String, momento: MomentoDeGuardado) {
+            alPedirUbicacion(id)
+        }
+    }
+
+    private fun adaptadorCon(ubicacion: UbicacionAlGuardar, enc: PaymentsWorkEnqueuer = encolador) =
+        RegistroDeAbonoAdapter(
+            db = db,
+            saleDao = db.saleDao(),
+            pagos = pagos,
+            imagenes = imagenes,
+            telemetry = telemetria,
+            encolador = enc,
+            clock = clock,
+            traerUsuario = { usuario },
+            ubicacion = ubicacion,
+            emailEnSesion = { "rosa@example.com" }
+        )
+
+    /**
+     * E-APP-146: la mejor ubicacion ya tomada ANTES de guardar se usa en la creacion del abono.
+     * **Control de reversion:** quitar `lat = momento.antes?.lat ...` de `escribirEnLaTransaccion`
+     * deja el pago en 0,0 y este test en ROJO.
+     */
+    @Test
+    fun `E-APP-146 el abono nace con las coordenadas que el tomador ya tenia`() = runTest {
+        assertEquals(
+            ResultadoDelAbono.REGISTRADO,
+            adaptadorCon(UbicacionConFixAntes()).registrar(abono(dinero("220")))
+        )
+        val pago = pagos.getPaymentById(ABONO_ID)!!
+        assertEquals(20.5888, pago.LAT!!, 0.0)
+        assertEquals(-100.3899, pago.LNG!!, 0.0)
+    }
+
+    @Test
+    fun `E-APP-146 sin fix antes el abono nace en 0,0 y guardar no espero nada`() = runTest {
+        adaptador().registrar(abono(dinero("220")))
+        val pago = pagos.getPaymentById(ABONO_ID)!!
+        assertEquals(0.0, pago.LAT!!, 0.0)
+        assertEquals(0.0, pago.LNG!!, 0.0)
+    }
+
+    /**
+     * E-APP-145 (K1): el plazo se anota dentro de la transaccion del dinero.
+     * **Control de reversion:** mover `anotarLaUbicacion` fuera de `escribirEnLaTransaccion` lo
+     * anota tambien en un abono bloqueado o sin venta (ver la prueba siguiente) y pone ROJO esa.
+     */
+    @Test
+    fun `E-APP-145 el plazo se anota en la transaccion del abono`() = runTest {
+        adaptador().registrar(abono(dinero("220")))
+        assertEquals(listOf(ABONO_ID), anotadasEnLaTransaccion)
+    }
+
+    @Test
+    fun `E-APP-145 un abono que no se escribio no anota plazo`() = runTest {
+        adaptador().registrar(abono(dinero("1451"))) // sobrepago: bloqueado
+        adaptador().registrar(abono(dinero("220")).copy(ventaId = 999)) // venta ausente
+        assertTrue(anotadasEnLaTransaccion.isEmpty())
+    }
+
+    /**
+     * E-APP-145 (K1): escribir el plazo NUNCA puede revertir ni impedir el guardado.
+     * **Control de reversion:** quitar el `try/catch` de `anotarLaUbicacion` propaga la excepcion
+     * dentro de la transaccion y el resultado se vuelve `FALLO_EL_GUARDADO`.
+     */
+    @Test
+    fun `E-APP-145 si anotar el plazo lanza, el abono se guarda igual y se encola`() = runTest {
+        val ubicacionRota = object : UbicacionAlGuardar {
+            override fun alGuardar() = MomentoDeGuardado(elapsedNanos = 1L, antes = null)
+
+            override suspend fun anotarEnLaTransaccion(
+                id: String,
+                tipo: String,
+                momento: MomentoDeGuardado
+            ): Unit = error("plazo roto")
+
+            override fun despuesDeGuardar(id: String, tipo: String, momento: MomentoDeGuardado) =
+                Unit
+        }
+
+        val resultado = adaptadorCon(ubicacionRota).registrar(abono(dinero("220")))
+
+        assertEquals(ResultadoDelAbono.REGISTRADO, resultado)
+        assertEquals(220.0, pagos.getPaymentById(ABONO_ID)!!.IMPORTE, 0.0)
+        assertEquals("el saldo bajo", 1230.0, saldo(), 1e-9)
+        assertEquals("y se encolo", listOf(ABONO_ID), encolador.encolados)
+    }
+
+    /**
+     * E-APP-146 (K2): se encola de inmediato, UNA vez, y la ubicacion no cambia eso.
+     * **Control de reversion:** condicionar `encolarSubida` a la ubicacion lo deja en ROJO.
+     */
+    @Test
+    fun `E-APP-146 el envio se encola de inmediato aunque no haya ubicacion`() = runTest {
+        val ordenados = mutableListOf<String>()
+        alPedirUbicacion = { ordenados += "ubicacion" }
+        val enc = object : PaymentsWorkEnqueuer {
+            override fun enqueue(paymentId: String) {
+                ordenados += "encolado"
+            }
+        }
+        adaptadorCon(UbicacionFalsa(), enc).registrar(abono(dinero("220")))
+        assertEquals(listOf("ubicacion", "encolado"), ordenados)
     }
 
     // --- Los comprobantes: se escriben, y jamás deciden -----------------------
@@ -483,28 +635,38 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     /**
      * **El orden entre las dos cosas post-commit importa, y es funcional.**
      *
-     * Pedir la ubicación es lo que ENCOLA el worker de subida
-     * (`UpdateLocationHandler` → `enqueuePendingPaymentsWorker`). Si los
-     * comprobantes se escribieran después, un teléfono con señal en ese instante
-     * subiría el pago **sin sus fotos** — y como el pago se marca entregado, no
-     * habría segundo intento.
+     * Encolar es lo que despierta al worker de subida. Si los comprobantes se
+     * escribieran después, un teléfono con señal en ese instante subiría el pago
+     * **sin sus fotos** — y como el pago se marca entregado, no habría segundo
+     * intento.
      *
-     * Se mide desde adentro de la lambda de ubicación: cuando se pide, las filas
-     * ya tienen que estar.
+     * Se mide desde adentro del encolador: cuando se encola, las filas ya tienen
+     * que estar.
      */
     @Test
-    fun `los comprobantes ya estan escritos cuando se pide la ubicacion`() = runTest {
-        var filasAlPedirUbicacion = -1
-        alPedirUbicacion = { pagoId ->
-            ubicacionesPedidas += pagoId
-            filasAlPedirUbicacion = runBlocking { db.paymentImageDao().getByPagoId(ABONO_ID).size }
+    fun `los comprobantes ya estan escritos cuando se encola`() = runTest {
+        var filasAlEncolar = -1
+        val encoladorQueMide = object : PaymentsWorkEnqueuer {
+            override fun enqueue(paymentId: String) {
+                encolador.enqueue(paymentId)
+                filasAlEncolar = runBlocking { db.paymentImageDao().getByPagoId(ABONO_ID).size }
+            }
         }
 
-        adaptador().registrar(
-            abono(dinero("220")).copy(comprobantes = listOf(comprobante("IMG-1")))
-        )
+        RegistroDeAbonoAdapter(
+            db = db,
+            saleDao = db.saleDao(),
+            pagos = pagos,
+            imagenes = imagenes,
+            telemetry = telemetria,
+            encolador = encoladorQueMide,
+            clock = clock,
+            traerUsuario = { usuario },
+            ubicacion = UbicacionFalsa(),
+            emailEnSesion = { "rosa@example.com" }
+        ).registrar(abono(dinero("220")).copy(comprobantes = listOf(comprobante("IMG-1"))))
 
-        assertEquals("la foto se escribe ANTES de encolar", 1, filasAlPedirUbicacion)
+        assertEquals("la foto se escribe ANTES de encolar", 1, filasAlEncolar)
     }
 
     /** Un abono que no se registró no deja comprobantes sueltos. */

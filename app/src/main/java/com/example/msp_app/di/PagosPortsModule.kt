@@ -15,6 +15,7 @@ import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkManagerEnqueuer
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.core.ubicacion.UbicacionAnticipada
 import com.example.msp_app.core.utils.CurrentLocationReader
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.pagos.CapturasSinTerminarAdapter
@@ -39,7 +40,6 @@ import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
-import com.example.msp_app.services.pedirUbicacionDelPago
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -157,9 +157,10 @@ object PagosPortsModule {
      * La escritura del abono (Task 18). SIN `@Singleton`: resuelve el usuario
      * autenticado vigente en cada registro, así que sostiene sesión.
      *
-     * `pedirUbicacion` es el ÚNICO lugar donde el camino nuevo del abono toca
-     * `android.content.Intent`: el adaptador recibe una lambda y por eso se
-     * prueba con un fake, sin arrancar un servicio real.
+     * `ubicacion` (E-APP-146) es lo único que el abono sabe del GPS: la mejor
+     * ubicación ya tomada al guardar y el plazo de envío. El adaptador recibe una
+     * interfaz y por eso se prueba con un fake, sin GPS. Ya no se arranca
+     * `UpdateLocationService` desde el camino del abono.
      *
      * El encolador se construye aquí y no se inyecta, mismo reparto que
      * `VisitasPortsModule`: [PaymentsWorkEnqueuer] no tiene binding de Hilt y su
@@ -182,7 +183,7 @@ object PagosPortsModule {
         telemetry = telemetry,
         encolador = PaymentsWorkManagerEnqueuer(context),
         clock = clock,
-        pedirUbicacion = { pagoId -> pedirUbicacionDelPago(context, pagoId) }
+        ubicacion = UbicacionAnticipada.deCaptura(context)
     )
 
     /** "N capturas sin terminar" de la lista de ruta (E-APP-084). Sin `@Singleton`: lee la sesión vigente. */

@@ -70,7 +70,6 @@ class CapturaDelAbonoTest : RoomTestBase() {
             encolador = encolador,
             clock = clock,
             traerUsuario = { traerUsuario() },
-            pedirUbicacion = {},
             emailEnSesion = { EMAIL }
         )
 

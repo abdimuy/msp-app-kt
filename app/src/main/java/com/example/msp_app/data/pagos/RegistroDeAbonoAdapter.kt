@@ -12,9 +12,12 @@ import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.PaymentImageEntity
+import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
 import com.example.msp_app.core.database.escribirSinCancelar
 import com.example.msp_app.core.database.sinCancelar
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.core.ubicacion.MomentoDeGuardado
+import com.example.msp_app.core.ubicacion.UbicacionAlGuardar
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.auth.emailDeLaSesion
 import com.example.msp_app.data.auth.usuarioAutenticado
@@ -80,7 +83,7 @@ import kotlinx.coroutines.CancellationException
  * ## El encolado es del abono, no de la ubicación (Arreglo C)
  *
  * Hasta la revisión final de esta rama, el ÚNICO encolado inmediato del abono
- * vivía dentro de `UpdateLocationHandler`: `pedirUbicacion` arrancaba
+ * vivía dentro de `UpdateLocationHandler`: `pedirUbicacion` (ya retirado, E-APP-146) arrancaba
  * `UpdateLocationService` y el handler llamaba a `enqueuePendingPaymentsWorker`
  * **después** de escribir `LAT`/`LNG`. Eso hacía que la subida del dinero
  * colgara de un adorno — servicio que Android 12+ puede rechazar en segundo
@@ -93,22 +96,13 @@ import kotlinx.coroutines.CancellationException
  * **incondicionalmente**, y la ubicación pasa a ser lo que siempre debió ser —
  * un acompañante que no decide nada.
  *
- * ## Por qué el segundo encolado no puede cobrar dos veces
+ * ## Un solo encolado (E-APP-146)
  *
- * `UpdateLocationHandler` sigue encolando tras escribir la ubicación, así que
- * el mismo pago puede encolarse dos veces. **Lo que impide el doble envío NO es
- * `ExistingWorkPolicy.KEEP`**: el KDoc de `WorkManagerUtils` dice que `KEEP`
- * solo salta el encolado mientras el trabajo previo sigue
- * ENQUEUED/RUNNING/BLOCKED, y que en cuanto llega a un estado terminal encola
- * *"exactamente como haría `REPLACE`"*.
- *
- * Mientras la captura esté pendiente, la subida viaja con
- * `Idempotency-Key = Payment.ID` (`PendingPaymentsWorkerV2Test.
- * v2_happy_path_marks_guardado`), y un segundo request es un replay, no un
- * cobro nuevo. Y desde el 2026-09-27 ni siquiera hay segundo request: una
- * captura ya soltada (`GUARDADO_EN_MICROSIP = 1`) hace que
- * `PendingPaymentsWorker.doWork` salga sin tocar la red, porque el replay del
- * servidor borraba el comprobante original.
+ * `UpdateLocationHandler` ya no se arranca desde aquí, así que el abono se encola UNA vez, con
+ * `ExistingWorkPolicy.KEEP` y nombre único. Si algo lo encola otra vez (el barrido de sesión, el
+ * botón «Enviar pendientes»), `KEEP` salta el encolado mientras el trabajo previo sigue
+ * ENQUEUED/RUNNING/BLOCKED —incluida la espera de la ubicación— y, una vez soltada la captura
+ * (`GUARDADO_EN_MICROSIP = 1`), `PendingPaymentsWorker.doWork` sale sin tocar la red.
  *
  * ## Por qué el par va dentro de `NonCancellable`
  *
@@ -119,17 +113,22 @@ import kotlinx.coroutines.CancellationException
  * bloque haya terminado bien** — o sea con el dinero ya commiteado. Sin la
  * guarda quedaría un abono escrito, sin fotos y jamás encolado.
  *
- * ## La ubicación: se pide DESPUÉS de escribir, y nunca decide nada
+ * ## La ubicación: nunca se espera al GPS, y nunca decide nada (E-APP-145, E-APP-146, E-APP-147)
  *
- * `PaymentFactory` deja `LAT`/`LNG` en `0.0`, y el mapa del día descarta
- * justamente ese punto (`RouteMapScreen`: `lat != 0.0 || lng != 0.0`). Sin este
- * paso, **todo abono tomado por la pantalla nueva sería invisible en el mapa**.
+ * El mapa del día descarta el punto 0,0 (`RouteMapScreen`: `lat != 0.0 || lng != 0.0`), así que un
+ * abono sin ubicación es invisible ahí. Pero guardar NUNCA espera al GPS: antes de la transacción se
+ * lee, sin suspender, la mejor ubicación que el tomador ya tenía ([UbicacionAlGuardar.alGuardar]).
+ * - Con ubicación ANTES, el pago nace con esas coordenadas y la fila de `ubicacion_de_captura` va en
+ *   la MISMA transacción.
+ * - Sin ella, el pago nace en 0,0 y en la MISMA transacción se anota su plazo de envio
+ *   (`plazo_de_envio`); tras el commit queda esperando el primer fix valido, que el tomador le
+ *   escribe en cuanto llega. El worker RETIENE el envio hasta que haya ubicacion o pasen 30 s desde
+ *   el guardado, lo que ocurra primero (ver `PendingPaymentsWorker`).
  *
- * Se pide *después* de que la transacción commiteó, *fuera* de ella y *después*
- * del encolado, y su fallo se atrapa entero: se emite
- * [PagosTelemetria.CODE_ABONO_SIN_UBICACION] y el resultado sigue siendo
- * `REGISTRADO`. Misma regla que la foto — **el dinero se guarda, y se encola,
- * aunque no haya GPS, señal ni permiso**.
+ * Lo que toca la ubicación después del commit va *fuera* de la transacción y su fallo se atrapa
+ * entero: se emite [PagosTelemetria.CODE_ABONO_SIN_UBICACION] y el resultado sigue siendo
+ * `REGISTRADO`. Misma regla que la foto — **el dinero se guarda, y se encola, aunque no haya GPS,
+ * señal ni permiso**.
  *
  * ## Los comprobantes: el segundo caso de la misma familia (Task 22)
  *
@@ -143,8 +142,8 @@ import kotlinx.coroutines.CancellationException
  * encolado, porque encolar es lo que despierta al worker que los va a subir.
  * Ver [guardarComprobantes].
  *
- * [traerUsuario] y [pedirUbicacion] son inyectables **solo para test**
- * (fakes-only, sin MockK): ningún test unitario arranca un servicio real.
+ * [traerUsuario] y [ubicacion] son inyectables **solo para test**
+ * (fakes-only, sin MockK): ningún test unitario toca el GPS real.
  */
 @Suppress("LongParameterList", "TooManyFunctions") // las dependencias reales del camino del dinero.
 class RegistroDeAbonoAdapter(
@@ -156,7 +155,7 @@ class RegistroDeAbonoAdapter(
     private val encolador: PaymentsWorkEnqueuer,
     private val clock: AppClock = AppClock.System,
     private val traerUsuario: suspend () -> User? = ::usuarioAutenticado,
-    private val pedirUbicacion: (pagoId: String) -> Unit,
+    private val ubicacion: UbicacionAlGuardar = UbicacionAlGuardar.Ninguna,
     private val capturas: CapturaEnCursoDao = db.capturaEnCursoDao(),
     private val emailEnSesion: () -> String? = ::emailDeLaSesion
 ) : RegistroDeAbonoPort {
@@ -240,7 +239,9 @@ class RegistroDeAbonoAdapter(
     }
 
     private suspend fun escribir(abono: AbonoARegistrar, usuario: User): ResultadoDelAbono {
-        val desenlace = db.escribirSinCancelar { escribirEnLaTransaccion(abono, usuario) }
+        // E-APP-146: lo que el telefono ya sabe de la ubicacion, sin esperar al GPS.
+        val momento = momentoDeGuardado()
+        val desenlace = db.escribirSinCancelar { escribirEnLaTransaccion(abono, usuario, momento) }
         return when (desenlace) {
             is Desenlace.Bloqueado -> {
                 reportarBloqueo(desenlace.bloqueos)
@@ -255,8 +256,11 @@ class RegistroDeAbonoAdapter(
                 // worker, que manda lo que encuentre en `pago_imagenes`.
                 sinCancelar {
                     guardarComprobantes(abono)
+                    // E-APP-147: el envio se encola YA, con KEEP, como siempre; la espera de la
+                    // ubicacion vive en el worker. Registrar la captura para el fix tardio va antes
+                    // para que el worker, al despertar, ya la encuentre esperando.
+                    if (desenlace == Desenlace.Escrito) ubicarElAbono(abono.abonoId, momento)
                     encolarSubida(abono.abonoId)
-                    if (desenlace == Desenlace.Escrito) pedirUbicacionDelAbono(abono.abonoId)
                 }
                 ResultadoDelAbono.REGISTRADO
             }
@@ -264,7 +268,11 @@ class RegistroDeAbonoAdapter(
     }
 
     /** Dentro de la transacción: sin esperas, sin telemetría, con el saldo de la base. */
-    private suspend fun escribirEnLaTransaccion(abono: AbonoARegistrar, usuario: User): Desenlace {
+    private suspend fun escribirEnLaTransaccion(
+        abono: AbonoARegistrar,
+        usuario: User,
+        momento: MomentoDeGuardado
+    ): Desenlace {
         val marcador = capturas.obtener(abono.abonoId)
         val yaEscrito = marcador != null && marcador.ESTADO != CapturaEnCursoEntity.CAPTURADA
         if (yaEscrito || capturas.pagosConUuid(abono.abonoId) > 0) {
@@ -291,16 +299,20 @@ class RegistroDeAbonoAdapter(
             importe = abono.importe.amount.toPlainString().toDouble(),
             formaCobroId = formaCobroDe(abono),
             id = abono.abonoId,
-            fecha = AppTime.toWireFormat(capturadoEn.truncatedTo(ChronoUnit.SECONDS))
+            fecha = AppTime.toWireFormat(capturadoEn.truncatedTo(ChronoUnit.SECONDS)),
+            lat = momento.antes?.lat ?: 0.0,
+            lng = momento.antes?.lon ?: 0.0
         )
-        // El insert del pago, el descuento del saldo y el marcador ESCRITA, o los
-        // tres o ninguno.
+        // El insert del pago, el descuento del saldo, la anotacion de ubicacion (fila de ANTES o
+        // plazo de envio, E-APP-145) y el marcador ESCRITA, o todo o nada. La anotacion nunca
+        // lanza: no puede revertir el dinero.
         pagos.saveAndEnqueue(
             payment = pago.toEntity(),
             saleId = pago.DOCTO_CC_ACR_ID,
             newAmount = pago.IMPORTE,
             newEstadoCobranza = EstadoCobranza.PAGADO
         )
+        anotarLaUbicacion(abono.abonoId, momento)
         capturas.marcarEscrita(abono.abonoId, AppTime.toWireFormat(clock.now()))
         return Desenlace.Escrito
     }
@@ -422,7 +434,7 @@ class RegistroDeAbonoAdapter(
      *   al reintento: sin él, el servidor inventa uno nuevo en cada intento
      *   (`parsePositionalImagenID`) y la misma foto sube dos veces.
      * - `PAGO_ID` es el `Payment.ID` — el mismo `abonoId` que ya viajó a
-     *   `pedirUbicacion`. **No son la misma columna ni el mismo valor**, y
+     *   la ubicación. **No son la misma columna ni el mismo valor**, y
      *   cruzarlos es el defecto que este plan ya cazó siete veces.
      * - `ORDEN` es la posición en la lista, que es el orden de captura y el `n`
      *   del multipart.
@@ -473,29 +485,57 @@ class RegistroDeAbonoAdapter(
     }
 
     /**
-     * Pide la ubicación del abono recién escrito. **Total: no propaga nada.**
+     * Dentro de la transaccion del dinero: la fila de ubicacion de ANTES o el plazo de envio. **Total:
+     * no propaga nada** (salvo la cancelacion): escribir el plazo nunca puede revertir ni impedir el
+     * guardado (K1). Si falla, el abono queda sin plazo y su envio sale sin retencion.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun anotarLaUbicacion(pagoId: String, momento: MomentoDeGuardado) {
+        try {
+            ubicacion.anotarEnLaTransaccion(pagoId, UbicacionDeCapturaEntity.TIPO_PAGO, momento)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            // El dinero manda.
+        }
+    }
+
+    /**
+     * Lo que el telefono sabe de la ubicacion AL GUARDAR (E-APP-146). **Total: no propaga nada.**
+     * No suspende ni espera al GPS: lee el buffer del tomador. Si lanza, el abono se guarda sin
+     * ubicacion, igual que si no hubiera ninguna.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun momentoDeGuardado(): MomentoDeGuardado = try {
+        ubicacion.alGuardar()
+    } catch (cancelada: CancellationException) {
+        throw cancelada
+    } catch (e: Throwable) {
+        MomentoDeGuardado.SinUbicacion
+    }
+
+    /**
+     * Despues del commit: si el abono se guardo sin ubicacion, lo deja esperando el primer fix
+     * valido (E-APP-146). **Total: no propaga nada.**
      *
-     * El id que viaja es el `Payment.ID` (`AbonoARegistrar.abonoId`), que es lo
-     * que `PaymentDao.updateLocation` filtra — no el `DOCTO_CC_ACR_ID` de la
-     * venta ni el `CLIENTE_ID`.
-     *
-     * Un fallo aquí no puede cambiar el resultado del registro: el abono ya
-     * está en la base y devolver `FALLO_EL_GUARDADO` haría que la pantalla
-     * ofreciera reintentar un cobro que ya ocurrió. Se reporta y se sigue.
+     * Un fallo aqui no puede cambiar el resultado del registro: el abono ya esta en la base y
+     * devolver `FALLO_EL_GUARDADO` haria que la pantalla ofreciera reintentar un cobro que ya
+     * ocurrio. Se reporta y se sigue. Ya no arranca `UpdateLocationService` ni encola por segunda
+     * vez el pago.
      */
     @Suppress(
         "TooGenericExceptionCaught"
-    ) // arrancar un servicio puede fallar de varias formas; ninguna toca el dinero.
-    private fun pedirUbicacionDelAbono(pagoId: String) {
+    ) // la ubicacion puede fallar de varias formas; ninguna toca el dinero.
+    private fun ubicarElAbono(pagoId: String, momento: MomentoDeGuardado) {
         try {
-            pedirUbicacion(pagoId)
+            ubicacion.despuesDeGuardar(pagoId, UbicacionDeCapturaEntity.TIPO_PAGO, momento)
         } catch (cancelada: CancellationException) {
             throw cancelada
         } catch (fallo: Throwable) {
             // Anti-PII: el nombre de la clase de la excepción, nunca su texto.
             telemetry.error(
                 code = PagosTelemetria.CODE_ABONO_SIN_UBICACION,
-                message = "no se pudo pedir la ubicacion del abono; el abono si quedo escrito",
+                message = "no se pudo atender la ubicacion del abono; el abono si quedo escrito",
                 props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
             )
         }

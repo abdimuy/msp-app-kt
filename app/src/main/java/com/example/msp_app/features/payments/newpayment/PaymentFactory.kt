@@ -18,9 +18,12 @@ import com.example.msp_app.data.models.sale.Sale
  *    payment (route coverage, substitution), and the payment must be
  *    attributed to whoever is standing in front of the client.
  *  - `DOCTO_CC_ID` is hardcoded to 0 (not resolved client-side).
- *  - `LAT`/`LNG` start at 0.0 — the real location is patched later by
- *    [com.example.msp_app.services.UpdateLocationService] running in the
- *    background.
+ *  - `LAT`/`LNG` are the location the phone had ALREADY taken when the cobrador
+ *    saved (E-APP-146), or 0.0 when it had none — saving never waits for the
+ *    GPS. When there was none, the first valid fix is written afterwards by
+ *    [com.example.msp_app.core.ubicacion.UbicacionDeCaptura], only while they
+ *    are still 0,0, and the upload is held (up to 30 s) until it arrives
+ *    (E-APP-147). `UpdateLocationService` no longer runs on this path.
  *  - `GUARDADO_EN_MICROSIP` starts false — the payment is pending until the
  *    sync/upload pipeline confirms it against Microsip.
  */
@@ -31,12 +34,14 @@ object PaymentFactory {
         importe: Double,
         formaCobroId: Int,
         id: String,
-        fecha: String
+        fecha: String,
+        lat: Double = 0.0,
+        lng: Double = 0.0
     ): Payment = Payment(
         CLIENTE_ID = sale.CLIENTE_ID,
         ID = id,
-        LAT = 0.0,
-        LNG = 0.0,
+        LAT = lat,
+        LNG = lng,
         IMPORTE = importe,
         NOMBRE_CLIENTE = sale.CLIENTE,
         FECHA_HORA_PAGO = fecha,
