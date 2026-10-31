@@ -274,8 +274,7 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
     private fun locationHandler() = UpdateLocationHandler(
         telemetry = RecordingTelemetry(),
         updatePaymentLocation = { _, _, _ -> },
-        updateVisitLocation = { id, lat, lng -> store.updateVisitLocation(id, lat, lng) },
-        enqueuePayment = { _ -> }
+        updateVisitLocation = { id, lat, lng -> store.updateVisitLocation(id, lat, lng) }
     )
 
     private fun fakeLocation(lat: Double, lng: Double): Location = Location("fused").apply {

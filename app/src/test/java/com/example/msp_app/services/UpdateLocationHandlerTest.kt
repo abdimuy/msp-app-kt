@@ -37,21 +37,18 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
     private lateinit var telemetry: RecordingTelemetry
     private val paymentLocationUpdates = mutableListOf<Triple<String, Double, Double>>()
     private val visitLocationUpdates = mutableListOf<Triple<String, Double, Double>>()
-    private val enqueuedPayments = mutableListOf<String>()
 
     @Before
     fun setUp() {
         telemetry = RecordingTelemetry()
         paymentLocationUpdates.clear()
         visitLocationUpdates.clear()
-        enqueuedPayments.clear()
     }
 
     private fun handler() = UpdateLocationHandler(
         telemetry = telemetry,
         updatePaymentLocation = { id, lat, lng -> paymentLocationUpdates += Triple(id, lat, lng) },
-        updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) },
-        enqueuePayment = { id -> enqueuedPayments += id }
+        updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) }
     )
 
     private fun fakeLocation(lat: Double, lng: Double): Location = Location("fused").apply {
@@ -70,11 +67,6 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
         assertTrue(
             "no debe persistir ubicación cuando el fetch falló",
             paymentLocationUpdates.isEmpty()
-        )
-        assertEquals(
-            "debe encolar el pago igual (sigue sin ubicación)",
-            listOf("pago-1"),
-            enqueuedPayments
         )
     }
 
@@ -122,20 +114,18 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
                 UpdateLocationHandler.ERROR_CODE_LOCATION_UNAVAILABLE,
                 errors.single().name
             )
-            assertEquals(listOf("pago-2"), enqueuedPayments)
             assertTrue(paymentLocationUpdates.isEmpty())
         }
 
     // --- camino feliz: se preserva ---
 
     @Test
-    fun `con ubicacion disponible, la persiste y encola sin emitir error`() = runBlocking {
+    fun `con ubicacion disponible, la persiste sin emitir error`() = runBlocking {
         handler().handle(paymentId = "pago-3", visitId = null) {
             fakeLocation(19.4326, -99.1332)
         }
 
         assertEquals(listOf(Triple("pago-3", 19.4326, -99.1332)), paymentLocationUpdates)
-        assertEquals(listOf("pago-3"), enqueuedPayments)
         assertTrue(telemetry.recorded.none { it.type == TelemetryEventType.ERROR })
     }
 
@@ -155,36 +145,32 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
             // es estructuralmente imposible que esta rama encole una visita.
         }
 
-    // --- el adorno no se lleva puesto al dinero (Arreglo C, I5) ---
+    // --- el servicio ya no encola (E-APP-146) ---
 
     /**
-     * **El hallazgo I5, medido.** Escribir `LAT`/`LNG` y encolar el pago
-     * compartían un `try`. Si lo primero lanzaba, el `catch` mudo se lo tragaba
-     * y **el pago nunca se encolaba** — y hasta el Arreglo C este era el único
-     * encolado inmediato del abono.
+     * **Justificacion del cambio de esta prueba (E-APP-146).** Antes verificaba que, si escribir
+     * `LAT`/`LNG` lanzaba, el pago se encolaba igual (hallazgo I5, cuando este handler era el unico
+     * encolado del abono). Desde la retencion del envio por ubicacion el handler NO encola: el
+     * guardado del pago lo encola una sola vez con `KEEP`, y un segundo encolado desde aqui era el que
+     * podia llegar mientras el worker espera. Lo que sigue valiendo, y esto prueba, es que el fallo
+     * de escribir la ubicacion no se propaga.
      *
-     * Es la misma forma que la Task 11 arregló en `VisitsReconcileObserver`
-     * ("si el primero lanza, el segundo nunca se registra"), que nunca había
-     * llegado al camino del dinero.
-     *
-     * **Control de reversión:** volver a poner las dos llamadas bajo un solo
-     * `try` pone este test en ROJO — `enqueuedPayments` queda vacío.
+     * Que el handler no encola lo garantiza el sistema de tipos: su constructor ya no tiene ningun
+     * colaborador de encolado (como el de la visita desde la Task 5).
      */
     @Test
-    fun `si escribir LAT-LNG truena, el pago se encola igual`() = runBlocking {
+    fun `si escribir LAT-LNG truena, no se propaga y el handler termina`() = runBlocking {
         val handler = UpdateLocationHandler(
             telemetry = telemetry,
             updatePaymentLocation = { _, _, _ -> error("room se cayo al escribir LAT/LNG") },
-            updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) },
-            enqueuePayment = { id -> enqueuedPayments += id }
+            updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) }
         )
 
         handler.handle(paymentId = "pago-5", visitId = null) { fakeLocation(19.4326, -99.1332) }
 
         assertEquals(
-            "la ubicacion es un acompanante; el dinero se encola igual",
-            listOf("pago-5"),
-            enqueuedPayments
+            UpdateLocationHandler.ERROR_CODE_PAYMENT_LOCATION_NOT_WRITTEN,
+            telemetry.recorded.single { it.type == TelemetryEventType.ERROR }.name
         )
     }
 
@@ -201,8 +187,7 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
             updatePaymentLocation = { _, _, _ ->
                 error("room se cayo cobrando a Victoria Flores")
             },
-            updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) },
-            enqueuePayment = { id -> enqueuedPayments += id }
+            updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) }
         )
 
         handler.handle(paymentId = "pago-6", visitId = null) { fakeLocation(19.4326, -99.1332) }
@@ -224,30 +209,6 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
         handler().handle(paymentId = "pago-6", visitId = null) { fakeLocation(19.4326, -99.1332) }
 
         assertTrue(telemetry.recorded.none { it.type == TelemetryEventType.ERROR })
-        assertEquals(listOf("pago-6"), enqueuedPayments)
-    }
-
-    /** Un encolado que truena tampoco puede quedar mudo. */
-    @Test
-    fun `si encolar truena, se reporta con su propio codigo`() = runBlocking {
-        val handler = UpdateLocationHandler(
-            telemetry = telemetry,
-            updatePaymentLocation = { id, lat, lng -> paymentLocationUpdates += Triple(id, lat, lng) },
-            updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) },
-            enqueuePayment = { error("workmanager no acepto el trabajo") }
-        )
-
-        handler.handle(paymentId = "pago-7", visitId = null) { fakeLocation(19.4326, -99.1332) }
-
-        assertEquals(
-            "la ubicacion si se escribio: el fallo del encolado no la revierte",
-            listOf(Triple("pago-7", 19.4326, -99.1332)),
-            paymentLocationUpdates
-        )
-        assertEquals(
-            UpdateLocationHandler.ERROR_CODE_PAYMENT_NOT_ENQUEUED,
-            telemetry.recorded.single { it.type == TelemetryEventType.ERROR }.name
-        )
     }
 
     /** Y el de la visita, que no encola nada, también reporta el suyo. */
@@ -256,8 +217,7 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
         val handler = UpdateLocationHandler(
             telemetry = telemetry,
             updatePaymentLocation = { id, lat, lng -> paymentLocationUpdates += Triple(id, lat, lng) },
-            updateVisitLocation = { _, _, _ -> error("room se cayo") },
-            enqueuePayment = { id -> enqueuedPayments += id }
+            updateVisitLocation = { _, _, _ -> error("room se cayo") }
         )
 
         handler.handle(paymentId = null, visitId = "visita-5") { fakeLocation(19.4326, -99.1332) }

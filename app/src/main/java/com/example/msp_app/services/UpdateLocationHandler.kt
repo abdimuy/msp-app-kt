@@ -29,11 +29,11 @@ import kotlinx.coroutines.CancellationException
  * at save time, so this class no longer enqueues visits at all — the
  * location arriving late only updates LAT/LNG (see [handle]).
  *
- * **Arreglo C:** the same lesson finally reached the money path.
- * `RegistroDeAbonoAdapter` now enqueues the payment in the same coroutine as
- * the write, so [enqueuePayment] here is a second net rather than the only
- * one — and it no longer shares a `try` with the LAT/LNG write, which used to
- * take it down with it.
+ * **E-APP-146 (retencion del envio por ubicacion):** el pago YA NO se encola aqui. La subida la encola
+ * el guardado ([com.example.msp_app.data.pagos.RegistroDeAbonoAdapter] y la condonacion), una sola
+ * vez y con `ExistingWorkPolicy.KEEP`; un segundo encolado desde este servicio era el que podia llegar
+ * mientras el worker esperaba la ubicacion. Ahora la ubicacion del pago la escribe el tomador en
+ * cuanto acepta un fix, y el servicio queda sin quien lo arranque para pagos.
  *
  * `client.getCurrentLocation(...)` throws [SecurityException] SYNCHRONOUSLY
  * (before it ever returns a `Task`) when the location permission is
@@ -50,8 +50,7 @@ import kotlinx.coroutines.CancellationException
 class UpdateLocationHandler(
     private val telemetry: Telemetry,
     private val updatePaymentLocation: suspend (id: String, lat: Double, lng: Double) -> Unit,
-    private val updateVisitLocation: suspend (id: String, lat: Double, lng: Double) -> Unit,
-    private val enqueuePayment: (id: String) -> Unit
+    private val updateVisitLocation: suspend (id: String, lat: Double, lng: Double) -> Unit
 ) {
     /**
      * Exactly one of [paymentId] / [visitId] is expected non-null (the
@@ -66,34 +65,12 @@ class UpdateLocationHandler(
 
         when {
             paymentId != null -> {
-                // DOS `try` separados, y esa separacion es el arreglo: escribir
-                // LAT/LNG es un adorno y encolar es dinero. Con un `try`
-                // compartido, un `updatePaymentLocation` que lanzara se llevaba
-                // puesto el `enqueuePayment` — que hasta el Arreglo C era el
-                // UNICO encolado inmediato del pago. Es la misma leccion que la
-                // Task 11 aplico a `VisitsReconcileObserver` ("si el primero
-                // lanza, el segundo nunca se registra"), que nunca habia llegado
-                // al camino del dinero.
-                //
-                // Desde el Arreglo C `RegistroDeAbonoAdapter` ya encola en la
-                // misma corrutina de la escritura, y desde el 2026-09-27 la
-                // condonacion tambien (`NewForgivenessDialog`), asi que este
-                // encolado es la segunda red. Que se encole dos veces no manda
-                // dos veces: si la captura ya quedo soltada
-                // (`GUARDADO_EN_MICROSIP = 1`), `PendingPaymentsWorker.doWork`
-                // sale sin tocar la red. Antes se confiaba en el replay
-                // idempotente del servidor, que no duplica dinero pero BORRA el
-                // comprobante original e ignora la ubicacion nueva — por eso ya
-                // no se reenvia. Mientras la captura siga pendiente, la subida
-                // viaja con `Idempotency-Key = Payment.ID`
-                // (`PendingPaymentsWorkerV2Test.v2_happy_path_marks_guardado`).
+                // E-APP-146: solo escribe LAT/LNG (un adorno). Ya no encola: el guardado del pago
+                // es quien lo encola, una vez, y el worker retiene el envio hasta tener ubicacion.
                 location?.let {
                     ejecutar(ERROR_CODE_PAYMENT_LOCATION_NOT_WRITTEN, CONTEXT_PAYMENT_LOCATION) {
                         updatePaymentLocation(paymentId, it.latitude, it.longitude)
                     }
-                }
-                ejecutar(ERROR_CODE_PAYMENT_NOT_ENQUEUED, CONTEXT_PAYMENT_ENQUEUE) {
-                    enqueuePayment(paymentId)
                 }
             }
 
@@ -173,25 +150,16 @@ class UpdateLocationHandler(
         const val ERROR_CODE_LOCATION_UNAVAILABLE = "ubicacion_no_disponible"
 
         /**
-         * No se pudo escribir `LAT`/`LNG` del pago. **El encolado corre igual**:
-         * la ubicacion es un adorno del registro, no un requisito del dinero.
+         * No se pudo escribir `LAT`/`LNG` del pago: la ubicacion es un adorno del registro, no un
+         * requisito del dinero.
          */
         const val ERROR_CODE_PAYMENT_LOCATION_NOT_WRITTEN = "pago_ubicacion_no_escrita"
-
-        /**
-         * No se pudo encolar la subida del pago desde el servicio. El pago no se
-         * pierde —`RegistroDeAbonoAdapter` ya encolo al escribir, y
-         * `PaymentsPendingSynchronizer` barre en el siguiente login— pero el
-         * fallo tiene que verse.
-         */
-        const val ERROR_CODE_PAYMENT_NOT_ENQUEUED = "pago_no_se_encolo"
 
         /** No se pudo escribir `LAT`/`LNG` de la visita. Esta rama no encola nada. */
         const val ERROR_CODE_VISIT_LOCATION_NOT_WRITTEN = "visita_ubicacion_no_escrita"
 
         private const val CONTEXT_LOCATION_FETCH = "UpdateLocationHandler.fetchLocation"
         private const val CONTEXT_PAYMENT_LOCATION = "UpdateLocationHandler.updatePaymentLocation"
-        private const val CONTEXT_PAYMENT_ENQUEUE = "UpdateLocationHandler.enqueuePayment"
         private const val CONTEXT_VISIT_LOCATION = "UpdateLocationHandler.updateVisitLocation"
     }
 }

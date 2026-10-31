@@ -2,16 +2,13 @@ package com.example.msp_app.services
 
 import android.Manifest
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.example.msp_app.R
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
-import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -52,8 +49,7 @@ class UpdateLocationService : Service(), CoroutineScope {
             },
             updateVisitLocation = { id, lat, lng ->
                 visitsStore.updateVisitLocation(id, lat, lng)
-            },
-            enqueuePayment = { id -> enqueuePendingPaymentsWorker(applicationContext, id) }
+            }
         )
 
         val chanId = "loc_service"
@@ -107,26 +103,4 @@ class UpdateLocationService : Service(), CoroutineScope {
         /** El extra que lleva un `Visit.id`, filtrado por `VisitDao.updateLocation`. */
         const val EXTRA_VISIT_ID: String = "visit_id"
     }
-}
-
-/**
- * Pide la ubicación de un abono ya escrito: arranca [UpdateLocationService] con
- * el `Payment.ID` para que parche `LAT`/`LNG` y encole la subida.
- *
- * Es el MISMO mecanismo que usaba `NewPaymentDialog` (Task 21, ronda 1), no uno
- * nuevo. Vive aquí y no en el llamador porque el llamador es un adaptador de
- * datos que no debe conocer `Intent`, y porque el par (clase del servicio,
- * nombre del extra) tiene que quedarse junto: repartido, un renombre de un lado
- * deja al otro mandando un extra que nadie lee.
- *
- * **Puede lanzar** —Android 12+ rechaza `startForegroundService` con la app en
- * segundo plano— y por eso no se llama nunca desde dentro de la transacción del
- * abono: el dinero ya está escrito cuando esto corre, y quien llama atrapa y
- * reporta. La ubicación es un adorno del registro, jamás su requisito.
- */
-fun pedirUbicacionDelPago(context: Context, pagoId: String) {
-    val intent = Intent(context, UpdateLocationService::class.java).apply {
-        putExtra(UpdateLocationService.EXTRA_PAYMENT_ID, pagoId)
-    }
-    ContextCompat.startForegroundService(context, intent)
 }
