@@ -59,32 +59,49 @@ class EsperaDeEnvio(
      * @param noVaALlegar `true` si la toma dijo que no va a haber ubicacion. Se consulta antes y en
      *   cada vuelta; no suspende.
      */
-    @Suppress("TooGenericExceptionCaught")
     suspend fun esperar(
         guardadoEpochMs: Long,
         plazoMs: Long,
         hayUbicacion: suspend () -> Boolean,
         noVaALlegar: () -> Boolean = { false }
     ): SalidaDeLaEspera {
-        val tope = minOf(plazoMs, PLAZO_MAXIMO_MS)
-        if (tope <= 0) return SalidaDeLaEspera.SIN_ESPERA
-        val restanteMs = guardadoEpochMs + plazoMs - reloj.now().toEpochMilli()
-        if (restanteMs <= 0 || restanteMs > tope) return SalidaDeLaEspera.SIN_ESPERA
+        val restanteMs = restanteAEsperarMs(guardadoEpochMs, plazoMs)
+            ?: return SalidaDeLaEspera.SIN_ESPERA
         val limiteNanos = monotono.elapsedNanos() + restanteMs * NANOS_POR_MS
         while (true) {
-            val hay = try {
-                hayUbicacion()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                return SalidaDeLaEspera.LECTURA_FALLIDA
-            }
-            if (hay) return SalidaDeLaEspera.HAY_UBICACION
-            if (noVaALlegar()) return SalidaDeLaEspera.NO_VA_A_LLEGAR
+            salidaPorEstado(hayUbicacion, noVaALlegar)?.let { return it }
             val quedaNanos = limiteNanos - monotono.elapsedNanos()
             if (quedaNanos <= 0) return SalidaDeLaEspera.VENCIO
             val quedaMs = (quedaNanos + NANOS_POR_MS - 1) / NANOS_POR_MS
             pausa(minOf(sondeoMs, quedaMs))
+        }
+    }
+
+    /** Lo que queda por esperar segun la pared, o `null` si no hay nada que esperar (K4). */
+    private fun restanteAEsperarMs(guardadoEpochMs: Long, plazoMs: Long): Long? {
+        val tope = minOf(plazoMs, PLAZO_MAXIMO_MS)
+        if (tope <= 0) return null
+        val restanteMs = guardadoEpochMs + plazoMs - reloj.now().toEpochMilli()
+        return restanteMs.takeIf { it in 1..tope }
+    }
+
+    /** La salida que se sigue de lo que dicen Room y la toma, o `null` si hay que seguir esperando. */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun salidaPorEstado(
+        hayUbicacion: suspend () -> Boolean,
+        noVaALlegar: () -> Boolean
+    ): SalidaDeLaEspera? {
+        val hay = try {
+            hayUbicacion()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return SalidaDeLaEspera.LECTURA_FALLIDA
+        }
+        return when {
+            hay -> SalidaDeLaEspera.HAY_UBICACION
+            noVaALlegar() -> SalidaDeLaEspera.NO_VA_A_LLEGAR
+            else -> null
         }
     }
 

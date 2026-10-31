@@ -149,7 +149,9 @@ class TomadorDeUbicacion(
             if (proveedor.acceso() != AccesoAUbicacion.OK) return
             withTimeoutOrNull(ventanaMs) {
                 coroutineScope {
-                    launch { leerUltimaConocida(inicioNanos) }
+                    launch {
+                        proveedor.ultimaConocidaAcotada()?.let { recibir(it, inicioNanos, true) }
+                    }
                     proveedor.actualizaciones().collect { recibir(it, inicioNanos, false) }
                 }
             }
@@ -190,7 +192,9 @@ class TomadorDeUbicacion(
             withTimeoutOrNull(ventanaMs) {
                 // E-APP-149 (H4): las dos fuentes corren en paralelo; una colgada no bloquea a la otra.
                 coroutineScope {
-                    launch { leerUltimaConocida(inicioNanos) }
+                    launch {
+                        proveedor.ultimaConocidaAcotada()?.let { recibir(it, inicioNanos, true) }
+                    }
                     proveedor.actualizaciones().collect { recibir(it, inicioNanos, false) }
                 }
             }
@@ -206,19 +210,6 @@ class TomadorDeUbicacion(
                 terminarSin(EstadoDeUbicacion.SinFix, MotivoSinUbicacion.ERROR)
             }
         }
-    }
-
-    /** La última conocida tiene su propio tope ([ULTIMA_CONOCIDA_MAX_MS]); su fallo o demora no estorba. */
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun leerUltimaConocida(inicioNanos: Long) {
-        val ultima = try {
-            withTimeoutOrNull(ULTIMA_CONOCIDA_MAX_MS) { proveedor.ultimaConocida() }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            null
-        }
-        if (ultima != null) recibir(ultima, inicioNanos, true)
     }
 
     private fun terminarSin(estado: EstadoDeUbicacion, motivo: MotivoSinUbicacion) {
@@ -273,4 +264,14 @@ class TomadorDeUbicacion(
         const val ULTIMA_CONOCIDA_MAX_MS = 5_000L
         private const val NANOS_POR_MS = 1_000_000L
     }
+}
+
+/** La última conocida tiene su propio tope ([TomadorDeUbicacion.ULTIMA_CONOCIDA_MAX_MS]); su fallo o demora no estorba. */
+@Suppress("TooGenericExceptionCaught")
+private suspend fun ProveedorDeUbicacion.ultimaConocidaAcotada(): FixDeUbicacion? = try {
+    withTimeoutOrNull(TomadorDeUbicacion.ULTIMA_CONOCIDA_MAX_MS) { ultimaConocida() }
+} catch (e: CancellationException) {
+    throw e
+} catch (_: Exception) {
+    null
 }
