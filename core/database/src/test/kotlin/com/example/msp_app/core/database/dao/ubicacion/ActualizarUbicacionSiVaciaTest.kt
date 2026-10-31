@@ -3,8 +3,12 @@ package com.example.msp_app.core.database.dao.ubicacion
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -12,6 +16,10 @@ import org.junit.Test
  * UPDATE de lat y lng, solo si seguian en 0,0, y nunca pisa una ubicacion existente.
  */
 class ActualizarUbicacionSiVaciaTest : RoomTestBase() {
+
+    private companion object {
+        const val CICLOS = 1500
+    }
 
     private fun pago(id: String, lat: Double?, lng: Double?) = PaymentEntity(
         ID = id,
@@ -80,5 +88,52 @@ class ActualizarUbicacionSiVaciaTest : RoomTestBase() {
         val v = db.visitDao().getVisitById("v")
         assertEquals(20.5, v.LAT, 0.0)
         assertEquals(-100.3, v.LNG, 0.0)
+    }
+
+    // ─── E-APP-147 (K3): el worker nunca lee lat sin lng ──────────────────────
+
+    /**
+     * Un lector concurrente contra ciclos de `(0,0)` -> escritura. Cuenta lecturas a medias (una
+     * coordenada escrita y la otra no). La escritura real es UN solo UPDATE, asi que no hay ninguna.
+     */
+    private fun lecturasAMedias(escribir: suspend (String) -> Unit): Pair<Int, Int> = runBlocking {
+        db.paymentDao().savePayment(pago("c", 0.0, 0.0))
+        var aMedias = 0
+        var lecturas = 0
+        val terminado = java.util.concurrent.atomic.AtomicBoolean(false)
+        val lector = launch(Dispatchers.Default) {
+            while (!terminado.get()) {
+                val p = db.paymentDao().getPaymentById("c")!!
+                lecturas++
+                if (((p.LAT ?: 0.0) != 0.0) != ((p.LNG ?: 0.0) != 0.0)) aMedias++
+            }
+        }
+        repeat(CICLOS) {
+            db.openHelper.writableDatabase.execSQL(
+                "UPDATE Payment SET LAT = 0.0, LNG = 0.0 WHERE id = 'c'"
+            )
+            escribir("c")
+        }
+        terminado.set(true)
+        lector.join()
+        aMedias to lecturas
+    }
+
+    @Test
+    fun `E-APP-147 la escritura real nunca se ve a medias, y el control positivo si`() {
+        val (real, lecturasReal) = lecturasAMedias {
+            db.paymentDao().updateLocationIfEmpty(it, 20.5, -100.3)
+        }
+        assertEquals("el UPDATE unico nunca se ve a medias", 0, real)
+        assertTrue("el lector leyo ($lecturasReal)", lecturasReal > 100)
+
+        // Control positivo: la MISMA escritura partida en dos UPDATE sueltos SI se ve a medias.
+        val (partida, _) = lecturasAMedias {
+            db.openHelper.writableDatabase.execSQL("UPDATE Payment SET LAT = 20.5 WHERE id = '$it'")
+            db.openHelper.writableDatabase.execSQL(
+                "UPDATE Payment SET LNG = -100.3 WHERE id = '$it'"
+            )
+        }
+        assertTrue("el lector habria visto lecturas a medias ($partida)", partida > 0)
     }
 }
