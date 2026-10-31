@@ -8,7 +8,16 @@ import com.example.msp_app.core.common.location.captura.FixDeUbicacion
  * [elapsedNanos] es el instante de guardado en el reloj monotono, o `null` si no se pudo leer (no
  * habra plazo ni espera). [antes] es el fix que la regla acepto como ANTES, o `null`.
  */
-data class MomentoDeGuardado(val elapsedNanos: Long?, val antes: FixDeUbicacion?) {
+data class MomentoDeGuardado(
+    val elapsedNanos: Long?,
+    val antes: FixDeUbicacion?,
+    /**
+     * Hora de PARED del guardado, igual para todas las capturas de un lote (las N visitas de una
+     * captura): de aqui sale el plazo de envio de cada una, asi el tope de 30 s corre desde el
+     * guardado mas antiguo del lote (K6). `null` = que cada anotacion use la hora de su escritura.
+     */
+    val guardadoEpochMs: Long? = null
+) {
     companion object {
         val SinUbicacion = MomentoDeGuardado(elapsedNanos = null, antes = null)
     }

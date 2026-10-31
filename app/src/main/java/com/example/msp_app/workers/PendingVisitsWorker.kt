@@ -6,6 +6,9 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.common.location.captura.EsperaDeEnvio
+import com.example.msp_app.core.common.location.captura.RelojMonotono
+import com.example.msp_app.core.common.location.captura.SalidaDeLaEspera
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.common.visitas.envio.CompromisoLocal
@@ -18,6 +21,7 @@ import com.example.msp_app.core.common.visitas.envio.existenciaCompleta
 import com.example.msp_app.core.common.visitas.envio.salidaTras2xx
 import com.example.msp_app.core.common.visitas.envio.salidaTrasError
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.ubicacion.PlazoDeEnvioDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.entities.VisitEntity
@@ -27,6 +31,7 @@ import com.example.msp_app.core.network.diagnostico.ClasificadorDeFalloDeEnvio
 import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
 import com.example.msp_app.core.network.diagnostico.EnvioObservado
 import com.example.msp_app.core.network.diagnostico.FalloDeEnvio
+import com.example.msp_app.core.ubicacion.UbicacionAnticipada
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.visitas.capacidades.Capacidades
 import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
@@ -164,7 +169,19 @@ class PendingVisitsWorker @JvmOverloads constructor(
      */
     @VisibleForTesting
     internal val encolarUbicacion: (String) -> Unit =
-        { id -> enqueueUbicacionTardiaDeVisita(appContext, id) }
+        { id -> enqueueUbicacionTardiaDeVisita(appContext, id) },
+    /** E-APP-148: el plazo de retencion del envio (`plazo_de_envio`). Sin fila no se espera. */
+    @VisibleForTesting
+    internal val plazos: PlazoDeEnvioDao = AppDatabase.getInstance(appContext).plazoDeEnvioDao(),
+    /** E-APP-148: la espera de la ubicacion, con reloj de pared y reloj monotono inyectables. */
+    @VisibleForTesting
+    internal val espera: EsperaDeEnvio = EsperaDeEnvio(
+        reloj = clock,
+        monotono = RelojMonotono { android.os.SystemClock.elapsedRealtimeNanos() }
+    ),
+    /** E-APP-148: la toma ya informo permiso negado o GPS apagado, asi que no espera. */
+    @VisibleForTesting
+    internal val tomaNoVaALlegar: () -> Boolean = { UbicacionAnticipada.noVaALlegar(appContext) }
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -180,11 +197,52 @@ class PendingVisitsWorker @JvmOverloads constructor(
                 Log.e(TAG, "Visita no encontrada: $id")
             }
 
+        // E-APP-148: el envio se RETIENE hasta tener ubicacion o 30 s desde que se guardo. Va antes de
+        // la bifurcacion de modos (v2 actual, v3, legado) para que todos se comporten igual, y antes
+        // de armar el cuerpo.
+        val aEnviar = esperarLaUbicacion(visit)
+
         if (!useV2 || modo() == ModoEnvioVisitas.V2_ACTUAL) {
-            return if (useV2) uploadV2(visit) else uploadLegacy(visit)
+            return if (useV2) uploadV2(aEnviar) else uploadLegacy(aEnviar)
         }
-        return uploadV3(visit)
+        return uploadV3(aEnviar)
     }
+
+    /**
+     * La retencion de E-APP-148 (K6 de la compuerta ANTES c2), la misma que la del pago: SIN efectos,
+     * solo lee Room y duerme; el limite lo da el reloj monotono; propaga la cancelacion; sin fila de
+     * plazo no se retiene. Las N visitas de una captura en varias cuentas comparten la hora de
+     * guardado, asi que cada worker espera hasta el mismo limite (30 s desde el guardado mas antiguo
+     * del lote) y la ubicacion que llega se escribe en todas a la vez.
+     *
+     * Una visita ya confirmada o resguardada no manda nada: no se espera por ella. Devuelve la visita
+     * releida DESPUES de esperar (con la ubicacion que el tomador haya escrito: `LAT` y `LNG` juntas).
+     */
+    @Suppress("TooGenericExceptionCaught") // leer el plazo nunca debe frenar la visita.
+    private suspend fun esperarLaUbicacion(visit: VisitEntity): VisitEntity {
+        if (visit.CONFIRMADA_EN != null || visit.RESGUARDADA_EN != null) return visit
+        if (tieneUbicacion(visit)) return visit
+        val plazo = try {
+            plazos.obtener(visit.ID)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (e: Exception) {
+            Log.w(TAG, "Visita ${visit.ID}: no se pudo leer el plazo; se envia sin retener", e)
+            null
+        } ?: return visit
+        val salida = espera.esperar(
+            guardadoEpochMs = plazo.guardadoEnEpochMs,
+            plazoMs = plazo.plazoMs,
+            hayUbicacion = { tieneUbicacion(visitsStore.getVisitById(visit.ID)) },
+            noVaALlegar = tomaNoVaALlegar
+        )
+        Log.i(TAG, "Visita ${visit.ID}: espera de ubicacion termino en $salida")
+        if (salida == SalidaDeLaEspera.SIN_ESPERA) return visit
+        return visitsStore.getVisitById(visit.ID)
+    }
+
+    /** El par lat/lng no es 0,0. Nunca una sola de las dos. */
+    private fun tieneUbicacion(visit: VisitEntity): Boolean = visit.LAT != 0.0 || visit.LNG != 0.0
 
     // ─── envío v3 ──────────────────────────────────────────────────────────
     //

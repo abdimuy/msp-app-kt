@@ -10,6 +10,7 @@ import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.core.ubicacion.UbicacionAnticipada
 import com.example.msp_app.core.visitas.envio.TelemetriaDeVisitas
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.visitas.ComprobantesDeVisitaAdapter
@@ -93,7 +94,8 @@ object VisitasPortsModule {
         telemetry = telemetry,
         clock = clock,
         encolarUbicacion = { id -> enqueueUbicacionTardiaDeVisita(context, id) },
-        reprogramarAvisos = { encolarReprogramacionDeAvisos(context) }
+        reprogramarAvisos = { encolarReprogramacionDeAvisos(context) },
+        ubicacion = UbicacionAnticipada.deCaptura(context)
     )
 
     @Provides

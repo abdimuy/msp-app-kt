@@ -30,6 +30,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.msp_app.core.common.location.captura.EstadoDeUbicacion
 import com.example.msp_app.feature.pagos.ui.PagosRutas
+import com.example.msp_app.feature.visitas.ui.VisitasRutas
 
 /** Texto del aviso, o `null` si no hace falta (E-APP-144). Mayúscula inicial, sin punto final. */
 fun textoDelAviso(estado: EstadoDeUbicacion): String? = when (estado) {
@@ -144,13 +145,14 @@ fun iniciarUbicacionAnticipada(): EstadoDeUbicacion {
     return estado
 }
 
-/** Rutas donde se abre un cliente o se captura un abono: ahí arranca la toma anticipada. */
+/** Rutas donde se abre un cliente o se captura un abono o una visita: ahí arranca la toma anticipada. */
 fun rutaPideUbicacion(route: String?): Boolean = route in RUTAS_QUE_PIDEN_UBICACION
 
 private val RUTAS_QUE_PIDEN_UBICACION = setOf(
     PagosRutas.DETALLE_CLIENTE,
     PagosRutas.DETALLE_VENTA,
-    PagosRutas.REGISTRAR_ABONO
+    PagosRutas.REGISTRAR_ABONO,
+    VisitasRutas.REGISTRAR
 )
 
 /** Se monta dentro del `Box` del NavHost: solo hace algo en las rutas de [rutaPideUbicacion]. */

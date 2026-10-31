@@ -74,7 +74,11 @@ class UbicacionDeCaptura(
     override fun alGuardar(): MomentoDeGuardado = try {
         val ahora = monotono.elapsedNanos()
         val decision = tomador.mejorUbicacionAntesDeGuardar(ahora)
-        MomentoDeGuardado(ahora, (decision as? DecisionDeUbicacion.AceptarAntes)?.fix)
+        MomentoDeGuardado(
+            elapsedNanos = ahora,
+            antes = (decision as? DecisionDeUbicacion.AceptarAntes)?.fix,
+            guardadoEpochMs = reloj.now().toEpochMilli()
+        )
     } catch (e: Throwable) {
         if (e is CancellationException) throw e
         MomentoDeGuardado.SinUbicacion
@@ -103,7 +107,7 @@ class UbicacionDeCaptura(
                     PlazoDeEnvioEntity(
                         id = id,
                         tipo = tipo,
-                        guardadoEnEpochMs = reloj.now().toEpochMilli(),
+                        guardadoEnEpochMs = momento.guardadoEpochMs ?: reloj.now().toEpochMilli(),
                         plazoMs = PlazoDeEnvioEntity.PLAZO_MS
                     )
                 )

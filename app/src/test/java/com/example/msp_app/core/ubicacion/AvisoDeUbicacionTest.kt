@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.height
 import com.example.msp_app.core.common.location.captura.EstadoDeUbicacion
 import com.example.msp_app.core.common.location.captura.FixDeUbicacion
 import com.example.msp_app.feature.pagos.ui.PagosRutas
+import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -196,6 +197,10 @@ class AvisoDeUbicacionTest {
         assertTrue(rutaPideUbicacion(PagosRutas.DETALLE_CLIENTE))
         assertTrue(rutaPideUbicacion(PagosRutas.DETALLE_VENTA))
         assertTrue(rutaPideUbicacion(PagosRutas.REGISTRAR_ABONO))
+        assertTrue(
+            "la captura de visita tambien (E-APP-148)",
+            rutaPideUbicacion(VisitasRutas.REGISTRAR)
+        )
         assertFalse(rutaPideUbicacion(PagosRutas.LISTA_CLIENTES))
         assertFalse(rutaPideUbicacion(PagosRutas.TICKET_PAGO))
         assertFalse(rutaPideUbicacion(null))

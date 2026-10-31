@@ -11,11 +11,14 @@ import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.database.entities.CapturaEnCursoEntity
 import com.example.msp_app.core.database.entities.SaleWithProductsEntity
+import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.database.escribirSinCancelar
 import com.example.msp_app.core.database.sinCancelar
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.core.ubicacion.MomentoDeGuardado
+import com.example.msp_app.core.ubicacion.UbicacionAlGuardar
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.VisitStatusMapper
 import com.example.msp_app.data.auth.emailDeLaSesion
@@ -92,7 +95,12 @@ class RegistroDeVisitaAdapter(
      */
     private val encolarUbicacion: (String) -> Unit = {},
     /** Reprograma las alarmas tras la captura (P3 T13, E-APP-124); total, no propaga. */
-    private val reprogramarAvisos: () -> Unit = {}
+    private val reprogramarAvisos: () -> Unit = {},
+    /**
+     * E-APP-148 (K6): la ubicacion de las visitas al guardar y justo despues. Por defecto ninguna
+     * (las pruebas): `VisitasPortsModule` pasa la del tomador.
+     */
+    private val ubicacion: UbicacionAlGuardar = UbicacionAlGuardar.Ninguna
 ) : RegistroDeVisitaPort {
 
     /**
@@ -119,7 +127,7 @@ class RegistroDeVisitaAdapter(
         // Síncrono: no hay suspensión antes del marcador (Q11).
         CapturasEnProceso.entrar(semilla)
         try {
-            return registrarTotal(semilla, visitas)
+            return registrarTotal(semilla, visitas, conUbicacion = true)
         } finally {
             CapturasEnProceso.salir(semilla)
         }
@@ -153,7 +161,10 @@ class RegistroDeVisitaAdapter(
             val lote = ResumenDeLaVisita.leer(marcador.RESUMEN)?.aLote() ?: continue
             if (!CapturasEnProceso.entrarSiLibre(marcador.ID)) continue
             try {
-                if (registrarTotal(marcador.ID, lote) == ResultadoDelRegistro.REGISTRADA) reanudadas++
+                // Reanudada horas despues: el telefono ya no esta donde se hizo la visita, asi que
+                // NO se le pone la ubicacion de ahora (conUbicacion = false).
+                val reanudada = registrarTotal(marcador.ID, lote, conUbicacion = false)
+                if (reanudada == ResultadoDelRegistro.REGISTRADA) reanudadas++
             } finally {
                 CapturasEnProceso.salir(marcador.ID)
             }
@@ -173,14 +184,15 @@ class RegistroDeVisitaAdapter(
      * la ubicación ya está en Room y el envío de la visita sigue su curso.
      */
     @Suppress("TooGenericExceptionCaught") // encolar nunca deshace el parche.
-    override suspend fun anotarUbicacion(visitaIds: List<String>, ubicacion: UbicacionDeLaVisita) {
+    override suspend fun anotarUbicacion(
+        visitaIds: List<String>,
+        ubicacion: UbicacionDeLaVisita
+    ) {
         sinCancelar {
             visitaIds.forEach { id ->
-                visitas.updateVisitLocation(
-                    id,
-                    ubicacion.lat,
-                    ubicacion.lng
-                )
+                // E-APP-148: solo si sigue en 0,0. La visita pudo nacer ya con ubicacion (la de ANTES)
+                // o recibirla del tomador mientras tanto; nunca hay dos escrituras que se pisen.
+                db.visitDao().updateLocationIfEmpty(id, ubicacion.lat, ubicacion.lng)
                 try {
                     encolarUbicacion(id)
                 } catch (cancelada: CancellationException) {
@@ -195,9 +207,10 @@ class RegistroDeVisitaAdapter(
     @Suppress("TooGenericExceptionCaught") // Room/Firestore pueden fallar; nada queda a medias.
     private suspend fun registrarTotal(
         semilla: String,
-        visitas: List<VisitaARegistrar>
+        visitas: List<VisitaARegistrar>,
+        conUbicacion: Boolean
     ): ResultadoDelRegistro = try {
-        registrarLote(semilla, visitas)
+        registrarLote(semilla, visitas, conUbicacion)
     } catch (cancelada: CancellationException) {
         throw cancelada
     } catch (fallo: Throwable) {
@@ -211,7 +224,8 @@ class RegistroDeVisitaAdapter(
 
     private suspend fun registrarLote(
         semilla: String,
-        lote: List<VisitaARegistrar>
+        lote: List<VisitaARegistrar>,
+        conUbicacion: Boolean
     ): ResultadoDelRegistro {
         val primera = lote.firstOrNull() ?: return ResultadoDelRegistro.REGISTRADA
         val email = emailEnSesion()
@@ -224,7 +238,12 @@ class RegistroDeVisitaAdapter(
             ?: return ResultadoDelRegistro.CLIENTE_NO_ESTA_EN_EL_TELEFONO
         val usuario = traerUsuario()
         if (usuario == null || usuario.COBRADOR_ID == 0) return ResultadoDelRegistro.SIN_COBRADOR
-        val entidades = lote.map { entidadDe(it, venta, usuario.COBRADOR_ID, capturadaEn) }
+        // E-APP-148: lo que el telefono ya sabe de la ubicacion, sin esperar al GPS; el mismo momento
+        // (y la misma hora de pared) para las N cuentas del lote.
+        val momento = if (conUbicacion) momentoDeGuardado() else MomentoDeGuardado.SinUbicacion
+        val entidades = lote.map {
+            conLaUbicacionDeAntes(entidadDe(it, venta, usuario.COBRADOR_ID, capturadaEn), momento)
+        }
         val escritaAhora = db.escribirSinCancelar {
             val marcador = capturas.obtener(semilla)
             if (marcador != null && marcador.ESTADO != CapturaEnCursoEntity.CAPTURADA) {
@@ -238,6 +257,7 @@ class RegistroDeVisitaAdapter(
                     )
                     reagendarCobranzaLegada(entidad)
                     ligarRecomendacion(lote[indice])
+                    anotarLaUbicacion(entidad.ID, momento)
                 }
                 val ahora = AppTime.toWireFormat(clock.now())
                 if (marcador == null) {
@@ -257,11 +277,66 @@ class RegistroDeVisitaAdapter(
         }
         sinCancelar {
             if (escritaAhora) lote.forEach { guardarComprobantes(it) }
+            // E-APP-148: las visitas sin ubicacion quedan esperando el primer fix valido ANTES de
+            // encolar, para que el worker, al despertar, ya las encuentre esperando.
+            if (escritaAhora && conUbicacion) entidades.forEach { ubicarLaVisita(it.ID, momento) }
             entidades.forEach { encolarEnvio(it.ID) }
             reprogramarAvisosSinRiesgo()
             capturas.marcarCerrada(semilla, AppTime.toWireFormat(clock.now()))
         }
         return ResultadoDelRegistro.REGISTRADA
+    }
+
+    // ─── E-APP-148 (K6): la ubicacion de las visitas, igual que la del abono ─────────────────
+
+    /** Lo que el telefono sabe de la ubicacion AL GUARDAR. Total: si lanza, se guarda sin ubicacion. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun momentoDeGuardado(): MomentoDeGuardado = try {
+        ubicacion.alGuardar()
+    } catch (cancelada: CancellationException) {
+        throw cancelada
+    } catch (_: Throwable) {
+        MomentoDeGuardado.SinUbicacion
+    }
+
+    /** La visita nace con la ubicacion de ANTES, solo si llego sin ninguna (0,0). */
+    private fun conLaUbicacionDeAntes(
+        visita: VisitEntity,
+        momento: MomentoDeGuardado
+    ): VisitEntity {
+        val fix = momento.antes ?: return visita
+        return if (visita.LAT == 0.0 && visita.LNG == 0.0) {
+            visita.copy(LAT = fix.lat, LNG = fix.lon)
+        } else {
+            visita
+        }
+    }
+
+    /**
+     * Dentro de la transaccion del lote: la fila de ubicacion de ANTES o el plazo de envio de cada
+     * visita. **Total** (K1): si lanza, las visitas se guardan igual y su envio sale sin retencion.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun anotarLaUbicacion(visitaId: String, momento: MomentoDeGuardado) {
+        try {
+            ubicacion.anotarEnLaTransaccion(visitaId, UbicacionDeCapturaEntity.TIPO_VISITA, momento)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            // El dinero (y la visita) manda.
+        }
+    }
+
+    /** Tras el commit: la visita sin ubicacion queda esperando el primer fix valido. Total. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun ubicarLaVisita(visitaId: String, momento: MomentoDeGuardado) {
+        try {
+            ubicacion.despuesDeGuardar(visitaId, UbicacionDeCapturaEntity.TIPO_VISITA, momento)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (_: Throwable) {
+            // La visita ya esta escrita; sin ubicacion sale al vencer su plazo (0,0 como hoy).
+        }
     }
 
     /**

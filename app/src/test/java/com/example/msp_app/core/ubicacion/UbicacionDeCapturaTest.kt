@@ -14,6 +14,7 @@ import com.example.msp_app.core.common.location.captura.TomadorDeUbicacion
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
+import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
 import java.time.Instant
@@ -394,6 +395,63 @@ class UbicacionDeCapturaTest : RoomTestBase() {
         assertEquals("la transaccion se revirtio entera", 0.0, m.pago().LAT!!, 0.0)
         assertEquals(listOf<Pair<OrigenDeUbicacion?, Int?>>(null to null), m.reportes)
     }
+
+    // ─── E-APP-148 (K6): un lote de visitas, un solo fix ──────────────────────
+
+    private fun visita(id: String) = VisitEntity(
+        ID = id,
+        CLIENTE_ID = 11486,
+        COBRADOR_ID = 77,
+        FECHA = "2026-10-30T18:00:00Z",
+        FORMA_COBRO_ID = 0,
+        LAT = 0.0,
+        LNG = 0.0,
+        TIPO_VISITA = "SIN_PAGO",
+        ZONA_CLIENTE_ID = 21552
+    )
+
+    @Test
+    fun `E-APP-148 un fix tardio ubica a todas las cuentas del lote, una sola vez cada una`() =
+        runTest {
+            val m = Montaje(this)
+            val momento = m.captura.alGuardar()
+            listOf("v-1", "v-2").forEach { id ->
+                db.withTransaction {
+                    db.visitDao().insertVisit(visita(id))
+                    m.captura.anotarEnLaTransaccion(
+                        id,
+                        UbicacionDeCapturaEntity.TIPO_VISITA,
+                        momento
+                    )
+                }
+            }
+            listOf("v-1", "v-2").forEach {
+                m.captura.despuesDeGuardar(it, UbicacionDeCapturaEntity.TIPO_VISITA, momento)
+            }
+            runCurrent()
+
+            advanceTimeBy(9_000)
+            m.emitir(m.fix(9_000))
+
+            listOf("v-1", "v-2").forEach { id ->
+                val v = db.visitDao().getVisitById(id)
+                assertEquals(LAT, v.LAT, 0.0)
+                assertEquals(LON, v.LNG, 0.0)
+                assertEquals(
+                    UbicacionDeCapturaEntity.ORIGEN_DESPUES,
+                    db.ubicacionDeCapturaDao().obtener(id)!!.origen
+                )
+                assertEquals(
+                    UbicacionDeCapturaEntity.TIPO_VISITA,
+                    db.plazoDeEnvioDao().obtener(id)!!.tipo
+                )
+            }
+
+            // Un segundo fix, otro lugar: no pisa nada.
+            advanceTimeBy(2_000)
+            m.emitir(m.fix(11_000, lat = LAT + 0.0001))
+            assertEquals(LAT, db.visitDao().getVisitById("v-1").LAT, 0.0)
+        }
 
     private fun pago(id: String, lat: Double, lng: Double) = PaymentEntity(
         ID = id,
