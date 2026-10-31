@@ -282,6 +282,38 @@ class UbicacionDeCapturaTest : RoomTestBase() {
             assertEquals("sale de la lista", 0, m.enEspera.pendientes().size)
         }
 
+    /**
+     * E-APP-152 (H3 de la compuerta DESPUES; mata D17): un fix que llega ENTRE `alGuardar` y
+     * `despuesDeGuardar` encuentra la lista de espera vacia (la captura aun no se registra). Solo la
+     * reevaluacion inmediata de `despuesDeGuardar` lo aplica; sin ella el pago esperaria al
+     * siguiente fix, que quiza nunca llegue.
+     */
+    @Test
+    fun `E-APP-152 un fix que llega entre alGuardar y despuesDeGuardar se aplica sin esperar otro`() =
+        runTest {
+            val m = Montaje(this)
+            val job = m.tomador.iniciar(m.alcance)
+            runCurrent()
+            val momento = m.captura.alGuardar()
+            assertNull("sin ubicacion previa", momento.antes)
+
+            advanceTimeBy(5_000)
+            m.emitir(m.fix(5_000)) // la captura aun no esta en la lista de espera
+            assertEquals(0, m.enEspera.pendientes().size)
+
+            db.withTransaction {
+                db.paymentDao().savePayment(pago(PAGO, 0.0, 0.0))
+                m.captura.anotarEnLaTransaccion(PAGO, UbicacionDeCapturaEntity.TIPO_PAGO, momento)
+            }
+            m.captura.despuesDeGuardar(PAGO, UbicacionDeCapturaEntity.TIPO_PAGO, momento)
+            runCurrent() // sin ningun fix nuevo
+
+            assertEquals(LAT, m.pago().LAT!!, 0.0)
+            assertEquals(LON, m.pago().LNG!!, 0.0)
+            assertEquals(0, m.enEspera.pendientes().size)
+            job.cancel()
+        }
+
     @Test
     fun `E-APP-146 la toma sigue viva aunque la pantalla se haya ido`() = runTest {
         val m = Montaje(this)

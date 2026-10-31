@@ -384,6 +384,45 @@ class PendingPaymentsWorkerRetencionTest : RoomTestBase() {
         assertTrue("una corrida cancelada no sigue viva y manda despues", envios.isEmpty())
     }
 
+    /**
+     * E-APP-151 (H2 de la compuerta DESPUES; mata D09): si mientras el worker espera el pago queda
+     * soltado (otro camino lo subio y lo marco), tras la espera NO se vuelve a mandar. Es la guarda
+     * contra el cobro doble: un segundo POST de un pago ya entregado.
+     */
+    @Test
+    fun `E-APP-151 el pago soltado durante la espera sin llegar la ubicacion no se manda otra vez`() =
+        runTest {
+            guardarSinUbicacion()
+            val (job, resultado) = arrancar()
+            advanceTimeBy(5_000)
+            assertTrue("retenido", envios.isEmpty())
+
+            db.paymentDao().updateEstado(PAGO, 1) // otro camino lo entrego
+            advanceTimeBy(30_000)
+            runCurrent()
+
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertTrue("cero POST: ya estaba soltado", envios.isEmpty())
+            job.cancel()
+        }
+
+    @Test
+    fun `E-APP-151 el pago soltado y con ubicacion durante la espera tampoco se manda otra vez`() =
+        runTest {
+            guardarSinUbicacion()
+            val (job, resultado) = arrancar()
+            advanceTimeBy(5_000)
+
+            llegaElFix()
+            db.paymentDao().updateEstado(PAGO, 1)
+            advanceTimeBy(300)
+            runCurrent()
+
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertTrue("cero POST: ya estaba soltado", envios.isEmpty())
+            job.cancel()
+        }
+
     @Test
     fun `E-APP-147 mientras espera el pago sigue pendiente y no se toca nada`() = runTest {
         guardarSinUbicacion()
