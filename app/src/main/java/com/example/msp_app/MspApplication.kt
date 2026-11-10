@@ -3,9 +3,13 @@ package com.example.msp_app
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import com.example.msp_app.core.avisos.CanalesDeNotificacion
 import com.example.msp_app.core.avisos.KillSwitchAvisos
 import com.example.msp_app.core.avisos.encolarReprogramacionDeAvisos
+import com.example.msp_app.core.datos.ClasificadorDeServicio
+import com.example.msp_app.core.datos.UsoDeDatos
 import com.example.msp_app.core.debug.RemoteDbDebugger
 import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
 import com.example.msp_app.core.fcm.SuscripcionDeZonaProvider
@@ -13,6 +17,7 @@ import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.ubicacion.ConfigDeUbicacion
+import com.example.msp_app.core.usodedatos.ReporteDeUsoDeDatosWorker
 import com.example.msp_app.core.visitas.agenda.KillSwitchAgenda
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
@@ -24,9 +29,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 
 @HiltAndroidApp
-class MspApplication : Application(), Configuration.Provider {
+class MspApplication : Application(), Configuration.Provider, ImageLoaderFactory {
 
     /**
      * Process-scoped coroutine scope used by background, fire-and-forget work
@@ -89,7 +95,26 @@ class MspApplication : Application(), Configuration.Provider {
 
         // Inicializar sincronización periódica de clientes
         enqueueClienteSyncWorker(this)
+
+        // Uso de datos (E-APP-171..174): total real, desglose por servicio y reporte diario.
+        UsoDeDatos.instalar(this)
+        ReporteDeUsoDeDatosWorker.encolar(this)
     }
+
+    /**
+     * Coil carga las fotos y las imágenes de producto con su propio cliente: se le pone
+     * el contador de bytes para que ese tráfico no quede en "Mapa, Firebase y otros".
+     * Solo agrega un `networkInterceptor` que observa; el resto es el cliente por defecto.
+     */
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .okHttpClient {
+            OkHttpClient.Builder()
+                .addNetworkInterceptor(
+                    UsoDeDatos.interceptor(ClasificadorDeServicio.CLAVE_IMAGENES)
+                )
+                .build()
+        }
+        .build()
 
     private fun suscribirTemaDeZona() {
         val suscripcion = SuscripcionDeZonaProvider.de(this)
