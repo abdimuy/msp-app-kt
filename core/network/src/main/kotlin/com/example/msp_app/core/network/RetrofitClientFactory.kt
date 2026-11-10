@@ -1,5 +1,6 @@
 package com.example.msp_app.core.network
 
+import com.example.msp_app.core.datos.UsoDeDatos
 import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
 import com.example.msp_app.core.network.diagnostico.EnvioPagoDiagnosticoInterceptor
 import java.util.concurrent.TimeUnit
@@ -138,6 +139,9 @@ class RetrofitClientFactory(
         val clientBuilder = OkHttpClient.Builder()
             .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
             .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+            // Cuenta bytes del cable por endpoint (E-APP-171). Solo observa: ver
+            // `InterceptorDeUsoDeDatos` (misma petición, misma respuesta, nunca lanza).
+            .addNetworkInterceptor(UsoDeDatos.interceptor())
 
         // PRIMERO = el más externo: ve exactamente la respuesta (tras el
         // reintento del bearer ante 401) y la excepción que recibe Retrofit.

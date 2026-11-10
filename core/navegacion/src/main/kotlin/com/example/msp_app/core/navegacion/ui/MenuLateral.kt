@@ -34,6 +34,9 @@ const val DESVANECIDO_DEL_MENU_TAG: String = "menu_lateral_desvanecido"
 const val ENVIO_DEL_MENU_TAG: String = "menu_lateral_envio"
 const val ID_CONFIGURACION: String = "configuracion"
 
+/** Id de la fila "Uso de datos" del pie (misma convención que [ID_CONFIGURACION]). */
+const val ID_USO_DE_DATOS: String = "uso_de_datos"
+
 /** La columna de nombre + zona de la cabecera (revisión Task 3: no debe apretarse). */
 const val NOMBRE_DEL_MENU_TAG: String = "menu_lateral_nombre"
 

@@ -52,6 +52,8 @@ dependencies {
     // Tokens de color/tipografía/espaciado + LocalReduceMotion (la banda de
     // cuenta regresiva anima su tono y debe respetar la preferencia global).
     implementation(project(":core:designsystem"))
+    // Cuenta la descarga del APK en el uso de datos (E-APP-171); solo observa.
+    implementation(project(":core:datos"))
 
     implementation(libs.androidx.core.ktx) // FileProvider, para entregar el APK al instalador
     implementation(libs.androidx.datastore.preferences)

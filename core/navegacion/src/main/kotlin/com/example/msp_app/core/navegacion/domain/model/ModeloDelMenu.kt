@@ -15,7 +15,8 @@ enum class IconoDelMenu {
     TRASPASOS,
     ASIGNACION,
     GARANTIAS,
-    CONFIGURACION
+    CONFIGURACION,
+    DATOS
 }
 
 /**

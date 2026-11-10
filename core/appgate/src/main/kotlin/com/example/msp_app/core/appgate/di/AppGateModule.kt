@@ -20,6 +20,8 @@ import com.example.msp_app.core.appgate.download.NetworkStatusProvider
 import com.example.msp_app.core.appgate.download.PackageManagerApkVersionReader
 import com.example.msp_app.core.appgate.download.UpdateDownloadScheduler
 import com.example.msp_app.core.appgate.download.UpdateFileLocator
+import com.example.msp_app.core.datos.ClasificadorDeServicio
+import com.example.msp_app.core.datos.UsoDeDatos
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -124,7 +126,9 @@ object AppGateModule {
      */
     @Provides
     @Singleton
-    fun provideApkCallFactory(): Call.Factory = OkHttpClient.Builder().build()
+    fun provideApkCallFactory(): Call.Factory = OkHttpClient.Builder()
+        .addNetworkInterceptor(UsoDeDatos.interceptor(ClasificadorDeServicio.CLAVE_DESCARGAS))
+        .build()
 
     @Provides
     @Singleton

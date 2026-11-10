@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.VisibleForTesting
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase
+import com.example.msp_app.core.datos.UsoDeDatos
 import com.example.msp_app.core.network.BearerAuthInterceptor
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
@@ -78,6 +79,8 @@ object VisitasSseProvider {
         val appContext = context.applicationContext
         val client = OkHttpClient.Builder()
             .addInterceptor(BearerAuthInterceptor(FirebaseAuthTokenProvider()))
+            // Cuenta lo que gotea el stream mientras corre (E-APP-171); solo observa.
+            .addNetworkInterceptor(UsoDeDatos.interceptor())
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             // readTimeout(0) es crítico: SSE necesita la conexión abierta
             // indefinidamente. Con el default de 60s el stream se cortaría

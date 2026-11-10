@@ -43,6 +43,8 @@ import com.example.msp_app.feature.collectionreport.ui.tier2.CollectionReportScr
 import com.example.msp_app.feature.collectionreport.ui.tier2.ReportTier
 import com.example.msp_app.feature.collectionreport.ui.tier2.rememberReportTier
 import com.example.msp_app.feature.configuracion.ui.ConfiguracionScreen
+import com.example.msp_app.feature.usodedatos.ui.UsoDeDatosRutas
+import com.example.msp_app.feature.usodedatos.ui.UsoDeDatosScreen
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
@@ -729,6 +731,11 @@ fun AppNavigation() {
                 // (`navController.popBackStack()`), no un drawer/hamburguesa, así que no se envuelve
                 // en `MenuDeLaApp` (mismo criterio que `RouteMapScreen`/`GuaranteeListScreen`,
                 // pantallas simples que no re-abren el menú).
+                // "Uso de datos" (E-APP-175): se apila como Configuración, con su propio regreso.
+                composable(UsoDeDatosRutas.USO_DE_DATOS) {
+                    UsoDeDatosScreen(navController = navController)
+                }
+
                 composable(Screen.Configuracion.route) {
                     ConfiguracionScreen(
                         navController = navController,

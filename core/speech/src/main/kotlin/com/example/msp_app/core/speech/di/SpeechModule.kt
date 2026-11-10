@@ -1,6 +1,8 @@
 package com.example.msp_app.core.speech.di
 
 import android.content.Context
+import com.example.msp_app.core.datos.ClasificadorDeServicio
+import com.example.msp_app.core.datos.UsoDeDatos
 import com.example.msp_app.core.speech.adapters.AlmacenDelModelo
 import com.example.msp_app.core.speech.adapters.AndroidDictadoAdapter
 import com.example.msp_app.core.speech.adapters.AudioRecordGrabadora
@@ -127,7 +129,9 @@ internal object SpeechModule {
     @Provides
     @Singleton
     @SpeechCallFactory
-    fun llamadas(): Call.Factory = OkHttpClient.Builder().build()
+    fun llamadas(): Call.Factory = OkHttpClient.Builder()
+        .addNetworkInterceptor(UsoDeDatos.interceptor(ClasificadorDeServicio.CLAVE_DESCARGAS))
+        .build()
 
     @Provides
     @Singleton
