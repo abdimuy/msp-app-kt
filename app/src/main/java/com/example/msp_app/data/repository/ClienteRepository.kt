@@ -1,72 +1,101 @@
 package com.example.msp_app.data.repository
 
 import android.content.Context
+import com.example.msp_app.core.common.busqueda.NormalizadorDeBusqueda
+import com.example.msp_app.core.common.busqueda.TopeDeDescarga
+import com.example.msp_app.core.common.busqueda.conTopeTotal
+import com.example.msp_app.core.database.clientes.ResultadoDeClientes
 import com.example.msp_app.core.database.entities.ClienteEntity
-import com.example.msp_app.core.utils.normalizeForSearch
-import com.example.msp_app.core.utils.searchSimilarItems
+import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.clientes.ClientesApi
 import com.example.msp_app.data.local.datasource.ClienteDataSource
 
-class ClienteRepository(context: Context) {
-    private val dataSource = ClienteDataSource(context)
-    private val api = ApiProvider.create(ClientesApi::class.java)
+/** Dónde se guarda cuándo se actualizó el padrón por última vez (la misma que ya usaba el worker). */
+const val PREFS_CLIENTE_SYNC = "cliente_sync"
+const val CLAVE_ULTIMA_SYNC = "last_sync"
 
-    suspend fun syncFromServer() {
-        val response = api.getClientes()
-        val entities = response.body.map { cliente ->
-            ClienteEntity(
-                CLIENTE_ID = cliente.CLIENTE_ID,
-                NOMBRE = cliente.NOMBRE,
-                ESTATUS = cliente.ESTATUS,
-                CAUSA_SUSP = cliente.CAUSA_SUSP,
-                NOMBRE_NORMALIZADO = normalizeForSearch(cliente.NOMBRE)
-            )
-        }
-        dataSource.replaceAll(entities)
+/**
+ * Padrón de clientes: descarga, reemplazo y búsqueda (E-APP-157).
+ *
+ * El constructor interno recibe todo por parámetro para probarlo sin red, sin Firebase y con
+ * reloj virtual; el público de `Context` es el que usan las pantallas y el worker.
+ */
+class ClienteRepository internal constructor(
+    private val dataSource: ClienteDataSource,
+    private val api: ClientesApi,
+    private val avisar: (accion: String, mensaje: String, datos: Map<String, Any?>) -> Unit,
+    private val guardarFechaDeSync: (Long) -> Unit,
+    private val leerFechaDeSync: () -> Long,
+    private val ahora: () -> Long
+) {
+    constructor(context: Context) : this(
+        dataSource = ClienteDataSource(context),
+        api = ApiProvider.create(ClientesApi::class.java),
+        avisar = { accion, mensaje, datos ->
+            RemoteLogger.getInstance(context).warning("CLIENTE_SYNC", accion, mensaje, datos)
+        },
+        guardarFechaDeSync = { momento ->
+            context.getSharedPreferences(PREFS_CLIENTE_SYNC, Context.MODE_PRIVATE)
+                .edit().putLong(CLAVE_ULTIMA_SYNC, momento).apply()
+        },
+        leerFechaDeSync = {
+            context.getSharedPreferences(PREFS_CLIENTE_SYNC, Context.MODE_PRIVATE)
+                .getLong(CLAVE_ULTIMA_SYNC, 0L)
+        },
+        ahora = System::currentTimeMillis
+    )
+
+    /** Baja el padrón del servidor. Solo red: no toca la base. Cancelable (cancela la petición). */
+    suspend fun descargarPadron(): List<ClienteEntity> = api.getClientes().body.map { cliente ->
+        ClienteEntity(
+            CLIENTE_ID = cliente.CLIENTE_ID,
+            NOMBRE = cliente.NOMBRE,
+            ESTATUS = cliente.ESTATUS,
+            CAUSA_SUSP = cliente.CAUSA_SUSP,
+            // Misma normalización que la consulta (NormalizadorDeBusqueda): el defecto
+            // clásico es normalizar un lado y no el otro. Los teléfonos que aún tienen la
+            // normalización VIEJA siguen encontrando filas hasta el próximo sync (E-APP-159).
+            NOMBRE_NORMALIZADO = NormalizadorDeBusqueda.normalizar(cliente.NOMBRE)
+        )
     }
 
     /**
-     * Tolerante a acentos, mayúsculas, espacios de más y orden de las palabras —
-     * el padrón viene de Microsip, donde "JOSE" y "JOSÉ" conviven, y el cobrador teclea
-     * rápido sin fijarse en el espacio extra o en qué nombre puso primero.
+     * Reemplaza el padrón de forma atómica (E-APP-159). Una lista VACÍA del servidor no reemplaza nada:
+     * `replaceAll` borra primero, así que aceptarla dejaría a todos los cobradores sin clientes
+     * hasta el próximo sync bueno.
      *
-     * ## Por qué se ancla en la palabra más larga y no en toda la consulta
-     *
-     * `NOMBRE_NORMALIZADO LIKE '%<consulta completa>%'` (lo que hacía la versión
-     * anterior) exige que las palabras aparezcan EN ESE ORDEN y sin nada entre ellas —
-     * así "guadalupe maria" nunca encuentra "MARIA GUADALUPE RIVERA". En vez de eso: se
-     * trae del padrón (~43,700 clientes activos medidos en la base de referencia, ver
-     * REPORTE-BUSCADOR.md) solo lo que contiene la palabra MÁS LARGA de la consulta —
-     * la más selectiva, la que menos falsos candidatos trae — y luego se exige en
-     * memoria que las demás palabras también estén, sin importar en qué orden.
+     * @return `true` si se reemplazó; `false` si se ignoró por vacía.
      */
-    suspend fun searchClientes(query: String): List<ClienteEntity> {
-        val normalizedQuery = normalizeForSearch(query)
-        if (normalizedQuery.isEmpty()) return emptyList()
-
-        val words = normalizedQuery.split(" ").filter { it.isNotEmpty() }
-        val anchorWord = words.maxByOrNull { it.length } ?: return emptyList()
-
-        val candidates = dataSource.searchByNormalizedWord(anchorWord)
-        val matching = candidates.filter { cliente ->
-            words.all { word -> cliente.NOMBRE_NORMALIZADO.contains(word) }
+    suspend fun aplicarPadron(entidades: List<ClienteEntity>): Boolean {
+        if (entidades.isEmpty()) {
+            avisar(
+                "LISTA_VACIA_IGNORADA",
+                "El servidor contestó una lista de clientes vacía; se conserva el padrón guardado",
+                mapOf("clientesGuardados" to dataSource.getCount())
+            )
+            return false
         }
-
-        // El filtrado de arriba ya garantiza que cada resultado contiene TODAS las
-        // palabras tecleadas; threshold = 0 porque aquí solo se ordena por relevancia,
-        // no se vuelve a descartar nada. Con el umbral por defecto, un nombre de tres o
-        // más palabras reordenado podía anotar por debajo del corte y desaparecer de
-        // los resultados pese a ser un match correcto.
-        return searchSimilarItems(
-            query = query,
-            items = matching,
-            threshold = 0,
-            selectText = { it.NOMBRE }
-        ).take(20)
+        dataSource.replaceAll(entidades)
+        guardarFechaDeSync(ahora())
+        return true
     }
 
-    suspend fun getCount(): Int {
-        return dataSource.getCount()
-    }
+    /**
+     * Descarga + reemplazo con tope TOTAL de duración (E-APP-158). Lo usa el worker periódico;
+     * el botón manual arma lo mismo con su propio tope en `ActualizadorDeLista`.
+     * El tope solo cubre la descarga: la escritura es atómica y no se corta a medias.
+     */
+    suspend fun syncFromServer(topeMs: Long = TopeDeDescarga.SEGUNDO_PLANO_MS): Boolean =
+        aplicarPadron(conTopeTotal(topeMs) { descargarPadron() })
+
+    /** Epoch ms de la última actualización exitosa, o `null` si nunca. */
+    fun ultimaActualizacionMs(): Long? = leerFechaDeSync().takeIf { it > 0L }
+
+    suspend fun buscar(query: String): ResultadoDeClientes = dataSource.buscar(query)
+
+    /** Los (hasta) 20 resultados principales; ver [buscar] para total y "Parecidos". */
+    suspend fun searchClientes(query: String): List<ClienteEntity> = buscar(query).exactos
+
+    suspend fun getCount(): Int = dataSource.getCount()
 }
