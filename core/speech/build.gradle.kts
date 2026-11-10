@@ -25,6 +25,8 @@ dependencies {
     // Tokens de color/forma/tipografía + `LocalReduceMotion`: el borde vivo gira
     // y tiene que dejar de girar con movimiento reducido.
     implementation(project(":core:designsystem"))
+    // Cuenta la descarga del modelo en el uso de datos (E-APP-171); solo observa.
+    implementation(project(":core:datos"))
 
     // NORMA DE ERRORES (vinculante en `:core:*`): cada `catch` de este módulo
     // emite su `code`. El texto dictado NUNCA viaja — ver `SpeechTelemetria`.

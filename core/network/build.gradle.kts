@@ -21,6 +21,8 @@ android {
 // el esqueleto del módulo.
 
 dependencies {
+    // Contador de bytes por servicio (E-APP-171): un networkInterceptor que solo observa.
+    implementation(project(":core:datos"))
     // T5 solo reubica `ConnectivityMonitor` (sin cliente HTTP todavía), pero
     // el `build.gradle.kts` completo del módulo se entrega ahora para que T6
     // (Retrofit/OkHttp base + interceptores) no tenga que reabrir este

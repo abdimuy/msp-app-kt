@@ -1,5 +1,6 @@
 package com.example.msp_app.core.sync.cobranza
 
+import com.example.msp_app.core.datos.UsoDeDatos
 import com.example.msp_app.core.network.BearerAuthInterceptor
 import com.example.msp_app.data.api.FirebaseAuthTokenProvider
 import com.example.msp_app.data.api.V2ApiProvider
@@ -40,6 +41,8 @@ object CobranzaSseProvider {
     private fun build(manager: CobranzaSyncManager, scope: CoroutineScope): CobranzaSseSubscriber {
         val client = OkHttpClient.Builder()
             .addInterceptor(BearerAuthInterceptor(FirebaseAuthTokenProvider()))
+            // Cuenta lo que gotea el stream mientras corre (E-APP-171); solo observa.
+            .addNetworkInterceptor(UsoDeDatos.interceptor())
             .connectTimeout(60, TimeUnit.SECONDS)
             // readTimeout(0) es crítico: SSE necesita la conexión abierta
             // indefinidamente. Con el default de 60s el stream se cortaría
