@@ -419,21 +419,26 @@ pitest {
 // antes en el mismo proceso. Una JVM por clase de navegación le da a cada una
 // un sandbox limpio.
 val pruebasDeNavegacion = "com/example/msp_app/navigation/**"
-val pruebasDeNavegacionAisladas = tasks.register<Test>("testDevlocalDebugNavegacionUnitTest") {
-    description = "Pruebas de navigation.* de :app, una JVM por clase (E-APP-111)."
-    group = "verification"
-    val base = tasks.named<Test>("testDevlocalDebugUnitTest").get()
-    testClassesDirs = base.testClassesDirs
-    classpath = base.classpath
-    javaLauncher.set(base.javaLauncher)
-    maxHeapSize = base.maxHeapSize
-    jvmArgs(base.jvmArgs.orEmpty())
-    systemProperties(base.systemProperties)
-    workingDir = base.workingDir
-    include(pruebasDeNavegacion)
-    forkEvery = 1
-}
-tasks.withType<Test>().matching { it.name == "testDevlocalDebugUnitTest" }.configureEach {
-    exclude(pruebasDeNavegacion)
-    finalizedBy(pruebasDeNavegacionAisladas)
+// Se aplica por sabor (devlocal y devserver; E-APP-111): cada sabor tiene su
+// tarea `test<Sabor>DebugUnitTest` y su `test<Sabor>DebugNavegacionUnitTest`.
+listOf("Devlocal", "Devserver").forEach { sabor ->
+    val tareaBase = "test${sabor}DebugUnitTest"
+    val aislada = tasks.register<Test>("test${sabor}DebugNavegacionUnitTest") {
+        description = "Pruebas de navigation.* de :app ($sabor), una JVM por clase (E-APP-111)."
+        group = "verification"
+        val base = tasks.named<Test>(tareaBase).get()
+        testClassesDirs = base.testClassesDirs
+        classpath = base.classpath
+        javaLauncher.set(base.javaLauncher)
+        maxHeapSize = base.maxHeapSize
+        jvmArgs(base.jvmArgs.orEmpty())
+        systemProperties(base.systemProperties)
+        workingDir = base.workingDir
+        include(pruebasDeNavegacion)
+        forkEvery = 1
+    }
+    tasks.withType<Test>().matching { it.name == tareaBase }.configureEach {
+        exclude(pruebasDeNavegacion)
+        finalizedBy(aislada)
+    }
 }
