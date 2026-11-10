@@ -132,8 +132,20 @@ class GuardadoDeVentaLocalTest : RoomTestBase() {
         val venta = runBlocking { db.localSaleDao().getSaleById(ID) }!!
         assertTrue("la venta ya enviada sigue enviada", venta.ENVIADO)
         assertEquals(1, runBlocking { db.localSaleDao().getImagesForSale(ID).size })
-        assertEquals(1, runBlocking { db.localSaleDao().getAllSales() }.size)
+        assertEquals("sigue habiendo una sola venta", 1, ventasLocalesSinVentana())
     }
+
+    /**
+     * E-APP-094: cuenta TODAS las filas de `local_sale`, sin la ventana de 7 dias de `getAllSales()`
+     * (`FECHA_VENTA >= datetime('now', '-7 days')` contra el reloj real de SQLite): con la fecha fija
+     * del fixture (2026-10-26) esa lectura devolvia 0 desde el 2026-11-03 y la prueba fallaba por el
+     * calendario, no por la deduplicacion.
+     */
+    private fun ventasLocalesSinVentana(): Int =
+        db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM local_sale").use {
+            it.moveToFirst()
+            it.getInt(0)
+        }
 
     @Test
     fun `E-APP-094 el borrador guarda el saleId y reconoce la venta ya guardada`() {
