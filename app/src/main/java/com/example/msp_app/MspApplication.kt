@@ -20,6 +20,7 @@ import com.example.msp_app.core.ubicacion.ConfigDeUbicacion
 import com.example.msp_app.core.usodedatos.ReporteDeUsoDeDatosWorker
 import com.example.msp_app.core.visitas.agenda.KillSwitchAgenda
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
+import com.example.msp_app.feature.compartirproductos.android.LimpiezaAlArrancar
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -64,6 +65,9 @@ class MspApplication : Application(), Configuration.Provider, ImageLoaderFactory
 
     override fun onCreate() {
         super.onCreate()
+
+        // Tarjetas de «Compartir» con más de un día en cacheDir/compartir/: se borran al arrancar
+        applicationScope.launch { LimpiezaAlArrancar.ejecutar(this@MspApplication) }
 
         // Inicializar el sistema de logging remoto
         initializeRemoteLogging()

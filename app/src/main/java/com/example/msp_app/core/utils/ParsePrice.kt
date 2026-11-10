@@ -83,15 +83,36 @@ fun precioDeContadoDeTarjeta(prices: String?): Double? = ClasificadorDePrecios.p
  * Las entradas sin nombre o sin precio se descartan; el orden lo da el tipo, no
  * la posición, también aquí.
  */
-fun preciosParaMostrar(product: ProductInventory): List<Pair<String, Double>> {
+fun preciosParaMostrar(product: ProductInventory): List<Pair<String, Double>> =
+    preciosClasificadosParaMostrar(product).map { it.nombre to it.valor }
+
+/** Un precio de la lista que se pinta, con el TIPO con el que la app lo clasificó. */
+data class PrecioClasificado(val tipo: TipoDePrecio, val nombre: String, val valor: Double)
+
+/**
+ * La MISMA lista y el MISMO orden que [preciosParaMostrar] (esa función delega aquí), pero con el
+ * tipo de cada precio: el de `precios_ordenados` del servidor si viene, o el que da
+ * [ClasificadorDePrecios.tipoDe] por nombre. Lo usa «Compartir» para no reclasificar nada por su cuenta.
+ */
+fun preciosClasificadosParaMostrar(product: ProductInventory): List<PrecioClasificado> {
     val ordenados = product.preciosOrdenados.orEmpty()
         .filter { !it.nombre.isNullOrBlank() && it.precio != null }
-    if (ordenados.isEmpty()) return preciosParaMostrar(product.PRECIOS)
+    if (ordenados.isEmpty()) {
+        return preciosParaMostrar(product.PRECIOS).map { (nombre, valor) ->
+            PrecioClasificado(ClasificadorDePrecios.tipoDe(nombre), nombre, valor)
+        }
+    }
     return ordenados
         .sortedWith(
             compareBy({ ClasificadorDePrecios.tipoDeServidor(it.tipo).ordinal }, { it.nombre })
         )
-        .map { requireNotNull(it.nombre) to requireNotNull(it.precio) }
+        .map {
+            PrecioClasificado(
+                ClasificadorDePrecios.tipoDeServidor(it.tipo),
+                requireNotNull(it.nombre),
+                requireNotNull(it.precio)
+            )
+        }
 }
 
 /** E-APP-060: el contado de la tarjeta, de `precios_ordenados` si viene, si no por nombre. */

@@ -1,0 +1,8 @@
+Fuentes de la tarjeta para compartir por WhatsApp. Licencia: SIL Open Font License 1.1.
+
+- InstrumentSerif-Regular.ttf, InstrumentSerif-Italic.ttf: Instrument Serif
+  (github.com/google/fonts/tree/main/ofl/instrumentserif). Licencia: OFL-InstrumentSerif.txt.
+- Geist-Regular.ttf, Geist-Medium.ttf, Geist-SemiBold.ttf: instancias estaticas (wght 400/500/600)
+  generadas con `fonttools varLib.instancer` a partir de Geist[wght].ttf
+  (github.com/google/fonts/tree/main/ofl/geist). Licencia: OFL-Geist.txt.
+  Se instancian para no depender de variaciones de fuente, que exigen API 26 (minSdk es 24).
