@@ -15,6 +15,7 @@ object TextosDeLista {
     const val PADRON_VACIO = "La lista de clientes aún no se ha descargado"
     const val SIN_RESULTADOS = "No se encontraron clientes"
     const val PARECIDOS = "Parecidos"
+    const val PARECIDOS_AVISO = "Parecidos (revisa que sea la persona correcta)"
     const val SEGUIR_BUSCANDO = "Puedes seguir buscando en la lista guardada"
     const val ERROR_LENTA = "No se pudo actualizar: la conexión está lenta. $SEGUIR_BUSCANDO"
     const val ERROR_SIN_CONEXION = "No se pudo actualizar: sin conexión. $SEGUIR_BUSCANDO"

@@ -38,9 +38,8 @@ sealed interface ConsultaDeBusqueda {
         }
 
         private fun numero(palabras: List<String>): ConsultaDeBusqueda {
-            val juntos = palabras.joinToString("")
-            if (juntos.length < MINIMO_DE_CARACTERES) return Vacia
-            val sinCeros = juntos.trimStart('0')
+            // Solo dígitos: se acepta aunque sea uno ("7" = cliente 7).
+            val sinCeros = palabras.joinToString("").trimStart('0')
             return if (sinCeros.isEmpty()) Vacia else PorNumero(sinCeros)
         }
     }

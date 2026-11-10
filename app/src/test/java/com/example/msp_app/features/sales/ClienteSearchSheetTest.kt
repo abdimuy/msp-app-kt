@@ -12,18 +12,23 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.common.busqueda.TextosDeLista
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.ClienteEntity
-import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.data.local.datasource.ClienteDataSource
 import com.example.msp_app.data.repository.ClienteRepository
 import com.example.msp_app.data.repository.FakeClientesApi
 import com.example.msp_app.features.sales.screens.ClienteSearchBottomSheet
 import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.robolectric.Shadows.shadowOf
@@ -35,7 +40,28 @@ import org.robolectric.annotation.GraphicsMode
  */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @OptIn(ExperimentalTestApi::class)
-class ClienteSearchSheetTest : RoomTestBase() {
+class ClienteSearchSheetTest : RobolectricTestBase() {
+
+    /**
+     * Room con ejecutores DIRECTOS (corren en el hilo que llama) y la búsqueda del ViewModel en
+     * `Dispatchers.Unconfined`: nada depende de hilos reales ni de tiempo de pared, así la
+     * prueba es determinista (antes fallaba ~1 de 4 en la suite completa).
+     */
+    private lateinit var db: AppDatabase
+
+    @Before fun abrirBaseDirecta() {
+        db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .setQueryExecutor(Runnable::run)
+            .setTransactionExecutor(Runnable::run)
+            .build()
+        AppDatabase.setInstanceForTesting(db)
+    }
+
+    @After fun cerrarBase() {
+        AppDatabase.clearInstance()
+        db.close()
+    }
 
     @get:Rule
     val compose = createComposeRule()
@@ -58,7 +84,8 @@ class ClienteSearchSheetTest : RoomTestBase() {
                 guardarFechaDeSync = { fecha = it },
                 leerFechaDeSync = { fecha },
                 ahora = { 1_700_000_000_000L }
-            )
+            ),
+            dispatcherDeBusqueda = Dispatchers.Unconfined
         )
     }
 
@@ -130,8 +157,28 @@ class ClienteSearchSheetTest : RoomTestBase() {
         )
         abrir(vm())
         escribir("guadalupe hernandes")
-        esperarTexto(TextosDeLista.PARECIDOS)
+        esperarTexto(TextosDeLista.PARECIDOS_AVISO)
         compose.onNodeWithText("GUADALUPE HERNANDEZ").assertExists()
+    }
+
+    @Test fun `con parecidos tambien dice No se encontraron clientes arriba y avisa que revise`() =
+        runTest {
+            db.clienteDao().insertAll(
+                listOf(ClienteEntity(1, "GUADALUPE HERNANDEZ", "A", null, "guadalupe hernandez"))
+            )
+            abrir(vm())
+            escribir("guadalupe hernandes")
+            esperarTexto(TextosDeLista.PARECIDOS_AVISO)
+            compose.onNodeWithText(TextosDeLista.SIN_RESULTADOS).assertExists()
+            compose.onNodeWithText("Parecidos (revisa que sea la persona correcta)").assertExists()
+        }
+
+    @Test fun `con resultados exactos no dice No se encontraron clientes`() = runTest {
+        db.clienteDao().insertAll(listOf(ClienteEntity(1, "ANA RUIZ", "A", null, "ana ruiz")))
+        abrir(vm())
+        escribir("ana ruiz")
+        esperarTexto("ANA RUIZ")
+        compose.onNodeWithText(TextosDeLista.SIN_RESULTADOS).assertDoesNotExist()
     }
 
     @Test fun `mientras actualiza muestra Actualizando y el boton queda deshabilitado en el vacio`() =

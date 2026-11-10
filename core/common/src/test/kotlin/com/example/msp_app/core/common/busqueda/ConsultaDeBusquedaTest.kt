@@ -34,7 +34,16 @@ class ConsultaDeBusquedaTest {
         assertEquals("maria guadalupe", consulta.normalizado)
     }
 
-    @Test fun `un digito solo es vacia`() = assertEquals(Vacia, q("7"))
+    @Test fun `un digito solo es numero de cliente`() = assertEquals(PorNumero("7"), q("7"))
+
+    @Test fun `un cero solo es vacia`() = assertEquals(Vacia, q("0"))
+
+    @Test fun `digitos sueltos con espacios de un caracter cada uno son un numero`() = assertEquals(
+        PorNumero("12"),
+        q("1 2")
+    )
+
+    @Test fun `una letra sola sigue siendo vacia`() = assertEquals(Vacia, q("x"))
 
     @Test fun `dos digitos son numero`() = assertEquals(PorNumero("12"), q("12"))
 

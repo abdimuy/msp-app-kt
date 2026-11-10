@@ -40,10 +40,11 @@ class MotorDeBusquedaTest {
         assertEquals(ResultadoDeBusqueda.VACIO, MotorDeBusqueda(numeros).buscar("9999"))
     }
 
-    @Test fun `un digito no busca`() = runTest {
+    @Test fun `un digito busca por numero y trae los que empiezan con el`() = runTest {
         val fuente = numeros
-        assertEquals(ResultadoDeBusqueda.VACIO, MotorDeBusqueda(fuente).buscar("1"))
-        assertEquals(0, fuente.llamadasPorNumero)
+        val r = MotorDeBusqueda(fuente).buscar("1")
+        assertEquals(listOf(123, 1234, 12345, 12399, 100200), r.ids)
+        assertEquals(1, fuente.llamadasPorNumero)
     }
 
     @Test fun `numero de mas digitos que cualquier id no truena`() = runTest {

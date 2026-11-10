@@ -11,12 +11,17 @@ import com.example.msp_app.core.database.clientes.ResultadoDeClientes
 import com.example.msp_app.data.repository.ClienteRepository
 import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Estado de la hoja "Buscar cliente", compartido por ventas y garantías (E-APP-157).
@@ -27,7 +32,10 @@ import kotlinx.coroutines.launch
 @OptIn(FlowPreview::class)
 class ClienteSearchViewModel internal constructor(
     application: Application,
-    private val repository: ClienteRepository
+    private val repository: ClienteRepository,
+    private val buscar: suspend (String) -> ResultadoDeClientes = repository::buscar,
+    /** Normalizar y ordenar hasta ~22k filas (y recorrer 44k en "Parecidos") no va en el hilo principal. */
+    private val dispatcherDeBusqueda: CoroutineDispatcher = Dispatchers.Default
 ) : AndroidViewModel(application) {
 
     constructor(application: Application) : this(
@@ -69,11 +77,15 @@ class ClienteSearchViewModel internal constructor(
     init {
         viewModelScope.launch { refrescarEstadoDelPadron() }
 
+        // Un solo recolector: teclear otra consulta, o repetir la búsqueda tras actualizar la lista,
+        // CANCELA la búsqueda en vuelo (collectLatest); así una consulta vieja nunca pisa a la nueva
+        // ni apaga el indicador de la vigente.
         viewModelScope.launch {
-            _query.debounce(DEBOUNCE_MS).distinctUntilChanged().collect { buscar(it) }
-        }
-        viewModelScope.launch {
-            reintentos.collect { if (it > 0) buscar(_query.value) }
+            combine(
+                _query.debounce(DEBOUNCE_MS).distinctUntilChanged(),
+                reintentos
+            ) { texto, _ -> texto }
+                .collectLatest { ejecutarBusqueda(it) }
         }
     }
 
@@ -90,14 +102,14 @@ class ClienteSearchViewModel internal constructor(
         actualizador.limpiarError()
     }
 
-    private suspend fun buscar(texto: String) {
+    private suspend fun ejecutarBusqueda(texto: String) {
         if (ConsultaDeBusqueda.interpretar(texto) == ConsultaDeBusqueda.Vacia) {
             _resultado.value = ResultadoDeClientes.VACIO
             return
         }
         _isSearching.value = true
         try {
-            _resultado.value = repository.buscar(texto)
+            _resultado.value = withContext(dispatcherDeBusqueda) { buscar(texto) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

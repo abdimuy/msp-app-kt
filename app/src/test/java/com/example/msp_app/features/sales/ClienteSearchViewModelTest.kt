@@ -242,14 +242,22 @@ class ClienteSearchViewModelTest : RoomTestBase() {
         val vm = vm()
         vm.onQueryChange("2")
         advanceTimeBy(301)
-        runCurrent()
-        assertTrue("un digito solo no busca", vm.resultado.value.exactos.isEmpty())
+        hasta { vm.resultado.value.exactos.isNotEmpty() }
+        assertEquals(
+            "un digito busca por numero",
+            listOf(
+                "BETO SOTO"
+            ),
+            vm.resultado.value.exactos.map {
+                it.NOMBRE
+            }
+        )
         db.clienteDao().insertAll(
             listOf(ClienteEntity(2345, "CARLA DIAZ", "A", null, "carla diaz"))
         )
         vm.onQueryChange("2345")
         advanceTimeBy(301)
-        hasta { vm.resultado.value.exactos.isNotEmpty() }
+        hasta { vm.resultado.value.exactos.map { it.NOMBRE } == listOf("CARLA DIAZ") }
         assertEquals(listOf("CARLA DIAZ"), vm.resultado.value.exactos.map { it.NOMBRE })
     }
 

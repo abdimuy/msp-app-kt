@@ -212,6 +212,17 @@ fun ClienteSearchBottomSheet(
                 )
             } else {
                 LazyColumn {
+                    if (hayConsulta && resultado.exactos.isEmpty()) {
+                        // Hay "Parecidos" pero NINGÚN resultado exacto: se dice claro arriba.
+                        item(key = "sin-resultados") {
+                            Text(
+                                text = TextosDeLista.SIN_RESULTADOS,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                            )
+                        }
+                    }
                     items(resultado.exactos, key = { it.CLIENTE_ID }) { cliente ->
                         ClienteItem(
                             cliente = cliente,
@@ -234,23 +245,39 @@ fun ClienteSearchBottomSheet(
                     }
                     if (resultado.parecidos.isNotEmpty()) {
                         item(key = "parecidos") {
-                            Text(
-                                text = TextosDeLista.PARECIDOS,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(
-                                    top = 12.dp,
-                                    bottom = 4.dp,
-                                    start = 4.dp
+                            // Visualmente distinto: no son resultados, son posibles personas distintas.
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp, bottom = 4.dp)
+                            ) {
+                                Text(
+                                    text = TextosDeLista.PARECIDOS_AVISO,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.padding(12.dp)
                                 )
-                            )
-                            HorizontalDivider()
+                            }
                         }
                         items(resultado.parecidos, key = { "p${it.CLIENTE_ID}" }) { cliente ->
-                            ClienteItem(
-                                cliente = cliente,
-                                onClick = { onClienteSelected(cliente.CLIENTE_ID, cliente.NOMBRE) }
-                            )
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(
+                                    alpha = 0.25f
+                                )
+                            ) {
+                                ClienteItem(
+                                    cliente = cliente,
+                                    onClick = {
+                                        onClienteSelected(
+                                            cliente.CLIENTE_ID,
+                                            cliente.NOMBRE
+                                        )
+                                    }
+                                )
+                            }
                             HorizontalDivider()
                         }
                         if (resultado.totalParecidos > resultado.parecidos.size) {
