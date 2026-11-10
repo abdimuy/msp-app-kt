@@ -274,6 +274,9 @@ dependencies {
     // real de `UserCyclePort` (Firestore userData) en su composition root y monta
     // `CollectionReportScreen`/`...Tier2` en la ruta `daily_reports`.
     implementation(project(":feature:collectionReport"))
+    // Compartir tarjetas de producto por WhatsApp (E-APP-180..): todo el código nuevo vive en el módulo;
+    // `:app` solo cablea el catálogo y el detalle.
+    implementation(project(":feature:compartirProductos"))
     // Pantalla de Configuración (tamaño de letra, tema, privacidad, reduce-motion —
     // spec 2026-08-10-configuracion-tamano-letra-design.md). `:app` provee el adapter
     // real de `AppThemePort` (ThemeController) y monta `ConfiguracionScreen` en la

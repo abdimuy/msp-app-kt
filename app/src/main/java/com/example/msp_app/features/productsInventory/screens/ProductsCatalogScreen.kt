@@ -1,8 +1,11 @@
 package com.example.msp_app.features.productsInventory.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
@@ -49,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -70,6 +75,13 @@ import com.example.msp_app.core.utils.preciosParaMostrar
 import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
+import com.example.msp_app.feature.compartirproductos.domain.ResultadoDeSeleccion
+import com.example.msp_app.feature.compartirproductos.domain.SeleccionDeProductos
+import com.example.msp_app.feature.compartirproductos.ui.BarraDeSeleccion
+import com.example.msp_app.feature.compartirproductos.ui.CompartirViewModel
+import com.example.msp_app.feature.compartirproductos.ui.HojaDeCompartir
+import com.example.msp_app.feature.compartirproductos.ui.SeleccionDeProductosSaver
+import com.example.msp_app.features.productsInventory.compartir.paraCompartir
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.navigation.Screen
@@ -90,6 +102,22 @@ fun ProductsCatalogScreen(navController: NavController) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
+
+    // Compartir tarjetas por WhatsApp: mantener presionado un producto activa la selección (máx. 30).
+    val compartirViewModel: CompartirViewModel =
+        viewModel(factory = CompartirViewModel.factory(LocalContext.current))
+    var seleccion by rememberSaveable(stateSaver = SeleccionDeProductosSaver) {
+        mutableStateOf(SeleccionDeProductos())
+    }
+    val alternarSeleccion: (Int) -> Unit = { id ->
+        when (val r = seleccion.alternar(id)) {
+            is ResultadoDeSeleccion.Cambio -> seleccion = r.seleccion
+            ResultadoDeSeleccion.Excedido -> scope.launch {
+                snackbarHostState.showSnackbar(ResultadoDeSeleccion.Excedido.MENSAJE)
+            }
+        }
+    }
+    BackHandler(enabled = seleccion.activa) { seleccion = SeleccionDeProductos() }
 
     val products = when (productState) {
         is ResultState.Success -> (productState as ResultState.Success).data
@@ -116,6 +144,25 @@ fun ProductsCatalogScreen(navController: NavController) {
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            bottomBar = {
+                if (seleccion.activa) {
+                    BarraDeSeleccion(
+                        cantidad = seleccion.cantidad,
+                        alCompartir = {
+                            val elegidos = seleccion.ids.mapNotNull { id -> products.firstOrNull { it.ARTICULO_ID == id } }
+                            compartirViewModel.abrir(
+                                elegidos.map {
+                                    it.paraCompartir(
+                                        imagesByProduct[it.ARTICULO_ID]?.firstOrNull()
+                                    )
+                                }
+                                // El catálogo del teléfono no guarda cuándo se actualizó: sin marca no hay aviso de precios viejos.
+                            )
+                        },
+                        alCancelar = { seleccion = SeleccionDeProductos() }
+                    )
+                }
+            },
             topBar = {
                 Row(
                     modifier = Modifier
@@ -242,20 +289,30 @@ fun ProductsCatalogScreen(navController: NavController) {
                         ProductCard(
                             product = product,
                             imageUrls = imageUrls,
-                            navController = navController
+                            navController = navController,
+                            seleccionado = seleccion.contiene(product.ARTICULO_ID),
+                            enSeleccion = seleccion.activa,
+                            alMantenerPresionado = { alternarSeleccion(product.ARTICULO_ID) },
+                            alTocarEnSeleccion = { alternarSeleccion(product.ARTICULO_ID) }
                         )
                     }
                 }
             }
         }
     }
+    HojaDeCompartir(compartirViewModel)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProductCard(
     product: ProductInventory,
     imageUrls: List<String> = emptyList(),
-    navController: NavController
+    navController: NavController,
+    seleccionado: Boolean = false,
+    enSeleccion: Boolean = false,
+    alMantenerPresionado: () -> Unit = {},
+    alTocarEnSeleccion: () -> Unit = {}
 ) {
     val isDark = ThemeController.isDarkMode
 
@@ -267,50 +324,68 @@ fun ProductCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border =
-        if (!isDark) {
-            null
-        } else {
-            BorderStroke(
-                width = 1.dp,
-                color = Color.DarkGray
-            )
+        border = when {
+            seleccionado -> BorderStroke(width = 2.dp, color = MaterialTheme.colorScheme.primary)
+            !isDark -> null
+            else -> BorderStroke(width = 1.dp, color = Color.DarkGray)
         },
         modifier = Modifier
-            .fillMaxWidth(),
-        onClick = {
-            navController.navigate(
-                Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {
+                    if (enSeleccion) {
+                        alTocarEnSeleccion()
+                    } else {
+                        navController.navigate(
+                            Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())
+                        )
+                    }
+                },
+                onLongClick = alMantenerPresionado
             )
-        }
     ) {
         Column(
             modifier = Modifier
                 .padding(12.dp)
                 .fillMaxWidth()
         ) {
-            // Nombre del producto arriba
-            Text(
-                text = product.ARTICULO,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isDark) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    Color(0xFF003366)
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 20.sp,
-                modifier = Modifier
-                    .padding(bottom = 8.dp)
-                    .basicMarquee(
-                        iterations = Int.MAX_VALUE,
-                        repeatDelayMillis = 2000,
-                        initialDelayMillis = 2000,
-                        velocity = 30.dp
+            // Nombre del producto arriba (con la palomita cuando está seleccionado para compartir)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                if (seleccionado) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Seleccionado",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(20.dp)
                     )
-            )
+                }
+                Text(
+                    text = product.ARTICULO,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isDark) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        Color(0xFF003366)
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 20.sp,
+                    modifier = Modifier
+                        .weight(1f)
+                        .basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            repeatDelayMillis = 2000,
+                            initialDelayMillis = 2000,
+                            velocity = 30.dp
+                        )
+                )
+            }
 
             // Imagen e info abajo
             Row(

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -82,6 +83,9 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.preciosParaMostrar
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.feature.compartirproductos.ui.CompartirViewModel
+import com.example.msp_app.feature.compartirproductos.ui.HojaDeCompartir
+import com.example.msp_app.features.productsInventory.compartir.paraCompartir
 import com.example.msp_app.features.productsInventory.viewmodels.ProductDetailsViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
@@ -99,6 +103,9 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
     val warehouseViewModel: WarehouseViewModel = hiltViewModel()
     val authViewModel = LocalAuthViewModel.current
+    // Compartir la tarjeta del producto por WhatsApp (todo el código vive en :feature:compartirProductos).
+    val compartirViewModel: CompartirViewModel =
+        viewModel(factory = CompartirViewModel.factory(LocalContext.current))
 
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val product by detailsViewModel.product.collectAsState()
@@ -519,6 +526,28 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                         }
                     }
 
+                    OutlinedButton(
+                        onClick = {
+                            // El catálogo del teléfono no guarda cuándo se actualizó: sin marca no hay aviso de precios viejos.
+                            product?.let { actual ->
+                                compartirViewModel.abrir(
+                                    listOf(actual.paraCompartir(imagesByProduct[actual.ARTICULO_ID]?.firstOrNull()))
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Compartir")
+                    }
+
                     if (showTransferDialog) {
                         product?.let { currentProduct ->
                             Dialog(
@@ -907,6 +936,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
             }
         }
     }
+    HojaDeCompartir(compartirViewModel)
 }
 
 data class CarouselItem(
