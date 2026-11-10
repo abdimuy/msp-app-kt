@@ -207,7 +207,13 @@ class PendingVisitsWorker @JvmOverloads constructor(
             // `GUARDADO_EN_MICROSIP != 0` (la entrego otro camino mientras esperaba, o ya estaba
             // entregada al arrancar) se mandaba otra vez. Ningun encolador de estos modos toma filas
             // entregadas (solo `GUARDADO = 0`), y el relleno y el barrido de fotos son de v3.
-            if (aEnviar.GUARDADO_EN_MICROSIP != 0) {
+            // Excepcion solo de v2 actual: una foto que llega tarde (se inserta despues del `markDone`
+            // del primer envio sin foto) todavia tiene que viajar; si hay fotos pendientes NO se salta.
+            // El legado (`uploadLegacy`) manda JSON sin fotos, asi que ahi la guarda es incondicional.
+            // Si leer las fotos falla se envia (ante la duda no se salta); la cancelacion se propaga.
+            if (aEnviar.GUARDADO_EN_MICROSIP != 0 &&
+                (!useV2 || !tieneFotosPendientes(aEnviar))
+            ) {
                 anotar(aEnviar.ID, null)
                 Log.i(TAG, "Visita ${aEnviar.ID} ya entregada; no se vuelve a mandar")
                 return Result.success()
@@ -686,6 +692,17 @@ class PendingVisitsWorker @JvmOverloads constructor(
             Log.w(TAG, "REINTENTA foto_nueva: visita ${visit.ID} tiene fotos que no viajaron")
         }
         return nueva
+    }
+
+    /** `true` si la visita tiene fotos sin subir; una lectura que falla cuenta como `true` (se envia). */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun tieneFotosPendientes(visit: VisitEntity): Boolean = try {
+        imagenes.getPendientesDe(visit.ID).isNotEmpty()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Visita ${visit.ID}: lectura de fotos pendientes fallida; se envia", e)
+        true
     }
 
     private suspend fun yaConfirmada(id: String): Boolean =
