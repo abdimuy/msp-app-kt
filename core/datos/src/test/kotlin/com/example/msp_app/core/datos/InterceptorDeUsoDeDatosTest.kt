@@ -23,6 +23,7 @@ import okio.BufferedSink
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -117,22 +118,118 @@ class InterceptorDeUsoDeDatosTest {
         )
     }
 
-    @Test fun `foto multipart cuenta los bytes subidos y marca la clave`() {
+    private fun multipart(imagen: ByteArray?): MultipartBody = MultipartBody.Builder().setType(
+        MultipartBody.FORM
+    )
+        .addFormDataPart("datos", """{"monto":100}""")
+        .apply {
+            if (imagen != null) {
+                addFormDataPart(
+                    "comprobante",
+                    "a.jpg",
+                    imagen.toRequestBody("image/jpeg".toMediaType())
+                )
+            }
+        }
+        .build()
+
+    private fun enviar(ruta: String, cuerpo: RequestBody): Long {
         server.enqueue(MockResponse().setBody("ok"))
-        val foto = cuerpo(50_000)
-        val cuerpoMp = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("monto", "100")
-            .addFormDataPart("foto", "a.jpg", foto.toRequestBody("image/jpeg".toMediaType()))
-            .build()
-        cliente().newCall(Request.Builder().url(server.url("/v2/visitas")).post(cuerpoMp).build())
+        cliente().newCall(Request.Builder().url(server.url(ruta)).post(cuerpo).build())
             .execute().use { it.body!!.string() }
-        val enviado = server.takeRequest().bodySize
-        val e = clavePrimera()
-        assertEquals("POST /v2/visitas#foto", e.key)
+        return server.takeRequest().bodySize
+    }
+
+    // H4: un pago multipart SIN foto es "Pagos y ventas"; no se marca como foto.
+    @Test fun `pago multipart sin foto cuenta en su ruta y no en fotos`() {
+        val enviado = enviar("/v2/cobranza/pagos", multipart(null))
+        val dia = registro.instantanea().single().endpoints
+        assertEquals(setOf("POST /v2/cobranza/pagos"), dia.keys)
         assertEquals(
             enviado + Estimacion.cabecerasDePeticion(respuestasVistas.single().request),
-            e.value.tx
+            dia.getValue("POST /v2/cobranza/pagos").tx
         )
+    }
+
+    // H4: con foto, los bytes de la parte image/* van a fotos y el resto a su ruta; el total no cambia.
+    @Test fun `con foto los bytes de la imagen van a fotos y el resto a su ruta`() {
+        val enviado = enviar("/v2/visitas", multipart(cuerpo(50_000)))
+        val dia = registro.instantanea().single().endpoints
+        val cab = Estimacion.cabecerasDePeticion(respuestasVistas.single().request)
+        val foto = dia.getValue(ClasificadorDeServicio.CLAVE_FOTOS)
+        assertEquals(50_000L, foto.tx)
+        assertEquals(1L, foto.peticiones)
+        assertEquals(enviado - 50_000 + cab, dia.getValue("POST /v2/visitas").tx)
+        assertEquals(enviado + cab, dia.values.sumOf { it.tx })
+    }
+
+    @Test fun `dos fotos son dos y un cuerpo que no es multipart no crea fotos`() {
+        val mp = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("a", "a.jpg", cuerpo(10).toRequestBody("image/jpeg".toMediaType()))
+            .addFormDataPart("b", "b.png", cuerpo(20).toRequestBody("image/png".toMediaType()))
+            .addFormDataPart(
+                "c",
+                "c.pdf",
+                cuerpo(30).toRequestBody("application/pdf".toMediaType())
+            )
+            .build()
+        enviar("/v2/ventas", mp)
+        val foto = registro.instantanea().single().endpoints.getValue(
+            ClasificadorDeServicio.CLAVE_FOTOS
+        )
+        assertEquals(30L, foto.tx)
+        assertEquals(2L, foto.peticiones)
+    }
+
+    // H1: un cuerpo que cierra el sink debe dar la misma respuesta con y sin contador.
+    @Test fun `un cuerpo que cierra el sink se envia igual y no truena`() {
+        val datos = cuerpo(4000)
+        val cierra = object : RequestBody() {
+            override fun contentType() = "application/octet-stream".toMediaType()
+            override fun writeTo(sink: BufferedSink) {
+                sink.outputStream().use { it.write(datos) }
+            }
+        }
+        server.enqueue(MockResponse().setBody("ok"))
+        val resp = cliente().newCall(
+            Request.Builder().url(server.url("/v2/ventas")).post(cierra).build()
+        ).execute()
+        assertEquals(200, resp.use { it.code })
+        assertArrayEquals(datos, server.takeRequest().body.readByteArray())
+    }
+
+    // M2 (revisión): la excepción de la cadena se relanza TAL CUAL, no envuelta en otra.
+    @Test fun `la excepcion de la cadena sale la misma instancia`() {
+        val boom = IOException("boom propio")
+        val lanza = Interceptor { throw boom }
+        val c = OkHttpClient.Builder()
+            .addNetworkInterceptor(InterceptorDeUsoDeDatos(registro))
+            .addNetworkInterceptor(lanza)
+            .retryOnConnectionFailure(false)
+            .build()
+        server.enqueue(MockResponse().setBody("x"))
+        val salio = try {
+            c.newCall(Request.Builder().url(server.url("/ping")).build()).execute()
+            null
+        } catch (e: IOException) {
+            e
+        }
+        assertSame(boom, salio)
+    }
+
+    // M3 (revisión): `source()` devuelve SIEMPRE la misma fuente; si no, `peekBody` de otros
+    // interceptores (el de diagnóstico del POST de pagos) se come los bytes del cuerpo.
+    @Test fun `source es la misma y peekBody no consume el cuerpo`() {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("error-body-1234567890"))
+        val c = OkHttpClient.Builder().addNetworkInterceptor(
+            InterceptorDeUsoDeDatos(registro)
+        ).build()
+        c.newCall(Request.Builder().url(server.url("/ping")).build()).execute().use { r ->
+            val body = r.body!!
+            assertSame(body.source(), body.source())
+            assertEquals("error-body-1234567890", r.peekBody(8L * 1024).string())
+            assertEquals("error-body-1234567890", body.string())
+        }
     }
 
     @Test fun `respuesta cortada a la mitad cuenta lo que alcanzo a llegar`() {

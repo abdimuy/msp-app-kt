@@ -2,6 +2,7 @@ package com.example.msp_app.core.datos
 
 import okhttp3.Interceptor
 import okhttp3.MediaType
+import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
@@ -58,6 +59,11 @@ object Estimacion {
  *    excepciones de E/S de la fuente/destino original sí pasan: no son nuestras.
  * 5. Sin locks: contadores atómicos en estructuras concurrentes (ver [RegistroDeUso]).
  *
+ * ## Límites aceptados (revisión independiente 2026-11-10, H6/H7 aceptados tal cual)
+ * Las cabeceras son una ESTIMACIÓN en texto HTTP/1.1 (en HTTP/2 pesan menos); un reintento de
+ * OkHttp o el segundo intento tras un 401 cuentan otra vez (es lo que va por el cable); y las
+ * partes de imagen se cuentan por su `contentLength` (una parte de largo desconocido suma 0 bytes).
+ *
  * [claveFija] agrupa todo bajo una sola clave (imágenes de Coil, descargas): sus URLs
  * llevan nombres de archivo, no rutas de API.
  */
@@ -97,17 +103,15 @@ class InterceptorDeUsoDeDatos(
 
     private fun claveDe(request: Request): String {
         claveFija?.let { return it }
-        val tipo = request.body?.contentType()
-        val multipart = tipo != null && tipo.type.equals("multipart", ignoreCase = true)
-        return NormalizadorDeRutas.clave(request.method, request.url, multipart)
+        return NormalizadorDeRutas.clave(request.method, request.url)
     }
 
     private fun conCuerpoContado(request: Request, clave: String): Request {
         val cuerpo = request.body ?: return request
-        return request.newBuilder().method(
-            request.method,
-            CuerpoDePeticionContado(cuerpo, clave, contador)
-        ).build()
+        val fotos = if (claveFija == null) PartesDeImagen.de(cuerpo) else PartesDeImagen.NINGUNA
+        return request.newBuilder()
+            .method(request.method, CuerpoDePeticionContado(cuerpo, clave, contador, fotos))
+            .build()
     }
 
     private fun conCuerpoContado(response: Response, clave: String): Response {
@@ -144,7 +148,8 @@ private inline fun contarSinRiesgo(bloque: () -> Unit) {
 private class CuerpoDePeticionContado(
     private val delegado: RequestBody,
     private val clave: String,
-    private val contador: ContadorDeBytes
+    private val contador: ContadorDeBytes,
+    private val fotos: PartesDeImagen
 ) : RequestBody() {
     override fun contentType(): MediaType? = delegado.contentType()
     override fun contentLength(): Long = delegado.contentLength()
@@ -155,8 +160,18 @@ private class CuerpoDePeticionContado(
         val contando = SinkQueCuenta(sink, clave, contador).buffer()
         delegado.writeTo(contando)
         // `emit` y no `flush`: pasa lo escrito al sink real sin forzar el socket,
-        // igual que haría el `close` de OkHttp después.
-        contando.emit()
+        // igual que haría el `close` de OkHttp después. Un cuerpo que cierra el sink
+        // (`sink.outputStream().use {}`) deja `contando` cerrado: emitir lanzaría
+        // `IllegalStateException` (H1 de la revisión); sin el contador, ese cuerpo da 200.
+        if (contando.isOpen) contando.emit()
+        if (fotos.cantidad > 0) {
+            // Las partes de imagen pasan de la ruta a "fotos": el total de bytes no cambia.
+            contarSinRiesgo {
+                contador.bytes(clave, 0, -fotos.bytes)
+                contador.bytes(ClasificadorDeServicio.CLAVE_FOTOS, 0, fotos.bytes)
+                repeat(fotos.cantidad) { contador.peticion(ClasificadorDeServicio.CLAVE_FOTOS) }
+            }
+        }
     }
 }
 
@@ -195,5 +210,23 @@ private class FuenteQueCuenta(
         val n = super.read(sink, byteCount)
         if (n > 0) contarSinRiesgo { contador.bytes(clave, n, 0) }
         return n
+    }
+}
+
+/** Cuántas partes de imagen lleva un multipart y cuántos bytes de cuerpo suman (largo desconocido suma 0). */
+private class PartesDeImagen(val cantidad: Int, val bytes: Long) {
+    companion object {
+        val NINGUNA = PartesDeImagen(0, 0)
+
+        @Suppress("TooGenericExceptionCaught", "SwallowedException")
+        fun de(cuerpo: RequestBody): PartesDeImagen = try {
+            val imagenes = (cuerpo as? MultipartBody)?.parts
+                ?.map { it.body }
+                ?.filter { it.contentType()?.type.equals("image", ignoreCase = true) }
+                .orEmpty()
+            PartesDeImagen(imagenes.size, imagenes.sumOf { maxOf(0L, it.contentLength()) })
+        } catch (_: Throwable) {
+            NINGUNA
+        }
     }
 }

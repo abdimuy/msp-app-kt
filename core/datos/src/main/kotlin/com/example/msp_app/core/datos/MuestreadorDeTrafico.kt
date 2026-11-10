@@ -39,11 +39,23 @@ class MuestreadorDeTrafico(
     private var ultima: MuestraDeTrafico? = null
     private var red: TipoDeRed = redInicial
     private var primerPlano: Boolean = primerPlanoInicial
+    private var deltaAtribuido = false
 
     fun ultimaMuestra(): MuestraDeTrafico? = synchronized(candado) { ultima }
 
+    /**
+     * Base guardada por el proceso anterior. Si ya hubo un muestreo provisional (una actividad
+     * arrancó antes de que terminara `restaurar()`), la guardada lo sustituye mientras no se haya
+     * atribuido tráfico, y el delta hasta ahora se cuenta en seguida (H3 de la revisión).
+     */
     fun restaurarUltima(muestra: MuestraDeTrafico?) = synchronized(candado) {
-        if (ultima == null) ultima = muestra
+        if (muestra == null) return@synchronized
+        if (ultima == null) {
+            ultima = muestra
+        } else if (!deltaAtribuido) {
+            ultima = muestra
+            muestrearSinCandado()
+        }
     }
 
     fun cambiarRed(nueva: TipoDeRed) = synchronized(candado) {
@@ -58,7 +70,10 @@ class MuestreadorDeTrafico(
 
     fun muestrear() = synchronized(candado) { muestrearSinCandado() }
 
-    /** Ejecuta [bloque] con la base y el registro congelados (guardado consistente). */
+    /**
+     * Toma [bloque] con el candado puesto. Debe ser SOLO una instantánea (memoria): la escritura a
+     * disco va FUERA (H2 de la revisión: con el candado tomado, el hilo principal esperaba el disco).
+     */
     fun <T> congelado(bloque: (MuestraDeTrafico?) -> T): T =
         synchronized(candado) { bloque(ultima) }
 
@@ -74,6 +89,7 @@ class MuestreadorDeTrafico(
             if (previa == null) return
             val dRx = if (rx >= previa.rx) rx - previa.rx else rx
             val dTx = if (tx >= previa.tx) tx - previa.tx else tx
+            if (dRx + dTx > 0) deltaAtribuido = true
             registro.trafico(dRx, dTx, red, primerPlano)
         } catch (_: Throwable) {
             // Medición: nunca propaga.

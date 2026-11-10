@@ -10,6 +10,9 @@ object ClasificadorDeServicio {
     const val CLAVE_DESCARGAS = "GET [descarga]"
     const val CLAVE_OTROS = "OTROS"
 
+    /** Solo las partes de imagen (content-type image) de un multipart; el resto del envío cuenta en su propia ruta. */
+    const val CLAVE_FOTOS = "POST [foto]"
+
     const val CLIENTES = "Lista de clientes"
     const val PAGOS_Y_VENTAS = "Pagos y ventas (sincronización)"
     const val CUADRE = "Cuadre con la oficina"
@@ -31,7 +34,7 @@ object ClasificadorDeServicio {
         val ruta = clave.substringAfter(' ', clave)
         return when {
             clave == CLAVE_IMAGENES -> IMAGENES
-            clave.endsWith(NormalizadorDeRutas.SUFIJO_FOTO) -> FOTOS
+            clave == CLAVE_FOTOS -> FOTOS
             ruta.endsWith("/stream") -> AVISOS
             CUADRE_RUTAS.any { ruta.contains(it) } -> CUADRE
             ruta == "/clientes" -> CLIENTES

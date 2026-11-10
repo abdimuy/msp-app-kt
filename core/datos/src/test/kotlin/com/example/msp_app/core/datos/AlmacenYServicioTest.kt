@@ -130,4 +130,37 @@ class AlmacenYServicioTest {
         b.restaurar()
         assertTrue(b.fueReportado("2026-11-09"))
     }
+
+    // H2: guardar a disco NO se hace con el candado del muestreador tomado: cambiarPlano
+    // (hilo principal) y muestrear() no esperan la escritura.
+    @Test fun `cambiarPlano no espera una escritura lenta`() = runTest {
+        val entra = java.util.concurrent.CountDownLatch(1)
+        val suelta = java.util.concurrent.CountDownLatch(1)
+        val lento = object : AlmacenDeUsoDeDatos {
+            override fun leer(): EstadoPersistido? = null
+            override fun escribir(estado: EstadoPersistido) {
+                entra.countDown()
+                suelta.await(10, java.util.concurrent.TimeUnit.SECONDS)
+            }
+        }
+        val registro = RegistroDeUso(clock)
+        val fuente = object : FuenteDeTrafico {
+            override fun rx() = 0L
+            override fun tx() = 0L
+        }
+        val muestreador = MuestreadorDeTrafico(fuente, registro, TipoDeRed.WIFI, true)
+        val s = ServicioDeUsoDeDatos(registro, muestreador, lento)
+        s.restaurar()
+        registro.bytes("GET /ping", 1, 0)
+        val escritor = Thread { kotlinx.coroutines.runBlocking { s.guardar() } }
+        escritor.start()
+        assertTrue(entra.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        val t0 = System.nanoTime()
+        muestreador.cambiarPlano(false)
+        muestreador.muestrear()
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        suelta.countDown()
+        escritor.join(5000)
+        assertTrue("esperó $ms ms la escritura", ms < 500)
+    }
 }

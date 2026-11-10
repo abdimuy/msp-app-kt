@@ -7,8 +7,10 @@ import org.junit.Test
 /** E-APP-170: la clave de un endpoint nunca lleva datos personales ni identificadores. */
 class NormalizadorDeRutasTest {
 
-    private fun clave(metodo: String, url: String, multipart: Boolean = false) =
-        NormalizadorDeRutas.clave(metodo, url.toHttpUrl(), multipart)
+    private fun clave(metodo: String, url: String) = NormalizadorDeRutas.clave(
+        metodo,
+        url.toHttpUrl()
+    )
 
     @Test fun `numeros se reemplazan por id`() {
         assertEquals(
@@ -46,8 +48,8 @@ class NormalizadorDeRutasTest {
     }
 
     @Test fun `un correo o texto largo es id y no se filtra`() {
-        val k = clave("GET", "https://x.test/v2/usuarios/juan.perez@correo.com/x")
-        assertEquals("GET /v2/usuarios/{id}/x", k)
+        val k = clave("GET", "https://x.test/v2/usuarios/juan.perez@correo.com/ping")
+        assertEquals("GET /v2/usuarios/{id}/ping", k)
         val largo = clave("GET", "https://x.test/v2/" + "a".repeat(40))
         assertEquals("GET /v2/{id}", largo)
     }
@@ -63,19 +65,49 @@ class NormalizadorDeRutasTest {
         assertEquals("GET /", clave("GET", "https://x.test/"))
     }
 
-    @Test fun `multipart marca la clave`() {
-        assertEquals(
-            "POST /v2/visitas#foto",
-            clave("POST", "https://x.test/v2/visitas", multipart = true)
-        )
-    }
-
     @Test fun `rutas muy profundas se acotan`() {
-        val k = clave("GET", "https://x.test/a/b/c/d/e/f/g/h/i/j/k")
-        assertEquals("GET /a/b/c/d/e/f/g/h", k)
+        val k = clave("GET", "https://x.test/v2/cobranza/sync/pagos/zona/7/digest/ids/stream/ping")
+        assertEquals("GET /v2/cobranza/sync/pagos/zona/{id}/digest/ids", k)
     }
 
     @Test fun `el metodo se normaliza a mayusculas`() {
         assertEquals("POST /ping", clave("post", "https://x.test/ping"))
+    }
+
+    // H5: `pathSegments` ya viene decodificado, así que una regla sobre `%` no veía nada.
+    @Test fun `nombres con espacios o acentos nunca pasan`() {
+        assertEquals(
+            "GET /clientes/{id}",
+            clave("GET", "https://x.test/clientes/Jos%C3%A9%20P%C3%A9rez")
+        )
+        assertEquals("GET /clientes/{id}", clave("GET", "https://x.test/clientes/juan%20perez"))
+        assertEquals("GET /clientes/{id}/{id}", clave("GET", "https://x.test/clientes/Maria/Lopez"))
+        assertEquals(
+            "GET /v2/usuarios/{id}",
+            clave("GET", "https://x.test/v2/usuarios/juan@correo.com")
+        )
+    }
+
+    @Test fun `un literal que no es de las rutas de la app es id aunque sea alfabetico`() {
+        assertEquals("GET /clientes/{id}", clave("GET", "https://x.test/clientes/garcia"))
+        assertEquals("GET /{id}", clave("GET", "https://x.test/secreto"))
+    }
+
+    @Test fun `los literales conocidos de las rutas de la app se conservan`() {
+        mapOf(
+            "/v2/cobranza/sync/saldos/zona/1/ids" to "/v2/cobranza/sync/saldos/zona/{id}/ids",
+            "/v2/visitas/sync/tareas/zona/1" to "/v2/visitas/sync/tareas/zona/{id}",
+            "/v2/agenda-compromisos/conciliacion" to "/v2/agenda-compromisos/conciliacion",
+            "/ventas-locales" to "/ventas-locales",
+            "/garantias/1/eventos" to "/garantias/{id}/eventos",
+            "/zonas-cliente" to "/zonas-cliente",
+            "/almacenes/1" to "/almacenes/{id}",
+            "/traspasos/costos" to "/traspasos/costos"
+        ).forEach { (entra, sale) ->
+            assertEquals(
+                "GET $sale",
+                clave("GET", "https://x.test$entra")
+            )
+        }
     }
 }

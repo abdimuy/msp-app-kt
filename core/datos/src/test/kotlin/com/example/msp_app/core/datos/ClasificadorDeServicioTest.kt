@@ -30,8 +30,10 @@ class ClasificadorDeServicioTest {
     }
 
     @Test fun `fotos subida`() {
-        assertEquals("Fotos (subida)", s("POST /v2/visitas#foto"))
-        assertEquals("Fotos (subida)", s("POST /v2/cobranza/pagos#foto"))
+        assertEquals("Fotos (subida)", s(ClasificadorDeServicio.CLAVE_FOTOS))
+        // H4: un pago/visita/venta multipart SIN foto es de su servicio, no de fotos.
+        assertEquals("Pagos y ventas (sincronización)", s("POST /v2/cobranza/pagos"))
+        assertEquals("Visitas", s("POST /v2/visitas"))
     }
 
     @Test fun `visitas`() {

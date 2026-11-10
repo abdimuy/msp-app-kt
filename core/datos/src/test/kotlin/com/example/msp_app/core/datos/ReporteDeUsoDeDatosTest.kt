@@ -98,12 +98,11 @@ class ReporteDeUsoDeDatosTest {
         assertEquals(0L, ConstructorDeReporte.construir(d, "2.21.0")["mapaFirebaseYOtrosBytes"])
     }
 
-    @Test fun `fotos subidas son los envios multipart con sus bytes de subida`() {
+    @Test fun `fotos subidas son las partes de imagen y sus bytes`() {
         val d = UsoDelDia.vacio("2026-11-09").copy(
             endpoints = mapOf(
-                "POST /v2/visitas#foto" to UsoDeEndpoint(100, 5_000, 2),
-                "POST /v2/cobranza/pagos#foto" to UsoDeEndpoint(10, 3_000, 1),
-                "POST /v2/visitas" to UsoDeEndpoint(10, 300, 9)
+                ClasificadorDeServicio.CLAVE_FOTOS to UsoDeEndpoint(0, 8_000, 3),
+                "POST /v2/cobranza/pagos" to UsoDeEndpoint(10, 3_000, 9)
             )
         )
         val r = ConstructorDeReporte.construir(d, "2.21.0")

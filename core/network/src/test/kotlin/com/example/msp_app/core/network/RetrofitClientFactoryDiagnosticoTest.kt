@@ -78,4 +78,22 @@ class RetrofitClientFactoryDiagnosticoTest {
         postPago(factory.v2())
         assertTrue(observados.isEmpty())
     }
+
+    // E-APP-171 (M3 de la revisión): el contador de bytes envuelve el cuerpo; con el interceptor de
+    // diagnóstico REAL en la cadena (que hace `peekBody` en un no-2xx) el cuerpo de error debe
+    // llegar completo y el motivo debe verse. Si `source()` devolviera una fuente nueva en cada
+    // llamada, el `peekBody` se comería los bytes.
+    @Test
+    fun `el contador de bytes no rompe el peekBody del diagnostico ni el cuerpo de error`() {
+        val factory =
+            RetrofitClientFactory(Provider { config() }, FakeAuthTokenProvider("tok"), sink)
+        val cuerpo = """{"error":"duplicado","detalle":"abc"}"""
+        server.enqueue(MockResponse().setResponseCode(409).setBody(cuerpo))
+        val r = factory.v2().create(PagosDePruebaApi::class.java)
+            .crearPago("pago-9", "{}".toRequestBody("application/json".toMediaType()))
+            .execute()
+        assertEquals(409, r.code())
+        assertEquals(cuerpo, r.errorBody()!!.string())
+        assertEquals("http_409", observados.single().fallo!!.codigo)
+    }
 }

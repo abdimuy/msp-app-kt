@@ -135,4 +135,24 @@ class MuestreadorDeTraficoTest {
         assertEquals(1_000L, d.rxTotal)
         assertEquals(500L, d.txTotal)
     }
+
+    // H3: si el muestreo corre antes de que termine `restaurar()`, la base restaurada
+    // sustituye a la provisional y el tráfico entre el último guardado y el arranque se cuenta.
+    @Test fun `la base restaurada despues del primer muestreo sustituye a la provisional`() {
+        val m = muestreador()
+        m.muestrear() // una actividad arrancó antes de restaurar: base provisional 5000/2000
+        m.restaurarUltima(MuestraDeTrafico(4_000, 1_500))
+        val d = dia()!!
+        assertEquals(1_000L, d.rxTotal)
+        assertEquals(500L, d.txTotal)
+    }
+
+    @Test fun `la base restaurada no sustituye si ya se atribuyo trafico`() {
+        val m = muestreador()
+        m.muestrear()
+        fuente.rx += 100
+        m.muestrear() // ya se contaron 100
+        m.restaurarUltima(MuestraDeTrafico(0, 0))
+        assertEquals(100L, dia()!!.rxTotal)
+    }
 }

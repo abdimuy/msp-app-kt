@@ -39,13 +39,11 @@ class ServicioDeUsoDeDatos(
     suspend fun guardar() = mutex.withLock {
         if (!restaurado) return@withLock
         registro.podar()
-        muestreador.congelado { ultima ->
-            val dias = registro.instantanea()
-            val fechas = dias.map { it.fecha }.toSet()
-            val corte = fechas.minOrNull()
-            val recientes = reportados.filter { corte == null || it >= corte }.sorted()
-            almacen.escribir(EstadoPersistido(dias, ultima, recientes))
-        }
+        // Bajo el candado del muestreador solo la instantánea; el disco, fuera (H2).
+        val (dias, ultima) = muestreador.congelado { u -> registro.instantanea() to u }
+        val corte = dias.minOfOrNull { it.fecha }
+        val recientes = reportados.filter { corte == null || it >= corte }.sorted()
+        almacen.escribir(EstadoPersistido(dias, ultima, recientes))
     }
 
     fun fueReportado(fecha: String): Boolean = fecha in reportados
@@ -63,9 +61,8 @@ class ServicioDeUsoDeDatos(
     // El reporte marca ANTES de enviar: debe quedar en disco aunque no haya días con datos que podar.
     private suspend fun guardarForzado() = mutex.withLock {
         if (!restaurado) return@withLock
-        muestreador.congelado { ultima ->
-            almacen.escribir(EstadoPersistido(registro.instantanea(), ultima, reportados.sorted()))
-        }
+        val (dias, ultima) = muestreador.congelado { u -> registro.instantanea() to u }
+        almacen.escribir(EstadoPersistido(dias, ultima, reportados.sorted()))
     }
 
     /** Muestrea y guarda cada [intervaloMs] mientras viva el proceso. */

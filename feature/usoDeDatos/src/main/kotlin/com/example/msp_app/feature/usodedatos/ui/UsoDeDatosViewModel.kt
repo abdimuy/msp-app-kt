@@ -11,11 +11,13 @@ import com.example.msp_app.feature.usodedatos.UsoDeDatosUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 
 /** De dónde salen los días (el servicio real, o un doble en las pruebas). */
 fun interface FuenteDeUso {
@@ -24,8 +26,11 @@ fun interface FuenteDeUso {
 
 private class ServicioComoFuente(private val servicio: ServicioDeUsoDeDatos) : FuenteDeUso {
     override suspend fun dias(): List<UsoDelDia> {
-        servicio.muestreador.muestrear() // pone al día el total antes de leer
-        return servicio.registro.instantanea()
+        // Fuera del hilo principal (H2): muestrear toma el candado del muestreador.
+        return withContext(Dispatchers.IO) {
+            servicio.muestreador.muestrear() // pone al día el total antes de leer
+            servicio.registro.instantanea()
+        }
     }
 }
 

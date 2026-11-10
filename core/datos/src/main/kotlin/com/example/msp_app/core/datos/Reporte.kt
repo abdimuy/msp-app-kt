@@ -34,7 +34,7 @@ object ConstructorDeReporte {
             }
             .sortedByDescending { it.bajada + it.subida }
             .take(MAX_SERVICIOS)
-        val fotos = dia.endpoints.filterKeys { it.endsWith(NormalizadorDeRutas.SUFIJO_FOTO) }.values
+        val fotos = listOfNotNull(dia.endpoints[ClasificadorDeServicio.CLAVE_FOTOS])
         val mapa = if (dia.total > 0) maxOf(0L, dia.total - dia.desglose) else 0L
         return linkedMapOf(
             "fecha" to dia.fecha,
