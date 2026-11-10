@@ -62,6 +62,9 @@ class VisitsWorkersTelemetriaTest : RoomTestBase() {
                 appContext,
                 workerParameters,
                 modo = { modo },
+                // E-VIS-031: sin esto la prueba dependía del sabor (en devserver
+                // VISITAS_USE_V2 = false y el worker no corre). Se fija el envío v2.
+                useV2 = true,
                 conciliar = conciliar,
                 pendientes = { listOf("6f1c2a3b-0000-4000-8000-000000000001") },
                 encolar = { encoladas += it },
