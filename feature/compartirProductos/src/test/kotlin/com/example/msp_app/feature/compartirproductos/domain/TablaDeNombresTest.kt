@@ -34,7 +34,7 @@ class TablaDeNombresTest {
         Triple("TV 55\" LED SMART", "TV 55\" LED Smart", null),
         Triple("MESA DE CENTRO REDONDA", "Mesa de Centro Redonda", null),
         Triple("MESA DE NOCHE C/1 CAJON", "Mesa de Noche", "Con 1 cajón"),
-        Triple("JUEGO DE SABANAS MAT.", "Juego de Sábanas Mat.", null),
+        Triple("JUEGO DE SABANAS MAT.", "Juego de Sábanas Matrimonial", null),
         Triple("PEÑA COLONIAL SILLON ÑANDU", "Peña Colonial Sillón Ñandu", null),
         Triple("MUEBLE P/TV HASTA 65\"", "Mueble para TV Hasta 65\"", null),
         Triple("ESCRITORIO EJECUTIVO L C/LIBRERO", "Escritorio Ejecutivo L", "Con librero"),

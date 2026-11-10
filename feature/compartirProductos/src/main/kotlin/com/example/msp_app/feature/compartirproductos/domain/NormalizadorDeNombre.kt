@@ -64,6 +64,7 @@ object NormalizadorDeNombre {
         "METALICO" to "metálico",
         "ELECTRICO" to "eléctrico",
         "ORTOPEDICO" to "ortopédico",
+        "SABANA" to "sábana",
         "SABANAS" to "sábanas",
         "EDREDON" to "edredón"
     )
@@ -122,8 +123,11 @@ object NormalizadorDeNombre {
             RegexOption.IGNORE_CASE
         )
 
-    /** Palabras que vuelven inequívoco a «MAT» como «matrimonial» (en otro contexto puede ser «mate», «material»…). */
-    private val CONTEXTO_DE_CAMA = setOf("CAMA", "COLCHON", "RECAMARA", "BASE", "BOX")
+    /** Palabras que vuelven inequívoco a «MAT» como «matrimonial» (en otro contexto puede ser «mate», «material»…); la ropa de cama (sábanas, edredón…) también. */
+    private val CONTEXTO_DE_CAMA = setOf(
+        "CAMA", "COLCHON", "RECAMARA", "BASE", "BOX",
+        "SABANA", "SABANAS", "EDREDON", "COBERTOR", "COLCHA", "PROTECTOR"
+    )
 
     private fun tieneContextoDeCama(texto: String): Boolean {
         val sinTildes = Normalizer.normalize(

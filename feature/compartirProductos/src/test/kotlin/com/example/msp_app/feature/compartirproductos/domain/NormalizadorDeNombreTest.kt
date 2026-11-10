@@ -266,6 +266,17 @@ class NormalizadorDeNombreTest {
         igual("Sofá Cama Matrimonial", "SOFA CAMA MATR.") // MATR no es ambiguo
     }
 
+    @Test fun `MAT tambien es matrimonial junto a ropa de cama`() {
+        igual("Juego de Sábanas Matrimonial", "JUEGO DE SABANAS MAT.")
+        igual("Juego de Sábanas Matrimonial", "JUEGO DE SÁBANAS MAT.")
+        igual("Sábana Matrimonial", "SABANA MAT.")
+        igual("Edredón Matrimonial", "EDREDON MAT.")
+        igual("Cobertor Matrimonial", "COBERTOR MAT.")
+        igual("Colcha Matrimonial", "COLCHA MAT.")
+        igual("Protector Matrimonial", "PROTECTOR MAT.")
+        igual("Juego Mat. Gris", "JUEGO MAT. GRIS") // sin ropa de cama sigue sin adivinar
+    }
+
     @Test fun `con un uno no se pluraliza`() {
         igual("Buró 1 Cajón", "BURO 1 CAJ.")
         igual("Buró 2 Cajones", "BURO 2 CAJ.")
