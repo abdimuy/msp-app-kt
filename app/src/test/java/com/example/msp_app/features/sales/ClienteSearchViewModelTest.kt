@@ -197,6 +197,21 @@ class ClienteSearchViewModelTest : RoomTestBase() {
         assertEquals(2, db.clienteDao().getCount())
     }
 
+    @Test fun `una lista incompleta avisa que se conserva la lista guardada`() = runTest {
+        db.clienteDao().insertAll(
+            (1..2000).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
+        )
+        api.respuesta = (1..10).map { cliente(100_000 + it, "NUEVO $it") }
+        val vm = vm()
+        vm.syncFromServer()
+        hasta { vm.syncError.value != null }
+        assertEquals(
+            "La lista recibida está incompleta. Se conserva la lista guardada",
+            vm.syncError.value
+        )
+        assertEquals(2000, db.clienteDao().getCount())
+    }
+
     @Test fun `cerrar la pantalla en plena descarga cancela la peticion y no deja error`() = runTest {
         sembrar("ANA RUIZ")
         api.duracionMs = Long.MAX_VALUE / 4

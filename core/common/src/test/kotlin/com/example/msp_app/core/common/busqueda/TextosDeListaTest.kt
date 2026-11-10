@@ -11,7 +11,7 @@ class TextosDeListaTest {
     private val todos = listOf(
         TextosDeLista.ACTUALIZANDO, TextosDeLista.PADRON_VACIO, TextosDeLista.SIN_RESULTADOS,
         TextosDeLista.PARECIDOS, TextosDeLista.PARECIDOS_AVISO, TextosDeLista.SEGUIR_BUSCANDO, TextosDeLista.ERROR_LENTA,
-        TextosDeLista.ERROR_SIN_CONEXION, TextosDeLista.ERROR_GENERICO, TextosDeLista.ERROR_LISTA_VACIA,
+        TextosDeLista.ERROR_SIN_CONEXION, TextosDeLista.ERROR_GENERICO, TextosDeLista.ERROR_LISTA_VACIA, TextosDeLista.ERROR_LISTA_INCOMPLETA,
         TextosDeLista.mostrando(20, 45), TextosDeLista.ultimaActualizacion("14/11/2023 10:13")
     )
 

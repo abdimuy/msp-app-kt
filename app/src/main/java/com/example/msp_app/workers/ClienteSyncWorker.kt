@@ -10,6 +10,7 @@ import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.data.repository.ClienteRepository
+import com.example.msp_app.data.repository.ResultadoDePadron
 import java.time.LocalDateTime
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -74,6 +75,8 @@ class ClienteSyncWorker(
  *   legado mide inactividad, no duración. Si vence → `retry()` (backoff normal de WorkManager).
  * - Una lista vacía del servidor no reemplaza el padrón (el repositorio la ignora y la registra);
  *   el trabajo termina en `success`: reintentar no cambiaría lo que contesta el servidor.
+ * - Una lista INCOMPLETA (menos de la mitad de los guardados, con más de 1,000) tampoco lo
+ *   reemplaza, pero ahí sí `retry()`: una respuesta recortada puede llegar completa después.
  * - La cancelación (WorkManager detiene el trabajo) se PROPAGA: no es un error de red.
  */
 internal suspend fun ejecutarSyncDeClientes(
@@ -83,14 +86,21 @@ internal suspend fun ejecutarSyncDeClientes(
     alError: (Exception) -> Unit,
     topeMs: Long = TopeDeDescarga.SEGUNDO_PLANO_MS
 ): ListenableWorker.Result = try {
-    val reemplazado = repository.syncFromServer(topeMs)
+    val resultado = repository.sincronizar(topeMs)
     val count = repository.getCount()
     Log.d(
         "ClienteSyncWorker",
-        "Sincronización completada: $count clientes (reemplazado=$reemplazado, intento=$intento)"
+        "Sincronización completada: $count clientes (resultado=$resultado, intento=$intento)"
     )
-    if (reemplazado) alExito(count)
-    ListenableWorker.Result.success()
+    when (resultado) {
+        ResultadoDePadron.REEMPLAZADO -> {
+            alExito(count)
+            ListenableWorker.Result.success()
+        }
+        ResultadoDePadron.VACIA_IGNORADA -> ListenableWorker.Result.success()
+        // Una respuesta recortada puede arreglarse sola en el siguiente intento.
+        ResultadoDePadron.INCOMPLETA_IGNORADA -> ListenableWorker.Result.retry()
+    }
 } catch (e: CancellationException) {
     throw e
 } catch (e: Exception) {

@@ -238,6 +238,21 @@ class ActualizadorDeListaTest {
         assertEquals(listOf(9), lista.contenido)
     }
 
+    @Test fun `el motivo del rechazo lo decide quien aplica`() = runTest {
+        val a = ActualizadorDeLista<List<Int>>(
+            this,
+            descargar = { listOf(1) },
+            aplicar = { false },
+            mensajeSiNoSeAplica = { TextosDeLista.ERROR_LISTA_INCOMPLETA }
+        )
+        a.iniciar()
+        advanceUntilIdle()
+        assertEquals(
+            "La lista recibida está incompleta. Se conserva la lista guardada",
+            a.mensajeDeError.value
+        )
+    }
+
     @Test fun `limpiarError borra el mensaje`() = runTest {
         val a = ActualizadorDeLista<List<Int>>(this, descargar = { error("x") }, aplicar = { true })
         a.iniciar()

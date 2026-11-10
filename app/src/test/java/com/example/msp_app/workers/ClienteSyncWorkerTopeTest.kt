@@ -89,6 +89,17 @@ class ClienteSyncWorkerTopeTest : RoomTestBase() {
             assertEquals(1, db.clienteDao().getCount())
         }
 
+    @Test fun `una lista incompleta del servidor pide reintento y conserva el padron`() = runTest {
+        db.clienteDao().insertAll(
+            (1..2000).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
+        )
+        api.respuesta = (1..10).map { cliente(100_000 + it, "NUEVO $it") }
+        assertEquals(ListenableWorker.Result.retry(), correr())
+        assertTrue(exitos.isEmpty())
+        assertTrue("no es un error de red", errores.isEmpty())
+        assertEquals(2000, db.clienteDao().getCount())
+    }
+
     @Test fun `la cancelacion de WorkManager se propaga y no se vuelve retry`() = runTest {
         api.duracionMs = Long.MAX_VALUE / 4
         val trabajo = async { correr() }

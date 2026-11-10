@@ -5,10 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.common.busqueda.ActualizadorDeLista
 import com.example.msp_app.core.common.busqueda.ConsultaDeBusqueda
+import com.example.msp_app.core.common.busqueda.TextosDeLista
 import com.example.msp_app.core.common.busqueda.TopeDeDescarga
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.clientes.ResultadoDeClientes
 import com.example.msp_app.data.repository.ClienteRepository
+import com.example.msp_app.data.repository.ResultadoDePadron
 import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -59,11 +61,23 @@ class ClienteSearchViewModel internal constructor(
     private val _ultimaActualizacion = MutableStateFlow<String?>(null)
     val ultimaActualizacion: StateFlow<String?> = _ultimaActualizacion
 
+    private var ultimoResultado: ResultadoDePadron? = null
+
     private val actualizador = ActualizadorDeLista(
         scope = viewModelScope,
         topeMs = TopeDeDescarga.MANUAL_MS,
         descargar = { repository.descargarPadron() },
-        aplicar = { repository.aplicarPadron(it) },
+        aplicar = {
+            ultimoResultado = repository.aplicarPadronConResultado(it)
+            ultimoResultado == ResultadoDePadron.REEMPLAZADO
+        },
+        mensajeSiNoSeAplica = {
+            if (ultimoResultado == ResultadoDePadron.INCOMPLETA_IGNORADA) {
+                TextosDeLista.ERROR_LISTA_INCOMPLETA
+            } else {
+                TextosDeLista.ERROR_LISTA_VACIA
+            }
+        },
         alTerminarBien = {
             refrescarEstadoDelPadron()
             reintentos.value++

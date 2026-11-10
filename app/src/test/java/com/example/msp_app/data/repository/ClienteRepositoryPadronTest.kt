@@ -113,6 +113,84 @@ class ClienteRepositoryPadronTest : RoomTestBase() {
         assertNull(repository.ultimaActualizacionMs())
     }
 
+    // --- padrón protegido: lista incompleta (menos del 50 % con más de 1,000 guardados) ---
+
+    private suspend fun sembrar(cuantos: Int) = db.clienteDao().insertAll(
+        (1..cuantos).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
+    )
+
+    private fun nueva(cuantos: Int) =
+        (1..cuantos).map { ClienteEntity(100_000 + it, "NUEVO $it", "A", null, "nuevo $it") }
+
+    @Test fun `con 1001 guardados una lista de 500 es incompleta y se conserva el padron`() = runTest {
+        sembrar(1001)
+        assertEquals(
+            ResultadoDePadron.INCOMPLETA_IGNORADA,
+            repository.aplicarPadronConResultado(nueva(500))
+        )
+        assertEquals(1001, repository.getCount())
+        assertEquals(0L, guardado)
+    }
+
+    @Test fun `con 1001 guardados una lista de 501 ya es suficiente y reemplaza`() = runTest {
+        sembrar(1001)
+        assertEquals(
+            ResultadoDePadron.REEMPLAZADO,
+            repository.aplicarPadronConResultado(nueva(501))
+        )
+        assertEquals(501, repository.getCount())
+        assertEquals(reloj, guardado)
+    }
+
+    @Test fun `con 1000 guardados no hay proteccion por tamano aunque la lista sea de 1`() = runTest {
+        sembrar(1000)
+        assertEquals(ResultadoDePadron.REEMPLAZADO, repository.aplicarPadronConResultado(nueva(1)))
+        assertEquals(1, repository.getCount())
+    }
+
+    @Test fun `con 999 guardados no hay proteccion por tamano`() = runTest {
+        sembrar(999)
+        assertEquals(ResultadoDePadron.REEMPLAZADO, repository.aplicarPadronConResultado(nueva(10)))
+        assertEquals(10, repository.getCount())
+    }
+
+    @Test fun `con 2000 guardados el 49 por ciento se rechaza y el 50 por ciento reemplaza`() = runTest {
+        sembrar(2000)
+        assertEquals(
+            ResultadoDePadron.INCOMPLETA_IGNORADA,
+            repository.aplicarPadronConResultado(nueva(980))
+        )
+        assertEquals(2000, repository.getCount())
+        assertEquals(
+            ResultadoDePadron.REEMPLAZADO,
+            repository.aplicarPadronConResultado(nueva(1000))
+        )
+        assertEquals(1000, repository.getCount())
+    }
+
+    @Test fun `una lista incompleta se registra solo con conteos y sin datos personales`() = runTest {
+        sembrar(2000)
+        repository.aplicarPadronConResultado(nueva(10))
+        assertEquals(listOf("LISTA_INCOMPLETA_IGNORADA"), avisos.map { it.first })
+        assertEquals(
+            mapOf<String, Any?>("clientesGuardados" to 2000, "clientesRecibidos" to 10),
+            avisos.single().second
+        )
+    }
+
+    @Test fun `aplicarPadron devuelve false con una lista incompleta`() = runTest {
+        sembrar(2000)
+        assertFalse(repository.aplicarPadron(nueva(10)))
+    }
+
+    @Test fun `la lista vacia sigue protegida y se distingue de la incompleta`() = runTest {
+        sembrar(2000)
+        assertEquals(
+            ResultadoDePadron.VACIA_IGNORADA,
+            repository.aplicarPadronConResultado(emptyList())
+        )
+    }
+
     // --- normalización al guardar ---
 
     @Test fun `el padron se guarda con la normalizacion nueva`() = runTest {

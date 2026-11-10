@@ -21,6 +21,7 @@ object TextosDeLista {
     const val ERROR_SIN_CONEXION = "No se pudo actualizar: sin conexión. $SEGUIR_BUSCANDO"
     const val ERROR_GENERICO = "No se pudo actualizar la lista. $SEGUIR_BUSCANDO"
     const val ERROR_LISTA_VACIA = "No se actualizó: el servidor envió la lista vacía. $SEGUIR_BUSCANDO"
+    const val ERROR_LISTA_INCOMPLETA = "La lista recibida está incompleta. Se conserva la lista guardada"
 
     fun mostrando(mostrados: Int, total: Int): String =
         "Mostrando $mostrados de $total · escribe más para acotar"
@@ -43,14 +44,17 @@ object TextosDeLista {
  *   relanza; nunca se convierte en mensaje de error.
  *
  * [aplicar] devuelve `false` cuando decidió NO reemplazar la lista (p. ej. el servidor contestó
- * vacío): se avisa con [TextosDeLista.ERROR_LISTA_VACIA] y [alTerminarBien] no corre.
+ * vacío): se avisa con [mensajeSiNoSeAplica] (por omisión [TextosDeLista.ERROR_LISTA_VACIA]; el
+ * padrón de clientes manda [TextosDeLista.ERROR_LISTA_INCOMPLETA] cuando llegó recortada) y
+ * [alTerminarBien] no corre.
  */
 class ActualizadorDeLista<T>(
     private val scope: CoroutineScope,
     private val topeMs: Long = TopeDeDescarga.MANUAL_MS,
     private val descargar: suspend () -> T,
     private val aplicar: suspend (T) -> Boolean,
-    private val alTerminarBien: suspend () -> Unit = {}
+    private val alTerminarBien: suspend () -> Unit = {},
+    private val mensajeSiNoSeAplica: () -> String = { TextosDeLista.ERROR_LISTA_VACIA }
 ) {
     private val enCurso = AtomicBoolean(false)
     private val _actualizando = MutableStateFlow(false)
@@ -78,7 +82,7 @@ class ActualizadorDeLista<T>(
             if (aplicar(descargado)) {
                 alTerminarBien()
             } else {
-                _mensajeDeError.value = TextosDeLista.ERROR_LISTA_VACIA
+                _mensajeDeError.value = mensajeSiNoSeAplica()
             }
         } catch (e: CancellationException) {
             throw e

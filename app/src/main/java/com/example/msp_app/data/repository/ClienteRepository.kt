@@ -15,6 +15,12 @@ import com.example.msp_app.data.local.datasource.ClienteDataSource
 const val PREFS_CLIENTE_SYNC = "cliente_sync"
 const val CLAVE_ULTIMA_SYNC = "last_sync"
 
+/** Qué pasó con una lista recibida (E-APP-159). */
+enum class ResultadoDePadron { REEMPLAZADO, VACIA_IGNORADA, INCOMPLETA_IGNORADA }
+
+/** Solo se vigila el tamaño cuando hay MÁS de este número de clientes guardados. */
+internal const val PADRON_MINIMO_PARA_VIGILAR = 1_000
+
 /**
  * Padrón de clientes: descarga, reemplazo y búsqueda (E-APP-157).
  *
@@ -61,33 +67,51 @@ class ClienteRepository internal constructor(
     }
 
     /**
-     * Reemplaza el padrón de forma atómica (E-APP-159). Una lista VACÍA del servidor no reemplaza nada:
-     * `replaceAll` borra primero, así que aceptarla dejaría a todos los cobradores sin clientes
-     * hasta el próximo sync bueno.
+     * Reemplaza el padrón de forma atómica (E-APP-159). No reemplaza nada si la lista:
+     * - viene VACÍA: `replaceAll` borra primero, así que aceptarla dejaría a todos los cobradores
+     *   sin clientes hasta el próximo sync bueno;
+     * - viene INCOMPLETA: con más de [PADRON_MINIMO_PARA_VIGILAR] clientes guardados, una lista
+     *   con menos de la mitad de ellos es casi seguro una respuesta cortada, no un padrón real.
      *
-     * @return `true` si se reemplazó; `false` si se ignoró por vacía.
+     * Solo se registran conteos, nunca nombres.
      */
-    suspend fun aplicarPadron(entidades: List<ClienteEntity>): Boolean {
+    suspend fun aplicarPadronConResultado(entidades: List<ClienteEntity>): ResultadoDePadron {
+        val guardados = dataSource.getCount()
         if (entidades.isEmpty()) {
             avisar(
                 "LISTA_VACIA_IGNORADA",
                 "El servidor contestó una lista de clientes vacía; se conserva el padrón guardado",
-                mapOf("clientesGuardados" to dataSource.getCount())
+                mapOf("clientesGuardados" to guardados)
             )
-            return false
+            return ResultadoDePadron.VACIA_IGNORADA
+        }
+        if (guardados > PADRON_MINIMO_PARA_VIGILAR && entidades.size * 2 < guardados) {
+            avisar(
+                "LISTA_INCOMPLETA_IGNORADA",
+                "El servidor contestó menos de la mitad de los clientes guardados; se conserva el padrón guardado",
+                mapOf("clientesGuardados" to guardados, "clientesRecibidos" to entidades.size)
+            )
+            return ResultadoDePadron.INCOMPLETA_IGNORADA
         }
         dataSource.replaceAll(entidades)
         guardarFechaDeSync(ahora())
-        return true
+        return ResultadoDePadron.REEMPLAZADO
     }
+
+    /** @return `true` si se reemplazó; `false` si se ignoró (vacía o incompleta). */
+    suspend fun aplicarPadron(entidades: List<ClienteEntity>): Boolean =
+        aplicarPadronConResultado(entidades) == ResultadoDePadron.REEMPLAZADO
 
     /**
      * Descarga + reemplazo con tope TOTAL de duración (E-APP-158). Lo usa el worker periódico;
      * el botón manual arma lo mismo con su propio tope en `ActualizadorDeLista`.
      * El tope solo cubre la descarga: la escritura es atómica y no se corta a medias.
      */
+    suspend fun sincronizar(topeMs: Long = TopeDeDescarga.SEGUNDO_PLANO_MS): ResultadoDePadron =
+        aplicarPadronConResultado(conTopeTotal(topeMs) { descargarPadron() })
+
     suspend fun syncFromServer(topeMs: Long = TopeDeDescarga.SEGUNDO_PLANO_MS): Boolean =
-        aplicarPadron(conTopeTotal(topeMs) { descargarPadron() })
+        sincronizar(topeMs) == ResultadoDePadron.REEMPLAZADO
 
     /** Epoch ms de la última actualización exitosa, o `null` si nunca. */
     fun ultimaActualizacionMs(): Long? = leerFechaDeSync().takeIf { it > 0L }
