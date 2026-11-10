@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.msp_app.core.common.busqueda.ConsultaDeBusqueda
+import com.example.msp_app.core.common.busqueda.TextosDeLista
 import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
 
@@ -55,7 +57,8 @@ fun ClienteSearchBottomSheet(
     onNewCliente: (nombre: String) -> Unit
 ) {
     val query by viewModel.query.collectAsState()
-    val results by viewModel.results.collectAsState()
+    val resultado by viewModel.resultado.collectAsState()
+    val ultimaActualizacion by viewModel.ultimaActualizacion.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val clienteCount by viewModel.clienteCount.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
@@ -122,7 +125,7 @@ fun ClienteSearchBottomSheet(
                 value = query,
                 onValueChange = { viewModel.onQueryChange(it) },
                 label = { Text("Nombre del cliente") },
-                placeholder = { Text("Escribe al menos 2 caracteres...") },
+                placeholder = { Text("Nombre o número de cliente") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(15.dp),
@@ -140,14 +143,19 @@ fun ClienteSearchBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (clienteCount > 0) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                val total = clienteCount
+                if (total != null && total > 0) {
                     Text(
-                        text = "$clienteCount clientes disponibles",
+                        text = "$total clientes disponibles",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (isSyncing) {
+                    // Sin bloquear: la búsqueda sigue funcionando sobre la lista guardada.
+                    Text(
+                        text = TextosDeLista.ACTUALIZANDO,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -157,8 +165,7 @@ fun ClienteSearchBottomSheet(
                         text = syncError ?: "",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -185,6 +192,8 @@ fun ClienteSearchBottomSheet(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            val hayConsulta = ConsultaDeBusqueda.interpretar(query) != ConsultaDeBusqueda.Vacia
+            val sinResultados = resultado.exactos.isEmpty() && resultado.parecidos.isEmpty()
             if (isSearching) {
                 Box(
                     modifier = Modifier
@@ -194,32 +203,132 @@ fun ClienteSearchBottomSheet(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(32.dp))
                 }
-            } else if (query.length >= 2 && results.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No se encontraron clientes",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            } else if (clienteCount == 0 || (hayConsulta && sinResultados)) {
+                SinResultados(
+                    padronVacio = clienteCount == 0,
+                    ultimaActualizacion = ultimaActualizacion,
+                    actualizando = isSyncing,
+                    onActualizar = { viewModel.syncFromServer() }
+                )
             } else {
                 LazyColumn {
-                    items(results) { cliente ->
+                    if (hayConsulta && resultado.exactos.isEmpty()) {
+                        // Hay "Parecidos" pero NINGÚN resultado exacto: se dice claro arriba.
+                        item(key = "sin-resultados") {
+                            Text(
+                                text = TextosDeLista.SIN_RESULTADOS,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                            )
+                        }
+                    }
+                    items(resultado.exactos, key = { it.CLIENTE_ID }) { cliente ->
                         ClienteItem(
                             cliente = cliente,
-                            onClick = {
-                                onClienteSelected(cliente.CLIENTE_ID, cliente.NOMBRE)
-                            }
+                            onClick = { onClienteSelected(cliente.CLIENTE_ID, cliente.NOMBRE) }
                         )
                         HorizontalDivider()
                     }
+                    if (resultado.hayMasDeLosMostrados) {
+                        item(key = "mostrando") {
+                            Text(
+                                text = TextosDeLista.mostrando(
+                                    resultado.exactos.size,
+                                    resultado.totalExactos
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                            )
+                        }
+                    }
+                    if (resultado.parecidos.isNotEmpty()) {
+                        item(key = "parecidos") {
+                            // Visualmente distinto: no son resultados, son posibles personas distintas.
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp, bottom = 4.dp)
+                            ) {
+                                Text(
+                                    text = TextosDeLista.PARECIDOS_AVISO,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                        items(resultado.parecidos, key = { "p${it.CLIENTE_ID}" }) { cliente ->
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(
+                                    alpha = 0.25f
+                                )
+                            ) {
+                                ClienteItem(
+                                    cliente = cliente,
+                                    onClick = {
+                                        onClienteSelected(
+                                            cliente.CLIENTE_ID,
+                                            cliente.NOMBRE
+                                        )
+                                    }
+                                )
+                            }
+                            HorizontalDivider()
+                        }
+                        if (resultado.totalParecidos > resultado.parecidos.size) {
+                            item(key = "parecidos-mas") {
+                                Text(
+                                    text = TextosDeLista.mostrando(
+                                        resultado.parecidos.size,
+                                        resultado.totalParecidos
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+/** Sin resultados o padrón vacío: dice por qué, desde cuándo es la lista y deja actualizarla. */
+@Composable
+private fun SinResultados(
+    padronVacio: Boolean,
+    ultimaActualizacion: String?,
+    actualizando: Boolean,
+    onActualizar: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = if (padronVacio) TextosDeLista.PADRON_VACIO else TextosDeLista.SIN_RESULTADOS,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (!padronVacio && ultimaActualizacion != null) {
+            Text(
+                text = TextosDeLista.ultimaActualizacion(ultimaActualizacion),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        OutlinedButton(onClick = onActualizar, enabled = !actualizando) {
+            Text(if (actualizando) TextosDeLista.ACTUALIZANDO else "Actualizar lista")
         }
     }
 }

@@ -41,3 +41,9 @@ data class ClienteRefRow(
     val CLIENTE_ID: Int,
     val NOMBRE: String
 )
+
+/** Fila ligera del buscador (E-APP-157): solo id y nombre normalizado. No es una `@Entity`. */
+data class ClienteBusquedaRow(
+    val CLIENTE_ID: Int,
+    val NOMBRE_NORMALIZADO: String
+)

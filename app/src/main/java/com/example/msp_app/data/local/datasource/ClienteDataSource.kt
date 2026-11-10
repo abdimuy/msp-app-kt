@@ -2,6 +2,8 @@ package com.example.msp_app.data.local.datasource
 
 import android.content.Context
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.clientes.BuscadorDeClientes
+import com.example.msp_app.core.database.clientes.ResultadoDeClientes
 import com.example.msp_app.core.database.dao.ClienteDao
 import com.example.msp_app.core.database.entities.ClienteEntity
 import javax.inject.Inject
@@ -30,10 +32,9 @@ class ClienteDataSource @Inject constructor(
         return clienteDao.searchByPrefix(prefix)
     }
 
-    /** `word` debe llegar ya normalizado — ver el KDoc de [ClienteDao.searchByNormalizedWord]. */
-    suspend fun searchByNormalizedWord(word: String): List<ClienteEntity> {
-        return clienteDao.searchByNormalizedWord(word)
-    }
+    /** Buscador sobre Room (E-APP-157): todas las palabras a la vez, sin `LIMIT` previo al filtrado. */
+    suspend fun buscar(texto: String): ResultadoDeClientes =
+        BuscadorDeClientes(clienteDao).buscar(texto)
 
     suspend fun getCount(): Int {
         return clienteDao.getCount()

@@ -3,58 +3,89 @@ package com.example.msp_app.features.sales.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.msp_app.core.database.entities.ClienteEntity
+import com.example.msp_app.core.common.busqueda.ActualizadorDeLista
+import com.example.msp_app.core.common.busqueda.ConsultaDeBusqueda
+import com.example.msp_app.core.common.busqueda.TopeDeDescarga
+import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.database.clientes.ResultadoDeClientes
 import com.example.msp_app.data.repository.ClienteRepository
+import java.time.Instant
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
+/**
+ * Estado de la hoja "Buscar cliente", compartido por ventas y garantías (E-APP-157).
+ *
+ * La lógica vive fuera de aquí: la búsqueda en `MotorDeBusqueda`/`BuscadorDeClientes` y el
+ * botón de actualizar (un solo vuelo + tope total de duración) en `ActualizadorDeLista`.
+ */
 @OptIn(FlowPreview::class)
-class ClienteSearchViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = ClienteRepository(application.applicationContext)
+class ClienteSearchViewModel internal constructor(
+    application: Application,
+    private val repository: ClienteRepository,
+    private val buscar: suspend (String) -> ResultadoDeClientes = repository::buscar,
+    /** Normalizar y ordenar hasta ~22k filas (y recorrer 44k en "Parecidos") no va en el hilo principal. */
+    private val dispatcherDeBusqueda: CoroutineDispatcher = Dispatchers.Default
+) : AndroidViewModel(application) {
+
+    constructor(application: Application) : this(
+        application,
+        ClienteRepository(application.applicationContext)
+    )
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
 
-    private val _results = MutableStateFlow<List<ClienteEntity>>(emptyList())
-    val results: StateFlow<List<ClienteEntity>> = _results
+    private val _resultado = MutableStateFlow(ResultadoDeClientes.VACIO)
+    val resultado: StateFlow<ResultadoDeClientes> = _resultado
 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching
 
-    private val _clienteCount = MutableStateFlow(0)
-    val clienteCount: StateFlow<Int> = _clienteCount
+    /** `null` mientras no se ha leído; `0` = el padrón aún no se descargó. */
+    private val _clienteCount = MutableStateFlow<Int?>(null)
+    val clienteCount: StateFlow<Int?> = _clienteCount
 
-    private val _isSyncing = MutableStateFlow(false)
-    val isSyncing: StateFlow<Boolean> = _isSyncing
+    private val _ultimaActualizacion = MutableStateFlow<String?>(null)
+    val ultimaActualizacion: StateFlow<String?> = _ultimaActualizacion
 
-    private val _syncError = MutableStateFlow<String?>(null)
-    val syncError: StateFlow<String?> = _syncError
+    private val actualizador = ActualizadorDeLista(
+        scope = viewModelScope,
+        topeMs = TopeDeDescarga.MANUAL_MS,
+        descargar = { repository.descargarPadron() },
+        aplicar = { repository.aplicarPadron(it) },
+        alTerminarBien = {
+            refrescarEstadoDelPadron()
+            reintentos.value++
+        }
+    )
+    private val reintentos = MutableStateFlow(0)
+
+    val isSyncing: StateFlow<Boolean> = actualizador.actualizando
+    val syncError: StateFlow<String?> = actualizador.mensajeDeError
 
     init {
-        loadCount()
+        viewModelScope.launch { refrescarEstadoDelPadron() }
 
+        // Un solo recolector: teclear otra consulta, o repetir la búsqueda tras actualizar la lista,
+        // CANCELA la búsqueda en vuelo (collectLatest); así una consulta vieja nunca pisa a la nueva
+        // ni apaga el indicador de la vigente.
         viewModelScope.launch {
-            _query
-                .debounce(300)
-                .distinctUntilChanged()
-                .collect { query ->
-                    if (query.length >= 2) {
-                        _isSearching.value = true
-                        try {
-                            _results.value = repository.searchClientes(query)
-                        } catch (_: Exception) {
-                            _results.value = emptyList()
-                        } finally {
-                            _isSearching.value = false
-                        }
-                    } else {
-                        _results.value = emptyList()
-                    }
-                }
+            combine(
+                _query.debounce(DEBOUNCE_MS).distinctUntilChanged(),
+                reintentos
+            ) { texto, _ -> texto }
+                .collectLatest { ejecutarBusqueda(it) }
         }
     }
 
@@ -62,38 +93,48 @@ class ClienteSearchViewModel(application: Application) : AndroidViewModel(applic
         _query.value = newQuery
     }
 
+    /** Botón "Actualizar lista". Un segundo toque mientras corre no lanza otra descarga. */
     fun syncFromServer() {
-        if (_isSyncing.value) return
-        viewModelScope.launch {
-            _isSyncing.value = true
-            _syncError.value = null
-            try {
-                repository.syncFromServer()
-                loadCount()
-                // Re-run current search if active
-                val currentQuery = _query.value
-                if (currentQuery.length >= 2) {
-                    _results.value = repository.searchClientes(currentQuery)
-                }
-            } catch (e: Exception) {
-                _syncError.value = e.message ?: "Error al sincronizar"
-            } finally {
-                _isSyncing.value = false
-            }
-        }
+        actualizador.iniciar()
     }
 
     fun clearSyncError() {
-        _syncError.value = null
+        actualizador.limpiarError()
     }
 
-    private fun loadCount() {
-        viewModelScope.launch {
-            try {
-                _clienteCount.value = repository.getCount()
-            } catch (_: Exception) {
-                _clienteCount.value = 0
-            }
+    private suspend fun ejecutarBusqueda(texto: String) {
+        if (ConsultaDeBusqueda.interpretar(texto) == ConsultaDeBusqueda.Vacia) {
+            _resultado.value = ResultadoDeClientes.VACIO
+            return
         }
+        _isSearching.value = true
+        try {
+            _resultado.value = withContext(dispatcherDeBusqueda) { buscar(texto) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("ClienteSearchVM", "La búsqueda falló", e)
+            _resultado.value = ResultadoDeClientes.VACIO
+        } finally {
+            _isSearching.value = false
+        }
+    }
+
+    private suspend fun refrescarEstadoDelPadron() {
+        _clienteCount.value = try {
+            repository.getCount()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("ClienteSearchVM", "No se pudo contar el padrón", e)
+            0
+        }
+        _ultimaActualizacion.value = repository.ultimaActualizacionMs()?.let {
+            AppTime.formatForDisplay(Instant.ofEpochMilli(it))
+        }
+    }
+
+    private companion object {
+        const val DEBOUNCE_MS = 300L
     }
 }
