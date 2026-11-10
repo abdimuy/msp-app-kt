@@ -74,6 +74,10 @@ fun MenuDeLaApp(
                 pie = {
                     PieDelMenu(
                         version = "Versión ${BuildConfig.VERSION_NAME}",
+                        onUsoDeDatos = {
+                            cerrar()
+                            navegarAUsoDeDatos(navController)
+                        },
                         onConfiguracion = {
                             cerrar()
                             navegarAConfiguracion(navController)

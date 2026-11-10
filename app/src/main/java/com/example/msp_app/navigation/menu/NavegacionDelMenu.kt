@@ -1,6 +1,7 @@
 package com.example.msp_app.navigation.menu
 
 import androidx.navigation.NavController
+import com.example.msp_app.feature.usodedatos.ui.UsoDeDatosRutas
 import com.example.msp_app.navigation.Screen
 
 /**
@@ -20,6 +21,11 @@ internal fun navegarDesdeElMenu(navController: NavController, itemId: String) {
         }
         launchSingleTop = true
     }
+}
+
+internal fun navegarAUsoDeDatos(navController: NavController) {
+    if (navController.currentDestination?.route == UsoDeDatosRutas.USO_DE_DATOS) return
+    navController.navigate(UsoDeDatosRutas.USO_DE_DATOS) { launchSingleTop = true }
 }
 
 internal fun navegarAConfiguracion(navController: NavController) {

@@ -255,6 +255,7 @@ dependencies {
     implementation(project(":core:network"))
     // Uso de datos (E-APP-171..175): contador, reporte diario y pantalla.
     implementation(project(":core:datos"))
+    implementation(project(":feature:usoDeDatos"))
     // Telemetry (puerto) + DurableTelemetry/StubTelemetrySink cableados por
     // Hilt vía TelemetryModule (Task 4, Plan 4) — Task 8 (cierre) cablea
     // LocalTelemetry en la raíz Compose de :app (MainActivity) para que

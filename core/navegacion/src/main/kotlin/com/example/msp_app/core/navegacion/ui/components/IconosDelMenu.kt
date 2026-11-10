@@ -10,6 +10,7 @@ import com.composables.icons.lucide.Map
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.ShieldCheck
 import com.composables.icons.lucide.ShoppingCart
+import com.composables.icons.lucide.Signal
 import com.composables.icons.lucide.Truck
 import com.composables.icons.lucide.UserCog
 import com.composables.icons.lucide.Users
@@ -28,4 +29,5 @@ internal fun IconoDelMenu.vector(): ImageVector = when (this) {
     IconoDelMenu.ASIGNACION -> Lucide.UserCog
     IconoDelMenu.GARANTIAS -> Lucide.ShieldCheck
     IconoDelMenu.CONFIGURACION -> Lucide.Settings
+    IconoDelMenu.DATOS -> Lucide.Signal
 }
