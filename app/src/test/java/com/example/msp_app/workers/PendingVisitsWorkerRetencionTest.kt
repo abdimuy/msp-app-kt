@@ -12,13 +12,16 @@ import com.example.msp_app.core.common.location.captura.EsperaDeEnvio
 import com.example.msp_app.core.common.location.captura.RelojMonotono
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.ubicacion.PlazoDeEnvioDao
 import com.example.msp_app.core.database.entities.PlazoDeEnvioEntity
 import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.VisitaDTO
+import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
+import com.example.msp_app.data.models.visit.Visit
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -73,7 +76,12 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
         VisitaDTO(id = key)
     }
 
-    private fun TestScope.worker(id: String, modo: ModoEnvioVisitas): PendingVisitsWorker {
+    private fun TestScope.worker(
+        id: String,
+        modo: ModoEnvioVisitas,
+        useV2: Boolean = true,
+        plazos: PlazoDeEnvioDao = db.plazoDeEnvioDao()
+    ): PendingVisitsWorker {
         val pared = pared()
         val prueba = this
         return TestListenableWorkerBuilder<PendingVisitsWorker>(
@@ -89,13 +97,17 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
                 workerParams = workerParameters,
                 visitsStore = VisitsLocalDataSource(appContext),
                 v2Api = prueba.api(),
-                legacyApi = throwingLegacyApi(),
-                useV2 = true,
+                legacyApi = object : VisitsApi {
+                    override suspend fun saveVisit(visit: Visit) {
+                        envios += Envio(prueba.currentTime, visit.ID, visit.LAT, visit.LNG)
+                    }
+                },
+                useV2 = useV2,
                 imagenes = db.visitImageDao(),
                 clock = pared,
                 modo = { modo },
                 visitDao = db.visitDao(),
-                plazos = db.plazoDeEnvioDao(),
+                plazos = plazos,
                 espera = EsperaDeEnvio(pared, prueba.monotono()),
                 tomaNoVaALlegar = { tomaNoVaALlegar }
             )
@@ -123,10 +135,12 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
 
     private fun TestScope.arrancar(
         id: String,
-        modo: ModoEnvioVisitas = ModoEnvioVisitas.V3
+        modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
+        useV2: Boolean = true,
+        plazos: PlazoDeEnvioDao = db.plazoDeEnvioDao()
     ): Pair<Job, () -> ListenableWorker.Result?> {
         var resultado: ListenableWorker.Result? = null
-        val w = worker(id, modo)
+        val w = worker(id, modo, useV2, plazos)
         val job = launch { resultado = w.doWork() }
         runCurrent()
         return job to { resultado }
@@ -297,6 +311,65 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
         assertEquals(30_000L, envios.single().ms)
         job2.cancel()
     }
+
+    // ─── E-APP-155 (compuerta 2026-11-06, H-1): leer el plazo falla ───────────────────────────────────────────────
+
+    private fun plazosQueFallan(error: Throwable) = object : PlazoDeEnvioDao {
+        override suspend fun anotar(fila: PlazoDeEnvioEntity): Long = error("no se escribe aqui")
+        override suspend fun obtener(id: String): PlazoDeEnvioEntity? = throw error
+    }
+
+    @Test
+    fun `E-APP-155 si leer el plazo falla - sale exactamente un POST sin retener y la visita no se pierde`() =
+        runTest {
+            guardar("v-1", conPlazo = false)
+            val (job, resultado) = arrancar(
+                "v-1",
+                plazos = plazosQueFallan(IllegalStateException("room roto"))
+            )
+
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertEquals(1, envios.size)
+            assertEquals("sin retencion", 0L, envios.single().ms)
+            assertEquals(0L, currentTime)
+            val fila = db.visitDao().findVisitById("v-1")!!
+            assertEquals("la visita sigue en Room", "v-1", fila.ID)
+            assertEquals("quedo entregada, no perdida", 1, fila.GUARDADO_EN_MICROSIP)
+            job.cancel()
+        }
+
+    @Test
+    fun `E-APP-155 si leer el plazo falla - en v2 actual tambien sale un solo POST sin retener`() =
+        runTest {
+            guardar("v-1", conPlazo = false)
+            val (job, resultado) = arrancar(
+                "v-1",
+                ModoEnvioVisitas.V2_ACTUAL,
+                plazos = plazosQueFallan(IllegalStateException("room roto"))
+            )
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertEquals(1, envios.size)
+            assertEquals(0L, envios.single().ms)
+            job.cancel()
+        }
+
+    @Test
+    fun `E-APP-155 si leer el plazo se cancela - la cancelacion se propaga y no se manda nada`() =
+        runTest {
+            guardar("v-1", conPlazo = false)
+            val w = worker(
+                "v-1",
+                ModoEnvioVisitas.V3,
+                plazos = plazosQueFallan(kotlinx.coroutines.CancellationException("parada"))
+            )
+            var resultado: ListenableWorker.Result? = null
+            val job = launch { resultado = w.doWork() }
+            runCurrent()
+
+            assertTrue("la corrutina termino cancelada", job.isCancelled)
+            assertEquals(null, resultado)
+            assertTrue("una cancelacion al leer el plazo no manda", envios.isEmpty())
+        }
 
     private companion object {
         const val T0 = 1_793_383_200_000L
