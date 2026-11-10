@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,6 +73,23 @@ class RegistroDeVentaLocalTest : RoomTestBase() {
         assertEquals(2, db.localSaleDao().getImagesForSale(ID).size)
         assertEquals(CapturaEnCursoEntity.ESCRITA, db.capturaEnCursoDao().obtener(ID)!!.ESTADO)
     }
+
+    @Test
+    fun `yaSeGuardo es falso antes de escribir y verdadero despues, y no distingue otra venta`() =
+        runTest {
+            val registro = RegistroDeVentaLocal(db, clock)
+            registro.capturar(ID, USUARIO)
+            // El marcador solo (sin la venta) no cuenta: el ViewModel decide por la cabecera.
+            assertFalse(registro.yaSeGuardo(ID))
+
+            registro.escribir(venta(), lineas(), combos(), fotos())
+
+            assertTrue(
+                "sin esto el ViewModel vuelve a comprimir fotos de una venta ya escrita",
+                registro.yaSeGuardo(ID)
+            )
+            assertFalse(registro.yaSeGuardo("otra-venta"))
+        }
 
     @Test
     fun `E-APP-094 la misma venta escrita dos veces es una sola y no pierde fotos ni ENVIADO`() =
