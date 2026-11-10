@@ -793,6 +793,80 @@ class PendingVisitsWorkerModoV2ActualTest : RoomTestBase() {
         assertEquals(0, llamadas)
     }
 
+    @Test
+    fun `E-APP-154 legado con visita entregada y foto pendiente con archivo - cero llamadas`() =
+        runTest {
+            seed(pendingVisit(guardado = 1))
+            sembrarImagen("foto-1")
+            var legado = 0
+            var v2 = 0
+            val legacy = object : VisitsApi {
+                override suspend fun saveVisit(visit: Visit) {
+                    legado++
+                }
+            }
+            val api = fakeV2Api(multipart = { key, _, _ ->
+                v2++
+                VisitaDTO(id = key)
+            }) { key, _ ->
+                v2++
+                VisitaDTO(id = key)
+            }
+
+            val result = buildAndRunWorker(api = api, legacyApi = legacy, useV2 = false)
+
+            assertEquals(ListenableWorker.Result.success(), result)
+            assertEquals("el legado no reenvia una visita entregada", 0, legado)
+            assertEquals("v2 no se toca en legado", 0, v2)
+        }
+
+    @Test
+    fun `E-APP-154 visita entregada con foto pendiente sin archivo - cero POST`() = runTest {
+        seed(pendingVisit(guardado = 1))
+        sembrarImagenSinArchivo("foto-1", orden = 0)
+        var llamadas = 0
+        val api = fakeV2Api(multipart = { _, _, _ ->
+            llamadas++
+            VisitaDTO(id = "x")
+        }) { _, _ ->
+            llamadas++
+            VisitaDTO(id = "x")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertEquals("una foto que no puede viajar no reenvia el JSON", 0, llamadas)
+    }
+
+    @Test
+    fun `E-APP-154 foto con archivo y otra sin archivo - un multipart solo con la que existe y luego cero`() =
+        runTest {
+            seed(pendingVisit(guardado = 1).copy(LAT = 19.4, LNG = -99.1))
+            sembrarImagen("foto-1", orden = 0)
+            sembrarImagenSinArchivo("foto-2", orden = 1)
+            var json = 0
+            val partes = mutableListOf<List<String?>>()
+            val api = fakeV2Api(multipart = { key, _, fotos ->
+                partes.add(fotos.map { it.nombre() })
+                VisitaDTO(id = key)
+            }) { key, _ ->
+                json++
+                VisitaDTO(id = key)
+            }
+
+            assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+            assertEquals("un solo multipart", 1, partes.size)
+            assertEquals(
+                "solo viaja la foto con archivo (una parte imagen y un id)",
+                listOf("imagen", "id_0"),
+                partes.single()
+            )
+            assertEquals(0, json)
+
+            assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+            assertEquals("la segunda corrida no manda nada", 1, partes.size)
+            assertEquals(0, json)
+        }
+
     /**
      * DAO que revienta al LEER los pendientes y funciona para todo lo demás:
      * así el fallo que se prueba es el de lectura y no "la base entera caída".

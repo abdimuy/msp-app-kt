@@ -36,6 +36,7 @@ import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.visitas.capacidades.Capacidades
 import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
+import com.example.msp_app.core.visitas.envio.FotoQueViaja
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
@@ -694,10 +695,15 @@ class PendingVisitsWorker @JvmOverloads constructor(
         return nueva
     }
 
-    /** `true` si la visita tiene fotos sin subir; una lectura que falla cuenta como `true` (se envia). */
+    /**
+     * `true` si la visita tiene fotos sin subir QUE PUEDEN VIAJAR (misma regla que el barrido de
+     * `RoomDeliveredVisitsStore`: [FotoQueViaja.viaja]); una foto sin archivo no cuenta, o se
+     * reenviaria el JSON en cada encolado sin subir nada. Una lectura que falla cuenta como `true`.
+     */
     @Suppress("TooGenericExceptionCaught")
     private suspend fun tieneFotosPendientes(visit: VisitEntity): Boolean = try {
-        imagenes.getPendientesDe(visit.ID).isNotEmpty()
+        imagenes.getPendientesDe(visit.ID)
+            .any { FotoQueViaja.viaja(it.MIME, it.URI) { ruta -> File(ruta).exists() } }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
