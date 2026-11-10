@@ -203,6 +203,15 @@ class PendingVisitsWorker @JvmOverloads constructor(
         val aEnviar = esperarLaUbicacion(visit)
 
         if (!useV2 || modo() == ModoEnvioVisitas.V2_ACTUAL) {
+            // E-APP-154: v2 actual y legado no tienen la guarda de `enviarV3`: una visita con
+            // `GUARDADO_EN_MICROSIP != 0` (la entrego otro camino mientras esperaba, o ya estaba
+            // entregada al arrancar) se mandaba otra vez. Ningun encolador de estos modos toma filas
+            // entregadas (solo `GUARDADO = 0`), y el relleno y el barrido de fotos son de v3.
+            if (aEnviar.GUARDADO_EN_MICROSIP != 0) {
+                anotar(aEnviar.ID, null)
+                Log.i(TAG, "Visita ${aEnviar.ID} ya entregada; no se vuelve a mandar")
+                return Result.success()
+            }
             return if (useV2) uploadV2(aEnviar) else uploadLegacy(aEnviar)
         }
         return uploadV3(aEnviar)

@@ -195,13 +195,14 @@ class PendingVisitsWorkerModoV2ActualTest : RoomTestBase() {
             VisitaDTO(id = "visita-001")
         }
 
-        // Two independent worker runs (e.g. a forced retry). The server dedupes
-        // by body.id; both must succeed with no double-adverse effect.
+        // Two independent worker runs (e.g. a forced retry). E-APP-154: the second one finds the
+        // visita already delivered (`GUARDADO_EN_MICROSIP = 1`) and does not send it again; before,
+        // v2_actual resent it and relied on the server to dedupe by body.id.
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
 
         assertEquals(1, guardadoFlag("visita-001"))
-        assertEquals("worker resends on each run; server is the dedupe authority", 2, callCount)
+        assertEquals("E-APP-154: a delivered visita is not resent", 1, callCount)
     }
 
     @Test
