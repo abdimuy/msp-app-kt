@@ -12,13 +12,19 @@ import com.example.msp_app.core.common.location.captura.EsperaDeEnvio
 import com.example.msp_app.core.common.location.captura.RelojMonotono
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.ubicacion.PlazoDeEnvioDao
 import com.example.msp_app.core.database.entities.PlazoDeEnvioEntity
 import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
+import com.example.msp_app.core.diagnosticoenvio.EnvioDiagnostico
+import com.example.msp_app.core.network.diagnostico.EnvioDiagnosticoSink
+import com.example.msp_app.core.network.diagnostico.EnvioObservado
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.VisitaDTO
+import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
+import com.example.msp_app.data.models.visit.Visit
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -29,6 +35,7 @@ import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -73,7 +80,14 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
         VisitaDTO(id = key)
     }
 
-    private fun TestScope.worker(id: String, modo: ModoEnvioVisitas): PendingVisitsWorker {
+    private fun TestScope.worker(
+        id: String,
+        modo: ModoEnvioVisitas,
+        useV2: Boolean = true,
+        plazos: PlazoDeEnvioDao = db.plazoDeEnvioDao(),
+        diagnostico: EnvioDiagnosticoSink = EnvioDiagnostico.sink,
+        encolarUbicacion: ((String) -> Unit)? = null
+    ): PendingVisitsWorker {
         val pared = pared()
         val prueba = this
         return TestListenableWorkerBuilder<PendingVisitsWorker>(
@@ -89,13 +103,19 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
                 workerParams = workerParameters,
                 visitsStore = VisitsLocalDataSource(appContext),
                 v2Api = prueba.api(),
-                legacyApi = throwingLegacyApi(),
-                useV2 = true,
+                legacyApi = object : VisitsApi {
+                    override suspend fun saveVisit(visit: Visit) {
+                        envios += Envio(prueba.currentTime, visit.ID, visit.LAT, visit.LNG)
+                    }
+                },
+                useV2 = useV2,
                 imagenes = db.visitImageDao(),
                 clock = pared,
+                diagnostico = diagnostico,
                 modo = { modo },
                 visitDao = db.visitDao(),
-                plazos = db.plazoDeEnvioDao(),
+                encolarUbicacion = encolarUbicacion ?: { },
+                plazos = plazos,
                 espera = EsperaDeEnvio(pared, prueba.monotono()),
                 tomaNoVaALlegar = { tomaNoVaALlegar }
             )
@@ -123,10 +143,14 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
 
     private fun TestScope.arrancar(
         id: String,
-        modo: ModoEnvioVisitas = ModoEnvioVisitas.V3
+        modo: ModoEnvioVisitas = ModoEnvioVisitas.V3,
+        useV2: Boolean = true,
+        plazos: PlazoDeEnvioDao = db.plazoDeEnvioDao(),
+        diagnostico: EnvioDiagnosticoSink = EnvioDiagnostico.sink,
+        encolarUbicacion: ((String) -> Unit)? = null
     ): Pair<Job, () -> ListenableWorker.Result?> {
         var resultado: ListenableWorker.Result? = null
-        val w = worker(id, modo)
+        val w = worker(id, modo, useV2, plazos, diagnostico, encolarUbicacion)
         val job = launch { resultado = w.doWork() }
         runCurrent()
         return job to { resultado }
@@ -297,6 +321,361 @@ class PendingVisitsWorkerRetencionTest : RoomTestBase() {
         assertEquals(30_000L, envios.single().ms)
         job2.cancel()
     }
+
+    // ─── La visita se entrega por otro camino MIENTRAS el worker espera la ubicacion ──────────────────────────────
+
+    private enum class OtroCamino { CONFIRMADA, RESGUARDADA, SOLO_GUARDADO }
+
+    /** Lo que hace otro camino (reconciliador, otro worker del lote) con la visita. */
+    private suspend fun entregarPorOtroCamino(id: String, camino: OtroCamino) {
+        when (camino) {
+            OtroCamino.CONFIRMADA -> db.visitDao().confirmar(listOf(id), "2026-10-30T18:00:00Z")
+            OtroCamino.RESGUARDADA -> db.visitDao().resguardar(id, "2026-10-30T18:00:00Z")
+            OtroCamino.SOLO_GUARDADO -> db.visitDao().markSyncedByIds(listOf(id))
+        }
+    }
+
+    /** Arranca, retiene 5 s, entrega por otro camino (con o sin ubicacion), deja correr 40 s; devuelve los POST. */
+    private suspend fun TestScope.entregadaDurante(
+        modo: ModoEnvioVisitas,
+        useV2: Boolean,
+        camino: OtroCamino,
+        conUbicacion: Boolean
+    ): List<Envio> {
+        guardar("v-1")
+        val (job, resultado) = arrancar("v-1", modo, useV2)
+        advanceTimeBy(5_000)
+        assertTrue("retenida antes de la entrega ajena", envios.isEmpty())
+        if (conUbicacion) db.visitDao().updateLocationIfEmpty("v-1", LAT, LON)
+        entregarPorOtroCamino("v-1", camino)
+        advanceTimeBy(40_000)
+        runCurrent()
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        job.cancel()
+        return envios.toList()
+    }
+
+    // v3: la guarda de `enviarV3` (E-APP-156) ya suelta lo confirmado o resguardado; la espera relee la fila.
+
+    @Test
+    fun `E-APP-156 v3 confirmada durante la espera sin llegar la ubicacion - cero POST`() =
+        runTest {
+            assertEquals(
+                0,
+                entregadaDurante(ModoEnvioVisitas.V3, true, OtroCamino.CONFIRMADA, false).size
+            )
+        }
+
+    @Test
+    fun `E-APP-156 v3 confirmada durante la espera con ubicacion - cero POST`() = runTest {
+        assertEquals(
+            0,
+            entregadaDurante(ModoEnvioVisitas.V3, true, OtroCamino.CONFIRMADA, true).size
+        )
+    }
+
+    @Test
+    fun `E-APP-156 v3 resguardada durante la espera sin llegar la ubicacion - cero POST`() =
+        runTest {
+            assertEquals(
+                0,
+                entregadaDurante(ModoEnvioVisitas.V3, true, OtroCamino.RESGUARDADA, false).size
+            )
+        }
+
+    @Test
+    fun `E-APP-156 v3 resguardada durante la espera con ubicacion - cero POST`() = runTest {
+        assertEquals(
+            0,
+            entregadaDurante(ModoEnvioVisitas.V3, true, OtroCamino.RESGUARDADA, true).size
+        )
+    }
+
+    @Test
+    fun `E-APP-156 lote de dos cuentas v3 - la entregada por otro camino no sale y la otra si`() =
+        runTest {
+            guardar("v-1")
+            guardar("v-2")
+            val (job1, r1) = arrancar("v-1")
+            val (job2, r2) = arrancar("v-2")
+            advanceTimeBy(5_000)
+            db.visitDao().confirmar(listOf("v-1"), "2026-10-30T18:00:00Z")
+            db.visitDao().updateLocationIfEmpty("v-2", LAT, LON)
+            advanceTimeBy(40_000)
+            runCurrent()
+
+            assertEquals(ListenableWorker.Result.success(), r1())
+            assertEquals(ListenableWorker.Result.success(), r2())
+            assertEquals(listOf("v-2"), envios.map { it.id })
+            job1.cancel()
+            job2.cancel()
+        }
+
+    /**
+     * El matiz de E-APP-156: en v3 `GUARDADO = 1` SIN `CONFIRMADA_EN` ni `RESGUARDADA_EN` no es prueba
+     * del servidor (la prueba es la marca), asi que v3 manda UNA vez y estampa `CONFIRMADA_EN`. Es la
+     * conducta de la base y el envio blindado la exige: no se suelta una visita sin la prueba.
+     */
+    @Test
+    fun `E-APP-156 v3 marcada solo como guardada durante la espera - un POST y se estampa CONFIRMADA_EN`() =
+        runTest {
+            val posts = entregadaDurante(ModoEnvioVisitas.V3, true, OtroCamino.SOLO_GUARDADO, false)
+
+            assertEquals(1, posts.size)
+            val fila = db.visitDao().findVisitById("v-1")!!
+            assertEquals(1, fila.GUARDADO_EN_MICROSIP)
+            assertNotNull("la prueba del servidor quedo estampada", fila.CONFIRMADA_EN)
+        }
+
+    // ─── E-APP-154: v2 actual y legado no reenvian una visita con GUARDADO_EN_MICROSIP != 0 ───────────────────────
+
+    @Test
+    fun `E-APP-154 v2 actual confirmada durante la espera sin llegar la ubicacion - cero POST`() =
+        runTest {
+            assertEquals(
+                0,
+                entregadaDurante(
+                    ModoEnvioVisitas.V2_ACTUAL,
+                    true,
+                    OtroCamino.CONFIRMADA,
+                    false
+                ).size
+            )
+        }
+
+    @Test
+    fun `E-APP-154 v2 actual confirmada durante la espera con ubicacion - cero POST`() = runTest {
+        assertEquals(
+            0,
+            entregadaDurante(ModoEnvioVisitas.V2_ACTUAL, true, OtroCamino.CONFIRMADA, true).size
+        )
+    }
+
+    @Test
+    fun `E-APP-154 v2 actual resguardada durante la espera - cero POST`() = runTest {
+        assertEquals(
+            0,
+            entregadaDurante(ModoEnvioVisitas.V2_ACTUAL, true, OtroCamino.RESGUARDADA, false).size
+        )
+    }
+
+    @Test
+    fun `E-APP-154 v2 actual marcada solo como guardada durante la espera - cero POST`() = runTest {
+        assertEquals(
+            0,
+            entregadaDurante(ModoEnvioVisitas.V2_ACTUAL, true, OtroCamino.SOLO_GUARDADO, false).size
+        )
+    }
+
+    @Test
+    fun `E-APP-154 legado marcada solo como guardada durante la espera - cero POST`() = runTest {
+        assertEquals(
+            0,
+            entregadaDurante(ModoEnvioVisitas.V3, false, OtroCamino.SOLO_GUARDADO, false).size
+        )
+    }
+
+    @Test
+    fun `E-APP-154 legado confirmada durante la espera - cero POST`() = runTest {
+        assertEquals(
+            0,
+            entregadaDurante(ModoEnvioVisitas.V3, false, OtroCamino.CONFIRMADA, false).size
+        )
+    }
+
+    @Test
+    fun `E-APP-154 lote de dos cuentas v2 actual - la entregada por otro camino no sale y la otra si`() =
+        runTest {
+            guardar("v-1")
+            guardar("v-2")
+            val (job1, r1) = arrancar("v-1", ModoEnvioVisitas.V2_ACTUAL)
+            val (job2, r2) = arrancar("v-2", ModoEnvioVisitas.V2_ACTUAL)
+            advanceTimeBy(5_000)
+            db.visitDao().markSyncedByIds(listOf("v-1"))
+            db.visitDao().updateLocationIfEmpty("v-2", LAT, LON)
+            advanceTimeBy(40_000)
+            runCurrent()
+
+            assertEquals(ListenableWorker.Result.success(), r1())
+            assertEquals(ListenableWorker.Result.success(), r2())
+            assertEquals(listOf("v-2"), envios.map { it.id })
+            job1.cancel()
+            job2.cancel()
+        }
+
+    /** Casos G y H de la compuerta: la visita YA estaba entregada antes de que el worker arrancara. */
+    @Test
+    fun `E-APP-154 v2 actual ya guardada antes de arrancar con ubicacion - cero POST`() = runTest {
+        guardar("v-1", lat = LAT, lng = LON)
+        db.visitDao().markSyncedByIds(listOf("v-1"))
+        val (job, resultado) = arrancar("v-1", ModoEnvioVisitas.V2_ACTUAL)
+        advanceTimeBy(40_000)
+        runCurrent()
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertTrue("ya estaba entregada: no se manda otra vez", envios.isEmpty())
+        job.cancel()
+    }
+
+    @Test
+    fun `E-APP-154 v2 actual ya guardada antes de arrancar en 0,0 - cero POST`() = runTest {
+        guardar("v-1")
+        db.visitDao().markSyncedByIds(listOf("v-1"))
+        val (job, resultado) = arrancar("v-1", ModoEnvioVisitas.V2_ACTUAL)
+        advanceTimeBy(40_000)
+        runCurrent()
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertTrue("ya estaba entregada: no se manda otra vez", envios.isEmpty())
+        job.cancel()
+    }
+
+    @Test
+    fun `E-APP-154 legado ya guardada antes de arrancar - cero POST`() = runTest {
+        guardar("v-1", lat = LAT, lng = LON)
+        db.visitDao().markSyncedByIds(listOf("v-1"))
+        val (job, resultado) = arrancar("v-1", ModoEnvioVisitas.V3, useV2 = false)
+        advanceTimeBy(40_000)
+        runCurrent()
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertTrue(envios.isEmpty())
+        job.cancel()
+    }
+
+    /** Mismo caso, y la salida anota su motivo como la guarda de `enviarV3` (E-APP-065): una vez, sin fallo. */
+    @Test
+    fun `E-APP-154 v2 actual ya guardada - la salida anota una vez sin fallo`() = runTest {
+        guardar("v-1", lat = LAT, lng = LON)
+        db.visitDao().markSyncedByIds(listOf("v-1"))
+        val anotadas = mutableListOf<EnvioObservado>()
+        val sink = EnvioDiagnosticoSink { anotadas += it }
+        val (job, resultado) = arrancar("v-1", ModoEnvioVisitas.V2_ACTUAL, diagnostico = sink)
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertTrue("no manda", envios.isEmpty())
+        assertEquals(1, anotadas.size)
+        assertEquals("v-1", anotadas.single().filaId)
+        assertEquals(null, anotadas.single().fallo)
+        job.cancel()
+    }
+
+    // Controles: lo que SI debe salir sigue saliendo, exactamente una vez.
+
+    @Test
+    fun `E-APP-154 control v2 actual pendiente normal sale una vez y queda guardada`() = runTest {
+        guardar("v-1", lat = LAT, lng = LON)
+        val (job, resultado) = arrancar("v-1", ModoEnvioVisitas.V2_ACTUAL)
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertEquals(1, envios.size)
+        assertEquals(1, db.visitDao().findVisitById("v-1")!!.GUARDADO_EN_MICROSIP)
+        job.cancel()
+    }
+
+    @Test
+    fun `E-APP-154 control legado pendiente normal sale una vez y queda guardada`() = runTest {
+        guardar("v-1", lat = LAT, lng = LON)
+        val (job, resultado) = arrancar("v-1", ModoEnvioVisitas.V3, useV2 = false)
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertEquals(1, envios.size)
+        assertEquals(1, db.visitDao().findVisitById("v-1")!!.GUARDADO_EN_MICROSIP)
+        job.cancel()
+    }
+
+    /**
+     * El reconciliador inverso devuelve una visita que el servidor no tiene (`devolverAPendiente`:
+     * `GUARDADO = 0`, marcas en nulo): el worker la reenvia. Es el unico camino que reabre una entregada.
+     */
+    @Test
+    fun `E-APP-154 control v2 actual devuelta a pendiente por el reconciliador sale una vez`() =
+        runTest {
+            guardar("v-1", lat = LAT, lng = LON)
+            db.visitDao().confirmar(listOf("v-1"), "2026-10-30T18:00:00Z")
+            db.visitDao().devolverAPendiente(listOf("v-1"))
+            val (job, resultado) = arrancar("v-1", ModoEnvioVisitas.V2_ACTUAL)
+
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertEquals(1, envios.size)
+            job.cancel()
+        }
+
+    /** La ubicacion tardia de una visita ya enviada no es del worker de envio: la lleva su PATCH propio. */
+    @Test
+    fun `E-APP-154 control v2 actual sale en 0,0 y encola la ubicacion tardia una vez`() = runTest {
+        guardar("v-1", conPlazo = false)
+        val encoladas = mutableListOf<String>()
+        val (job, resultado) = arrancar(
+            "v-1",
+            ModoEnvioVisitas.V2_ACTUAL,
+            encolarUbicacion = { encoladas += it }
+        )
+
+        assertEquals(ListenableWorker.Result.success(), resultado())
+        assertEquals(1, envios.size)
+        assertEquals(listOf("v-1"), encoladas)
+        job.cancel()
+    }
+
+    // ─── E-APP-155 (compuerta 2026-11-06, H-1): leer el plazo falla ───────────────────────────────────────────────
+
+    private fun plazosQueFallan(error: Throwable) = object : PlazoDeEnvioDao {
+        override suspend fun anotar(fila: PlazoDeEnvioEntity): Long = error("no se escribe aqui")
+        override suspend fun obtener(id: String): PlazoDeEnvioEntity? = throw error
+    }
+
+    @Test
+    fun `E-APP-155 si leer el plazo falla - sale exactamente un POST sin retener y la visita no se pierde`() =
+        runTest {
+            guardar("v-1", conPlazo = false)
+            val (job, resultado) = arrancar(
+                "v-1",
+                plazos = plazosQueFallan(IllegalStateException("room roto"))
+            )
+
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertEquals(1, envios.size)
+            assertEquals("sin retencion", 0L, envios.single().ms)
+            assertEquals(0L, currentTime)
+            val fila = db.visitDao().findVisitById("v-1")!!
+            assertEquals("la visita sigue en Room", "v-1", fila.ID)
+            assertEquals("quedo entregada, no perdida", 1, fila.GUARDADO_EN_MICROSIP)
+            job.cancel()
+        }
+
+    @Test
+    fun `E-APP-155 si leer el plazo falla - en v2 actual tambien sale un solo POST sin retener`() =
+        runTest {
+            guardar("v-1", conPlazo = false)
+            val (job, resultado) = arrancar(
+                "v-1",
+                ModoEnvioVisitas.V2_ACTUAL,
+                plazos = plazosQueFallan(IllegalStateException("room roto"))
+            )
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertEquals(1, envios.size)
+            assertEquals(0L, envios.single().ms)
+            job.cancel()
+        }
+
+    @Test
+    fun `E-APP-155 si leer el plazo se cancela - la cancelacion se propaga y no se manda nada`() =
+        runTest {
+            guardar("v-1", conPlazo = false)
+            val w = worker(
+                "v-1",
+                ModoEnvioVisitas.V3,
+                plazos = plazosQueFallan(kotlinx.coroutines.CancellationException("parada"))
+            )
+            var resultado: ListenableWorker.Result? = null
+            val job = launch { resultado = w.doWork() }
+            runCurrent()
+
+            assertTrue("la corrutina termino cancelada", job.isCancelled)
+            assertEquals(null, resultado)
+            assertTrue("una cancelacion al leer el plazo no manda", envios.isEmpty())
+        }
 
     private companion object {
         const val T0 = 1_793_383_200_000L

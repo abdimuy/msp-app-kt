@@ -253,12 +253,10 @@ class PendingVisitsWorkerE2ETest {
         assertEquals(1, visitsStore.getVisitById(visitId).GUARDADO_EN_MICROSIP)
 
         // Re-run the exact same visita (e.g. a stray re-enqueue, or a device
-        // that lost the ack of its own successful upload). The server would
-        // return 200 again (idempotent by body.id); the client must not
-        // crash or corrupt state — the visita ends marked done exactly once.
-        mockWebServer.enqueue(
-            MockResponse().setResponseCode(200).setBody("""{"id":"$visitId"}""")
-        )
+        // that lost the ack of its own successful upload). E-APP-154: the visita is
+        // already delivered after the 200, so the second run succeeds WITHOUT sending
+        // it again (v3 and v2_actual both skip a delivered visita; no queued response
+        // is consumed). The visita ends marked done exactly once.
         enqueuePendingVisitsWorker(context, visitId)
         testDriver.setAllConstraintsMet(currentWorkId(visitId))
         val secondInfo = awaitWorkInfo(visitId) {
@@ -266,11 +264,9 @@ class PendingVisitsWorkerE2ETest {
         }
         assertEquals(WorkInfo.State.SUCCEEDED, secondInfo.state)
 
-        assertEquals(2, mockWebServer.requestCount)
+        assertEquals("a resend after a 200 must not be sent", 1, mockWebServer.requestCount)
         val firstRequest = mockWebServer.takeRequest()
-        val secondRequest = mockWebServer.takeRequest()
         assertEquals(visitId, firstRequest.getHeader("Idempotency-Key"))
-        assertEquals(visitId, secondRequest.getHeader("Idempotency-Key"))
 
         assertEquals(1, visitsStore.getVisitById(visitId).GUARDADO_EN_MICROSIP)
     }

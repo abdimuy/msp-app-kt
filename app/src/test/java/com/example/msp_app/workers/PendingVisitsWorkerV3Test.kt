@@ -1074,19 +1074,22 @@ class PendingVisitsWorkerV3Test : RoomTestBase() {
 
     @Test
     fun `sin useV2 sigue el camino legacy en cualquier modo`() = runTest {
-        seed(pendingVisit())
         var legacy = 0
         val legacyApi = object : VisitsApi {
             override suspend fun saveVisit(visit: Visit) {
                 legacy++
             }
         }
-        ModoEnvioVisitas.entries.forEach { modo ->
+        ModoEnvioVisitas.entries.forEachIndexed { i, modo ->
+            // Una visita por modo: el legado ya no reenvia una entregada (E-APP-154).
+            val id = "visita-00$i"
+            seed(pendingVisit(id))
             runPendingVisitsWorker(
                 context = context,
                 imagenes = db.visitImageDao(),
                 clock = FakeClock(ahora),
                 modo = modo,
+                visitId = id,
                 api = fakeV2Api { _, _ -> throw AssertionError("v2 no") },
                 legacyApi = legacyApi,
                 useV2 = false

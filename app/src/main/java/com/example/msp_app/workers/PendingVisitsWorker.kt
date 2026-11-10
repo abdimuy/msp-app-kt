@@ -36,6 +36,7 @@ import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
 import com.example.msp_app.core.visitas.capacidades.Capacidades
 import com.example.msp_app.core.visitas.capacidades.CapacidadesDeVisitas
 import com.example.msp_app.core.visitas.envio.FirestoreModoEnvioVisitas
+import com.example.msp_app.core.visitas.envio.FotoQueViaja
 import com.example.msp_app.core.visitas.envio.ModoEnvioVisitas
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
@@ -203,6 +204,21 @@ class PendingVisitsWorker @JvmOverloads constructor(
         val aEnviar = esperarLaUbicacion(visit)
 
         if (!useV2 || modo() == ModoEnvioVisitas.V2_ACTUAL) {
+            // E-APP-154: v2 actual y legado no tienen la guarda de `enviarV3`: una visita con
+            // `GUARDADO_EN_MICROSIP != 0` (la entrego otro camino mientras esperaba, o ya estaba
+            // entregada al arrancar) se mandaba otra vez. Ningun encolador de estos modos toma filas
+            // entregadas (solo `GUARDADO = 0`), y el relleno y el barrido de fotos son de v3.
+            // Excepcion solo de v2 actual: una foto que llega tarde (se inserta despues del `markDone`
+            // del primer envio sin foto) todavia tiene que viajar; si hay fotos pendientes NO se salta.
+            // El legado (`uploadLegacy`) manda JSON sin fotos, asi que ahi la guarda es incondicional.
+            // Si leer las fotos falla se envia (ante la duda no se salta); la cancelacion se propaga.
+            if (aEnviar.GUARDADO_EN_MICROSIP != 0 &&
+                (!useV2 || !tieneFotosPendientes(aEnviar))
+            ) {
+                anotar(aEnviar.ID, null)
+                Log.i(TAG, "Visita ${aEnviar.ID} ya entregada; no se vuelve a mandar")
+                return Result.success()
+            }
             return if (useV2) uploadV2(aEnviar) else uploadLegacy(aEnviar)
         }
         return uploadV3(aEnviar)
@@ -677,6 +693,22 @@ class PendingVisitsWorker @JvmOverloads constructor(
             Log.w(TAG, "REINTENTA foto_nueva: visita ${visit.ID} tiene fotos que no viajaron")
         }
         return nueva
+    }
+
+    /**
+     * `true` si la visita tiene fotos sin subir QUE PUEDEN VIAJAR (misma regla que el barrido de
+     * `RoomDeliveredVisitsStore`: [FotoQueViaja.viaja]); una foto sin archivo no cuenta, o se
+     * reenviaria el JSON en cada encolado sin subir nada. Una lectura que falla cuenta como `true`.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun tieneFotosPendientes(visit: VisitEntity): Boolean = try {
+        imagenes.getPendientesDe(visit.ID)
+            .any { FotoQueViaja.viaja(it.MIME, it.URI) { ruta -> File(ruta).exists() } }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Visita ${visit.ID}: lectura de fotos pendientes fallida; se envia", e)
+        true
     }
 
     private suspend fun yaConfirmada(id: String): Boolean =

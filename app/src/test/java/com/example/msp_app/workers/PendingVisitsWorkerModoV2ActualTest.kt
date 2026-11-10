@@ -195,13 +195,14 @@ class PendingVisitsWorkerModoV2ActualTest : RoomTestBase() {
             VisitaDTO(id = "visita-001")
         }
 
-        // Two independent worker runs (e.g. a forced retry). The server dedupes
-        // by body.id; both must succeed with no double-adverse effect.
+        // Two independent worker runs (e.g. a forced retry). E-APP-154: the second one finds the
+        // visita already delivered (`GUARDADO_EN_MICROSIP = 1`) and does not send it again; before,
+        // v2_actual resent it and relied on the server to dedupe by body.id.
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
 
         assertEquals(1, guardadoFlag("visita-001"))
-        assertEquals("worker resends on each run; server is the dedupe authority", 2, callCount)
+        assertEquals("E-APP-154: a delivered visita is not resent", 1, callCount)
     }
 
     @Test
@@ -691,6 +692,180 @@ class PendingVisitsWorkerModoV2ActualTest : RoomTestBase() {
         assertEquals(ListenableWorker.Result.success(), result)
         assertEquals(1, llamadas)
     }
+
+    // ─── E-APP-154: la guarda no salta una visita entregada con fotos pendientes ────────────────
+
+    /** Visita ya entregada (`GUARDADO = 1`) y una foto que llega tarde: va como multipart, una vez. */
+    @Test
+    fun `E-APP-154 foto tardia en visita ya entregada - un POST multipart y la foto se estampa`() =
+        runTest {
+            seed(pendingVisit(guardado = 1).copy(LAT = 19.4, LNG = -99.1))
+            val archivo = sembrarImagen("foto-1")
+            var json = 0
+            var multipart = 0
+            val api = fakeV2Api(multipart = { key, _, _ ->
+                multipart++
+                VisitaDTO(id = key)
+            }) { key, _ ->
+                json++
+                VisitaDTO(id = key)
+            }
+
+            assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+
+            assertEquals("la foto tardia viaja en multipart", 1, multipart)
+            assertEquals("no hay POST JSON", 0, json)
+            assertNull(
+                "la foto quedo estampada",
+                db.visitImageDao().getPendientesDe("visita-001").firstOrNull()
+            )
+            assertTrue(db.visitImageDao().getByVisitaId("visita-001").single().SUBIDA_EN != null)
+            assertTrue("archivo tratado como en un envio normal", !archivo.exists())
+        }
+
+    @Test
+    fun `E-APP-154 visita entregada sin fotos pendientes - cero POST`() = runTest {
+        seed(pendingVisit(guardado = 1))
+        sembrarImagen("foto-1", subidaEn = "2026-09-04T17:30:00Z")
+        var llamadas = 0
+        val api = fakeV2Api(multipart = { _, _, _ ->
+            llamadas++
+            VisitaDTO(id = "x")
+        }) { _, _ ->
+            llamadas++
+            VisitaDTO(id = "x")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertEquals(0, llamadas)
+    }
+
+    @Test
+    fun `E-APP-154 si leer las fotos pendientes falla la visita entregada se envia una vez`() =
+        runTest {
+            seed(pendingVisit(guardado = 1))
+            var llamadas = 0
+            val api = fakeV2Api(multipart = { _, _, _ ->
+                llamadas++
+                VisitaDTO(id = "x")
+            }) { key, _ ->
+                llamadas++
+                VisitaDTO(id = key)
+            }
+
+            // Solo la PRIMERA lectura (la de la guarda) falla; el armado del envio lee bien. Con un
+            // DAO que siempre falla, `comprobantesDe` ya reintenta sin POST y no distingue la guarda.
+            var lecturas = 0
+            val unaFalla = object : VisitImageDao by db.visitImageDao() {
+                override suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity> {
+                    lecturas++
+                    check(lecturas > 1) { "no se pudo leer visita_imagenes" }
+                    return db.visitImageDao().getPendientesDe(visitaId)
+                }
+            }
+
+            buildAndRunWorker(api = api, imagenes = unaFalla)
+
+            assertEquals("ante la duda se envia, no se salta", 1, llamadas)
+        }
+
+    @Test
+    fun `E-APP-154 la cancelacion al leer las fotos pendientes se propaga`() = runTest {
+        seed(pendingVisit(guardado = 1))
+        val cancela = object : VisitImageDao by db.visitImageDao() {
+            override suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity> =
+                throw kotlinx.coroutines.CancellationException("cancelado")
+        }
+        var llamadas = 0
+        val api = fakeV2Api { key, _ ->
+            llamadas++
+            VisitaDTO(id = key)
+        }
+
+        val propagada = try {
+            buildAndRunWorker(api = api, imagenes = cancela)
+            false
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            true
+        }
+
+        assertTrue("la cancelacion no se traga", propagada)
+        assertEquals(0, llamadas)
+    }
+
+    @Test
+    fun `E-APP-154 legado con visita entregada y foto pendiente con archivo - cero llamadas`() =
+        runTest {
+            seed(pendingVisit(guardado = 1))
+            sembrarImagen("foto-1")
+            var legado = 0
+            var v2 = 0
+            val legacy = object : VisitsApi {
+                override suspend fun saveVisit(visit: Visit) {
+                    legado++
+                }
+            }
+            val api = fakeV2Api(multipart = { key, _, _ ->
+                v2++
+                VisitaDTO(id = key)
+            }) { key, _ ->
+                v2++
+                VisitaDTO(id = key)
+            }
+
+            val result = buildAndRunWorker(api = api, legacyApi = legacy, useV2 = false)
+
+            assertEquals(ListenableWorker.Result.success(), result)
+            assertEquals("el legado no reenvia una visita entregada", 0, legado)
+            assertEquals("v2 no se toca en legado", 0, v2)
+        }
+
+    @Test
+    fun `E-APP-154 visita entregada con foto pendiente sin archivo - cero POST`() = runTest {
+        seed(pendingVisit(guardado = 1))
+        sembrarImagenSinArchivo("foto-1", orden = 0)
+        var llamadas = 0
+        val api = fakeV2Api(multipart = { _, _, _ ->
+            llamadas++
+            VisitaDTO(id = "x")
+        }) { _, _ ->
+            llamadas++
+            VisitaDTO(id = "x")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertEquals("una foto que no puede viajar no reenvia el JSON", 0, llamadas)
+    }
+
+    @Test
+    fun `E-APP-154 foto con archivo y otra sin archivo - un multipart solo con la que existe y luego cero`() =
+        runTest {
+            seed(pendingVisit(guardado = 1).copy(LAT = 19.4, LNG = -99.1))
+            sembrarImagen("foto-1", orden = 0)
+            sembrarImagenSinArchivo("foto-2", orden = 1)
+            var json = 0
+            val partes = mutableListOf<List<String?>>()
+            val api = fakeV2Api(multipart = { key, _, fotos ->
+                partes.add(fotos.map { it.nombre() })
+                VisitaDTO(id = key)
+            }) { key, _ ->
+                json++
+                VisitaDTO(id = key)
+            }
+
+            assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+            assertEquals("un solo multipart", 1, partes.size)
+            assertEquals(
+                "solo viaja la foto con archivo (una parte imagen y un id)",
+                listOf("imagen", "id_0"),
+                partes.single()
+            )
+            assertEquals(0, json)
+
+            assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+            assertEquals("la segunda corrida no manda nada", 1, partes.size)
+            assertEquals(0, json)
+        }
 
     /**
      * DAO que revienta al LEER los pendientes y funciona para todo lo demás:

@@ -12,6 +12,7 @@ import com.example.msp_app.core.common.location.captura.EsperaDeEnvio
 import com.example.msp_app.core.common.location.captura.RelojMonotono
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.ubicacion.PlazoDeEnvioDao
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.PlazoDeEnvioEntity
 import com.example.msp_app.core.database.entities.UbicacionDeCapturaEntity
@@ -103,7 +104,10 @@ class PendingPaymentsWorkerRetencionTest : RoomTestBase() {
         override suspend fun obtenerPago(id: String): PagoRecibidoDTO = error("sin red")
     }
 
-    private fun TestScope.worker(id: String = PAGO): PendingPaymentsWorker {
+    private fun TestScope.worker(
+        id: String = PAGO,
+        plazos: PlazoDeEnvioDao = db.plazoDeEnvioDao()
+    ): PendingPaymentsWorker {
         val pared = pared()
         val prueba = this
         return TestListenableWorkerBuilder<PendingPaymentsWorker>(
@@ -126,7 +130,7 @@ class PendingPaymentsWorkerRetencionTest : RoomTestBase() {
                 useV2 = true,
                 imagenes = db.paymentImageDao(),
                 clock = pared,
-                plazos = db.plazoDeEnvioDao(),
+                plazos = plazos,
                 espera = EsperaDeEnvio(pared, prueba.monotono()),
                 tomaNoVaALlegar = { tomaNoVaALlegar }
             )
@@ -436,6 +440,46 @@ class PendingPaymentsWorkerRetencionTest : RoomTestBase() {
         assertTrue(db.paymentImageDao().getByPagoId(PAGO).isEmpty())
         job.cancel()
     }
+
+    // ─── E-APP-155 (compuerta 2026-11-06, H-1): leer el plazo falla ───────────────────────────────────────────────
+
+    private fun plazosQueFallan(error: Throwable) = object : PlazoDeEnvioDao {
+        override suspend fun anotar(fila: PlazoDeEnvioEntity): Long = error("no se escribe aqui")
+        override suspend fun obtener(id: String): PlazoDeEnvioEntity? = throw error
+    }
+
+    @Test
+    fun `E-APP-155 si leer el plazo falla - sale exactamente un POST sin retener y el pago no se pierde`() =
+        runTest {
+            guardarSinUbicacion(conPlazo = false)
+            val (job, resultado) = arrancar(
+                worker(plazos = plazosQueFallan(IllegalStateException("room roto")))
+            )
+
+            assertEquals(ListenableWorker.Result.success(), resultado())
+            assertEquals(1, envios.size)
+            assertEquals("sin retencion", 0L, envios.single().ms)
+            assertEquals(0L, currentTime)
+            val pago = db.paymentDao().getPaymentById(PAGO)!!
+            assertEquals(PAGO, pago.ID)
+            assertTrue("quedo entregado, no perdido", pago.GUARDADO_EN_MICROSIP)
+            job.cancel()
+        }
+
+    @Test
+    fun `E-APP-155 si leer el plazo se cancela - la cancelacion se propaga y no se manda nada`() =
+        runTest {
+            guardarSinUbicacion(conPlazo = false)
+            val w =
+                worker(plazos = plazosQueFallan(kotlinx.coroutines.CancellationException("parada")))
+            var resultado: ListenableWorker.Result? = null
+            val job = launch { resultado = w.doWork() }
+            runCurrent()
+
+            assertTrue("la corrutina termino cancelada", job.isCancelled)
+            assertNull(resultado)
+            assertTrue("una cancelacion al leer el plazo no manda", envios.isEmpty())
+        }
 
     private fun pago(lat: Double, lng: Double) = PaymentEntity(
         ID = PAGO,
