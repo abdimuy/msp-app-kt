@@ -27,7 +27,7 @@ class PartidorDeNombreTest {
         parte(
             "SALA VALENCIA 3 PZAS C/CAJ. MAT. TERCIOPELO",
             "Sala Valencia 3 Piezas",
-            "Con cajones matrimonial terciopelo"
+            "Con cajones mat. terciopelo"
         )
     }
 

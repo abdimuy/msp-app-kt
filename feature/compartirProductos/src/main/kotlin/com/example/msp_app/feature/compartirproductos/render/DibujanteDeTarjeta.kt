@@ -28,6 +28,11 @@ class DibujanteDeTarjeta(private val context: Context) {
     private val fuentes = FuentesDeTarjeta.cargar(context.assets)
     private val armador = ArmadorDeDisposicion(fuentes)
 
+    /** Se decodifica UNA vez por dibujante (no por tarjeta); con 30 tarjetas se evitan 29 decodificaciones. */
+    private val logo: Bitmap? by lazy {
+        BitmapFactory.decodeResource(context.resources, R.drawable.logo_msp)
+    }
+
     /** Para las pruebas: ¿se cargaron las cinco fuentes empaquetadas (sin caer al sistema)? */
     internal val fuentesCompletas: Boolean get() = fuentes.completas
 
@@ -93,24 +98,23 @@ class DibujanteDeTarjeta(private val context: Context) {
     }
 
     private fun dibujarMarca(canvas: Canvas) {
-        val logo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_msp)
         val lado = Medidas.LOGO_LADO.toFloat()
         val izq = Medidas.MARGEN_LATERAL.toFloat()
         val arriba = Medidas.LOGO_ARRIBA.toFloat()
-        if (logo != null) {
+        val imagenLogo = logo
+        if (imagenLogo != null) {
             val circulo = Path().apply {
                 addCircle(izq + lado / 2, arriba + lado / 2, lado / 2, Path.Direction.CW)
             }
             canvas.save()
             canvas.clipPath(circulo)
             canvas.drawBitmap(
-                logo,
+                imagenLogo,
                 null,
                 RectF(izq, arriba, izq + lado, arriba + lado),
                 Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
             )
             canvas.restore()
-            logo.recycle()
         }
         val texto = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = fuentes.sansSemiNegrita

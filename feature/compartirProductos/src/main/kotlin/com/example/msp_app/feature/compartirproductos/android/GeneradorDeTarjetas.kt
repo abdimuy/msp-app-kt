@@ -8,12 +8,14 @@ import com.example.msp_app.feature.compartirproductos.render.DibujanteDeTarjeta
 import com.example.msp_app.feature.compartirproductos.render.FotoDeProducto
 import java.io.File
 import java.time.Instant
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Dibuja una tarjeta JPEG por artículo en `cacheDir/compartir/`. Es trabajo de CPU y disco:
  * quien llama lo corre fuera del hilo principal (el `ViewModel` lo hace en `Dispatchers.Default`).
  */
-class GeneradorDeTarjetas(
+open class GeneradorDeTarjetas(
     private val dibujante: DibujanteDeTarjeta,
     private val almacen: AlmacenDeTemporales,
     private val preferencias: PreferenciasDeCompartir
@@ -26,7 +28,7 @@ class GeneradorDeTarjetas(
      *
      * @param tituloSolo si viene, es el título editado en la hoja y gana sobre el recordado (solo con un producto).
      */
-    fun generar(
+    open suspend fun generar(
         articulos: List<ArticuloParaCompartir>,
         seleccion: SeleccionDePrecios,
         ahora: Instant,
@@ -35,6 +37,8 @@ class GeneradorDeTarjetas(
     ): List<File> {
         almacen.vaciar()
         return articulos.mapIndexed { i, articulo ->
+            // E-APP-186: si se canceló (VM destruido) no se siguen dibujando tarjetas que nadie va a mandar.
+            currentCoroutineContext().ensureActive()
             val titulo = tituloSolo.takeIf { articulos.size == 1 } ?: preferencias.tituloEditado(articulo.id)
             val tarjeta = ArmadorDeTarjeta.armar(articulo, seleccion, titulo, ahora)
             val foto = FotoDeProducto.cargar(articulo.fotoPath)

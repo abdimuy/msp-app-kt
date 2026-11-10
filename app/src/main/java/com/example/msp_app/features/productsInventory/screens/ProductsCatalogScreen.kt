@@ -300,7 +300,8 @@ fun ProductsCatalogScreen(navController: NavController) {
             }
         }
     }
-    HojaDeCompartir(compartirViewModel)
+    // E-APP-187: tras compartir se limpia la selección del catálogo.
+    HojaDeCompartir(compartirViewModel, alLanzar = { seleccion = SeleccionDeProductos() })
 }
 
 @OptIn(ExperimentalFoundationApi::class)

@@ -296,13 +296,26 @@ internal class ArmadorDeDisposicion(private val fuentes: FuentesDeTarjeta) {
 
     // region — cajas para medir
 
+    /**
+     * El ancho que de verdad se ve en el renglón [i]. En uno recortado con «…» Android rellena el resto con
+     * U+FEFF (ancho cero) y el texto original sigue en el layout: se mide solo lo visible, no el texto completo.
+     */
+    private fun anchoVisible(layout: StaticLayout, i: Int): Float {
+        if (layout.getEllipsisCount(i) == 0) return layout.getLineRight(i)
+        val visible = layout.text.subSequence(
+            layout.getLineStart(i),
+            layout.getLineEnd(i)
+        ).toString().replace("\uFEFF", "")
+        return minOf(layout.getLineRight(i), layout.paint.measureText(visible))
+    }
+
     private fun medirCajas(d: Disposicion): List<Caja> {
         val cajas = mutableListOf<Caja>()
         val izq = Medidas.MARGEN_LATERAL.toFloat()
 
         fun deLayout(nombre: String, layout: StaticLayout, y: Int) {
             var derecha = 0f
-            for (i in 0 until layout.lineCount) derecha = maxOf(derecha, layout.getLineRight(i))
+            for (i in 0 until layout.lineCount) derecha = maxOf(derecha, anchoVisible(layout, i))
             cajas += Caja(nombre, izq, y.toFloat(), izq + derecha, (y + layout.height).toFloat())
         }
         d.categoria?.let { deLayout("categoria", it, d.posiciones.categoriaY) }

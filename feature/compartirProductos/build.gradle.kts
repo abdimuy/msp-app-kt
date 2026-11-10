@@ -25,8 +25,10 @@ android {
 dependencies {
     implementation(project(":core:common")) // ClasificadorDePrecios/TipoDePrecio, AppTime
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.exifinterface) // rotación EXIF de las fotos (E-APP-184)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.runtime.ktx) // repeatOnLifecycle
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.coil.compose)

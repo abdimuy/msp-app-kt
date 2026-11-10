@@ -79,6 +79,31 @@ class CompartirProductosCableadoTest : RobolectricTestBase() {
         )
     }
 
+    @Test fun `E-APP-059 el tipo del servidor manda aunque el nombre diga otra cosa`() {
+        // Un precio que el servidor clasifica «contado» pero cuyo NOMBRE es «Precio de lista»: por nombre sería
+        // LARGO_PLAZO. Si alguien cambia la rama del servidor a `tipoDe(nombre)` esta prueba se pone roja.
+        val p = producto(
+            precios = null,
+            ordenados = listOf(
+                PrecioOrdenado("contado", 1, "Precio de lista", 500.0),
+                PrecioOrdenado("largo_plazo", 3, "Precio 1 Meses", 900.0)
+            )
+        )
+        val r = preciosClasificadosParaMostrar(p)
+        assertEquals(listOf(TipoDePrecio.CONTADO, TipoDePrecio.LARGO_PLAZO), r.map { it.tipo })
+        assertEquals(listOf(500.0, 900.0), r.map { it.valor })
+        // La tarjeta: Contado = 500, Crédito = 900.
+        val tarjeta = PreciosDeTarjeta.armar(p.paraCompartir(null).precios, SeleccionDePrecios())
+        assertEquals(
+            listOf("Contado" to "$500", "Crédito" to "$900"),
+            tarjeta.map {
+                it.fila.etiqueta to it.texto
+            }
+        )
+        // El catálogo trata el mismo precio como contado (E-APP-060).
+        assertEquals(500.0, com.example.msp_app.core.utils.precioDeContadoDeTarjeta(p)!!, 0.0)
+    }
+
     @Test fun `la lista clasificada es identica a la que pinta el catalogo en todos los casos`() {
         val casos = listOf(
             producto(),

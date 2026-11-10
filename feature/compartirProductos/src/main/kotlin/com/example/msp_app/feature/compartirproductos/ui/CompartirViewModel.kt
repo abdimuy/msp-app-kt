@@ -150,6 +150,10 @@ class CompartirViewModel(
             } catch (e: Exception) {
                 Log.w(TAG, "no se pudieron generar las tarjetas", e)
                 _estado.update { it.copy(generando = false, error = MENSAJE_ERROR) }
+            } catch (e: OutOfMemoryError) {
+                // E-APP-184: sin memoria para el bitmap de 1080×1920 (teléfono de gama baja): se avisa, no se cierra la app.
+                Log.w(TAG, "sin memoria al generar las tarjetas", e)
+                _estado.update { it.copy(generando = false, error = MENSAJE_SIN_MEMORIA) }
             }
         }
     }
@@ -203,6 +207,7 @@ class CompartirViewModel(
         const val ANCHO_VISTA = 405
         const val ALTO_VISTA = 720
         const val MENSAJE_ERROR = "No se pudieron preparar las imágenes"
+        const val MENSAJE_SIN_MEMORIA = "No hay memoria para preparar las imágenes. Cierra otras apps e inténtalo de nuevo"
 
         fun factory(contexto: Context): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {

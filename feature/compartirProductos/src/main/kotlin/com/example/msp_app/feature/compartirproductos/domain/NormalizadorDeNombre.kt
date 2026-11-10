@@ -16,6 +16,9 @@ import java.util.Locale
  *  4. Pone la tilde solo en las palabras de [ACENTOS] (sin tilde en origen no se
  *     puede saber; una lista corta y verificada vale más que una regla que adivina).
  */
+@Suppress(
+    "TooManyFunctions"
+) // una función pequeña por regla del diccionario (abreviatura, caso, acento, siglas…)
 object NormalizadorDeNombre {
 
     private val ES = Locale("es", "MX")
@@ -72,7 +75,7 @@ object NormalizadorDeNombre {
 
     /** Siglas que se quedan en mayúscula. */
     private val SIGLAS =
-        setOf("TV", "LED", "LCD", "USB", "MDF", "PVC", "HD", "DVD", "XL", "XXL", "WIFI", "LP", "PU", "KS", "QS", "A/C")
+        setOf("TV", "LED", "LCD", "USB", "MDF", "PVC", "HD", "DVD", "XL", "XXL", "WIFI", "LP", "PU", "KS", "QS", "A/C", "LG", "HP", "JBL", "RCA")
 
     /** Unidad suelta que sigue a una cifra: `1.20 M` → `1.20 m`. */
     private val UNIDADES =
@@ -91,14 +94,47 @@ object NormalizadorDeNombre {
             .replace(Regex("\\)(?=[^\\s,.;:)])"), ") ")
         if (limpio.isEmpty()) return ""
         val enMayusculas = esMayusculas(limpio)
-        val palabras = limpio.split(
-            ' '
-        ).flatMap { expandir(it).split(' ') }.filter { it.isNotEmpty() }
+        val contexto = tieneContextoDeCama(limpio)
+        val palabras = mutableListOf<String>()
+        limpio.replace(PEGADA, "$1. ").split(' ').forEach { token ->
+            val anterior = palabras.lastOrNull()?.let { partirPuntuacion(it).second }
+            expandir(
+                token,
+                contexto,
+                anterior
+            ).split(' ').filter { it.isNotEmpty() }.forEach { palabras += it }
+        }
         return palabras.mapIndexed { i, palabra ->
-            val anterior = palabras.getOrNull(i - 1)
-            darCaso(palabra, primera = i == 0, tras = anterior, enMayusculas = enMayusculas)
+            darCaso(
+                palabra,
+                primera = i == 0,
+                tras = palabras.getOrNull(i - 1),
+                enMayusculas = enMayusculas,
+                ultima = i == palabras.lastIndex
+            )
         }.joinToString(" ")
     }
+
+    /** `MAT.CON` pegado: la abreviatura del diccionario seguida de letras se separa en dos palabras. */
+    private val PEGADA =
+        Regex(
+            "\\b(MAT|MATR|IND|CAJ|PZAS|PZS|PZA|DOB|GDE|MED)\\.(?=\\p{L})",
+            RegexOption.IGNORE_CASE
+        )
+
+    /** Palabras que vuelven inequívoco a «MAT» como «matrimonial» (en otro contexto puede ser «mate», «material»…). */
+    private val CONTEXTO_DE_CAMA = setOf("CAMA", "COLCHON", "RECAMARA", "BASE", "BOX")
+
+    private fun tieneContextoDeCama(texto: String): Boolean {
+        val sinTildes = Normalizer.normalize(
+            texto.uppercase(ES),
+            Normalizer.Form.NFD
+        ).replace(Regex("\\p{M}+"), "")
+        return sinTildes.split(Regex("[^A-Z]+")).any { it in CONTEXTO_DE_CAMA }
+    }
+
+    /** Con «1» delante no se pluraliza: «1 CAJ.» → «1 cajón». */
+    private val SINGULAR = mapOf("CAJ" to "cajón", "PZAS" to "pieza", "PZS" to "pieza")
 
     /**
      * Pasa a tipo oración lo que ya está en tipo título (el detalle: «Con cabecera tapizada»).
@@ -106,16 +142,30 @@ object NormalizadorDeNombre {
      */
     fun aOracion(texto: String): String {
         val palabras = texto.trim().split(' ').filter { it.isNotEmpty() }
-        val bajas = palabras.map { palabra ->
+        val bajas = palabras.mapIndexed { i, palabra ->
             val (inicio, nucleo, fin) = partirPuntuacion(palabra)
+            val letraSuelta =
+                esLetraSuelta(nucleo, palabras.getOrNull(i - 1), i == palabras.lastIndex)
             val nuevo = when {
                 nucleo.any { it.isDigit() } -> nucleo
+                letraSuelta -> nucleo.uppercase(ES)
                 nucleo.uppercase(ES) in SIGLAS -> nucleo.uppercase(ES)
+                '-' in nucleo -> nucleo.split('-').joinToString("-") { parteEnOracion(it) }
                 else -> nucleo.lowercase(ES)
             }
             inicio + nuevo + fin
         }
         return capitalizarPrimera(bajas.joinToString(" "))
+    }
+
+    private fun parteEnOracion(parte: String): String =
+        if (parte.uppercase(ES) in SIGLAS) parte.uppercase(ES) else parte.lowercase(ES)
+
+    /** Una letra sola que cierra el nombre o sigue a «tipo»/«en» (`Tipo A`, `en U`) es una etiqueta, no una palabra. */
+    private fun esLetraSuelta(nucleo: String, tras: String?, ultima: Boolean): Boolean {
+        if (nucleo.length != 1 || !nucleo[0].isLetter()) return false
+        val previa = tras?.let { partirPuntuacion(it).second.lowercase(ES) }
+        return ultima || previa == "tipo" || previa == "en"
     }
 
     fun esMayusculas(texto: String): Boolean {
@@ -127,7 +177,7 @@ object NormalizadorDeNombre {
 
     private const val UMBRAL_DENOMINADOR = 5 // menos de 1 de cada 5 letras en minúscula = venía gritando
 
-    private fun expandir(token: String): String {
+    private fun expandir(token: String, contexto: Boolean, anterior: String?): String {
         val (inicio, nucleo, fin) = partirPuntuacion(token)
         val clave = nucleo.uppercase(ES)
         val prefijo = PREFIJOS.entries.firstOrNull {
@@ -136,10 +186,12 @@ object NormalizadorDeNombre {
         val expandida = when {
             clave in CONSERVAR -> CONSERVAR.getValue(clave)
             prefijo != null -> "${prefijo.value} ${expandir(
-                nucleo.substring(prefijo.key.length) + fin
+                nucleo.substring(prefijo.key.length) + fin,
+                contexto,
+                null
             )}"
             clave in PREFIJOS -> PREFIJOS.getValue(clave)
-            else -> ABREVIATURAS[clave.removeSuffix(".")]
+            else -> abreviatura(clave.removeSuffix("."), contexto, anterior)
         }
         return when {
             expandida == null -> token
@@ -149,11 +201,18 @@ object NormalizadorDeNombre {
         }
     }
 
+    private fun abreviatura(clave: String, contexto: Boolean, anterior: String?): String? = when {
+        clave == "MAT" && !contexto -> null // sin contexto de cama no se adivina
+        anterior == "1" && clave in SINGULAR -> SINGULAR.getValue(clave)
+        else -> ABREVIATURAS[clave]
+    }
+
     private fun darCaso(
         palabra: String,
         primera: Boolean,
         tras: String?,
-        enMayusculas: Boolean
+        enMayusculas: Boolean,
+        ultima: Boolean
     ): String {
         val (inicio, nucleo, fin) = partirPuntuacion(palabra)
         if (nucleo.isEmpty()) return palabra
@@ -161,11 +220,20 @@ object NormalizadorDeNombre {
             nucleo.any { it.isDigit() } -> nucleo.uppercaseSiMezcla(enMayusculas)
             esUnidadTrasCifra(nucleo, tras) -> nucleo.lowercase(ES)
             !enMayusculas -> conAcento(nucleo)
+            esLetraSuelta(nucleo, tras, ultima) -> nucleo.uppercase(ES)
             nucleo.uppercase(ES) in SIGLAS -> nucleo.uppercase(ES)
             !primera && nucleo.lowercase(ES) in MINUSCULAS -> nucleo.lowercase(ES)
             else -> nucleo.split(
                 '-'
-            ).joinToString("-") { capitalizarPrimera(conAcento(it.lowercase(ES))) }
+            ).joinToString("-") {
+                if (it.uppercase(ES) in SIGLAS) {
+                    it.uppercase(
+                        ES
+                    )
+                } else {
+                    capitalizarPrimera(conAcento(it.lowercase(ES)))
+                }
+            }
         }
         return inicio + (if (primera) capitalizarPrimera(nuevo) else nuevo) + fin
     }

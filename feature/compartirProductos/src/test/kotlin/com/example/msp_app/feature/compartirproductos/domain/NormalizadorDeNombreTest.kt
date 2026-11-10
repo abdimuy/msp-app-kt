@@ -149,7 +149,7 @@ class NormalizadorDeNombreTest {
 
     @Test fun `guion dentro de palabra capitaliza ambas partes`() {
         igual("Sofá-Cama Gris", "SOFA-CAMA GRIS")
-        igual("Porta-Tv", "PORTA-TV")
+        igual("Porta-TV", "PORTA-TV")
     }
 
     @Test fun `guion suelto y parentesis conservan su forma`() {
@@ -225,6 +225,55 @@ class NormalizadorDeNombreTest {
         assertEquals("Mueble para TV 32", NormalizadorDeNombre.aOracion("Mueble Para TV 32"))
         assertEquals("Cómoda de 6C", NormalizadorDeNombre.aOracion("Cómoda de 6C"))
         assertEquals("", NormalizadorDeNombre.aOracion("   "))
+    }
+    // endregion
+
+    // region — E-APP-187: revisión sobre nombres reales
+
+    @Test fun `marcas y siglas se quedan en mayuscula`() {
+        igual("Pantalla LG 55\"", "PANTALLA LG 55\"")
+        igual("Bocina JBL Portatil", "BOCINA JBL PORTATIL")
+        igual("Minisplit HP", "MINISPLIT HP")
+        igual("Televisión RCA Smart", "TELEVISION RCA SMART")
+        igual("TV LED 40", "TV LED 40")
+        igual("Pantalla TV-LED", "PANTALLA TV-LED")
+        igual("Sofá-Cama", "SOFA-CAMA")
+    }
+
+    @Test fun `una letra sola al final o tras TIPO o EN se queda en mayuscula`() {
+        igual("Sala Tipo A", "SALA TIPO A")
+        igual("Cama en U", "CAMA EN U")
+        igual("Escritorio en L Negro", "ESCRITORIO EN L NEGRO")
+        igual("Mesa Modelo B", "MESA MODELO B")
+        igual("Cama 1.20 m", "CAMA 1.20 M") // la unidad tras cifra sigue en minúscula
+        igual("Mesa y Silla", "MESA Y SILLA") // «y» en medio es conjunción
+    }
+
+    @Test fun `MAT pegado a otra palabra se separa y se expande`() {
+        igual("Cama Matrimonial con Base", "CAMA MAT.CON BASE")
+        igual("Colchón Matrimonial con Resortes", "COLCHON MAT.CON RESORTES")
+    }
+
+    @Test fun `MAT solo es matrimonial en contexto de cama colchon recamara base o box`() {
+        igual("Cama Matrimonial", "CAMA MAT.")
+        igual("Colchón Matrimonial", "COLCHON MAT")
+        igual("Recámara Matrimonial", "RECAMARA MAT.")
+        igual("Base Matrimonial", "BASE MAT.")
+        igual("Box Matrimonial", "BOX MAT.")
+        igual("Cabecera Mat.", "CABECERA MAT.") // sin contexto no se adivina
+        igual("Tapete Mat", "TAPETE MAT")
+        igual("Juego Mat. Gris", "JUEGO MAT. GRIS")
+        igual("Sofá Cama Matrimonial", "SOFA CAMA MATR.") // MATR no es ambiguo
+    }
+
+    @Test fun `con un uno no se pluraliza`() {
+        igual("Buró 1 Cajón", "BURO 1 CAJ.")
+        igual("Buró 2 Cajones", "BURO 2 CAJ.")
+        igual("Juego 1 Pieza", "JUEGO 1 PZAS")
+        igual("Juego 3 Piezas", "JUEGO 3 PZAS")
+        igual("Cómoda con 1 Cajón", "COMODA C/1 CAJ.".replace("C/1", "C/ 1"))
+        igual("Mesa 11 Cajones", "MESA 11 CAJ.") // 11 no es 1
+        igual("Mesa 1.5 Piezas", "MESA 1.5 PZAS") // 1.5 no es 1
     }
     // endregion
 }

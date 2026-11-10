@@ -319,6 +319,50 @@ class CompartirViewModelTest : RenderBase() {
         assertTrue(eventos.isEmpty())
     }
 
+    @Test fun `sin memoria avisa con un mensaje claro y no cierra la app`() = runTest(
+        mainDispatcherRule.testDispatcher
+    ) {
+        val d = DibujanteDeTarjeta(ApplicationProvider.getApplicationContext())
+        val sinMemoria = object : GeneradorDeTarjetas(
+            d,
+            AlmacenDeTemporales(tmp.root, reloj),
+            prefs
+        ) {
+            override suspend fun generar(
+                articulos: List<ArticuloParaCompartir>,
+                seleccion: SeleccionDePrecios,
+                ahora: Instant,
+                tituloSolo: String?,
+                alAvanzar: (Int, Int) -> Unit
+            ): List<File> = throw OutOfMemoryError("createBitmap")
+        }
+        val m = CompartirViewModel(
+            sinMemoria,
+            d,
+            prefs,
+            { a, t ->
+                IntentDeCompartir.armar(
+                    a.map {
+                        Uri.fromFile(it)
+                    },
+                    t,
+                    "com.whatsapp"
+                )
+            },
+            reloj,
+            mainDispatcherRule.testDispatcher
+        )
+        m.abrir(listOf(art(1)))
+        val eventos = launchTodos(m)
+        m.compartir()
+        planificador.advanceUntilIdle()
+        val e = m.estado.value
+        assertTrue(e.visible)
+        assertFalse(e.generando)
+        assertEquals(CompartirViewModel.MENSAJE_SIN_MEMORIA, e.error)
+        assertTrue(eventos.isEmpty())
+    }
+
     @Test fun `cerrar limpia el estado`() {
         val m = vm()
         m.abrir(listOf(art(1)))

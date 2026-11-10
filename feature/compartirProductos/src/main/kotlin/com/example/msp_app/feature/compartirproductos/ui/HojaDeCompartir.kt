@@ -29,6 +29,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,9 +40,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.msp_app.feature.compartirproductos.domain.AvisoDeCatalogo
 import com.example.msp_app.feature.compartirproductos.domain.FilaDePrecio
+import kotlinx.coroutines.flow.Flow
 
 /**
  * La hoja inferior «Compartir». Se conecta a [CompartirViewModel]: pinta su estado, y cuando las
@@ -50,14 +55,22 @@ import com.example.msp_app.feature.compartirproductos.domain.FilaDePrecio
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HojaDeCompartir(viewModel: CompartirViewModel) {
+fun HojaDeCompartir(viewModel: CompartirViewModel, alLanzar: () -> Unit = {}) {
     val contexto = LocalContext.current
     val estado by viewModel.estado.collectAsStateWithLifecycle()
+    val ciclo = LocalLifecycleOwner.current.lifecycle
+    val alLanzarActual by rememberUpdatedState(alLanzar)
+    val generandoActual by rememberUpdatedState(estado.generando)
 
-    LaunchedEffect(viewModel) {
-        viewModel.eventos.collect { evento ->
+    // E-APP-186: solo se abre WhatsApp con la app a la vista. Si se fue a segundo plano mientras se
+    // generaba, el evento espera en el canal y se lanza al volver (no se pierde ni se lanza «en el aire»).
+    LaunchedEffect(viewModel, ciclo) {
+        recolectarMientrasEsteVisible(ciclo, viewModel.eventos) { evento ->
             when (evento) {
-                is EventoDeCompartir.Lanzar -> lanzar(contexto, evento.intent)
+                is EventoDeCompartir.Lanzar -> {
+                    lanzar(contexto, evento.intent)
+                    alLanzarActual()
+                }
             }
         }
     }
@@ -65,7 +78,11 @@ fun HojaDeCompartir(viewModel: CompartirViewModel) {
     if (!estado.visible) return
     ModalBottomSheet(
         onDismissRequest = { if (!estado.generando) viewModel.cerrar() },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        // E-APP-186: mientras genera, arrastrar la hoja hacia abajo no la cierra.
+        sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { puedeCambiarLaHoja(generandoActual) }
+        )
     ) {
         ContenidoDeLaHoja(
             estado = estado,
@@ -74,6 +91,18 @@ fun HojaDeCompartir(viewModel: CompartirViewModel) {
             alCompartir = viewModel::compartir
         )
     }
+}
+
+/** Mientras se generan las tarjetas la hoja no se puede cerrar arrastrando. */
+internal fun puedeCambiarLaHoja(generando: Boolean): Boolean = !generando
+
+/** Recolecta [eventos] solo mientras [ciclo] esté al menos STARTED; fuera de eso los eventos esperan. */
+internal suspend fun <T> recolectarMientrasEsteVisible(
+    ciclo: Lifecycle,
+    eventos: Flow<T>,
+    alEvento: (T) -> Unit
+) {
+    ciclo.repeatOnLifecycle(Lifecycle.State.STARTED) { eventos.collect { alEvento(it) } }
 }
 
 private fun lanzar(contexto: Context, intent: Intent) {
