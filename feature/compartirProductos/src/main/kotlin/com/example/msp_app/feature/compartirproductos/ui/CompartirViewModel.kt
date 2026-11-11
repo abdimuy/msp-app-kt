@@ -82,7 +82,7 @@ class CompartirViewModel(
 
     /**
      * Abre la hoja con [articulos]. [catalogoActualizadoEn] es la marca de última actualización, si existe.
-     * E-APP-183: hoy el catálogo del teléfono no guarda esa marca, así que `:app` pasa `null` y el aviso no sale.
+     * E-APP-183: `:app` la lee de `FechaDelCatalogo`; sin marca (instalación nueva sin sincronizar) pasa `null` y el aviso no sale.
      */
     fun abrir(articulos: List<ArticuloParaCompartir>, catalogoActualizadoEn: Instant? = null) {
         if (articulos.isEmpty()) return

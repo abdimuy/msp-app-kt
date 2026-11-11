@@ -74,6 +74,7 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.preciosParaMostrar
 import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.data.local.fechaDelCatalogo
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.feature.compartirproductos.domain.ResultadoDeSeleccion
 import com.example.msp_app.feature.compartirproductos.domain.SeleccionDeProductos
@@ -106,6 +107,7 @@ fun ProductsCatalogScreen(navController: NavController) {
     // Compartir tarjetas por WhatsApp: mantener presionado un producto activa la selección (máx. 30).
     val compartirViewModel: CompartirViewModel =
         viewModel(factory = CompartirViewModel.factory(LocalContext.current))
+    val context = LocalContext.current
     var seleccion by rememberSaveable(stateSaver = SeleccionDeProductosSaver) {
         mutableStateOf(SeleccionDeProductos())
     }
@@ -155,8 +157,9 @@ fun ProductsCatalogScreen(navController: NavController) {
                                     it.paraCompartir(
                                         imagesByProduct[it.ARTICULO_ID]?.firstOrNull()
                                     )
-                                }
-                                // El catálogo del teléfono no guarda cuándo se actualizó: sin marca no hay aviso de precios viejos.
+                                },
+                                // Sin marca (instalación nueva sin sincronizar) no hay aviso de precios viejos.
+                                catalogoActualizadoEn = fechaDelCatalogo(context).ultima()
                             )
                         },
                         alCancelar = { seleccion = SeleccionDeProductos() }

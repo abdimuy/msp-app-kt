@@ -2,7 +2,9 @@ package com.example.msp_app.features.productsInventory.viewmodels
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.common.time.FechaDelCatalogo
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.services.productInventory.ProductInventoryApi
 import com.example.msp_app.data.api.services.productInventory.ProductInventoryResponse
@@ -10,11 +12,17 @@ import com.example.msp_app.data.local.datasource.productInventory.ProductInvento
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.productInventory.toEntity
 import com.example.msp_app.`test-fixtures`.TestDataFactory
+import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -41,8 +49,21 @@ class ProductDetailsViewModelTest : RoomTestBase() {
     // withContext(io) comparten UN solo scheduler; el estado terminal se espera con
     // awaitTerminal(), que suspende el cuerpo de test cediendo el scheduler para que
     // corra la reanudación pendiente del camino de excepción (determinista).
-    private fun viewModel(api: ProductInventoryApi) =
-        ProductDetailsViewModel(app(), api, localDataSource(), mainDispatcherRule.testDispatcher)
+    private var marca = 0L
+    private val fecha =
+        FechaDelCatalogo(
+            { marca },
+            { marca = it },
+            FakeClock(Instant.parse("2026-11-10T15:00:00Z"))
+        )
+
+    private fun viewModel(api: ProductInventoryApi) = ProductDetailsViewModel(
+        app(),
+        api,
+        localDataSource(),
+        mainDispatcherRule.testDispatcher,
+        fecha
+    )
 
     private fun runVmTest(body: suspend TestScope.() -> Unit) =
         runTest(mainDispatcherRule.testDispatcher.scheduler, testBody = body)
@@ -72,6 +93,33 @@ class ProductDetailsViewModelTest : RoomTestBase() {
         assertEquals(remote, vm.product.value)
         // Room quedó cacheado (path online refresca el catálogo).
         assertTrue("el producto debe existir en Room", db.productInventoryDao().existsById(id))
+    }
+
+    @Test
+    fun onlineOkRegistraLaFechaDelCatalogo() = runVmTest {
+        val remote = TestDataFactory.createProductInventory(id = 510, name = "Sala", stock = 1)
+        val vm =
+            viewModel(FakeProductInventoryApi { ProductInventoryResponse(body = listOf(remote)) })
+
+        vm.loadProductById(510)
+        vm.awaitTerminal()
+        // El estado Success sale ANTES de cachear el catálogo y Room escribe en su propio hilo:
+        // se espera en tiempo real a que la marca aparezca.
+        withContext(Dispatchers.Default) {
+            withTimeout(10_000) { while (fecha.ultima() == null) delay(10) }
+        }
+
+        assertEquals(Instant.parse("2026-11-10T15:00:00Z"), fecha.ultima())
+    }
+
+    @Test
+    fun sinRedNoMueveLaFechaDelCatalogo() = runVmTest {
+        val vm = viewModel(FakeProductInventoryApi { throw java.io.IOException("sin red") })
+
+        vm.loadProductById(511)
+        vm.awaitTerminal()
+
+        assertNull(fecha.ultima())
     }
 
     // (b) Sin red → fallback local con el producto sembrado.

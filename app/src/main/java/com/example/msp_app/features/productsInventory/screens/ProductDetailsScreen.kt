@@ -83,6 +83,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.preciosParaMostrar
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.data.local.fechaDelCatalogo
 import com.example.msp_app.feature.compartirproductos.ui.CompartirViewModel
 import com.example.msp_app.feature.compartirproductos.ui.HojaDeCompartir
 import com.example.msp_app.features.productsInventory.compartir.paraCompartir
@@ -106,6 +107,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
     // Compartir la tarjeta del producto por WhatsApp (todo el código vive en :feature:compartirProductos).
     val compartirViewModel: CompartirViewModel =
         viewModel(factory = CompartirViewModel.factory(LocalContext.current))
+    val context = LocalContext.current
 
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val product by detailsViewModel.product.collectAsState()
@@ -528,10 +530,11 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
 
                     OutlinedButton(
                         onClick = {
-                            // El catálogo del teléfono no guarda cuándo se actualizó: sin marca no hay aviso de precios viejos.
                             product?.let { actual ->
                                 compartirViewModel.abrir(
-                                    listOf(actual.paraCompartir(imagesByProduct[actual.ARTICULO_ID]?.firstOrNull()))
+                                    listOf(actual.paraCompartir(imagesByProduct[actual.ARTICULO_ID]?.firstOrNull())),
+                                    // Sin marca (instalación nueva sin sincronizar) no hay aviso de precios viejos.
+                                    catalogoActualizadoEn = fechaDelCatalogo(context).ultima()
                                 )
                             }
                         },

@@ -4,10 +4,12 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.time.FechaDelCatalogo
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.productInventory.ProductInventoryApi
 import com.example.msp_app.data.local.datasource.productInventory.ProductInventoryLocalDataSource
+import com.example.msp_app.data.local.fechaDelCatalogo
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.productInventory.toDomain
 import com.example.msp_app.data.models.productInventory.toEntity
@@ -17,9 +19,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class ProductsInventoryViewModel(application: Application) : AndroidViewModel(application) {
-    private val localDataSource = ProductInventoryLocalDataSource(application.applicationContext)
-    private val api: ProductInventoryApi get() = ApiProvider.create(ProductInventoryApi::class.java)
+class ProductsInventoryViewModel @JvmOverloads constructor(
+    application: Application,
+    private val localDataSource: ProductInventoryLocalDataSource =
+        ProductInventoryLocalDataSource(application.applicationContext),
+    private val apiProvider: () -> ProductInventoryApi =
+        { ApiProvider.create(ProductInventoryApi::class.java) },
+    private val fechaDelCatalogo: FechaDelCatalogo =
+        fechaDelCatalogo(application.applicationContext)
+) : AndroidViewModel(application) {
+    private val api: ProductInventoryApi get() = apiProvider()
 
     private val _productInventoryState =
         MutableStateFlow<ResultState<List<ProductInventory>>>(ResultState.Idle)
@@ -56,6 +65,8 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
         withContext(Dispatchers.IO) {
             try {
                 localDataSource.insertAll(products.map { it.toEntity() })
+                // Solo si la escritura no falló: la marca dice "el teléfono tiene este catálogo".
+                fechaDelCatalogo.registrar()
                 _productsLoaded.value = true
             } catch (e: Exception) {
             }

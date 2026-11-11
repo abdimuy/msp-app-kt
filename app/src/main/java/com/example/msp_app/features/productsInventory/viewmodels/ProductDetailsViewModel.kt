@@ -4,10 +4,12 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.time.FechaDelCatalogo
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.productInventory.ProductInventoryApi
 import com.example.msp_app.data.local.datasource.productInventory.ProductInventoryLocalDataSource
+import com.example.msp_app.data.local.fechaDelCatalogo
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.productInventory.toDomain
 import com.example.msp_app.data.models.productInventory.toEntity
@@ -24,7 +26,9 @@ class ProductDetailsViewModel @JvmOverloads constructor(
         ApiProvider.create(ProductInventoryApi::class.java),
     private val localDataSource: ProductInventoryLocalDataSource =
         ProductInventoryLocalDataSource(application.applicationContext),
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val fechaDelCatalogo: FechaDelCatalogo =
+        fechaDelCatalogo(application.applicationContext)
 ) : AndroidViewModel(application) {
 
     private val _product = MutableStateFlow<ProductInventory?>(null)
@@ -72,6 +76,8 @@ class ProductDetailsViewModel @JvmOverloads constructor(
         withContext(ioDispatcher) {
             try {
                 localDataSource.insertAll(list.map { it.toEntity() })
+                // Solo si la escritura no falló: la marca dice "el teléfono tiene este catálogo".
+                fechaDelCatalogo.registrar()
             } catch (e: Exception) {
                 Log.e(
                     "ProductDetailsViewModel",
