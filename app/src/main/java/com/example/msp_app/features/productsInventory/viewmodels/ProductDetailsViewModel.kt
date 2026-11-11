@@ -76,8 +76,9 @@ class ProductDetailsViewModel @JvmOverloads constructor(
         withContext(ioDispatcher) {
             try {
                 localDataSource.insertAll(list.map { it.toEntity() })
-                // Solo si la escritura no falló: la marca dice "el teléfono tiene este catálogo".
-                fechaDelCatalogo.registrar()
+                // Solo si la escritura terminó sin excepción y había catálogo: la marca dice
+                // "el teléfono tiene este catálogo", y una lista vacía no es un catálogo.
+                if (list.isNotEmpty()) fechaDelCatalogo.registrar()
             } catch (e: Exception) {
                 Log.e(
                     "ProductDetailsViewModel",

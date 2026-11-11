@@ -3,6 +3,8 @@ package com.example.msp_app.features.productsInventory.viewmodels
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.common.time.FechaDelCatalogo
+import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
+import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.utils.ResultState
@@ -13,8 +15,13 @@ import com.example.msp_app.data.local.fechaDelCatalogo
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import java.io.IOException
 import java.time.Instant
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -62,6 +69,36 @@ class ProductsInventoryViewModelTest : RoomTestBase() {
         val vm = vm(FakeApi { throw IOException("sin red") })
         vm.fetchRemoteInventory()
         vm.productInventoryState.first { it is ResultState.Error }
+        assertNull(fecha.ultima())
+    }
+
+    @Test fun `una lista vacia del servidor no registra la fecha`() = runVmTest {
+        val vm = vm(FakeApi { ProductInventoryResponse(body = emptyList()) })
+        vm.fetchRemoteInventory()
+        vm.productsLoaded.first { it }
+        assertNull(fecha.ultima())
+    }
+
+    @Test fun `si la escritura en el telefono truena la fecha no se mueve`() = runVmTest {
+        val intento = CompletableDeferred<Unit>()
+        val rota = object : ProductInventoryDao by db.productInventoryDao() {
+            override suspend fun insertAll(products: List<ProductInventoryEntity>) {
+                intento.complete(Unit)
+                throw IOException("disco lleno")
+            }
+        }
+        val p = TestDataFactory.createProductInventory(id = 603, name = "Sala", stock = 2)
+        val vm = ProductsInventoryViewModel(
+            app(),
+            ProductInventoryLocalDataSource(rota),
+            { FakeApi { ProductInventoryResponse(body = listOf(p)) } },
+            fecha
+        )
+        vm.fetchRemoteInventory()
+        withContext(Dispatchers.Default) {
+            withTimeout(10_000) { intento.await() }
+            delay(200) // deja que el catch termine; Room escribe en su propio hilo
+        }
         assertNull(fecha.ultima())
     }
 

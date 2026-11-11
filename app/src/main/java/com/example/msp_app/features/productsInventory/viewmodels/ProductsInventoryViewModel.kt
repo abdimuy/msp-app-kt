@@ -65,8 +65,9 @@ class ProductsInventoryViewModel @JvmOverloads constructor(
         withContext(Dispatchers.IO) {
             try {
                 localDataSource.insertAll(products.map { it.toEntity() })
-                // Solo si la escritura no falló: la marca dice "el teléfono tiene este catálogo".
-                fechaDelCatalogo.registrar()
+                // Solo si la escritura terminó sin excepción y había catálogo: la marca dice
+                // "el teléfono tiene este catálogo", y una lista vacía no es un catálogo.
+                if (products.isNotEmpty()) fechaDelCatalogo.registrar()
                 _productsLoaded.value = true
             } catch (e: Exception) {
             }

@@ -3,6 +3,8 @@ package com.example.msp_app.features.productsInventory.viewmodels
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.common.time.FechaDelCatalogo
+import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
+import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.utils.ResultState
@@ -13,6 +15,7 @@ import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.productInventory.toEntity
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import java.time.Instant
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -118,6 +121,33 @@ class ProductDetailsViewModelTest : RoomTestBase() {
 
         vm.loadProductById(511)
         vm.awaitTerminal()
+
+        assertNull(fecha.ultima())
+    }
+
+    @Test
+    fun siLaEscrituraEnElTelefonoTruenaLaFechaNoSeMueve() = runVmTest {
+        val intento = CompletableDeferred<Unit>()
+        val rota = object : ProductInventoryDao by db.productInventoryDao() {
+            override suspend fun insertAll(products: List<ProductInventoryEntity>) {
+                intento.complete(Unit)
+                throw java.io.IOException("disco lleno")
+            }
+        }
+        val remote = TestDataFactory.createProductInventory(id = 512, name = "Sala", stock = 1)
+        val vm = ProductDetailsViewModel(
+            app(),
+            FakeProductInventoryApi { ProductInventoryResponse(body = listOf(remote)) },
+            ProductInventoryLocalDataSource(rota),
+            mainDispatcherRule.testDispatcher,
+            fecha
+        )
+
+        vm.loadProductById(512)
+        withContext(Dispatchers.Default) {
+            withTimeout(10_000) { intento.await() }
+            delay(200) // deja que el catch termine
+        }
 
         assertNull(fecha.ultima())
     }
