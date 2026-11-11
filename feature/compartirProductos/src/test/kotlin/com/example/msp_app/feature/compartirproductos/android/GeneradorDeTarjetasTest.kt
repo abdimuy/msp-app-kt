@@ -162,9 +162,9 @@ class GeneradorDeTarjetasTest : RenderBase() {
         assertEquals(listOf(1 to 3, 2 to 3, 3 to 3), avances)
     }
 
-    @Test fun `treinta tarjetas caben y cada una pesa lo razonable`() {
-        val archivos = generador().go(List(30) { art(it) }, SeleccionDePrecios(), ahora)
-        assertEquals(30, archivos.size)
+    @Test fun `diez tarjetas caben y cada una pesa lo razonable`() {
+        val archivos = generador().go(List(10) { art(it) }, SeleccionDePrecios(), ahora)
+        assertEquals(10, archivos.size)
         assertTrue(archivos.all { it.length() in 10_000..600_000 })
     }
 }

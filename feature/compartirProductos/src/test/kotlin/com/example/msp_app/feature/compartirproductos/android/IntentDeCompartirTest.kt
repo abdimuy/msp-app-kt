@@ -98,16 +98,16 @@ class IntentDeCompartirTest : RobolectricTestBase() {
 
     // region — varios
 
-    @Test fun `treinta productos usan ACTION_SEND_MULTIPLE con las treinta uris en orden`() {
-        val u = uris(30)
+    @Test fun `diez productos usan ACTION_SEND_MULTIPLE con las diez uris en orden`() {
+        val u = uris(10)
         val i = IntentDeCompartir.armar(u, "t", "com.whatsapp")
         assertEquals(Intent.ACTION_SEND_MULTIPLE, i.action)
         assertEquals("image/jpeg", i.type)
         @Suppress("DEPRECATION")
         val enviadas = i.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)!!
         assertEquals(u, enviadas)
-        assertEquals(30, i.clipData!!.itemCount)
-        assertEquals(u.last(), i.clipData!!.getItemAt(29).uri)
+        assertEquals(10, i.clipData!!.itemCount)
+        assertEquals(u.last(), i.clipData!!.getItemAt(9).uri)
         assertTrue(i.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
     }
 

@@ -28,7 +28,7 @@ class DibujanteDeTarjeta(private val context: Context) {
     private val fuentes = FuentesDeTarjeta.cargar(context.assets)
     private val armador = ArmadorDeDisposicion(fuentes)
 
-    /** Se decodifica UNA vez por dibujante (no por tarjeta); con 30 tarjetas se evitan 29 decodificaciones. */
+    /** Se decodifica UNA vez por dibujante (no por tarjeta); con 10 tarjetas se evitan 9 decodificaciones. */
     private val logo: Bitmap? by lazy {
         BitmapFactory.decodeResource(context.resources, R.drawable.logo_msp)
     }

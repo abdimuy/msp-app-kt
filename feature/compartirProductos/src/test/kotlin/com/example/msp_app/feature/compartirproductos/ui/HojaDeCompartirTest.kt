@@ -143,8 +143,8 @@ class HojaDeCompartirTest : RobolectricTestBase() {
         rule.onNodeWithTag(EtiquetasDeSeleccion.CANCELAR).assertIsEnabled()
     }
 
-    @Test fun `la barra con el maximo dice Compartir (30)`() {
-        rule.setContent { MaterialTheme { BarraDeSeleccion(30, {}, {}) } }
-        rule.onNodeWithText("Compartir (30)").assertIsDisplayed()
+    @Test fun `la barra con el maximo dice Compartir (10)`() {
+        rule.setContent { MaterialTheme { BarraDeSeleccion(10, {}, {}) } }
+        rule.onNodeWithText("Compartir (10)").assertIsDisplayed()
     }
 }

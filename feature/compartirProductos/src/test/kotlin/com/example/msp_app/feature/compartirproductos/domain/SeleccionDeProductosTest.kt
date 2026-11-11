@@ -30,32 +30,33 @@ class SeleccionDeProductosTest {
         assertEquals(listOf(5, 3, 9), s.ids)
     }
 
-    @Test fun `treinta caben`() {
+    @Test fun `diez caben`() {
         var s = SeleccionDeProductos()
-        repeat(30) { s = cambio(s.alternar(it)) }
-        assertEquals(30, s.cantidad)
+        repeat(10) { s = cambio(s.alternar(it)) }
+        assertEquals(10, s.cantidad)
     }
 
-    @Test fun `el treinta y uno se bloquea con su aviso y no cambia nada`() {
+    @Test fun `el once se bloquea con su aviso y no cambia nada`() {
         var s = SeleccionDeProductos()
-        repeat(30) { s = cambio(s.alternar(it)) }
+        repeat(10) { s = cambio(s.alternar(it)) }
         val r = s.alternar(100)
         assertEquals(ResultadoDeSeleccion.Excedido, r)
-        assertEquals("Máximo 30 productos por envío", ResultadoDeSeleccion.Excedido.MENSAJE)
-        assertEquals(30, s.cantidad)
+        assertEquals("Máximo 10 productos por envío", ResultadoDeSeleccion.Excedido.MENSAJE)
+        assertEquals(10, s.cantidad)
+        assertEquals((0..9).toList(), s.ids)
         assertFalse(s.contiene(100))
     }
 
-    @Test fun `con treinta se puede desmarcar y volver a marcar otro`() {
+    @Test fun `con diez se puede desmarcar y volver a marcar otro`() {
         var s = SeleccionDeProductos()
-        repeat(30) { s = cambio(s.alternar(it)) }
+        repeat(10) { s = cambio(s.alternar(it)) }
         s = cambio(s.alternar(0))
-        assertEquals(29, s.cantidad)
+        assertEquals(9, s.cantidad)
         s = cambio(s.alternar(100))
-        assertEquals(30, s.cantidad)
+        assertEquals(10, s.cantidad)
     }
 
     @Test fun `el maximo es el que WhatsApp acepta`() {
-        assertEquals(30, ResultadoDeSeleccion.MAXIMO)
+        assertEquals(10, ResultadoDeSeleccion.MAXIMO)
     }
 }

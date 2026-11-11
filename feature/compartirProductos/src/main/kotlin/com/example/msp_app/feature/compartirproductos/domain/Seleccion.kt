@@ -10,8 +10,8 @@ sealed interface ResultadoDeSeleccion {
     }
 
     companion object {
-        /** Lo que WhatsApp acepta por envío. */
-        const val MAXIMO = 30
+        /** Tope por envío (decisión del dueño, 2026-11-11). */
+        const val MAXIMO = 10
     }
 }
 

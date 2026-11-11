@@ -261,17 +261,17 @@ class CompartirViewModelTest : RenderBase() {
         listOf("SALA UNO", "SALA DOS", "SALA TRES").forEach { assertTrue(texto.contains(it)) }
     }
 
-    @Test fun `treinta productos se comparten en un solo intent`() = runTest(
+    @Test fun `diez productos se comparten en un solo intent`() = runTest(
         mainDispatcherRule.testDispatcher
     ) {
         val m = vm()
-        m.abrir(List(30) { art(it + 1, "SALA $it") })
+        m.abrir(List(10) { art(it + 1, "SALA $it") })
         val evento = launchEvento(m)
         m.compartir()
         planificador.advanceUntilIdle()
         val intent = (evento.await() as EventoDeCompartir.Lanzar).intent
-        assertEquals(30, intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)!!.size)
-        assertEquals(30, File(tmp.root, "compartir").listFiles()!!.size)
+        assertEquals(10, intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)!!.size)
+        assertEquals(10, File(tmp.root, "compartir").listFiles()!!.size)
     }
 
     @Test fun `sin casillas la tarjeta se manda sin precios y el texto tampoco los lleva`() = runTest(
