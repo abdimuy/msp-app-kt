@@ -76,7 +76,8 @@ class ClienteSyncWorker(
  * - Una lista vacía del servidor no reemplaza el padrón (el repositorio la ignora y la registra);
  *   el trabajo termina en `success`: reintentar no cambiaría lo que contesta el servidor.
  * - Una lista INCOMPLETA (menos de la mitad de los guardados, con más de 1,000) tampoco lo
- *   reemplaza, pero ahí sí `retry()`: una respuesta recortada puede llegar completa después.
+ *   reemplaza y también termina en `success`: reintentar no cambia lo que contesta el servidor y el
+ *   backoff exponencial solo repetiría descargas completas. La red caída o el tope SÍ van a `retry()`.
  * - La cancelación (WorkManager detiene el trabajo) se PROPAGA: no es un error de red.
  */
 internal suspend fun ejecutarSyncDeClientes(
@@ -98,8 +99,10 @@ internal suspend fun ejecutarSyncDeClientes(
             ListenableWorker.Result.success()
         }
         ResultadoDePadron.VACIA_IGNORADA -> ListenableWorker.Result.success()
-        // Una respuesta recortada puede arreglarse sola en el siguiente intento.
-        ResultadoDePadron.INCOMPLETA_IGNORADA -> ListenableWorker.Result.retry()
+        // Sin retry(): el backoff exponencial de WorkManager bajaría el padrón completo ~10 veces
+        // al día para nada. Se espera al siguiente periodo; a la 3.ª lista reducida de tamaño
+        // parecido el repositorio la acepta solo (RegistroDeRechazos).
+        ResultadoDePadron.INCOMPLETA_IGNORADA -> ListenableWorker.Result.success()
     }
 } catch (e: CancellationException) {
     throw e

@@ -21,6 +21,7 @@ object TextosDeLista {
     const val ERROR_SIN_CONEXION = "No se pudo actualizar: sin conexión. $SEGUIR_BUSCANDO"
     const val ERROR_GENERICO = "No se pudo actualizar la lista. $SEGUIR_BUSCANDO"
     const val ERROR_LISTA_VACIA = "No se actualizó: el servidor envió la lista vacía. $SEGUIR_BUSCANDO"
+    const val FORZAR_ACTUALIZACION = "Actualizar de todos modos"
     const val ERROR_LISTA_INCOMPLETA = "La lista recibida está incompleta. Se conserva la lista guardada"
 
     fun mostrando(mostrados: Int, total: Int): String =
@@ -54,36 +55,77 @@ class ActualizadorDeLista<T>(
     private val descargar: suspend () -> T,
     private val aplicar: suspend (T) -> Boolean,
     private val alTerminarBien: suspend () -> Unit = {},
-    private val mensajeSiNoSeAplica: () -> String = { TextosDeLista.ERROR_LISTA_VACIA }
+    private val mensajeSiNoSeAplica: () -> String = { TextosDeLista.ERROR_LISTA_VACIA },
+    private val forzar: (suspend (T) -> Boolean)? = null,
+    private val sePuedeForzar: () -> Boolean = { false }
 ) {
     private val enCurso = AtomicBoolean(false)
     private val _actualizando = MutableStateFlow(false)
     private val _mensajeDeError = MutableStateFlow<String?>(null)
+    private val _puedeForzar = MutableStateFlow(false)
+
+    /** La lista descargada que [aplicar] rechazó y que [forzarActualizacion] puede aplicar sin volver a bajarla. */
+    private var pendiente: T? = null
 
     val actualizando: StateFlow<Boolean> = _actualizando
     val mensajeDeError: StateFlow<String?> = _mensajeDeError
+
+    /** `true` cuando la lista se rechazó por una razón que el usuario puede decidir ignorar. */
+    val puedeForzar: StateFlow<Boolean> = _puedeForzar
 
     /** @return `true` si arrancó una descarga; `false` si ya había una en curso. */
     fun iniciar(): Boolean {
         if (!enCurso.compareAndSet(false, true)) return false
         _actualizando.value = true
         _mensajeDeError.value = null
+        olvidarPendiente()
         scope.launch { correr() }
+        return true
+    }
+
+    /**
+     * "Actualizar de todos modos": aplica con [forzar] la MISMA lista que se rechazó (sin volver a
+     * descargarla). @return `false` si no hay lista pendiente o ya hay una operación en curso.
+     */
+    fun forzarActualizacion(): Boolean {
+        val lista = pendiente ?: return false
+        val aplicarForzado = forzar ?: return false
+        if (!enCurso.compareAndSet(false, true)) return false
+        _actualizando.value = true
+        _mensajeDeError.value = null
+        olvidarPendiente()
+        scope.launch {
+            correrConFin { if (aplicarForzado(lista)) alTerminarBien() else avisarRechazo(lista) }
+        }
         return true
     }
 
     fun limpiarError() {
         _mensajeDeError.value = null
+        olvidarPendiente()
     }
 
-    private suspend fun correr() {
+    private fun olvidarPendiente() {
+        pendiente = null
+        _puedeForzar.value = false
+    }
+
+    private fun avisarRechazo(lista: T) {
+        _mensajeDeError.value = mensajeSiNoSeAplica()
+        if (forzar != null && sePuedeForzar()) {
+            pendiente = lista
+            _puedeForzar.value = true
+        }
+    }
+
+    private suspend fun correr() = correrConFin {
+        val descargado = conTopeTotal(topeMs) { descargar() }
+        if (aplicar(descargado)) alTerminarBien() else avisarRechazo(descargado)
+    }
+
+    private suspend fun correrConFin(cuerpo: suspend () -> Unit) {
         try {
-            val descargado = conTopeTotal(topeMs) { descargar() }
-            if (aplicar(descargado)) {
-                alTerminarBien()
-            } else {
-                _mensajeDeError.value = mensajeSiNoSeAplica()
-            }
+            cuerpo()
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {

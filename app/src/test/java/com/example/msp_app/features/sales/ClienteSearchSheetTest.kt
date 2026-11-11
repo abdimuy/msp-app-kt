@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.room.Room
@@ -192,5 +193,21 @@ class ClienteSearchSheetTest : RobolectricTestBase() {
             compose.onNode(
                 hasText(TextosDeLista.ACTUALIZANDO) and hasClickAction()
             ).assertIsNotEnabled()
+        }
+
+    @Test fun `con una lista incompleta ofrece Actualizar de todos modos y al tocarlo la aplica`() =
+        runTest {
+            db.clienteDao().insertAll(
+                (1..2000).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
+            )
+            api.respuesta = (1..10).map { FakeClientesApi.cliente(100_000 + it, "NUEVO $it") }
+            val vm = vm()
+            abrir(vm)
+            esperarTexto("2000 clientes disponibles")
+            vm.syncFromServer()
+            esperarTexto(TextosDeLista.ERROR_LISTA_INCOMPLETA)
+            compose.onNodeWithText(TextosDeLista.FORZAR_ACTUALIZACION).performClick()
+            esperarTexto("10 clientes disponibles")
+            compose.onNodeWithText(TextosDeLista.FORZAR_ACTUALIZACION).assertDoesNotExist()
         }
 }

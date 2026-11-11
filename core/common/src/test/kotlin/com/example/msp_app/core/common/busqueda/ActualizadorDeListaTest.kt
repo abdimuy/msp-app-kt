@@ -253,6 +253,86 @@ class ActualizadorDeListaTest {
         )
     }
 
+    @Test fun `un rechazo forzable ofrece forzar y forzar aplica la misma lista sin volver a descargar`() =
+        runTest {
+            var descargas = 0
+            var forzada: List<Int>? = null
+            var fin = 0
+            val a = ActualizadorDeLista<List<Int>>(
+                this,
+                descargar = {
+                    descargas++
+                    listOf(1, 2, 3)
+                },
+                aplicar = { false },
+                alTerminarBien = { fin++ },
+                mensajeSiNoSeAplica = { TextosDeLista.ERROR_LISTA_INCOMPLETA },
+                forzar = {
+                    forzada = it
+                    true
+                },
+                sePuedeForzar = { true }
+            )
+            a.iniciar()
+            advanceUntilIdle()
+            assertTrue(a.puedeForzar.value)
+            assertTrue(a.forzarActualizacion())
+            advanceUntilIdle()
+            assertEquals(listOf(1, 2, 3), forzada)
+            assertEquals(1, descargas)
+            assertEquals(1, fin)
+            assertNull(a.mensajeDeError.value)
+            assertFalse(a.puedeForzar.value)
+            assertFalse("ya no hay lista pendiente", a.forzarActualizacion())
+        }
+
+    @Test fun `un rechazo no forzable (lista vacia) no ofrece forzar`() = runTest {
+        val a = ActualizadorDeLista<List<Int>>(
+            this,
+            descargar = { emptyList() },
+            aplicar = { false },
+            forzar = { true },
+            sePuedeForzar = { false }
+        )
+        a.iniciar()
+        advanceUntilIdle()
+        assertFalse(a.puedeForzar.value)
+        assertFalse(a.forzarActualizacion())
+        assertEquals(TextosDeLista.ERROR_LISTA_VACIA, a.mensajeDeError.value)
+    }
+
+    @Test fun `una nueva descarga o limpiar el error olvidan la lista pendiente`() = runTest {
+        val a = ActualizadorDeLista<List<Int>>(
+            this,
+            descargar = { listOf(1) },
+            aplicar = { false },
+            forzar = { true },
+            sePuedeForzar = { true }
+        )
+        a.iniciar()
+        advanceUntilIdle()
+        a.limpiarError()
+        assertFalse(a.puedeForzar.value)
+        assertFalse(a.forzarActualizacion())
+    }
+
+    @Test fun `si lo forzado tambien se rechaza el mensaje vuelve y la lista sigue pendiente`() =
+        runTest {
+            val a = ActualizadorDeLista<List<Int>>(
+                this,
+                descargar = { listOf(1) },
+                aplicar = { false },
+                forzar = { false },
+                sePuedeForzar = { true }
+            )
+            a.iniciar()
+            advanceUntilIdle()
+            a.forzarActualizacion()
+            advanceUntilIdle()
+            assertEquals(TextosDeLista.ERROR_LISTA_VACIA, a.mensajeDeError.value)
+            assertTrue(a.puedeForzar.value)
+        }
+
     @Test fun `limpiarError borra el mensaje`() = runTest {
         val a = ActualizadorDeLista<List<Int>>(this, descargar = { error("x") }, aplicar = { true })
         a.iniciar()

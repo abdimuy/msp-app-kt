@@ -212,6 +212,33 @@ class ClienteSearchViewModelTest : RoomTestBase() {
         assertEquals(2000, db.clienteDao().getCount())
     }
 
+    @Test fun `forzar aplica la lista incompleta ya descargada sin volver a bajarla`() = runTest {
+        db.clienteDao().insertAll(
+            (1..2000).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
+        )
+        api.respuesta = (1..10).map { cliente(100_000 + it, "NUEVO $it") }
+        val vm = vm()
+        vm.syncFromServer()
+        hasta { vm.puedeForzar.value }
+        assertEquals(2000, db.clienteDao().getCount())
+
+        vm.forzarActualizacion()
+        hasta { vm.clienteCount.value == 10 }
+
+        assertNull(vm.syncError.value)
+        assertFalse(vm.puedeForzar.value)
+        assertEquals(1, api.llamadas)
+    }
+
+    @Test fun `una lista vacia no ofrece forzar`() = runTest {
+        sembrar("ANA RUIZ")
+        api.respuesta = emptyList()
+        val vm = vm()
+        vm.syncFromServer()
+        hasta { vm.syncError.value != null }
+        assertFalse(vm.puedeForzar.value)
+    }
+
     @Test fun `cerrar la pantalla en plena descarga cancela la peticion y no deja error`() = runTest {
         sembrar("ANA RUIZ")
         api.duracionMs = Long.MAX_VALUE / 4

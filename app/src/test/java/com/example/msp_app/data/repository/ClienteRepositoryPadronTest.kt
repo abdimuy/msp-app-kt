@@ -191,6 +191,159 @@ class ClienteRepositoryPadronTest : RoomTestBase() {
         )
     }
 
+    // --- salidas del padrón congelado: forzar y 3.ª lista reducida seguida ---
+
+    private suspend fun aplicarVeces(veces: Int, tamano: Int) =
+        (1..veces).map { repository.aplicarPadronConResultado(nueva(tamano)) }
+
+    @Test fun `el escenario medido 2000 guardados y el servidor manda 900 se acepta a la 3 vez y aparece el cliente nuevo`() =
+        runTest {
+            sembrar(2000)
+            api.respuesta = (1..900).map {
+                cliente(1 + it, "CLIENTE ${1 + it}")
+            } + cliente(5000, "NUEVA PERSONA")
+            val resultados = (1..3).map { repository.sincronizar() }
+            assertEquals(
+                listOf(
+                    ResultadoDePadron.INCOMPLETA_IGNORADA,
+                    ResultadoDePadron.INCOMPLETA_IGNORADA,
+                    ResultadoDePadron.REEMPLAZADO
+                ),
+                resultados
+            )
+            assertEquals(901, repository.getCount())
+            assertEquals(
+                listOf(5000),
+                repository.searchClientes("nueva persona").map { it.CLIENTE_ID }
+            )
+            assertEquals(
+                listOf(
+                    "LISTA_INCOMPLETA_IGNORADA",
+                    "LISTA_INCOMPLETA_IGNORADA",
+                    "LISTA_INCOMPLETA_ACEPTADA"
+                ),
+                avisos.map { it.first }
+            )
+            assertEquals(
+                mapOf<String, Any?>("clientesGuardados" to 2000, "clientesRecibidos" to 901),
+                avisos.last().second
+            )
+        }
+
+    @Test fun `con la misma lista reducida solo la 3 vez seguida se acepta`() = runTest {
+        sembrar(2000)
+        assertEquals(
+            listOf(
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.REEMPLAZADO
+            ),
+            aplicarVeces(3, 900)
+        )
+    }
+
+    @Test fun `un tamano distinto reinicia la cuenta`() = runTest {
+        sembrar(2000)
+        val r = aplicarVeces(2, 900) + repository.aplicarPadronConResultado(nueva(600)) +
+            repository.aplicarPadronConResultado(nueva(600))
+        assertEquals(List(4) { ResultadoDePadron.INCOMPLETA_IGNORADA }, r)
+        assertEquals(2000, repository.getCount())
+        assertEquals(
+            ResultadoDePadron.REEMPLAZADO,
+            repository.aplicarPadronConResultado(nueva(600))
+        )
+    }
+
+    @Test fun `la tolerancia es 5 por ciento exacto`() = runTest {
+        sembrar(2000)
+        // 900 -> 945 es +5.0 %: parecido, cuenta como 2.ª; 945 -> 945 es la 3.ª
+        assertEquals(
+            listOf(
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.REEMPLAZADO
+            ),
+            listOf(900, 945, 945).map { repository.aplicarPadronConResultado(nueva(it)) }
+        )
+    }
+
+    @Test fun `mas de 5 por ciento ya no es parecido`() = runTest {
+        sembrar(2000)
+        // 900 -> 946 es +5.1 %: reinicia; 946 -> 946 solo es la 2.ª
+        assertEquals(
+            List(3) { ResultadoDePadron.INCOMPLETA_IGNORADA },
+            listOf(900, 946, 946).map { repository.aplicarPadronConResultado(nueva(it)) }
+        )
+    }
+
+    @Test fun `un reemplazo exitoso reinicia la cuenta`() = runTest {
+        sembrar(4000)
+        aplicarVeces(2, 900)
+        assertEquals(
+            ResultadoDePadron.REEMPLAZADO,
+            repository.aplicarPadronConResultado(nueva(2000))
+        )
+        // ahora hay 2000 guardados: 900 vuelve a ser incompleta y arranca de 1, no de 3
+        assertEquals(
+            ResultadoDePadron.INCOMPLETA_IGNORADA,
+            repository.aplicarPadronConResultado(nueva(900))
+        )
+        assertEquals(2000, repository.getCount())
+    }
+
+    @Test fun `forzar aplica la lista incompleta, la registra con conteos y reinicia la cuenta`() =
+        runTest {
+            sembrar(2000)
+            aplicarVeces(2, 900)
+            assertEquals(
+                ResultadoDePadron.REEMPLAZADO,
+                repository.aplicarPadronConResultado(nueva(10), forzar = true)
+            )
+            assertEquals(10, repository.getCount())
+            assertEquals("LISTA_INCOMPLETA_FORZADA", avisos.last().first)
+            assertEquals(
+                mapOf<String, Any?>("clientesGuardados" to 2000, "clientesRecibidos" to 10),
+                avisos.last().second
+            )
+            assertEquals(reloj, guardado)
+        }
+
+    @Test fun `la lista vacia sigue protegida siempre, tambien forzada y tambien tras rechazos`() =
+        runTest {
+            sembrar(2000)
+            aplicarVeces(2, 900)
+            assertEquals(
+                ResultadoDePadron.VACIA_IGNORADA,
+                repository.aplicarPadronConResultado(emptyList())
+            )
+            assertEquals(
+                ResultadoDePadron.VACIA_IGNORADA,
+                repository.aplicarPadronConResultado(emptyList(), forzar = true)
+            )
+            assertEquals(2000, repository.getCount())
+        }
+
+    @Test fun `la cuenta de rechazos sobrevive a un nuevo repositorio con las mismas preferencias`() =
+        runTest {
+            sembrar(2000)
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            fun conPrefs() = ClienteRepository(
+                dataSource = ClienteDataSource(context),
+                api = api,
+                avisar = { accion, _, datos -> avisos += accion to datos },
+                guardarFechaDeSync = { guardado = it },
+                leerFechaDeSync = { guardado },
+                ahora = { reloj },
+                rechazos = RegistroDeRechazos.enPreferencias(context)
+            )
+            conPrefs().aplicarPadronConResultado(nueva(900))
+            conPrefs().aplicarPadronConResultado(nueva(900))
+            assertEquals(
+                ResultadoDePadron.REEMPLAZADO,
+                conPrefs().aplicarPadronConResultado(nueva(900))
+            )
+        }
+
     // --- normalización al guardar ---
 
     @Test fun `el padron se guarda con la normalizacion nueva`() = runTest {

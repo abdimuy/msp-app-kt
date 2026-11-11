@@ -89,15 +89,37 @@ class ClienteSyncWorkerTopeTest : RoomTestBase() {
             assertEquals(1, db.clienteDao().getCount())
         }
 
-    @Test fun `una lista incompleta del servidor pide reintento y conserva el padron`() = runTest {
+    @Test fun `una lista incompleta del servidor NO pide reintento, conserva el padron y no es error`() =
+        runTest {
+            db.clienteDao().insertAll(
+                (1..2000).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
+            )
+            api.respuesta = (1..10).map { cliente(100_000 + it, "NUEVO $it") }
+            assertEquals(ListenableWorker.Result.success(), correr())
+            assertTrue(exitos.isEmpty())
+            assertTrue("no es un error de red", errores.isEmpty())
+            assertEquals(2000, db.clienteDao().getCount())
+        }
+
+    @Test fun `la misma lista reducida 3 periodos seguidos se acepta y avisa exito`() = runTest {
         db.clienteDao().insertAll(
             (1..2000).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
         )
-        api.respuesta = (1..10).map { cliente(100_000 + it, "NUEVO $it") }
-        assertEquals(ListenableWorker.Result.retry(), correr())
+        api.respuesta = (1..900).map { cliente(100_000 + it, "NUEVO $it") }
+        val repositorio = repo()
+        suspend fun periodo() = ejecutarSyncDeClientes(
+            repository = repositorio,
+            intento = 0,
+            alExito = { exitos += it },
+            alError = { errores += it }
+        )
+        assertEquals(ListenableWorker.Result.success(), periodo())
+        assertEquals(ListenableWorker.Result.success(), periodo())
         assertTrue(exitos.isEmpty())
-        assertTrue("no es un error de red", errores.isEmpty())
-        assertEquals(2000, db.clienteDao().getCount())
+        assertEquals(ListenableWorker.Result.success(), periodo())
+        assertEquals(listOf(900), exitos)
+        assertEquals(900, db.clienteDao().getCount())
+        assertEquals(3, api.llamadas)
     }
 
     @Test fun `la cancelacion de WorkManager se propaga y no se vuelve retry`() = runTest {

@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -63,6 +64,7 @@ fun ClienteSearchBottomSheet(
     val clienteCount by viewModel.clienteCount.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncError by viewModel.syncError.collectAsState()
+    val puedeForzar by viewModel.puedeForzar.collectAsState()
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -168,6 +170,11 @@ fun ClienteSearchBottomSheet(
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (puedeForzar) {
+                        TextButton(onClick = { viewModel.forzarActualizacion() }) {
+                            Text(TextosDeLista.FORZAR_ACTUALIZACION)
+                        }
+                    }
                 }
             }
 

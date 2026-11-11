@@ -81,12 +81,19 @@ class ClienteSearchViewModel internal constructor(
         alTerminarBien = {
             refrescarEstadoDelPadron()
             reintentos.value++
-        }
+        },
+        forzar = {
+            repository.aplicarPadronConResultado(it, forzar = true) == ResultadoDePadron.REEMPLAZADO
+        },
+        sePuedeForzar = { ultimoResultado == ResultadoDePadron.INCOMPLETA_IGNORADA }
     )
     private val reintentos = MutableStateFlow(0)
 
     val isSyncing: StateFlow<Boolean> = actualizador.actualizando
     val syncError: StateFlow<String?> = actualizador.mensajeDeError
+
+    /** Hay una lista incompleta rechazada que el usuario puede aplicar con [forzarActualizacion]. */
+    val puedeForzar: StateFlow<Boolean> = actualizador.puedeForzar
 
     init {
         viewModelScope.launch { refrescarEstadoDelPadron() }
@@ -110,6 +117,11 @@ class ClienteSearchViewModel internal constructor(
     /** Botón "Actualizar lista". Un segundo toque mientras corre no lanza otra descarga. */
     fun syncFromServer() {
         actualizador.iniciar()
+    }
+
+    /** "Actualizar de todos modos": aplica la lista incompleta ya descargada, sin volver a bajarla. */
+    fun forzarActualizacion() {
+        actualizador.forzarActualizacion()
     }
 
     fun clearSyncError() {
