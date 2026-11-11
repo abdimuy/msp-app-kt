@@ -274,6 +274,10 @@ class NormalizadorDeNombreTest {
         igual("Cobertor Matrimonial", "COBERTOR MAT.")
         igual("Colcha Matrimonial", "COLCHA MAT.")
         igual("Protector Matrimonial", "PROTECTOR MAT.")
+        igual("Colchas Matrimonial", "COLCHAS MAT.")
+        igual("Edredones Matrimonial", "EDREDONES MAT.")
+        igual("Cobertores Matrimonial", "COBERTORES MAT.")
+        igual("Protectores Matrimonial", "PROTECTORES MAT.")
         igual("Juego Mat. Gris", "JUEGO MAT. GRIS") // sin ropa de cama sigue sin adivinar
     }
 

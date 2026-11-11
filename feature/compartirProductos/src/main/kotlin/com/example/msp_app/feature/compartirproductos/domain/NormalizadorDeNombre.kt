@@ -126,7 +126,8 @@ object NormalizadorDeNombre {
     /** Palabras que vuelven inequívoco a «MAT» como «matrimonial» (en otro contexto puede ser «mate», «material»…); la ropa de cama (sábanas, edredón…) también. */
     private val CONTEXTO_DE_CAMA = setOf(
         "CAMA", "COLCHON", "RECAMARA", "BASE", "BOX",
-        "SABANA", "SABANAS", "EDREDON", "COBERTOR", "COLCHA", "PROTECTOR"
+        "SABANA", "SABANAS", "EDREDON", "COBERTOR", "COLCHA", "PROTECTOR",
+        "EDREDONES", "COBERTORES", "COLCHAS", "PROTECTORES"
     )
 
     private fun tieneContextoDeCama(texto: String): Boolean {
