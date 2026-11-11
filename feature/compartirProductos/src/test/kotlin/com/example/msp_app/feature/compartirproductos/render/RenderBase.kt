@@ -57,7 +57,7 @@ abstract class RenderBase : RobolectricTestBase() {
     protected fun tarjeta(
         articulo: ArticuloParaCompartir = articulo(),
         seleccion: SeleccionDePrecios = SeleccionDePrecios()
-    ): TarjetaDeProducto = ArmadorDeTarjeta.armar(articulo, seleccion, null, ahora)
+    ): TarjetaDeProducto = ArmadorDeTarjeta.armar(articulo, seleccion, ahora)
 
     /** Foto de prueba: franjas de colores distintos, para ver QUÉ parte se recorta. */
     protected fun fotoConFranjas(

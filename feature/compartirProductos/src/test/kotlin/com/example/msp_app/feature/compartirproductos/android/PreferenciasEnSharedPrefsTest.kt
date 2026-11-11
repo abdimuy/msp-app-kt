@@ -5,7 +5,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.compartirproductos.domain.SeleccionDePrecios
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PreferenciasEnSharedPrefsTest : RobolectricTestBase() {
@@ -28,38 +27,33 @@ class PreferenciasEnSharedPrefsTest : RobolectricTestBase() {
         assertEquals(SeleccionDePrecios(false, false, false), nuevas().seleccionDePrecios())
     }
 
-    @Test fun `el titulo editado se recuerda por producto`() {
-        val p = nuevas()
-        p.guardarTituloEditado(10, "Sofá Valencia Verde")
-        p.guardarTituloEditado(11, "Comedor Roble")
-        assertEquals("Sofá Valencia Verde", nuevas().tituloEditado(10))
-        assertEquals("Comedor Roble", nuevas().tituloEditado(11))
-        assertNull(nuevas().tituloEditado(12))
+    private val contexto get() = ApplicationProvider.getApplicationContext<Context>()
+
+    private fun sembrarTitulosViejos() {
+        contexto.getSharedPreferences("compartir_productos", Context.MODE_PRIVATE).edit()
+            .putString("titulo_10", "Sofá Valencia Verde")
+            .putString("titulo_11", "Comedor Roble")
+            .commit()
     }
 
-    @Test fun `un titulo vacio o en blanco borra el recuerdo`() {
-        val p = nuevas()
-        p.guardarTituloEditado(10, "Algo")
-        p.guardarTituloEditado(10, "   ")
-        assertNull(nuevas().tituloEditado(10))
-        p.guardarTituloEditado(10, "Algo")
-        p.guardarTituloEditado(10, null)
-        assertNull(nuevas().tituloEditado(10))
-    }
+    private fun clavesViejas() = contexto.getSharedPreferences(
+        "compartir_productos",
+        Context.MODE_PRIVATE
+    )
+        .all.keys.filter { it.startsWith("titulo_") }
 
-    @Test fun `el titulo se guarda recortado de espacios`() {
-        val p = nuevas()
-        p.guardarTituloEditado(3, "  Mesa Redonda  ")
-        assertEquals("Mesa Redonda", nuevas().tituloEditado(3))
-    }
-
-    @Test fun `editar un producto no afecta al otro ni a las casillas`() {
-        val p = nuevas()
-        p.guardarSeleccionDePrecios(SeleccionDePrecios(false, true, true))
-        p.guardarTituloEditado(1, "Uno")
-        p.guardarTituloEditado(1, null)
-        p.guardarTituloEditado(2, "Dos")
-        assertEquals("Dos", nuevas().tituloEditado(2))
+    @Test fun `los titulos editados que un telefono guardo antes se borran y las casillas se quedan`() {
+        nuevas().guardarSeleccionDePrecios(SeleccionDePrecios(false, true, true))
+        sembrarTitulosViejos()
+        assertEquals(2, nuevas().borrarTitulosEditadosViejos())
+        assertEquals(emptyList<String>(), clavesViejas())
         assertEquals(SeleccionDePrecios(false, true, true), nuevas().seleccionDePrecios())
+        assertEquals(0, nuevas().borrarTitulosEditadosViejos())
+    }
+
+    @Test fun `la limpieza de arranque borra los titulos editados viejos (E-APP-180)`() {
+        sembrarTitulosViejos()
+        LimpiezaAlArrancar.ejecutar(contexto)
+        assertEquals(emptyList<String>(), clavesViejas())
     }
 }

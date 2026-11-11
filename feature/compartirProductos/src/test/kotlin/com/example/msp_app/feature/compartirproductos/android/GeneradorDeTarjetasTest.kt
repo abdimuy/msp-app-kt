@@ -27,20 +27,9 @@ import org.junit.rules.TemporaryFolder
 /** Preferencias en memoria: la prueba de [PreferenciasEnSharedPrefs] cubre la real. */
 class PreferenciasEnMemoria : PreferenciasDeCompartir {
     var seleccion = SeleccionDePrecios()
-    val titulos = mutableMapOf<Int, String>()
     override fun seleccionDePrecios() = seleccion
     override fun guardarSeleccionDePrecios(seleccion: SeleccionDePrecios) {
         this.seleccion = seleccion
-    }
-    override fun tituloEditado(articuloId: Int): String? = titulos[articuloId]
-    override fun guardarTituloEditado(articuloId: Int, titulo: String?) {
-        if (titulo.isNullOrBlank()) {
-            titulos.remove(
-                articuloId
-            )
-        } else {
-            titulos[articuloId] = titulo.trim()
-        }
     }
 }
 
@@ -48,24 +37,21 @@ class GeneradorDeTarjetasTest : RenderBase() {
 
     @get:Rule val tmp = TemporaryFolder()
 
-    private val prefs = PreferenciasEnMemoria()
     private val reloj = object : AppClock {
         override fun now(): Instant = ahora
     }
 
     private fun generador() = GeneradorDeTarjetas(
         DibujanteDeTarjeta(ApplicationProvider.getApplicationContext()),
-        AlmacenDeTemporales(tmp.root, reloj),
-        prefs
+        AlmacenDeTemporales(tmp.root, reloj)
     )
 
     private fun GeneradorDeTarjetas.go(
         articulos: List<ArticuloParaCompartir>,
         seleccion: SeleccionDePrecios,
         ahora: Instant,
-        tituloSolo: String? = null,
         alAvanzar: (Int, Int) -> Unit = { _, _ -> }
-    ) = runBlocking { generar(articulos, seleccion, ahora, tituloSolo, alAvanzar) }
+    ) = runBlocking { generar(articulos, seleccion, ahora, alAvanzar) }
 
     private fun art(id: Int, nombre: String = "SALA VALENCIA", foto: String? = null) =
         ArticuloParaCompartir(
@@ -136,25 +122,15 @@ class GeneradorDeTarjetasTest : RenderBase() {
         }
     }
 
-    @Test fun `el titulo recordado se usa y el editado en la hoja gana con un solo producto`() {
-        prefs.guardarTituloEditado(1, "Titulo Recordado")
+    @Test fun `el titulo de la tarjeta no depende de cuantos productos se comparten (E-APP-180)`() {
         val g = generador()
-        // Con varios: cada uno usa su título recordado.
-        val dos = g.go(listOf(art(1), art(2)), SeleccionDePrecios(), ahora)
-        assertEquals(2, dos.size)
-        // La comparación de contenido se hace por pixeles: dos tarjetas con distinto título difieren.
-        val conRecordado = BitmapFactory.decodeFile(dos[0].path)
-        val sinRecordado = BitmapFactory.decodeFile(dos[1].path)
-        assertFalse(conRecordado.sameAs(sinRecordado))
-        // Con uno solo, el título de la hoja gana sobre el recordado.
-        val uno = g.go(
-            listOf(art(1)),
-            SeleccionDePrecios(),
-            ahora,
-            tituloSolo = "Otro Titulo Mas Largo"
+        val solo = BitmapFactory.decodeFile(
+            g.go(listOf(art(1)), SeleccionDePrecios(), ahora).single().path
         )
-        val ganador = BitmapFactory.decodeFile(uno.single().path)
-        assertFalse(ganador.sameAs(conRecordado))
+        val enGrupo = BitmapFactory.decodeFile(
+            g.go(listOf(art(1), art(2, "OTRA COSA")), SeleccionDePrecios(), ahora)[0].path
+        )
+        assertTrue(solo.sameAs(enGrupo))
     }
 
     @Test fun `si se cancela en medio no se siguen dibujando tarjetas`() {
@@ -163,7 +139,7 @@ class GeneradorDeTarjetasTest : RenderBase() {
             val g = generador()
             lateinit var trabajo: kotlinx.coroutines.Job
             trabajo = launch(kotlinx.coroutines.Dispatchers.Default) {
-                g.generar(List(10) { art(it) }, SeleccionDePrecios(), ahora, null) { h, _ ->
+                g.generar(List(10) { art(it) }, SeleccionDePrecios(), ahora) { h, _ ->
                     archivos += h
                     if (h == 2) trabajo.cancel()
                 }

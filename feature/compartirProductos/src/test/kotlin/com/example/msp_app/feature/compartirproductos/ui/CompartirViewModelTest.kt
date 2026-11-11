@@ -8,8 +8,10 @@ import com.example.msp_app.feature.compartirproductos.android.AlmacenDeTemporale
 import com.example.msp_app.feature.compartirproductos.android.GeneradorDeTarjetas
 import com.example.msp_app.feature.compartirproductos.android.IntentDeCompartir
 import com.example.msp_app.feature.compartirproductos.android.PreferenciasEnMemoria
+import com.example.msp_app.feature.compartirproductos.android.PreferenciasEnSharedPrefs
 import com.example.msp_app.feature.compartirproductos.domain.ArticuloParaCompartir
 import com.example.msp_app.feature.compartirproductos.domain.FilaDePrecio
+import com.example.msp_app.feature.compartirproductos.domain.PreferenciasDeCompartir
 import com.example.msp_app.feature.compartirproductos.domain.SeleccionDePrecios
 import com.example.msp_app.feature.compartirproductos.render.DibujanteDeTarjeta
 import com.example.msp_app.feature.compartirproductos.render.RenderBase
@@ -43,12 +45,15 @@ class CompartirViewModelTest : RenderBase() {
     }
     private val planificador get() = mainDispatcherRule.testDispatcher.scheduler
 
-    private fun vm(raiz: File = tmp.root): CompartirViewModel {
+    private fun vm(
+        raiz: File = tmp.root,
+        preferencias: PreferenciasDeCompartir = prefs
+    ): CompartirViewModel {
         val d = DibujanteDeTarjeta(ApplicationProvider.getApplicationContext())
         return CompartirViewModel(
-            generador = GeneradorDeTarjetas(d, AlmacenDeTemporales(raiz, reloj), prefs),
+            generador = GeneradorDeTarjetas(d, AlmacenDeTemporales(raiz, reloj)),
             dibujante = d,
-            preferencias = prefs,
+            preferencias = preferencias,
             crearIntent = { archivos, texto ->
                 IntentDeCompartir.armar(
                     archivos.map {
@@ -72,21 +77,19 @@ class CompartirViewModelTest : RenderBase() {
 
     // region — abrir
 
-    @Test fun `abrir con un producto propone el titulo automatico con las tres casillas marcadas`() {
+    @Test fun `abrir con un producto deja las tres casillas marcadas`() {
         val m = vm()
         m.abrir(listOf(art(1)))
         val e = m.estado.value
         assertTrue(e.visible)
         assertTrue(e.esUno)
-        assertEquals("Recámara Toscana", e.titulo)
         assertEquals(SeleccionDePrecios(true, true, true), e.seleccion)
     }
 
-    @Test fun `abrir con varios no muestra titulo editable`() {
+    @Test fun `abrir con varios no es un solo producto`() {
         val m = vm()
         m.abrir(listOf(art(1), art(2)))
         assertFalse(m.estado.value.esUno)
-        assertEquals("", m.estado.value.titulo)
     }
 
     @Test fun `abrir sin productos no abre nada`() {
@@ -95,13 +98,11 @@ class CompartirViewModelTest : RenderBase() {
         assertFalse(m.estado.value.visible)
     }
 
-    @Test fun `abrir recuerda las casillas y el titulo de la vez anterior`() {
+    @Test fun `abrir recuerda las casillas de la vez anterior`() {
         prefs.guardarSeleccionDePrecios(SeleccionDePrecios(true, false, false))
-        prefs.guardarTituloEditado(1, "Mi Titulo")
         val m = vm()
         m.abrir(listOf(art(1)))
         assertEquals(SeleccionDePrecios(true, false, false), m.estado.value.seleccion)
-        assertEquals("Mi Titulo", m.estado.value.titulo)
     }
 
     @Test fun `dibuja la vista previa de la primera tarjeta a tamano reducido`() {
@@ -161,53 +162,73 @@ class CompartirViewModelTest : RenderBase() {
         )
     }
 
-    @Test fun `cambiar el titulo redibuja y lo recorta a su largo maximo`() {
+    @Test fun `teclear rapido casillas solo dibuja la ultima version`() {
         val m = vm()
         m.abrir(listOf(art(1)))
         planificador.advanceUntilIdle()
-        val antes = checkNotNull(m.estado.value.vistaPrevia)
-        m.cambiarTitulo("Otro Nombre")
-        planificador.advanceUntilIdle()
-        assertEquals("Otro Nombre", m.estado.value.titulo)
-        assertFalse(antes.sameAs(checkNotNull(m.estado.value.vistaPrevia)))
-        m.cambiarTitulo("x".repeat(500))
-        assertEquals(120, m.estado.value.titulo.length)
-    }
-
-    @Test fun `teclear rapido solo dibuja la ultima version`() {
-        val m = vm()
-        m.abrir(listOf(art(1)))
-        planificador.advanceUntilIdle()
-        m.cambiarTitulo("A")
+        m.cambiarCasilla(FilaDePrecio.CONTADO, false)
         planificador.advanceTimeBy(100)
-        m.cambiarTitulo("AB")
+        m.cambiarCasilla(FilaDePrecio.CORTO_PLAZO, false)
         planificador.advanceTimeBy(100)
-        m.cambiarTitulo("ABC")
+        m.cambiarCasilla(FilaDePrecio.CREDITO, false)
         planificador.advanceUntilIdle()
         val esperada = vm().also {
             it.abrir(listOf(art(1)))
-            it.cambiarTitulo("ABC")
+            it.cambiarCasilla(FilaDePrecio.CONTADO, false)
+            it.cambiarCasilla(FilaDePrecio.CORTO_PLAZO, false)
+            it.cambiarCasilla(FilaDePrecio.CREDITO, false)
             planificador.advanceUntilIdle()
         }.estado.value.vistaPrevia
         assertTrue(checkNotNull(m.estado.value.vistaPrevia).sameAs(esperada))
+    }
+
+    // E-APP-180: el vendedor no modifica el título; un valor viejo en preferencias no cuenta.
+    @Test fun `un titulo viejo guardado en preferencias no cambia ni la vista previa ni la tarjeta`() {
+        val reales =
+            PreferenciasEnSharedPrefs(
+                ApplicationProvider.getApplicationContext<android.content.Context>()
+            )
+        val claves = ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getSharedPreferences("compartir_productos", android.content.Context.MODE_PRIVATE)
+        claves.edit().remove("titulo_1").commit()
+
+        val limpia = vm(File(tmp.root, "a"), reales)
+        limpia.abrir(listOf(art(1)))
+        planificador.advanceUntilIdle()
+        val previaLimpia = checkNotNull(limpia.estado.value.vistaPrevia)
+        limpia.compartir()
+        planificador.advanceUntilIdle()
+        val tarjetaLimpia = File(tmp.root, "a/compartir").listFiles()!!.single().readBytes()
+
+        claves.edit().putString("titulo_1", "Titulo Viejo Que Nadie Debe Ver Jamas").commit()
+        val conViejo = vm(File(tmp.root, "b"), reales)
+        conViejo.abrir(listOf(art(1)))
+        planificador.advanceUntilIdle()
+        assertTrue(previaLimpia.sameAs(checkNotNull(conViejo.estado.value.vistaPrevia)))
+        conViejo.compartir()
+        planificador.advanceUntilIdle()
+        val tarjetaConViejo = File(tmp.root, "b/compartir").listFiles()!!.single().readBytes()
+
+        assertTrue(
+            "la tarjeta usa el título automático",
+            tarjetaLimpia.contentEquals(tarjetaConViejo)
+        )
     }
     // endregion
 
     // region — compartir
 
-    @Test fun `compartir un producto guarda casillas y titulo editado y entrega el intent`() = runTest(
+    @Test fun `compartir un producto guarda las casillas y entrega el intent`() = runTest(
         mainDispatcherRule.testDispatcher
     ) {
         val m = vm()
         m.abrir(listOf(art(1, "RECAMARA TOSCANA C/CABECERA TAPIZADA")))
         m.cambiarCasilla(FilaDePrecio.CREDITO, false)
-        m.cambiarTitulo("Recámara Toscana Nogal")
         val evento = launchEvento(m)
         m.compartir()
         planificador.advanceUntilIdle()
 
         assertEquals(SeleccionDePrecios(true, true, false), prefs.seleccion)
-        assertEquals("Recámara Toscana Nogal", prefs.tituloEditado(1))
         val intent = (evento.await() as EventoDeCompartir.Lanzar).intent
         assertEquals(Intent.ACTION_SEND, intent.action)
         assertEquals("com.whatsapp", intent.`package`)
@@ -225,43 +246,20 @@ class CompartirViewModelTest : RenderBase() {
         assertEquals(File(tmp.root, "compartir"), archivo.parentFile)
     }
 
-    @Test fun `un titulo igual al automatico no se recuerda y uno vacio borra el recuerdo`() = runTest(
+    @Test fun `con varios manda SEND_MULTIPLE con todos los nombres`() = runTest(
         mainDispatcherRule.testDispatcher
     ) {
-        prefs.guardarTituloEditado(1, "Viejo Recordado")
         val m = vm()
-        m.abrir(listOf(art(1)))
-        m.cambiarTitulo("Recámara Toscana") // = automático
+        m.abrir(listOf(art(1, "SALA UNO"), art(2, "SALA DOS"), art(3, "SALA TRES")))
+        val evento = launchEvento(m)
         m.compartir()
         planificador.advanceUntilIdle()
-        assertNull(prefs.tituloEditado(1))
-
-        prefs.guardarTituloEditado(1, "Otro")
-        m.abrir(listOf(art(1)))
-        m.cambiarTitulo("   ")
-        m.compartir()
-        planificador.advanceUntilIdle()
-        assertNull(prefs.tituloEditado(1))
+        val intent = (evento.await() as EventoDeCompartir.Lanzar).intent
+        assertEquals(Intent.ACTION_SEND_MULTIPLE, intent.action)
+        assertEquals(3, intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)!!.size)
+        val texto = intent.getStringExtra(Intent.EXTRA_TEXT)!!
+        listOf("SALA UNO", "SALA DOS", "SALA TRES").forEach { assertTrue(texto.contains(it)) }
     }
-
-    @Test fun `con varios usa los titulos recordados, manda SEND_MULTIPLE y no toca los titulos`() =
-        runTest(
-            mainDispatcherRule.testDispatcher
-        ) {
-            prefs.guardarTituloEditado(2, "Titulo Dos")
-            val m = vm()
-            m.abrir(listOf(art(1, "SALA UNO"), art(2, "SALA DOS"), art(3, "SALA TRES")))
-            val evento = launchEvento(m)
-            m.compartir()
-            planificador.advanceUntilIdle()
-            val intent = (evento.await() as EventoDeCompartir.Lanzar).intent
-            assertEquals(Intent.ACTION_SEND_MULTIPLE, intent.action)
-            assertEquals(3, intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)!!.size)
-            val texto = intent.getStringExtra(Intent.EXTRA_TEXT)!!
-            listOf("SALA UNO", "SALA DOS", "SALA TRES").forEach { assertTrue(texto.contains(it)) }
-            assertEquals("Titulo Dos", prefs.tituloEditado(2))
-            assertNull(prefs.tituloEditado(1))
-        }
 
     @Test fun `treinta productos se comparten en un solo intent`() = runTest(
         mainDispatcherRule.testDispatcher
@@ -325,14 +323,12 @@ class CompartirViewModelTest : RenderBase() {
         val d = DibujanteDeTarjeta(ApplicationProvider.getApplicationContext())
         val sinMemoria = object : GeneradorDeTarjetas(
             d,
-            AlmacenDeTemporales(tmp.root, reloj),
-            prefs
+            AlmacenDeTemporales(tmp.root, reloj)
         ) {
             override suspend fun generar(
                 articulos: List<ArticuloParaCompartir>,
                 seleccion: SeleccionDePrecios,
                 ahora: Instant,
-                tituloSolo: String?,
                 alAvanzar: (Int, Int) -> Unit
             ): List<File> = throw OutOfMemoryError("createBitmap")
         }

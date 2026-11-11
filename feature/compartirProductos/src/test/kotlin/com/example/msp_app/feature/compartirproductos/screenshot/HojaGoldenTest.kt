@@ -75,7 +75,6 @@ class HojaGoldenTest : RobolectricTestBase() {
         val t = ArmadorDeTarjeta.armar(
             art(1),
             SeleccionDePrecios(),
-            "Recámara Toscana",
             Instant.parse("2026-11-10T18:00:00Z")
         )
         Bitmap.createScaledBitmap(d.dibujar(t, null), 405, 720, true)
@@ -83,7 +82,6 @@ class HojaGoldenTest : RobolectricTestBase() {
     private val uno get() = EstadoDeCompartir(
         visible = true,
         articulos = listOf(art(1)),
-        titulo = "Recámara Toscana",
         avisoPreciosViejos = true,
         vistaPrevia = vista
     )
@@ -97,19 +95,19 @@ class HojaGoldenTest : RobolectricTestBase() {
     )
 
     @Test fun hojaUnoClaro() = capturar("hoja_uno_claro", false) {
-        ContenidoDeLaHoja(uno, {}, { _, _ -> }, {})
+        ContenidoDeLaHoja(uno, { _, _ -> }, {})
     }
 
     @Test fun hojaUnoOscuro() = capturar("hoja_uno_oscuro", true) {
-        ContenidoDeLaHoja(uno, {}, { _, _ -> }, {})
+        ContenidoDeLaHoja(uno, { _, _ -> }, {})
     }
 
     @Test fun hojaVariosGenerandoClaro() = capturar("hoja_varios_generando_claro", false) {
-        ContenidoDeLaHoja(varios, {}, { _, _ -> }, {})
+        ContenidoDeLaHoja(varios, { _, _ -> }, {})
     }
 
     @Test fun hojaVariosGenerandoOscuro() = capturar("hoja_varios_generando_oscuro", true) {
-        ContenidoDeLaHoja(varios, {}, { _, _ -> }, {})
+        ContenidoDeLaHoja(varios, { _, _ -> }, {})
     }
 
     @Test fun barraClaro() = capturar(

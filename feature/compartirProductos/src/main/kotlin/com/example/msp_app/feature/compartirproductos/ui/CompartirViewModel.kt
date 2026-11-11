@@ -43,8 +43,6 @@ data class EstadoDeCompartir(
     val visible: Boolean = false,
     val articulos: List<ArticuloParaCompartir> = emptyList(),
     val seleccion: SeleccionDePrecios = SeleccionDePrecios(),
-    /** Solo con UN producto: el título editable. Con varios cada uno usa el recordado o el automático. */
-    val titulo: String = "",
     val vistaPrevia: Bitmap? = null,
     val generando: Boolean = false,
     val hechas: Int = 0,
@@ -60,7 +58,7 @@ sealed interface EventoDeCompartir {
 }
 
 /**
- * Cerebro de la hoja «Compartir»: carga las casillas y títulos recordados, dibuja la vista previa
+ * Cerebro de la hoja «Compartir»: carga las casillas recordadas, dibuja la vista previa
  * de la primera tarjeta, y al confirmar genera las tarjetas fuera del hilo principal y entrega el intent.
  */
 class CompartirViewModel(
@@ -86,16 +84,10 @@ class CompartirViewModel(
      */
     fun abrir(articulos: List<ArticuloParaCompartir>, catalogoActualizadoEn: Instant? = null) {
         if (articulos.isEmpty()) return
-        val titulo = if (articulos.size == 1) {
-            preferencias.tituloEditado(articulos.single().id) ?: ArmadorDeTarjeta.tituloAutomatico(articulos.single())
-        } else {
-            ""
-        }
         _estado.value = EstadoDeCompartir(
             visible = true,
             articulos = articulos,
             seleccion = preferencias.seleccionDePrecios(),
-            titulo = titulo,
             avisoPreciosViejos = AvisoDeCatalogo.desactualizado(catalogoActualizadoEn, reloj.now())
         )
         dibujarVistaPrevia(esperar = false)
@@ -103,11 +95,6 @@ class CompartirViewModel(
 
     fun cambiarCasilla(fila: FilaDePrecio, marcada: Boolean) {
         _estado.update { it.copy(seleccion = it.seleccion.con(fila, marcada)) }
-        dibujarVistaPrevia()
-    }
-
-    fun cambiarTitulo(texto: String) {
-        _estado.update { it.copy(titulo = texto.take(ArmadorDeTarjeta.LARGO_MAXIMO_DE_TITULO)) }
         dibujarVistaPrevia()
     }
 
@@ -131,14 +118,7 @@ class CompartirViewModel(
             val ahora = reloj.now()
             try {
                 val archivos = withContext(trabajo) {
-                    generador.generar(
-                        actual.articulos,
-                        actual.seleccion,
-                        ahora,
-                        tituloSolo = actual.titulo.takeIf {
-                            actual.esUno
-                        }
-                    ) { hechas, _ ->
+                    generador.generar(actual.articulos, actual.seleccion, ahora) { hechas, _ ->
                         _estado.update { it.copy(hechas = hechas) }
                     }
                 }
@@ -160,15 +140,6 @@ class CompartirViewModel(
 
     private fun guardarPreferencias(actual: EstadoDeCompartir) {
         preferencias.guardarSeleccionDePrecios(actual.seleccion)
-        if (actual.esUno) {
-            val articulo = actual.articulos.single()
-            val editado = actual.titulo.trim()
-            // Igual al automático = no hay nada que recordar: si luego cambia el nombre, cambia el título.
-            val aRecordar = editado.takeIf {
-                it.isNotEmpty() && it != ArmadorDeTarjeta.tituloAutomatico(articulo)
-            }
-            preferencias.guardarTituloEditado(articulo.id, aRecordar)
-        }
     }
 
     @Suppress(
@@ -182,8 +153,7 @@ class CompartirViewModel(
             val primero = actual.articulos.firstOrNull() ?: return@launch
             val chica = try {
                 withContext(trabajo) {
-                    val titulo = if (actual.esUno) actual.titulo else preferencias.tituloEditado(primero.id)
-                    val tarjeta = ArmadorDeTarjeta.armar(primero, actual.seleccion, titulo, reloj.now())
+                    val tarjeta = ArmadorDeTarjeta.armar(primero, actual.seleccion, reloj.now())
                     val foto = FotoDeProducto.cargar(primero.fotoPath)
                     val grande = dibujante.dibujar(tarjeta, foto)
                     foto?.recycle()
@@ -221,7 +191,7 @@ class CompartirViewModel(
                     val dibujante = DibujanteDeTarjeta(app)
                     val almacen = AlmacenDeTemporales(app.cacheDir)
                     return CompartirViewModel(
-                        generador = GeneradorDeTarjetas(dibujante, almacen, preferencias),
+                        generador = GeneradorDeTarjetas(dibujante, almacen),
                         dibujante = dibujante,
                         preferencias = preferencias,
                         crearIntent = { archivos, texto ->

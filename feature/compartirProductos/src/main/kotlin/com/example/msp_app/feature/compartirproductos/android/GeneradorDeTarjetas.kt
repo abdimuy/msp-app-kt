@@ -2,7 +2,6 @@ package com.example.msp_app.feature.compartirproductos.android
 
 import com.example.msp_app.feature.compartirproductos.domain.ArmadorDeTarjeta
 import com.example.msp_app.feature.compartirproductos.domain.ArticuloParaCompartir
-import com.example.msp_app.feature.compartirproductos.domain.PreferenciasDeCompartir
 import com.example.msp_app.feature.compartirproductos.domain.SeleccionDePrecios
 import com.example.msp_app.feature.compartirproductos.render.DibujanteDeTarjeta
 import com.example.msp_app.feature.compartirproductos.render.FotoDeProducto
@@ -17,30 +16,25 @@ import kotlinx.coroutines.ensureActive
  */
 open class GeneradorDeTarjetas(
     private val dibujante: DibujanteDeTarjeta,
-    private val almacen: AlmacenDeTemporales,
-    private val preferencias: PreferenciasDeCompartir
+    private val almacen: AlmacenDeTemporales
 ) {
 
     /**
      * Borra lo de envíos anteriores y escribe las tarjetas nuevas, en el mismo orden de [articulos].
-     * El título de cada una es el que el vendedor editó y la app recordó, o el automático.
+     * El título de cada una sale SIEMPRE del corte automático del nombre (el vendedor no lo edita).
      * [alAvanzar] recibe (hechas, total) para el indicador de progreso.
-     *
-     * @param tituloSolo si viene, es el título editado en la hoja y gana sobre el recordado (solo con un producto).
      */
     open suspend fun generar(
         articulos: List<ArticuloParaCompartir>,
         seleccion: SeleccionDePrecios,
         ahora: Instant,
-        tituloSolo: String? = null,
         alAvanzar: (Int, Int) -> Unit = { _, _ -> }
     ): List<File> {
         almacen.vaciar()
         return articulos.mapIndexed { i, articulo ->
             // E-APP-186: si se canceló (VM destruido) no se siguen dibujando tarjetas que nadie va a mandar.
             currentCoroutineContext().ensureActive()
-            val titulo = tituloSolo.takeIf { articulos.size == 1 } ?: preferencias.tituloEditado(articulo.id)
-            val tarjeta = ArmadorDeTarjeta.armar(articulo, seleccion, titulo, ahora)
+            val tarjeta = ArmadorDeTarjeta.armar(articulo, seleccion, ahora)
             val foto = FotoDeProducto.cargar(articulo.fotoPath)
             val archivo = almacen.archivoPara(articulo.id, i)
             try {

@@ -28,7 +28,7 @@ class ArmadorDeTarjetaTest {
     )
 
     @Test fun `arma titulo detalle categoria precios y leyenda`() {
-        val t = ArmadorDeTarjeta.armar(articulo(), SeleccionDePrecios(), null, ahora)
+        val t = ArmadorDeTarjeta.armar(articulo(), SeleccionDePrecios(), ahora)
         assertEquals("Recámara Toscana", t.titulo)
         assertEquals("Con cabecera tapizada, buró doble", t.detalle)
         assertEquals("Recámaras", t.categoria)
@@ -36,31 +36,16 @@ class ArmadorDeTarjetaTest {
         assertEquals("Precios vigentes al 10 nov 2026", t.vigencia)
     }
 
-    @Test fun `el titulo editado reemplaza al automatico y el detalle se queda`() {
-        val t = ArmadorDeTarjeta.armar(
-            articulo(),
-            SeleccionDePrecios(),
-            "  Recámara Toscana Nogal ",
-            ahora
-        )
-        assertEquals("Recámara Toscana Nogal", t.titulo)
-        assertEquals("Con cabecera tapizada, buró doble", t.detalle)
-    }
-
-    @Test fun `un titulo editado en blanco vuelve al automatico`() {
+    @Test fun `el titulo sale siempre del corte automatico del nombre (E-APP-180)`() {
+        val a = articulo()
         assertEquals(
-            "Recámara Toscana",
-            ArmadorDeTarjeta.armar(articulo(), SeleccionDePrecios(), "   ", ahora).titulo
+            ArmadorDeTarjeta.tituloAutomatico(a),
+            ArmadorDeTarjeta.armar(a, SeleccionDePrecios(), ahora).titulo
         )
         assertEquals(
-            "Recámara Toscana",
-            ArmadorDeTarjeta.armar(articulo(), SeleccionDePrecios(), "", ahora).titulo
+            "Con cabecera tapizada, buró doble",
+            ArmadorDeTarjeta.armar(a, SeleccionDePrecios(), ahora).detalle
         )
-    }
-
-    @Test fun `un titulo editado larguisimo se recorta`() {
-        val t = ArmadorDeTarjeta.armar(articulo(), SeleccionDePrecios(), "x".repeat(500), ahora)
-        assertEquals(ArmadorDeTarjeta.LARGO_MAXIMO_DE_TITULO, t.titulo.length)
     }
 
     @Test fun `sin categoria o en blanco se omite y no se inventa`() {
@@ -68,7 +53,6 @@ class ArmadorDeTarjetaTest {
             ArmadorDeTarjeta.armar(
                 articulo(categoria = null),
                 SeleccionDePrecios(),
-                null,
                 ahora
             ).categoria
         )
@@ -76,7 +60,6 @@ class ArmadorDeTarjetaTest {
             ArmadorDeTarjeta.armar(
                 articulo(categoria = "  "),
                 SeleccionDePrecios(),
-                null,
                 ahora
             ).categoria
         )
@@ -85,7 +68,7 @@ class ArmadorDeTarjetaTest {
     @Test fun `nombre vacio cae a Producto`() {
         assertEquals(
             "Producto",
-            ArmadorDeTarjeta.armar(articulo(nombre = ""), SeleccionDePrecios(), null, ahora).titulo
+            ArmadorDeTarjeta.armar(articulo(nombre = ""), SeleccionDePrecios(), ahora).titulo
         )
         assertEquals("Producto", ArmadorDeTarjeta.tituloAutomatico(articulo(nombre = "  ")))
     }
@@ -94,7 +77,6 @@ class ArmadorDeTarjetaTest {
         val t = ArmadorDeTarjeta.armar(
             articulo(),
             SeleccionDePrecios(false, false, false),
-            null,
             ahora
         )
         assertTrue(t.precios.isEmpty())
@@ -122,7 +104,7 @@ class ArmadorDeTarjetaTest {
         assertEquals("SALA A\n\nSALA B\n\nPrecios vigentes al 10 nov 2026", texto)
     }
 
-    @Test fun `el nombre completo va aunque el titulo se haya editado`() {
+    @Test fun `el nombre completo va aunque el titulo se corte`() {
         val nombre = "COMEDOR ROBLE 6 SILLAS C/CRISTAL TEMPLADO"
         val texto = TextoDelMensaje.armar(listOf(articulo(nombre)), SeleccionDePrecios(), ahora)
         assertTrue(texto.startsWith(nombre))

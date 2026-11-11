@@ -2,23 +2,21 @@ package com.example.msp_app.feature.compartirproductos.domain
 
 import java.time.Instant
 
-/** Junta nombre, categoría, precios y fecha en la [TarjetaDeProducto] que se dibuja. */
+/**
+ * Junta nombre, categoría, precios y fecha en la [TarjetaDeProducto] que se dibuja. El título sale
+ * SIEMPRE del corte automático del nombre: el vendedor no lo modifica (E-APP-180).
+ */
 object ArmadorDeTarjeta {
     const val TITULO_VACIO = "Producto"
-    const val LARGO_MAXIMO_DE_TITULO = 120
 
     fun armar(
         articulo: ArticuloParaCompartir,
         seleccion: SeleccionDePrecios,
-        tituloEditado: String?,
         ahora: Instant
     ): TarjetaDeProducto {
         val partes = PartidorDeNombre.partir(articulo.nombre)
-        val editado = tituloEditado?.trim()?.takeIf { it.isNotEmpty() }?.take(
-            LARGO_MAXIMO_DE_TITULO
-        )
         return TarjetaDeProducto(
-            titulo = editado ?: partes.titulo.ifBlank { TITULO_VACIO },
+            titulo = partes.titulo.ifBlank { TITULO_VACIO },
             detalle = partes.detalle,
             categoria = articulo.categoria?.let {
                 NormalizadorDeNombre.normalizar(it)
@@ -28,7 +26,7 @@ object ArmadorDeTarjeta {
         )
     }
 
-    /** El título que se le propone al vendedor para editar. */
+    /** El título de la tarjeta: el corte automático del nombre. */
     fun tituloAutomatico(articulo: ArticuloParaCompartir): String =
         PartidorDeNombre.partir(articulo.nombre).titulo.ifBlank { TITULO_VACIO }
 }
@@ -61,8 +59,4 @@ object TextoDelMensaje {
 interface PreferenciasDeCompartir {
     fun seleccionDePrecios(): SeleccionDePrecios
     fun guardarSeleccionDePrecios(seleccion: SeleccionDePrecios)
-    fun tituloEditado(articuloId: Int): String?
-
-    /** Un título vacío borra el recuerdo: el producto vuelve a su título automático. */
-    fun guardarTituloEditado(articuloId: Int, titulo: String?)
 }

@@ -26,24 +26,17 @@ class PreferenciasEnSharedPrefs(private val prefs: SharedPreferences) : Preferen
             .apply()
     }
 
-    override fun tituloEditado(articuloId: Int): String? = prefs.getString(
-        "$TITULO$articuloId",
-        null
-    )?.takeIf {
-        it.isNotBlank()
-    }
-
-    override fun guardarTituloEditado(articuloId: Int, titulo: String?) {
-        val limpio = titulo?.trim()?.takeIf { it.isNotEmpty() }
-        prefs.edit().apply {
-            if (limpio == null) {
-                remove(
-                    "$TITULO$articuloId"
-                )
-            } else {
-                putString("$TITULO$articuloId", limpio)
-            }
-        }.apply()
+    /**
+     * E-APP-180: los títulos editados que un teléfono guardó antes ya no se leen nunca; esto además
+     * borra las claves (una sola vez al arrancar, desde [LimpiezaAlArrancar]).
+     * @return cuántas claves borró.
+     */
+    fun borrarTitulosEditadosViejos(): Int {
+        val viejas = prefs.all.keys.filter { it.startsWith(TITULO_VIEJO) }
+        if (viejas.isNotEmpty()) {
+            prefs.edit().apply { viejas.forEach { remove(it) } }.apply()
+        }
+        return viejas.size
     }
 
     private companion object {
@@ -51,6 +44,6 @@ class PreferenciasEnSharedPrefs(private val prefs: SharedPreferences) : Preferen
         const val CONTADO = "casilla_contado"
         const val CORTO = "casilla_corto_plazo"
         const val CREDITO = "casilla_credito"
-        const val TITULO = "titulo_"
+        const val TITULO_VIEJO = "titulo_"
     }
 }

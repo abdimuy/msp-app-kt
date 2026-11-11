@@ -1,18 +1,18 @@
 package com.example.msp_app.feature.compartirproductos.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextClearance
-import androidx.compose.ui.test.performTextInput
 import com.example.msp_app.core.common.ventas.precios.TipoDePrecio
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.compartirproductos.domain.ArticuloParaCompartir
@@ -45,28 +45,25 @@ class HojaDeCompartirTest : RobolectricTestBase() {
             visible = true,
             articulos = List(n) {
                 art(it)
-            },
-            titulo = if (n == 1) "Sala Valencia" else ""
+            }
         ).extra()
 
     private fun mostrar(
         e: EstadoDeCompartir,
-        titulo: (String) -> Unit = {},
         casilla: (FilaDePrecio, Boolean) -> Unit = { _, _ -> },
         compartir: () -> Unit = {}
-    ) = rule.setContent { MaterialTheme { ContenidoDeLaHoja(e, titulo, casilla, compartir) } }
+    ) = rule.setContent { MaterialTheme { ContenidoDeLaHoja(e, casilla, compartir) } }
 
-    @Test fun `con un producto muestra el campo de titulo con su valor`() {
+    @Test fun `con un producto no hay ningun campo editable ni etiqueta Titulo (E-APP-180)`() {
         mostrar(estado(1))
-        rule.onNodeWithTag(
-            EtiquetasDeHoja.TITULO
-        ).assertIsDisplayed().assertTextContains("Sala Valencia")
         rule.onNodeWithText("Compartir producto").assertIsDisplayed()
+        rule.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+        rule.onNodeWithText("Título").assertDoesNotExist()
     }
 
-    @Test fun `con varios no hay campo de titulo y el encabezado cuenta los productos`() {
+    @Test fun `con varios tampoco hay campo editable y el encabezado cuenta los productos`() {
         mostrar(estado(5))
-        rule.onNodeWithTag(EtiquetasDeHoja.TITULO).assertDoesNotExist()
+        rule.onAllNodes(hasSetTextAction()).assertCountEquals(0)
         rule.onNodeWithText("Compartir 5 productos").assertIsDisplayed()
     }
 
@@ -85,20 +82,6 @@ class HojaDeCompartirTest : RobolectricTestBase() {
         mostrar(estado(1), casilla = { f, m -> toques += f to m })
         rule.onNodeWithTag(EtiquetasDeHoja.casilla(FilaDePrecio.CORTO_PLAZO)).performClick()
         assertEquals(listOf(FilaDePrecio.CORTO_PLAZO to false), toques)
-    }
-
-    @Test fun `escribir en el titulo avisa el texto nuevo`() {
-        val textos = mutableListOf<String>()
-        mostrar(estado(1) { copy(titulo = "") }, titulo = { textos += it })
-        rule.onNodeWithTag(EtiquetasDeHoja.TITULO).performTextInput("Hola")
-        assertEquals("Hola", textos.last())
-    }
-
-    @Test fun `borrar el titulo avisa vacio`() {
-        val textos = mutableListOf<String>()
-        mostrar(estado(1), titulo = { textos += it })
-        rule.onNodeWithTag(EtiquetasDeHoja.TITULO).performTextClearance()
-        assertEquals("", textos.last())
     }
 
     @Test fun `el boton Compartir avisa al tocarlo`() {
@@ -131,7 +114,7 @@ class HojaDeCompartirTest : RobolectricTestBase() {
     @Test fun `con un producto generando dice solo Preparando`() {
         mostrar(estado(1) { copy(generando = true) })
         rule.onNodeWithText("Preparando…").assertIsDisplayed()
-        rule.onNodeWithTag(EtiquetasDeHoja.TITULO).assertIsNotEnabled()
+        rule.onAllNodes(hasSetTextAction()).assertCountEquals(0)
     }
 
     @Test fun `un error se ve y el boton sigue disponible para reintentar`() {

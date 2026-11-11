@@ -23,7 +23,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -86,7 +85,6 @@ fun HojaDeCompartir(viewModel: CompartirViewModel, alLanzar: () -> Unit = {}) {
     ) {
         ContenidoDeLaHoja(
             estado = estado,
-            alCambiarTitulo = viewModel::cambiarTitulo,
             alCambiarCasilla = viewModel::cambiarCasilla,
             alCompartir = viewModel::compartir
         )
@@ -127,7 +125,6 @@ private const val MINIMO_VISIBLE = 0.08f
 @Composable
 fun ContenidoDeLaHoja(
     estado: EstadoDeCompartir,
-    alCambiarTitulo: (String) -> Unit,
     alCambiarCasilla: (FilaDePrecio, Boolean) -> Unit,
     alCompartir: () -> Unit
 ) {
@@ -145,16 +142,6 @@ fun ContenidoDeLaHoja(
             style = MaterialTheme.typography.titleLarge
         )
         VistaPrevia(estado)
-        if (estado.esUno) {
-            OutlinedTextField(
-                value = estado.titulo,
-                onValueChange = alCambiarTitulo,
-                label = { Text("Título") },
-                singleLine = true,
-                enabled = !estado.generando,
-                modifier = Modifier.fillMaxWidth().testTag(EtiquetasDeHoja.TITULO)
-            )
-        }
         FilaDeCasillas(estado, alCambiarCasilla)
         if (estado.avisoPreciosViejos) {
             Text(
