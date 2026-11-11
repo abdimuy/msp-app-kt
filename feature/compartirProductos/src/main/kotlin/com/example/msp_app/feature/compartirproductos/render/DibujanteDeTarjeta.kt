@@ -65,17 +65,14 @@ class DibujanteDeTarjeta(private val context: Context) {
             dibujarMonograma(canvas, d)
             return
         }
-        val recorte = RecorteDeFoto.cubrir(
-            foto.width,
-            foto.height,
-            destino.width(),
-            destino.height()
-        )
-        val origen = Rect(recorte.izquierda, recorte.arriba, recorte.derecha, recorte.abajo)
+        // La foto se ve SIEMPRE completa: cabe entera, centrada, y el sobrante queda del color del
+        // recuadro sin foto. Sin recorte, sin difuminado (las fotos del catálogo traen textos).
+        canvas.drawRect(destino, Paint().apply { color = Medidas.FONDO_SIN_FOTO })
+        val d2 = DestinoDeFoto.caber(foto.width, foto.height, destino.width(), destino.height())
         canvas.drawBitmap(
             foto,
-            origen,
-            destino,
+            null,
+            Rect(d2.izquierda, d2.arriba, d2.derecha, d2.abajo),
             Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         )
     }
@@ -101,6 +98,14 @@ class DibujanteDeTarjeta(private val context: Context) {
         val lado = Medidas.LOGO_LADO.toFloat()
         val izq = Medidas.MARGEN_LATERAL.toFloat()
         val arriba = Medidas.LOGO_ARRIBA.toFloat()
+        val texto = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = fuentes.sansSemiNegrita
+            textSize = Medidas.MARCA_TAMANO
+            color = Medidas.TINTA
+            letterSpacing = Medidas.MARCA_ESPACIADO_EM
+        }
+        val xTexto = izq + lado + Medidas.LOGO_SEPARACION
+        dibujarPildora(canvas, izq, arriba, lado, xTexto + texto.measureText(MARCA))
         val imagenLogo = logo
         if (imagenLogo != null) {
             val circulo = Path().apply {
@@ -116,15 +121,28 @@ class DibujanteDeTarjeta(private val context: Context) {
             )
             canvas.restore()
         }
-        val texto = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = fuentes.sansSemiNegrita
-            textSize = Medidas.MARCA_TAMANO
-            color = Medidas.TINTA
-            letterSpacing = Medidas.MARCA_ESPACIADO_EM
-        }
         val metricas = texto.fontMetrics
         val base = arriba + lado / 2 - (metricas.ascent + metricas.descent) / 2
-        canvas.drawText(MARCA, izq + lado + Medidas.LOGO_SEPARACION, base, texto)
+        canvas.drawText(MARCA, xTexto, base, texto)
+    }
+
+    /** Fondo de la marca: crema casi opaco, para que logo y texto se lean igual sobre la foto o sobre el fondo. */
+    private fun dibujarPildora(
+        canvas: Canvas,
+        izq: Float,
+        arriba: Float,
+        lado: Float,
+        derecha: Float
+    ) {
+        val relleno = Medidas.PILDORA_RELLENO.toFloat()
+        val caja =
+            RectF(izq - relleno, arriba - relleno, derecha + relleno, arriba + lado + relleno)
+        canvas.drawRoundRect(
+            caja,
+            caja.height() / 2,
+            caja.height() / 2,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Medidas.PILDORA }
+        )
     }
 
     private fun dibujarTextos(canvas: Canvas, d: Disposicion) {

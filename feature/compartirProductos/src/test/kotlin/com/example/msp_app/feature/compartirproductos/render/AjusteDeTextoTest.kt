@@ -57,63 +57,6 @@ class AjusteDeTextoTest {
     }
 }
 
-class RecorteDeFotoTest {
-
-    @Test fun `foto del mismo aspecto no se recorta`() {
-        val r = RecorteDeFoto.cubrir(1080, 1008, 1080, 1008)
-        assertEquals(RecorteDeFoto(0, 0, 1080, 1008), r)
-    }
-
-    @Test fun `foto horizontal pierde costados y se centra`() {
-        val r = RecorteDeFoto.cubrir(2000, 1000, 1080, 1008)
-        // Ancho visible = 1000 * 1080 / 1008 = 1071; sobran 929 repartidos al centro.
-        assertEquals(1071, r.ancho)
-        assertEquals(1000, r.alto)
-        assertEquals(0, r.arriba)
-        assertEquals(464, r.izquierda)
-    }
-
-    @Test fun `foto vertical pierde arriba y abajo con foco al 60 por ciento`() {
-        val r = RecorteDeFoto.cubrir(1000, 2000, 1080, 1008)
-        // Alto visible = 1000 * 1008 / 1080 = 933; sobran 1067, el 60 % arriba.
-        assertEquals(933, r.alto)
-        assertEquals(1000, r.ancho)
-        assertEquals(640, r.arriba)
-        assertEquals(0, r.izquierda)
-    }
-
-    @Test fun `el recorte siempre queda dentro de la foto`() {
-        listOf(
-            1 to 1,
-            10 to 10000,
-            10000 to 10,
-            4000 to 3000,
-            3000 to 4000,
-            1080 to 1920,
-            1920 to 1080
-        ).forEach { (w, h) ->
-            listOf(1008 to 1080, 1128 to 1080).forEach { (dh, dw) ->
-                val r = RecorteDeFoto.cubrir(w, h, dw, dh)
-                assertEquals(
-                    "$w×$h",
-                    true,
-                    r.izquierda >= 0 && r.arriba >= 0 && r.derecha <= w && r.abajo <= h
-                )
-                assertEquals("$w×$h", true, r.ancho >= 1 && r.alto >= 1)
-            }
-        }
-    }
-
-    @Test fun `el recorte conserva la proporcion del destino`() {
-        val r = RecorteDeFoto.cubrir(4000, 3000, 1080, 1008)
-        assertEquals(1080.0 / 1008.0, r.ancho.toDouble() / r.alto, 0.01)
-    }
-
-    @Test fun `medidas invalidas se rechazan`() {
-        assertThrows(IllegalArgumentException::class.java) { RecorteDeFoto.cubrir(0, 10, 10, 10) }
-    }
-}
-
 class PalabraEnCursivaTest {
     @Test fun `la ultima palabra significativa va en cursiva`() {
         val t = "Sofá Valencia terciopelo"

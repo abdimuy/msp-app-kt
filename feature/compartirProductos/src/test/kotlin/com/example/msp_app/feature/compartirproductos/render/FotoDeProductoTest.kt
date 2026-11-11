@@ -116,53 +116,61 @@ class FotoDeProductoTest : RobolectricTestBase() {
 
     // region — E-APP-184 fotos grandes
 
-    @Test fun `la muestra es la mayor potencia de 2 que sigue cubriendo 1080 por 1008`() {
+    @Test fun `la muestra es la mayor potencia de 2 que sigue cabiendo a resolucion completa en 1080 por 1008`() {
         assertEquals(4, FotoDeProducto.muestraPara(8000, 8000)) // 2000×2000, no 4000×4000
-        assertEquals(2, FotoDeProducto.muestraPara(4399, 3000)) // 2199×1500
-        assertEquals(
-            1,
-            FotoDeProducto.muestraPara(2159, 3000)
-        ) // a la mitad el ancho (1079) ya no cubre
-        assertEquals(2, FotoDeProducto.muestraPara(2160, 2016))
+        assertEquals(4, FotoDeProducto.muestraPara(4399, 3000)) // 1099×750: el ancho alcanza 1080
         assertEquals(1, FotoDeProducto.muestraPara(1080, 1008))
         assertEquals(1, FotoDeProducto.muestraPara(900, 700))
-        assertEquals(1, FotoDeProducto.muestraPara(10000, 1500)) // panorámica: el lado corto manda
         assertEquals(8, FotoDeProducto.muestraPara(9000, 9000))
+        assertEquals(2, FotoDeProducto.muestraPara(2160, 2016))
     }
 
-    @Test fun `la foto decodificada nunca baja de lo que el recorte necesita`() {
+    @Test fun `una panoramica o una foto muy alta se reduce mas que antes porque basta un lado`() {
+        // Antes (regla «cubre los dos lados») estas daban 1; ahora UN lado que alcance su medida basta.
+        assertEquals(8, FotoDeProducto.muestraPara(10000, 1500)) // 1250×187: el ancho alcanza 1080
+        assertEquals(16, FotoDeProducto.muestraPara(1000, 20000)) // 62×1250: el alto alcanza 1008
+        assertEquals(
+            2,
+            FotoDeProducto.muestraPara(2159, 3000)
+        ) // antes 1: a la mitad el alto (1500) aún alcanza
+    }
+
+    @Test fun `la foto decodificada nunca baja de lo que la tarjeta necesita ni se queda de mas`() {
         listOf(
             8000 to 8000,
             4399 to 3000,
             3000 to 4399,
             6000 to 1500,
             1200 to 1100,
-            5000 to 2100
+            5000 to 2100,
+            10000 to 1500,
+            1000 to 20000
         ).forEach { (w, h) ->
             val s = FotoDeProducto.muestraPara(w, h)
             val ow = w / s
             val oh = h / s
-            if (s > 1) assertTrue("$w×$h → $ow×$oh", ow >= 1080 && oh >= 1008)
-            // «de más» no: con una muestra el doble ya no cubriría.
-            assertTrue("$w×$h demasiado grande", w / (s * 2) < 1080 || h / (s * 2) < 1008)
+            // Cabe a resolución completa: al menos un lado alcanza su medida (si se redujo).
+            if (s > 1) assertTrue("$w×$h → $ow×$oh", ow >= 1080 || oh >= 1008)
+            // «de más» no: con una muestra el doble ya no alcanzaría en ningún lado.
+            assertTrue("$w×$h demasiado grande", w / (s * 2) < 1080 && h / (s * 2) < 1008)
         }
     }
 
     @Test fun `una foto de 4399 por 3000 no se decodifica entera`() {
         val b = checkNotNull(FotoDeProducto.cargar(jpegCuadrantes(4399, 3000, null).path))
-        assertTrue("decodificada ${b.width}×${b.height}", b.width <= 2200 && b.height <= 1500 + 1)
-        // Y aun así cubre lo que la tarjeta necesita (1080×1008).
-        assertTrue(b.width >= 1080 && b.height >= 1008)
+        assertTrue("decodificada ${b.width}×${b.height}", b.width <= 1100 && b.height <= 751)
+        // Y aun así alcanza lo que la tarjeta necesita: el ancho llega a 1080.
+        assertTrue(b.width >= 1080)
     }
 
-    @Test fun `una foto vertical grande tambien se acota y cubre`() {
+    @Test fun `una foto vertical grande tambien se acota y alcanza`() {
         val b = checkNotNull(FotoDeProducto.cargar(jpegCuadrantes(3000, 4399, 6).path))
-        // Orientación 6: queda 4399 de ancho × 3000 de alto antes de reducir.
+        // Orientación 6: queda 4399 de ancho × 3000 de alto antes de reducir; con muestra 4 → 1099×750.
         assertTrue(
             "decodificada ${b.width}×${b.height}",
-            b.width.toLong() * b.height <= 2200L * 1500L + 1
+            b.width.toLong() * b.height <= 1100L * 751L
         )
-        assertTrue(b.width >= 1080 && b.height >= 1008)
+        assertTrue(b.width >= 1080 || b.height >= 1008)
     }
 
     @Test fun `una foto chica no se agranda ni se reduce`() {

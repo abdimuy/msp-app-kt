@@ -25,8 +25,6 @@ internal object Medidas {
     const val FOTO_ALTO_MAXIMO = 1008 // 420 px: 52 % del alto
     const val FOTO_ALTO_SIN_FOTO = 1128 // 470 px
     const val FOTO_ALTO_MINIMO = 768 // 40 %: aunque el texto crezca, la foto no baja de aquí
-    const val FOTO_FOCO_X = 0.5f // object-position: 50% 60%
-    const val FOTO_FOCO_Y = 0.6f
 
     // Marca arriba a la izquierda
     const val LOGO_ARRIBA = 134 // 56 px
@@ -34,6 +32,7 @@ internal object Medidas {
     const val LOGO_SEPARACION = 19 // 8 px
     const val MARCA_TAMANO = 29f // 12 px
     const val MARCA_ESPACIADO_EM = 0.2f // 2.4 px sobre 12 px
+    const val PILDORA_RELLENO = 16 // aire entre la marca y el borde de su píldora; la zona segura (116) queda libre
 
     // Categoría
     const val CATEGORIA_TAMANO = 26f // 11 px
@@ -81,6 +80,9 @@ internal object Medidas {
 
     // Colores del diseño
     val FONDO = Color.parseColor("#f4f1ec")
+
+    /** La píldora de la marca: el fondo de la tarjeta (#f4f1ec) al ~88 %, para que se lea sobre foto o fondo. */
+    val PILDORA = Color.argb(224, 244, 241, 236)
     val TINTA = Color.parseColor("#1c1917")
     val TINTA_SUAVE = Color.parseColor("#57534e")
     val TINTA_TENUE = Color.parseColor("#78716c")

@@ -10,8 +10,10 @@ import java.io.IOException
 
 /**
  * Carga la foto local del producto lista para la tarjeta:
- *  - **E-APP-184**: se decodifica reducida por potencias de 2 al mínimo que aún CUBRE el área de la foto
- *    (1080×1008), nunca de más. Una foto de 8000×8000 queda en 2000×2000 (16 MB), no en 4000×4000 (64 MB).
+ *  - **E-APP-184**: se decodifica reducida por potencias de 2 al mínimo que aún CABE a resolución completa en
+ *    el área de la foto (1080×1008): basta con que UN lado alcance su medida (la foto se muestra entera, no
+ *    recortada). Una foto de 8000×8000 queda en 2000×2000 (16 MB), no en 4000×4000 (64 MB); una panorámica
+ *    de 10000×1500 queda en 1250×187.
  *  - **E-APP-185**: se respeta la orientación EXIF (1 a 8, con espejos): el teléfono guarda la foto «de lado»
  *    y la etiqueta dice cómo girarla.
  */
@@ -22,10 +24,14 @@ object FotoDeProducto {
     private const val GIRO_180 = 180f
     private const val GIRO_270 = 270f
 
-    /** Mayor potencia de 2 con la que la foto (ya girada: [ancho]×[alto]) sigue cubriendo 1080×1008. */
+    /**
+     * Mayor potencia de 2 con la que la foto (ya girada: [ancho]×[alto]) sigue CABIENDO a resolución completa
+     * en 1080×1008: al menos uno de los lados alcanza su medida. Ese lado es justo el que limita al escalarla
+     * para que quepa, así que no se baja de la resolución que la tarjeta necesita.
+     */
     fun muestraPara(ancho: Int, alto: Int): Int {
         var muestra = 1
-        while (ancho / (muestra * 2) >= ANCHO_NECESARIO && alto / (muestra * 2) >= ALTO_NECESARIO) muestra *= 2
+        while (ancho / (muestra * 2) >= ANCHO_NECESARIO || alto / (muestra * 2) >= ALTO_NECESARIO) muestra *= 2
         return muestra
     }
 

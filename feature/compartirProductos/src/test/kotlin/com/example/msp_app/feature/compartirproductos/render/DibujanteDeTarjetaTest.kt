@@ -365,42 +365,80 @@ class DibujanteDeTarjetaTest : RenderBase() {
 
     // region — foto
 
-    @Test fun `foto horizontal se recorta por los costados y llena el area sin deformarse`() {
+    private val beige = Color.parseColor("#e8e3da")
+
+    @Test fun `foto horizontal se ve completa, centrada, con aire arriba y abajo del color del recuadro`() {
         val foto = fotoConFranjas(2000, 1000, vertical = false)
         val b = dibujante.dibujar(tarjeta(), foto)
         val d = dibujante.disposicion(tarjeta(), true)
+        // 2000×1000 en 1080×fotoAlto: limita el ancho; alto = 540, centrado.
+        val arriba = (d.fotoAlto - 540) / 2
         val y = d.fotoAlto / 2
-        // Recorte centrado: el 0..10 % de la foto (franja 0) queda fuera; el borde izquierdo es la franja 2 (464/2000 = 23 %).
-        assertTrue(cerca(colorDeFranja(2), b.getPixel(2, y), 8))
-        assertTrue(cerca(colorDeFranja(7), b.getPixel(Medidas.ANCHO - 3, y), 8))
-        // El centro del recorte es el centro de la foto: frontera entre franja 4 y 5.
+        // Ninguna franja se pierde: la 0 está en el borde izquierdo y la 9 en el derecho.
+        assertTrue(cerca(colorDeFranja(0), b.getPixel(2, y), 8))
+        assertTrue(cerca(colorDeFranja(9), b.getPixel(Medidas.ANCHO - 3, y), 8))
         assertTrue(cerca(colorDeFranja(4), b.getPixel(Medidas.ANCHO / 2 - 6, y), 8))
         assertTrue(cerca(colorDeFranja(5), b.getPixel(Medidas.ANCHO / 2 + 6, y), 8))
+        // Arriba y abajo de la foto: color liso del recuadro (lejos de la marca, que va arriba a la izquierda).
+        assertEquals(beige, b.getPixel(Medidas.ANCHO - 20, arriba / 2))
+        assertEquals(beige, b.getPixel(Medidas.ANCHO / 2, d.fotoAlto - arriba / 2))
+        assertTrue(cerca(colorDeFranja(5), b.getPixel(Medidas.ANCHO / 2 + 6, arriba + 4), 8))
     }
 
-    @Test fun `foto vertical se recorta arriba y abajo con foco al sesenta por ciento`() {
-        val foto = fotoConFranjas(1000, 2000, vertical = true)
+    @Test fun `foto alta se ve completa y las esquinas laterales del recuadro son del color de fondo`() {
+        val foto = fotoConFranjas(336, 900, vertical = true)
         val b = dibujante.dibujar(tarjeta(), foto)
         val d = dibujante.disposicion(tarjeta(), true)
-        // Recorte: filas 640..1573 de la foto → franja 3 al inicio (640/2000 = 32 %) y franja 7 al final (78 %).
-        assertTrue(cerca(colorDeFranja(3), b.getPixel(Medidas.ANCHO / 2, 160), 8))
-        assertTrue(cerca(colorDeFranja(7), b.getPixel(Medidas.ANCHO / 2, d.fotoAlto - 4), 8))
-        // La franja 0 (techo de la foto) no aparece en ningún renglón.
-        for (y in 0 until d.fotoAlto step 7) assertFalse(
-            cerca(colorDeFranja(0), b.getPixel(Medidas.ANCHO - 5, y), 3)
-        )
-    }
-
-    @Test fun `la foto llena todo el ancho y el alto de su area`() {
-        val foto = fotoConFranjas(1200, 1200, vertical = false)
-        val b = dibujante.dibujar(tarjeta(), foto)
-        val d = dibujante.disposicion(tarjeta(), true)
-        val fondo = Color.parseColor("#f4f1ec")
-        for (x in listOf(0, 540, 1079)) {
-            // Evita la banda de la marca (esquina superior izquierda) leyendo abajo.
-            assertNotEquals(fondo, b.getPixel(x, d.fotoAlto - 2))
-            assertNotEquals(fondo, b.getPixel(x, d.fotoAlto - 40))
+        // 336×900 → 376×fotoAlto centrada en x: 352 px de aire a cada lado.
+        for (y in listOf(d.fotoAlto / 4, d.fotoAlto / 2, d.fotoAlto - 8)) {
+            assertEquals("izquierda y=$y", beige, b.getPixel(10, y))
+            assertEquals("derecha y=$y", beige, b.getPixel(Medidas.ANCHO - 10, y))
         }
+        // La foto está entera: la franja 0 arriba y la 9 abajo, en el centro.
+        assertTrue(cerca(colorDeFranja(0), b.getPixel(Medidas.ANCHO / 2, 50), 8))
+        assertTrue(cerca(colorDeFranja(9), b.getPixel(Medidas.ANCHO / 2, d.fotoAlto - 4), 8))
+    }
+
+    @Test fun `una foto del mismo aspecto llena todo el recuadro sin aire`() {
+        val foto = fotoConFranjas(1080, 1008, vertical = false)
+        val b = dibujante.dibujar(tarjeta(), foto)
+        val d = dibujante.disposicion(tarjeta(), true)
+        for (x in listOf(0, 540, 1079)) {
+            assertNotEquals(beige, b.getPixel(x, d.fotoAlto - 2))
+            assertNotEquals(beige, b.getPixel(x, d.fotoAlto - 40))
+        }
+    }
+
+    @Test fun `una foto chica se agranda hasta caber y no queda diminuta`() {
+        val foto = fotoConFranjas(200, 150, vertical = false)
+        val b = dibujante.dibujar(tarjeta(), foto)
+        val d = dibujante.disposicion(tarjeta(), true)
+        // 200×150 → 1080×810: llega a los dos bordes laterales.
+        assertTrue(cerca(colorDeFranja(0), b.getPixel(2, d.fotoAlto / 2), 8))
+        assertTrue(cerca(colorDeFranja(9), b.getPixel(Medidas.ANCHO - 3, d.fotoAlto / 2), 8))
+    }
+
+    @Test fun `la marca va sobre una pildora crema aunque la foto de abajo sea oscura`() {
+        val oscura = Bitmap.createBitmap(1080, 1008, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.BLACK)
+        }
+        val b = dibujante.dibujar(tarjeta(), oscura)
+        val y = Medidas.LOGO_ARRIBA + Medidas.LOGO_LADO / 2
+        // #f4f1ec al 88 % sobre negro ≈ (214, 212, 207). Se mide en el aire de la píldora (izquierda del
+        // logo) y en la separación entre el logo y el texto: ahí no hay tinta, solo píldora.
+        val pildora = Color.rgb(214, 212, 207)
+        assertTrue(
+            "izquierda del logo: ${Integer.toHexString(b.getPixel(Medidas.MARGEN_LATERAL - 8, y))}",
+            cerca(pildora, b.getPixel(Medidas.MARGEN_LATERAL - 8, y), 3)
+        )
+        val entre = Medidas.MARGEN_LATERAL + Medidas.LOGO_LADO + Medidas.LOGO_SEPARACION / 2
+        assertTrue("entre logo y texto", cerca(pildora, b.getPixel(entre, y), 3))
+        // Fuera de la píldora la foto oscura sigue siendo oscura.
+        assertTrue(cerca(Color.BLACK, b.getPixel(Medidas.ANCHO - 100, y), 3))
+        // La píldora no invade la zona segura superior.
+        for (yy in 0 until Medidas.ZONA_SEGURA_ARRIBA step 2) assertTrue(
+            cerca(Color.BLACK, b.getPixel(Medidas.MARGEN_LATERAL + 100, yy), 3)
+        )
     }
 
     @Test fun `el area de la foto con foto mide 52 por ciento y sin foto crece`() {
