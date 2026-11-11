@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.common.busqueda.ActualizadorDeLista
 import com.example.msp_app.core.common.busqueda.ConsultaDeBusqueda
+import com.example.msp_app.core.common.busqueda.Rechazo
 import com.example.msp_app.core.common.busqueda.TextosDeLista
 import com.example.msp_app.core.common.busqueda.TopeDeDescarga
 import com.example.msp_app.core.common.time.AppTime
@@ -71,21 +72,23 @@ class ClienteSearchViewModel internal constructor(
             ultimoResultado = repository.aplicarPadronConResultado(it)
             ultimoResultado == ResultadoDePadron.REEMPLAZADO
         },
-        mensajeSiNoSeAplica = {
-            if (ultimoResultado == ResultadoDePadron.INCOMPLETA_IGNORADA) {
-                TextosDeLista.ERROR_LISTA_INCOMPLETA
-            } else {
-                TextosDeLista.ERROR_LISTA_VACIA
-            }
-        },
         alTerminarBien = {
             refrescarEstadoDelPadron()
             reintentos.value++
         },
-        forzar = {
-            repository.aplicarPadronConResultado(it, forzar = true) == ResultadoDePadron.REEMPLAZADO
-        },
-        sePuedeForzar = { ultimoResultado == ResultadoDePadron.INCOMPLETA_IGNORADA }
+        rechazo = Rechazo(
+            mensaje = {
+                if (ultimoResultado == ResultadoDePadron.INCOMPLETA_IGNORADA) {
+                    TextosDeLista.ERROR_LISTA_INCOMPLETA
+                } else {
+                    TextosDeLista.ERROR_LISTA_VACIA
+                }
+            },
+            sePuedeForzar = { ultimoResultado == ResultadoDePadron.INCOMPLETA_IGNORADA },
+            forzar = {
+                repository.aplicarPadronConResultado(it, forzar = true) == ResultadoDePadron.REEMPLAZADO
+            }
+        )
     )
     private val reintentos = MutableStateFlow(0)
 

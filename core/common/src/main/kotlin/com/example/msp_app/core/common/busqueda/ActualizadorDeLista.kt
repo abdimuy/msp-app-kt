@@ -31,6 +31,17 @@ object TextosDeLista {
 }
 
 /**
+ * Qué hacer cuando [ActualizadorDeLista] rechaza una lista: el [mensaje] que se muestra (se evalúa
+ * DESPUÉS de intentar aplicar), si el usuario puede decidir ignorar ese rechazo ([sePuedeForzar]) y
+ * cómo aplicar la lista de todos modos ([forzar]).
+ */
+class Rechazo<T>(
+    val mensaje: () -> String = { TextosDeLista.ERROR_LISTA_VACIA },
+    val sePuedeForzar: () -> Boolean = { false },
+    val forzar: (suspend (T) -> Boolean)? = null
+)
+
+/**
  * Botón "Actualizar lista" (E-APP-158): una descarga a la vez, con tope TOTAL de duración,
  * sin bloquear la búsqueda en la lista que ya existe.
  *
@@ -45,7 +56,7 @@ object TextosDeLista {
  *   relanza; nunca se convierte en mensaje de error.
  *
  * [aplicar] devuelve `false` cuando decidió NO reemplazar la lista (p. ej. el servidor contestó
- * vacío): se avisa con [mensajeSiNoSeAplica] (por omisión [TextosDeLista.ERROR_LISTA_VACIA]; el
+ * vacío): se avisa con [Rechazo.mensaje] (por omisión [TextosDeLista.ERROR_LISTA_VACIA]; el
  * padrón de clientes manda [TextosDeLista.ERROR_LISTA_INCOMPLETA] cuando llegó recortada) y
  * [alTerminarBien] no corre.
  */
@@ -55,9 +66,7 @@ class ActualizadorDeLista<T>(
     private val descargar: suspend () -> T,
     private val aplicar: suspend (T) -> Boolean,
     private val alTerminarBien: suspend () -> Unit = {},
-    private val mensajeSiNoSeAplica: () -> String = { TextosDeLista.ERROR_LISTA_VACIA },
-    private val forzar: (suspend (T) -> Boolean)? = null,
-    private val sePuedeForzar: () -> Boolean = { false }
+    private val rechazo: Rechazo<T> = Rechazo()
 ) {
     private val enCurso = AtomicBoolean(false)
     private val _actualizando = MutableStateFlow(false)
@@ -89,7 +98,7 @@ class ActualizadorDeLista<T>(
      */
     fun forzarActualizacion(): Boolean {
         val lista = pendiente ?: return false
-        val aplicarForzado = forzar ?: return false
+        val aplicarForzado = rechazo.forzar ?: return false
         if (!enCurso.compareAndSet(false, true)) return false
         _actualizando.value = true
         _mensajeDeError.value = null
@@ -111,8 +120,8 @@ class ActualizadorDeLista<T>(
     }
 
     private fun avisarRechazo(lista: T) {
-        _mensajeDeError.value = mensajeSiNoSeAplica()
-        if (forzar != null && sePuedeForzar()) {
+        _mensajeDeError.value = rechazo.mensaje()
+        if (rechazo.forzar != null && rechazo.sePuedeForzar()) {
             pendiente = lista
             _puedeForzar.value = true
         }

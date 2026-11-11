@@ -243,7 +243,7 @@ class ActualizadorDeListaTest {
             this,
             descargar = { listOf(1) },
             aplicar = { false },
-            mensajeSiNoSeAplica = { TextosDeLista.ERROR_LISTA_INCOMPLETA }
+            rechazo = Rechazo(mensaje = { TextosDeLista.ERROR_LISTA_INCOMPLETA })
         )
         a.iniciar()
         advanceUntilIdle()
@@ -266,12 +266,14 @@ class ActualizadorDeListaTest {
                 },
                 aplicar = { false },
                 alTerminarBien = { fin++ },
-                mensajeSiNoSeAplica = { TextosDeLista.ERROR_LISTA_INCOMPLETA },
-                forzar = {
-                    forzada = it
-                    true
-                },
-                sePuedeForzar = { true }
+                rechazo = Rechazo(
+                    mensaje = { TextosDeLista.ERROR_LISTA_INCOMPLETA },
+                    sePuedeForzar = { true },
+                    forzar = {
+                        forzada = it
+                        true
+                    }
+                )
             )
             a.iniciar()
             advanceUntilIdle()
@@ -291,8 +293,7 @@ class ActualizadorDeListaTest {
             this,
             descargar = { emptyList() },
             aplicar = { false },
-            forzar = { true },
-            sePuedeForzar = { false }
+            rechazo = Rechazo(sePuedeForzar = { false }, forzar = { true })
         )
         a.iniciar()
         advanceUntilIdle()
@@ -306,8 +307,7 @@ class ActualizadorDeListaTest {
             this,
             descargar = { listOf(1) },
             aplicar = { false },
-            forzar = { true },
-            sePuedeForzar = { true }
+            rechazo = Rechazo(sePuedeForzar = { true }, forzar = { true })
         )
         a.iniciar()
         advanceUntilIdle()
@@ -322,8 +322,7 @@ class ActualizadorDeListaTest {
                 this,
                 descargar = { listOf(1) },
                 aplicar = { false },
-                forzar = { false },
-                sePuedeForzar = { true }
+                rechazo = Rechazo(sePuedeForzar = { true }, forzar = { false })
             )
             a.iniciar()
             advanceUntilIdle()
