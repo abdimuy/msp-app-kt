@@ -9,7 +9,7 @@ import org.junit.Test
 
 /**
  * Prueba trivial post-hoist: [AppDatabase] compila y vive en `:core:database`,
- * y reporta la version de esquema vigente (v33, cuatro migraciones en cadena:
+ * y reporta la version de esquema vigente (v34, cinco migraciones en cadena:
  * la 29->30 —la unica del plan `pagos-y-visitas`— agrego cinco columnas
  * nullable a `Visit` (promesa y cita) y cinco tablas nuevas (comprobantes de
  * visita y de pago, recomendaciones, y las dos mitades de la ficha del
@@ -22,15 +22,17 @@ import org.junit.Test
  * `CORRECCION_REMOTA_ESTADO`/`REVISION_REMOTA_ENVIADA`— para el plan
  * "Corregir una venta DESPUES de que subio" (nivel 2); la 32->33 agrego
  * `NOMBRE_NORMALIZADO` a `cliente` para el buscador de la Nueva Venta (ver el
- * KDoc de `MIGRATION_32_33`). La 30->31 nacio como 29->30 en su rama y se
- * renumero al integrarse (ver el KDoc de `MIGRATION_30_31`); la 32->33 nacio
- * como 31->32 en la suya y se renumero por el mismo motivo (ver el KDoc de
- * `MIGRATION_32_33`).
+ * KDoc de `MIGRATION_32_33`); la 33->34 agrego las cuatro tablas de la captura
+ * de garantías v2 —folios seguidos, cola de comandos, fotos pendientes y caché
+ * del catálogo— (ver el KDoc de `MIGRATION_33_34`). La 30->31 nacio como 29->30
+ * en su rama y se renumero al integrarse (ver el KDoc de `MIGRATION_30_31`);
+ * la 32->33 nacio como 31->32 en la suya y se renumero por el mismo motivo
+ * (ver el KDoc de `MIGRATION_32_33`).
  */
 class AppDatabaseTest : RobolectricTestBase() {
 
     @Test
-    fun `AppDatabase se instancia in-memory y reporta version 33`() {
+    fun `AppDatabase se instancia in-memory y reporta version 34`() {
         val db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
@@ -39,7 +41,7 @@ class AppDatabaseTest : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(33, db.openHelper.readableDatabase.version)
+            assertEquals(34, db.openHelper.readableDatabase.version)
         } finally {
             db.close()
         }

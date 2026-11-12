@@ -7,6 +7,10 @@ import androidx.room.RoomDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
 import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
+import com.example.msp_app.core.database.dao.garantiav2.GarantiaCatalogoDao
+import com.example.msp_app.core.database.dao.garantiav2.GarantiaComandoDao
+import com.example.msp_app.core.database.dao.garantiav2.GarantiaFolioDao
+import com.example.msp_app.core.database.dao.garantiav2.GarantiaFotoDao
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
@@ -42,6 +46,10 @@ import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.database.entities.VisitRecommendationEntity
+import com.example.msp_app.core.database.entities.garantiav2.GarantiaCatalogoCacheEntity
+import com.example.msp_app.core.database.entities.garantiav2.GarantiaComandoPendienteEntity
+import com.example.msp_app.core.database.entities.garantiav2.GarantiaFolioSeguidoEntity
+import com.example.msp_app.core.database.entities.garantiav2.GarantiaFotoPendienteEntity
 import com.example.msp_app.core.database.migrations.MIGRATION_20_21
 import com.example.msp_app.core.database.migrations.MIGRATION_21_22
 import com.example.msp_app.core.database.migrations.MIGRATION_22_23
@@ -55,6 +63,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 import com.example.msp_app.core.database.migrations.MIGRATION_30_31
 import com.example.msp_app.core.database.migrations.MIGRATION_31_32
 import com.example.msp_app.core.database.migrations.MIGRATION_32_33
+import com.example.msp_app.core.database.migrations.MIGRATION_33_34
 
 @Database(
     entities = [
@@ -77,10 +86,14 @@ import com.example.msp_app.core.database.migrations.MIGRATION_32_33
         PaymentImageEntity::class,
         VisitRecommendationEntity::class,
         ClientProfileEntity::class,
-        ClientProfileSignalEntity::class
+        ClientProfileSignalEntity::class,
+        GarantiaFolioSeguidoEntity::class,
+        GarantiaComandoPendienteEntity::class,
+        GarantiaFotoPendienteEntity::class,
+        GarantiaCatalogoCacheEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 33,
+    version = 34,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -113,6 +126,18 @@ abstract class AppDatabase : RoomDatabase() {
      */
     abstract fun clientProfileDao(): ClientProfileDao
     abstract fun cobranzaSyncStateDao(): CobranzaSyncStateDao
+
+    /** `garantia_folios_seguidos` — la bandeja de "mis folios" (Task 11). */
+    abstract fun garantiaFolioDao(): GarantiaFolioDao
+
+    /** `garantia_comandos_pendientes` — la cola de comandos (Task 11). */
+    abstract fun garantiaComandoDao(): GarantiaComandoDao
+
+    /** `garantia_fotos_pendientes` — las fotos en espera de subir (Task 11). */
+    abstract fun garantiaFotoDao(): GarantiaFotoDao
+
+    /** `garantia_catalogos_cache` — el catálogo de acciones sin señal (Task 11). */
+    abstract fun garantiaCatalogoDao(): GarantiaCatalogoDao
 
     companion object {
         @Volatile
@@ -162,7 +187,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_29_30,
                     MIGRATION_30_31,
                     MIGRATION_31_32,
-                    MIGRATION_32_33
+                    MIGRATION_32_33,
+                    MIGRATION_33_34
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

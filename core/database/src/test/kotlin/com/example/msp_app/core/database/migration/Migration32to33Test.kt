@@ -18,6 +18,12 @@ private const val MIGRATION_DB = "migration-32-33-test.db"
 private const val OLD_VERSION = 32
 private const val NEW_VERSION = 33
 
+// La version vigente de `AppDatabase` cuando esta prueba se escribe. El camino
+// real de produccion ya no se detiene en la 33: sigue hasta la ultima
+// registrada, asi que la apertura real se compara contra esta, no contra
+// NEW_VERSION (que es la version que produce la migracion bajo prueba).
+private const val VERSION_VIGENTE = 34
+
 private const val CLIENTE_ACENTOS_ID = 9041
 private const val CLIENTE_ACENTOS_NOMBRE = "José María Peña Núñez"
 
@@ -174,8 +180,11 @@ class Migration32to33Test : RobolectricTestBase() {
      * `MIGRATION_31_32`: nada probaría que `MIGRATION_32_33` está REGISTRADA
      * en `AppDatabase.buildDatabase` si sólo se le pasara la migración a mano
      * a `MigrationTestHelper`. Esta prueba abre por el camino REAL de
-     * producción — hoy la ÚLTIMA versión registrada, así que aquí sí se
-     * compara por igualdad.
+     * producción, que encadena todas las migraciones registradas: la base
+     * sembrada en v32 tiene que llegar a la versión vigente, y la columna que
+     * sólo aparece en el tramo 32→33 tiene que estar poblada. Si esa migración
+     * faltara del registro, Room no encontraría ruta y la apertura tronaría
+     * antes de llegar a la aserción.
      */
     @Test
     fun `MIGRATION_32_33 esta registrada en la configuracion real que usa produccion`() {
@@ -189,8 +198,8 @@ class Migration32to33Test : RobolectricTestBase() {
 
         try {
             assertEquals(
-                "abrir por el camino real de produccion debe terminar en v33",
-                NEW_VERSION,
+                "abrir por el camino real de produccion debe terminar en la version vigente",
+                VERSION_VIGENTE,
                 opened.openHelper.readableDatabase.version
             )
 
