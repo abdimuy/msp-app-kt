@@ -23,7 +23,7 @@ import java.io.OutputStream
  *
  * Es CPU pura: llamarla fuera del hilo principal (el `Bitmap` pesa ~8 MB).
  */
-class DibujanteDeTarjeta(private val context: Context) {
+open class DibujanteDeTarjeta(private val context: Context) {
 
     private val fuentes = FuentesDeTarjeta.cargar(context.assets)
     private val armador = ArmadorDeDisposicion(fuentes)
@@ -39,7 +39,7 @@ class DibujanteDeTarjeta(private val context: Context) {
     internal fun disposicion(tarjeta: TarjetaDeProducto, tieneFoto: Boolean): Disposicion =
         armador.calcular(tarjeta, tieneFoto)
 
-    fun dibujar(tarjeta: TarjetaDeProducto, foto: Bitmap?): Bitmap {
+    open fun dibujar(tarjeta: TarjetaDeProducto, foto: Bitmap?): Bitmap {
         val d = armador.calcular(tarjeta, foto != null)
         val bitmap = Bitmap.createBitmap(Medidas.ANCHO, Medidas.ALTO, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

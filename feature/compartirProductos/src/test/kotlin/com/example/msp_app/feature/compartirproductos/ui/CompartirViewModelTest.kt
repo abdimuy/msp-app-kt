@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.compartirproductos.ui
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.common.time.AppClock
@@ -13,6 +14,7 @@ import com.example.msp_app.feature.compartirproductos.domain.ArticuloParaCompart
 import com.example.msp_app.feature.compartirproductos.domain.FilaDePrecio
 import com.example.msp_app.feature.compartirproductos.domain.PreferenciasDeCompartir
 import com.example.msp_app.feature.compartirproductos.domain.SeleccionDePrecios
+import com.example.msp_app.feature.compartirproductos.domain.TarjetaDeProducto
 import com.example.msp_app.feature.compartirproductos.render.DibujanteDeTarjeta
 import com.example.msp_app.feature.compartirproductos.render.RenderBase
 import java.io.File
@@ -357,6 +359,26 @@ class CompartirViewModelTest : RenderBase() {
         assertFalse(e.generando)
         assertEquals(CompartirViewModel.MENSAJE_SIN_MEMORIA, e.error)
         assertTrue(eventos.isEmpty())
+    }
+
+    @Test fun `sin memoria al dibujar la vista previa la deja en null y no cierra la app`() {
+        val real = DibujanteDeTarjeta(ApplicationProvider.getApplicationContext())
+        val sinMemoria = object : DibujanteDeTarjeta(ApplicationProvider.getApplicationContext()) {
+            override fun dibujar(tarjeta: TarjetaDeProducto, foto: Bitmap?): Bitmap =
+                throw OutOfMemoryError("createBitmap")
+        }
+        val m = CompartirViewModel(
+            GeneradorDeTarjetas(real, AlmacenDeTemporales(tmp.root, reloj)),
+            sinMemoria,
+            prefs,
+            { a, t -> IntentDeCompartir.armar(a.map { Uri.fromFile(it) }, t, "com.whatsapp") },
+            reloj,
+            mainDispatcherRule.testDispatcher
+        )
+        m.abrir(listOf(art(1)))
+        planificador.advanceUntilIdle()
+        assertNull(m.estado.value.vistaPrevia)
+        assertTrue(m.estado.value.visible)
     }
 
     @Test fun `cerrar limpia el estado`() {
