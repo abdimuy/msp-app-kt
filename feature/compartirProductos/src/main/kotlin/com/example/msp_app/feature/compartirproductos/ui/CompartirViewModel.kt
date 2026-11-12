@@ -166,6 +166,10 @@ class CompartirViewModel(
             } catch (e: Exception) {
                 Log.w(TAG, "no se pudo dibujar la vista previa", e)
                 null
+            } catch (e: OutOfMemoryError) {
+                // Sin memoria para la vista previa: se queda sin ella, la hoja sigue sirviendo.
+                Log.w(TAG, "sin memoria al dibujar la vista previa", e)
+                null
             }
             _estado.update { it.copy(vistaPrevia = chica) }
         }

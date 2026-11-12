@@ -59,6 +59,13 @@ class ClienteSearchViewModel internal constructor(
     private val _clienteCount = MutableStateFlow<Int?>(null)
     val clienteCount: StateFlow<Int?> = _clienteCount
 
+    /**
+     * La búsqueda (o la lectura del padrón) falló: NO es "sin resultados" ni "lista sin descargar".
+     * La pantalla debe decir que no se pudo buscar, nunca hacer creer que el cliente no existe.
+     */
+    private val _errorDeBusqueda = MutableStateFlow(false)
+    val errorDeBusqueda: StateFlow<Boolean> = _errorDeBusqueda
+
     private val _ultimaActualizacion = MutableStateFlow<String?>(null)
     val ultimaActualizacion: StateFlow<String?> = _ultimaActualizacion
 
@@ -69,7 +76,8 @@ class ClienteSearchViewModel internal constructor(
         topeMs = TopeDeDescarga.MANUAL_MS,
         descargar = { repository.descargarPadron() },
         aplicar = {
-            ultimoResultado = repository.aplicarPadronConResultado(it)
+            // El botón manual nunca anota rechazos ni acepta solo: eso es del worker.
+            ultimoResultado = repository.aplicarPadronConResultado(it, automatico = false)
             ultimoResultado == ResultadoDePadron.REEMPLAZADO
         },
         alTerminarBien = {
@@ -127,6 +135,14 @@ class ClienteSearchViewModel internal constructor(
         actualizador.forzarActualizacion()
     }
 
+    /** "Reintentar" tras un error de búsqueda: vuelve a leer el padrón y repite la consulta en curso. */
+    fun reintentarBusqueda() {
+        viewModelScope.launch {
+            refrescarEstadoDelPadron()
+            reintentos.value++
+        }
+    }
+
     fun clearSyncError() {
         actualizador.limpiarError()
     }
@@ -134,29 +150,33 @@ class ClienteSearchViewModel internal constructor(
     private suspend fun ejecutarBusqueda(texto: String) {
         if (ConsultaDeBusqueda.interpretar(texto) == ConsultaDeBusqueda.Vacia) {
             _resultado.value = ResultadoDeClientes.VACIO
+            _errorDeBusqueda.value = false
             return
         }
         _isSearching.value = true
         try {
             _resultado.value = withContext(dispatcherDeBusqueda) { buscar(texto) }
+            _errorDeBusqueda.value = false
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             android.util.Log.e("ClienteSearchVM", "La búsqueda falló", e)
             _resultado.value = ResultadoDeClientes.VACIO
+            _errorDeBusqueda.value = true
         } finally {
             _isSearching.value = false
         }
     }
 
     private suspend fun refrescarEstadoDelPadron() {
-        _clienteCount.value = try {
-            repository.getCount()
+        // Si falla, el conteo queda como estaba (no se inventa 0 = "aún no se descargó") y se avisa el error.
+        try {
+            _clienteCount.value = repository.getCount()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             android.util.Log.e("ClienteSearchVM", "No se pudo contar el padrón", e)
-            0
+            _errorDeBusqueda.value = true
         }
         _ultimaActualizacion.value = repository.ultimaActualizacionMs()?.let {
             AppTime.formatForDisplay(Instant.ofEpochMilli(it))

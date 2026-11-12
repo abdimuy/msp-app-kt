@@ -1,6 +1,7 @@
 package com.example.msp_app.core.common.busqueda
 
 import com.example.msp_app.core.testing.padron.FuenteEnMemoria
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -208,4 +209,26 @@ class MotorDeBusquedaTest {
         assertEquals(5, resultado.ids.size)
         assertEquals(50, resultado.total)
     }
+
+    @Test fun `cancelar durante el recorrido de parecidos lo detiene sin terminar de revisar`() =
+        runTest {
+            val total = 44_000
+            val base = FuenteEnMemoria.deNombres(*Array(total) { it + 1 to "PERSONA NUMERO $it" })
+            var cancelar: (() -> Unit)? = null
+            val fuente = object : FuenteDeFilas by base {
+                override suspend fun todasLasFilas(): List<FilaDeBusqueda> {
+                    cancelar?.invoke() // el usuario teclea otra cosa justo al empezar el recorrido
+                    return base.todasLasFilas()
+                }
+            }
+            var termino = false
+            val trabajo = launch {
+                MotorDeBusqueda(fuente).buscar("guadalupe")
+                termino = true
+            }
+            cancelar = { trabajo.cancel() }
+            trabajo.join()
+            assertTrue(trabajo.isCancelled)
+            assertFalse("el recorrido no debió terminar", termino)
+        }
 }

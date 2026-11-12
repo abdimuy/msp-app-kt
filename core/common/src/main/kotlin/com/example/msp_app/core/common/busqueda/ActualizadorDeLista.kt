@@ -21,6 +21,8 @@ object TextosDeLista {
     const val ERROR_SIN_CONEXION = "No se pudo actualizar: sin conexión. $SEGUIR_BUSCANDO"
     const val ERROR_GENERICO = "No se pudo actualizar la lista. $SEGUIR_BUSCANDO"
     const val ERROR_LISTA_VACIA = "No se actualizó: el servidor envió la lista vacía. $SEGUIR_BUSCANDO"
+    const val ERROR_BUSQUEDA = "No se pudo buscar. Intenta de nuevo"
+    const val REINTENTAR = "Reintentar"
     const val FORZAR_ACTUALIZACION = "Actualizar de todos modos"
     const val ERROR_LISTA_INCOMPLETA = "La lista recibida está incompleta. Se conserva la lista guardada"
 

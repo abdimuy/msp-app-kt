@@ -44,9 +44,12 @@ class AlmacenEnArchivo(private val archivo: File) : AlmacenDeUsoDeDatos {
     }
 
     // Gson crea objetos sin pasar por el constructor: listas/mapas ausentes llegan null.
-    @Suppress("USELESS_ELVIS", "UNNECESSARY_SAFE_CALL")
+    @Suppress("USELESS_ELVIS", "UNNECESSARY_SAFE_CALL", "SENSELESS_COMPARISON")
     private fun EstadoPersistido.sanear(): EstadoPersistido = EstadoPersistido(
-        dias = (dias ?: emptyList()).map { it.copy(endpoints = it.endpoints ?: emptyMap()) },
+        // Un día sin fecha (null en el JSON) no se puede ubicar: se descarta, los demás se conservan.
+        dias = (dias ?: emptyList()).filter {
+            it.fecha != null
+        }.map { it.copy(endpoints = it.endpoints ?: emptyMap()) },
         ultimaMuestra = ultimaMuestra,
         reportados = reportados ?: emptyList()
     )

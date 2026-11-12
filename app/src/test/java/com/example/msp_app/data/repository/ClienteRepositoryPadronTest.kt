@@ -291,6 +291,43 @@ class ClienteRepositoryPadronTest : RoomTestBase() {
         assertEquals(2000, repository.getCount())
     }
 
+    @Test fun `el boton manual no anota rechazos ni acepta solo una lista recortada`() = runTest {
+        sembrar(2000)
+        val manuales = (1..3).map {
+            repository.aplicarPadronConResultado(nueva(900), automatico = false)
+        }
+        assertEquals(List(3) { ResultadoDePadron.INCOMPLETA_IGNORADA }, manuales)
+        assertEquals(2000, repository.getCount())
+        // los toques manuales no suman a la cuenta del worker: a este le falta llegar a su 3.a
+        assertEquals(
+            ResultadoDePadron.INCOMPLETA_IGNORADA,
+            repository.aplicarPadronConResultado(nueva(900))
+        )
+        assertEquals(2000, repository.getCount())
+    }
+
+    @Test fun `el worker sigue aceptando a la 3 vez aunque haya toques manuales en medio`() = runTest {
+        sembrar(2000)
+        val r = listOf(
+            repository.aplicarPadronConResultado(nueva(900)),
+            repository.aplicarPadronConResultado(nueva(900), automatico = false),
+            repository.aplicarPadronConResultado(nueva(900)),
+            repository.aplicarPadronConResultado(nueva(900), automatico = false),
+            repository.aplicarPadronConResultado(nueva(900))
+        )
+        assertEquals(
+            listOf(
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.INCOMPLETA_IGNORADA,
+                ResultadoDePadron.REEMPLAZADO
+            ),
+            r
+        )
+        assertEquals(900, repository.getCount())
+    }
+
     @Test fun `forzar aplica la lista incompleta, la registra con conteos y reinicia la cuenta`() =
         runTest {
             sembrar(2000)

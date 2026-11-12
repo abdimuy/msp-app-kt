@@ -74,18 +74,25 @@ class ClienteSearchSheetTest : RobolectricTestBase() {
         const val DEBOUNCE_MS = 300L
     }
 
+    private var falla: Throwable? = null
+
     private fun vm(): ClienteSearchViewModel {
         val app = ApplicationProvider.getApplicationContext<Application>()
+        val repo = ClienteRepository(
+            dataSource = ClienteDataSource(app),
+            api = api,
+            avisar = { _, _, _ -> },
+            guardarFechaDeSync = { fecha = it },
+            leerFechaDeSync = { fecha },
+            ahora = { 1_700_000_000_000L }
+        )
         return ClienteSearchViewModel(
             app,
-            ClienteRepository(
-                dataSource = ClienteDataSource(app),
-                api = api,
-                avisar = { _, _, _ -> },
-                guardarFechaDeSync = { fecha = it },
-                leerFechaDeSync = { fecha },
-                ahora = { 1_700_000_000_000L }
-            ),
+            repo,
+            buscar = { texto ->
+                falla?.let { throw it }
+                repo.buscar(texto)
+            },
             dispatcherDeBusqueda = Dispatchers.Unconfined
         )
     }
@@ -209,5 +216,21 @@ class ClienteSearchSheetTest : RobolectricTestBase() {
             compose.onNodeWithText(TextosDeLista.FORZAR_ACTUALIZACION).performClick()
             esperarTexto("10 clientes disponibles")
             compose.onNodeWithText(TextosDeLista.FORZAR_ACTUALIZACION).assertDoesNotExist()
+        }
+
+    @Test fun `si la busqueda falla dice que no se pudo buscar y no dice que no hay clientes`() =
+        runTest {
+            db.clienteDao().insertAll(listOf(ClienteEntity(1, "ANA RUIZ", "A", null, "ana ruiz")))
+            abrir(vm())
+            esperarTexto("1 clientes disponibles")
+            falla = IllegalStateException("room cerrado")
+            escribir("ana ruiz")
+            esperarTexto(TextosDeLista.ERROR_BUSQUEDA)
+            compose.onNodeWithText(TextosDeLista.SIN_RESULTADOS).assertDoesNotExist()
+            compose.onNodeWithText(TextosDeLista.PADRON_VACIO).assertDoesNotExist()
+            falla = null
+            compose.onNodeWithText(TextosDeLista.REINTENTAR).performClick()
+            esperarTexto("ANA RUIZ")
+            compose.onNodeWithText(TextosDeLista.ERROR_BUSQUEDA).assertDoesNotExist()
         }
 }

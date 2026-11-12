@@ -63,6 +63,39 @@ class AlmacenYServicioTest {
         assertNull(a.leer())
     }
 
+    @Test fun `un JSON con fecha nula no truena al restaurar y conserva los dias legibles`() = runTest {
+        archivo().writeText(
+            """{"dias":[{"fecha":null,"wifi":9,"endpoints":{}},""" +
+                """{"fecha":"2026-11-09","wifi":5,"endpoints":{}}],"reportados":null}"""
+        )
+        val s = servicio()
+        s.restaurar()
+        assertEquals(listOf("2026-11-09"), s.registro.instantanea().map { it.fecha })
+        s.registro.bytes("GET /ping", 1, 0)
+        s.guardar() // quedó restaurado: ya puede escribir
+        assertTrue(archivo().readText().contains("2026-11-09"))
+    }
+
+    @Test fun `si lo guardado no se puede restaurar se descarta y la app arranca`() = runTest {
+        val roto = object : AlmacenDeUsoDeDatos {
+            override fun leer(): EstadoPersistido? = error("ilegible")
+            override fun escribir(estado: EstadoPersistido) = Unit
+        }
+        val registro = RegistroDeUso(clock)
+        val fuente = object : FuenteDeTrafico {
+            override fun rx() = 0L
+            override fun tx() = 0L
+        }
+        val s = ServicioDeUsoDeDatos(
+            registro,
+            MuestreadorDeTrafico(fuente, registro, TipoDeRed.WIFI, true),
+            roto
+        )
+        s.restaurar()
+        s.guardar() // restaurado = true: no queda bloqueado para siempre
+        assertTrue(registro.instantanea().isEmpty())
+    }
+
     @Test fun `la escritura es atomica y no deja temporales`() {
         val a = AlmacenEnArchivo(archivo())
         repeat(5) { a.escribir(EstadoPersistido(emptyList(), null, emptyList())) }

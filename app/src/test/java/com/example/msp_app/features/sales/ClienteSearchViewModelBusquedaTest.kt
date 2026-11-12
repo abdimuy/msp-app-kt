@@ -3,6 +3,7 @@ package com.example.msp_app.features.sales
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.database.clientes.ResultadoDeClientes
+import com.example.msp_app.core.database.dao.ClienteDao
 import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.data.local.datasource.ClienteDataSource
@@ -143,4 +144,42 @@ class ClienteSearchViewModelBusquedaTest : RoomTestBase() {
             )
             assertEquals(1, vm.resultado.value.exactos.size)
         }
+
+    @Test fun `si la busqueda falla hay un error propio y no un resultado vacio que parezca sin clientes`() =
+        runTest {
+            val vm = vm { _ -> throw IllegalStateException("room cerrado") }
+            vm.onQueryChange("ana")
+            advanceTimeBy(301)
+            hasta { vm.errorDeBusqueda.value }
+            assertFalse(vm.isSearching.value)
+        }
+
+    @Test fun `tras un error una busqueda buena limpia el error`() = runTest {
+        val vm = vm { texto -> if (texto == "ana") throw IllegalStateException("x") else unCliente }
+        vm.onQueryChange("ana")
+        advanceTimeBy(301)
+        hasta { vm.errorDeBusqueda.value }
+        vm.onQueryChange("beto")
+        advanceTimeBy(301)
+        hasta { !vm.errorDeBusqueda.value && vm.resultado.value.exactos.isNotEmpty() }
+    }
+
+    @Test fun `si falla leer el padron hay error y el conteo no se inventa como cero`() = runTest {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val daoRoto = java.lang.reflect.Proxy.newProxyInstance(
+            ClienteDao::class.java.classLoader,
+            arrayOf(ClienteDao::class.java)
+        ) { _, _, _ -> throw IllegalStateException("room cerrado") } as ClienteDao
+        val repo = ClienteRepository(
+            dataSource = ClienteDataSource(daoRoto),
+            api = api,
+            avisar = { _, _, _ -> },
+            guardarFechaDeSync = {},
+            leerFechaDeSync = { 0L },
+            ahora = { 0L }
+        )
+        val vm = ClienteSearchViewModel(app, repo, buscar = { _ -> unCliente })
+        hasta { vm.errorDeBusqueda.value }
+        assertEquals(null, vm.clienteCount.value)
+    }
 }
