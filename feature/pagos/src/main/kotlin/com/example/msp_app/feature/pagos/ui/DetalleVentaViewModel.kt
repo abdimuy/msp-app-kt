@@ -7,6 +7,8 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.DiaDeCobroDeLaVenta
+import com.example.msp_app.feature.pagos.domain.port.DiaDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,12 +30,16 @@ import kotlinx.coroutines.withContext
  * Solo recibe el `ventaId`: desde un pago o un recibo se entra directo a su
  * venta (Task 21) y ahí nadie conoce al cliente.
  */
+@Suppress(
+    "LongParameterList"
+) // cada puerto es una dependencia distinta y Hilt las inyecta por constructor.
 @HiltViewModel
 class DetalleVentaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val cargarDetalleVenta: CargarDetalleVenta,
     private val tema: TemaDeLaAppPort,
     private val privacidad: PrivacidadPort,
+    private val diaDeCobro: DiaDeCobroPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -117,7 +123,9 @@ class DetalleVentaViewModel @Inject constructor(
         "TooGenericExceptionCaught"
     ) // cualquier fallo de Room/Firestore degrada igual; se reporta.
     private suspend fun leer(): DetalleVentaUiState = try {
-        val detalle = withContext(io) { cargarDetalleVenta(ventaId) }
+        val detalle = withContext(io) {
+            cargarDetalleVenta(ventaId)?.let { it.copy(diaDeCobro = leerDiaDeCobro()) }
+        }
         DetalleVentaUiState(
             cargando = false,
             detalle = detalle,
@@ -132,6 +140,25 @@ class DetalleVentaViewModel @Inject constructor(
             props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
         DetalleVentaUiState(cargando = false, error = ErrorDeDetalle.FALLO_LA_CARGA)
+    }
+
+    /**
+     * Lo guardado del día de cobro, o `null`. **Nunca lanza**: es un adorno de la
+     * pantalla y un fallo al leerlo no puede costarle al cobrador el detalle de
+     * su venta (ni, mucho menos, el cobro).
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun leerDiaDeCobro(): DiaDeCobroDeLaVenta? = try {
+        diaDeCobro.deLaVenta(ventaId)
+    } catch (cancelada: CancellationException) {
+        throw cancelada
+    } catch (fallo: Exception) {
+        telemetry.error(
+            code = PagosTelemetria.CODE_DIA_DE_COBRO_FALLO,
+            message = "no se pudo leer el día de cobro guardado",
+            props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+        )
+        null
     }
 
     private companion object {
