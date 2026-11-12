@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.data.fake
 
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.DiaDeCobroDeLaVenta
 import com.example.msp_app.feature.pagos.domain.OrdenDeLaLista
 import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.CondonacionDelHistorial
@@ -20,6 +21,7 @@ import com.example.msp_app.feature.pagos.domain.port.AccionesExternasPort
 import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.DestinoEnElMapa
+import com.example.msp_app.feature.pagos.domain.port.DiaDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
@@ -512,5 +514,17 @@ class FakeOrdenGuardadoPort(guardadoInicial: OrdenGuardado? = null) : OrdenGuard
     override suspend fun guardar(orden: OrdenDeLaLista, dia: LocalDate) {
         escrituras++
         guardado = OrdenGuardado(orden, dia)
+    }
+}
+
+/** El día de cobro guardado: por venta, y con un fallo a pedido para probar que no tumba nada. */
+class FakeDiaDeCobroPort : DiaDeCobroPort {
+
+    var porVenta: Map<Int, DiaDeCobroDeLaVenta> = emptyMap()
+    var falla: Exception? = null
+
+    override suspend fun deLaVenta(ventaId: Int): DiaDeCobroDeLaVenta? {
+        falla?.let { throw it }
+        return porVenta[ventaId]
     }
 }

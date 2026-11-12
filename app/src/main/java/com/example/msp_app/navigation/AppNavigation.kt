@@ -78,6 +78,7 @@ import com.example.msp_app.features.transfers.presentation.list.TransfersListVie
 import com.example.msp_app.features.visit.screens.VisitTicketScreen
 import com.example.msp_app.navigation.menu.MenuDeLaApp
 import com.example.msp_app.ui.theme.ThemeController
+import com.example.msp_app.workmanager.enqueueDiaDeCobro
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
@@ -368,6 +369,10 @@ fun AppNavigation() {
                 )
             )
         }
+        // El día de cobro (franja del detalle de venta): su propio worker, aparte
+        // del sync de pagos y saldos. Se programa por zona; el worker baja una
+        // vez al día y, si falla, deja lo guardado.
+        LaunchedEffect(zonaActual) { enqueueDiaDeCobro(context, zonaActual) }
         // Cuando FECHA_CARGA_INICIAL avanza (típicamente al cambiar de
         // semana) las saldadas cuyos pagos quedaron fuera de la nueva
         // ventana deben evictarse sin esperar al siguiente tick — el sync

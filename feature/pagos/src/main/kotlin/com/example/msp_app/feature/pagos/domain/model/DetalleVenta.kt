@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.domain.model
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
+import com.example.msp_app.feature.pagos.domain.DiaDeCobroDeLaVenta
 import java.time.LocalDate
 
 /**
@@ -113,7 +114,14 @@ data class DetalleVenta(
      * visitas §5.7 E; E-APP-115). `null` = sin compromiso. Lo llena la agenda
      * local de la Tarea 17 de visitas P2; mientras no esté integrada, `null`.
      */
-    val compromiso: CompromisoDeLaVenta? = null
+    val compromiso: CompromisoDeLaVenta? = null,
+    /**
+     * El día de cobro que el servidor calculó (franja "Día de cobro" y grupo "El
+     * cobro" de la hoja de datos). `null` = nada guardado. Lo lee el
+     * ViewModel de un canal aparte —NO `CargarDetalleVenta`—, para que un fallo
+     * aquí jamás tumbe el detalle de la venta.
+     */
+    val diaDeCobro: DiaDeCobroDeLaVenta? = null
 ) : CuentaCobrable
 
 /** Una línea de la sección "productos". */

@@ -14,6 +14,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
@@ -27,6 +28,7 @@ import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.pagos.domain.datosDelCobro
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
 import com.example.msp_app.feature.pagos.ui.components.Separador
@@ -43,6 +45,9 @@ const val ROTULO_DE_DATOS_TAG: String = "pagos_venta_hoja_datos_rotulo"
 /** `testTag` del valor de un renglón de la hoja. */
 const val VALOR_DE_DATOS_TAG: String = "pagos_venta_hoja_datos_valor"
 
+/** `testTag` de la nota chica de un renglón de la hoja. */
+const val NOTA_DE_DATOS_TAG: String = "pagos_venta_hoja_datos_nota"
+
 /**
  * Un renglón de "Datos de la venta": el rótulo y lo que dice.
  *
@@ -52,10 +57,12 @@ const val VALOR_DE_DATOS_TAG: String = "pagos_venta_hoja_datos_valor"
 internal data class DatoDeLaVenta(
     val rotulo: String,
     val valor: String = "",
-    val monto: Money? = null
+    val monto: Money? = null,
+    /** Su respaldo en chico, debajo del valor (grupo "El cobro"). */
+    val nota: String? = null
 )
 
-/** Los tres bloques de la hoja, en el orden del legado: la puerta, el trato, las personas. */
+/** Los tres bloques de la hoja, en el orden del legado: la puerta, el cobro (si lo hay), el trato, las personas. */
 internal data class GrupoDeDatos(val titulo: String, val datos: List<DatoDeLaVenta>)
 
 /**
@@ -68,7 +75,7 @@ internal data class GrupoDeDatos(val titulo: String, val datos: List<DatoDeLaVen
  * del dato disfrazada de cifra. Por eso son once o diez, y el enlace de la
  * tarjeta cuenta los que de verdad hay ([cuantosDatos]).
  */
-internal fun gruposDeDatos(detalle: DetalleVenta): List<GrupoDeDatos> = listOf(
+internal fun gruposDeDatos(detalle: DetalleVenta): List<GrupoDeDatos> = listOfNotNull(
     GrupoDeDatos(
         "La puerta",
         listOf(
@@ -77,6 +84,7 @@ internal fun gruposDeDatos(detalle: DetalleVenta): List<GrupoDeDatos> = listOf(
             DatoDeLaVenta("Zona", detalle.zona)
         )
     ),
+    grupoDelCobro(detalle),
     GrupoDeDatos(
         "El trato",
         listOfNotNull(
@@ -107,6 +115,12 @@ internal fun gruposDeDatos(detalle: DetalleVenta): List<GrupoDeDatos> = listOf(
         )
     )
 )
+
+/** "El cobro": entre la puerta y el trato; `null` (no se abre) sin día acordado ni estimación. */
+private fun grupoDelCobro(detalle: DetalleVenta): GrupoDeDatos? = datosDelCobro(detalle.diaDeCobro)
+    .map { DatoDeLaVenta(it.rotulo, it.valor, nota = it.nota) }
+    .takeIf { it.isNotEmpty() }
+    ?.let { GrupoDeDatos("El cobro", it) }
 
 /** Cuántos renglones trae la hoja — lo que dice el enlace "N datos ›". */
 internal fun cuantosDatos(detalle: DetalleVenta): Int =
@@ -178,7 +192,8 @@ fun CuerpoDeLosDatosDeLaVenta(
             modifier = Modifier.padding(bottom = 6.dp)
         )
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            gruposDeDatos(detalle).forEachIndexed { g, grupo ->
+            val grupos = gruposDeDatos(detalle)
+            grupos.forEachIndexed { g, grupo ->
                 Text(
                     text = grupo.titulo.uppercase(BUSINESS_LOCALE),
                     style = MspTheme.type.navLabel.copy(letterSpacing = 0.12.em),
@@ -186,13 +201,13 @@ fun CuerpoDeLosDatosDeLaVenta(
                     modifier = Modifier.padding(top = MspTheme.spacing.sm + MspTheme.spacing.xs)
                 )
                 grupo.datos.forEachIndexed { i, dato ->
-                    val ultimo = g == 2 && i == grupo.datos.lastIndex
+                    val ultimo = g == grupos.lastIndex && i == grupo.datos.lastIndex
                     val valor = when {
                         dato.monto != null && ocultos -> MASKED_MONEY
                         dato.monto != null -> formatMoneyMxn(dato.monto.amount)
                         else -> dato.valor.ifBlank { SIN_DATO }
                     }
-                    RenglonDeDatos(dato.rotulo, valor, unaColumna)
+                    RenglonDeDatos(dato.rotulo, valor, unaColumna, dato.nota)
                     if (!ultimo) Separador()
                 }
             }
@@ -202,7 +217,12 @@ fun CuerpoDeLosDatosDeLaVenta(
 }
 
 @Composable
-private fun RenglonDeDatos(rotulo: String, valor: String, unaColumna: Boolean) {
+private fun RenglonDeDatos(
+    rotulo: String,
+    valor: String,
+    unaColumna: Boolean,
+    nota: String? = null
+) {
     val estiloRotulo = MspTheme.type.body.copy(fontSize = 13.5.sp, lineHeight = 17.sp)
     if (unaColumna) {
         Column(
@@ -223,6 +243,7 @@ private fun RenglonDeDatos(rotulo: String, valor: String, unaColumna: Boolean) {
                 color = MspTheme.colors.onSurface,
                 modifier = Modifier.testTag(VALOR_DE_DATOS_TAG)
             )
+            NotaDelRenglon(nota, TextAlign.Start)
         }
     } else {
         Row(
@@ -238,15 +259,29 @@ private fun RenglonDeDatos(rotulo: String, valor: String, unaColumna: Boolean) {
                 color = MspTheme.colors.onSurfaceMuted,
                 modifier = Modifier.testTag(ROTULO_DE_DATOS_TAG)
             )
-            Text(
-                valor,
-                style = MspTheme.type.bodyStrong.copy(fontSize = 13.5.sp, lineHeight = 18.sp),
-                color = MspTheme.colors.onSurface,
-                textAlign = TextAlign.End,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(VALOR_DE_DATOS_TAG)
-            )
+            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                Text(
+                    valor,
+                    style = MspTheme.type.bodyStrong.copy(fontSize = 13.5.sp, lineHeight = 18.sp),
+                    color = MspTheme.colors.onSurface,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.testTag(VALOR_DE_DATOS_TAG)
+                )
+                NotaDelRenglon(nota, TextAlign.End)
+            }
         }
     }
+}
+
+/** El respaldo en chico de un renglón ("lo anotó el vendedor al vender"); sin nota no pinta nada. */
+@Composable
+private fun NotaDelRenglon(nota: String?, alineacion: TextAlign) {
+    if (nota == null) return
+    Text(
+        nota,
+        style = MspTheme.type.caption,
+        color = MspTheme.colors.onSurfaceMuted,
+        textAlign = alineacion,
+        modifier = Modifier.testTag(NOTA_DE_DATOS_TAG)
+    )
 }

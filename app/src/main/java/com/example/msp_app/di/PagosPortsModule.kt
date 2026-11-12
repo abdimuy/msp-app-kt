@@ -17,6 +17,8 @@ import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkMana
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.ubicacion.UbicacionAnticipada
 import com.example.msp_app.core.utils.CurrentLocationReader
+import com.example.msp_app.data.diadecobro.DiaDeCobroAdapter
+import com.example.msp_app.data.diadecobro.almacenDelDiaDeCobro
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.pagos.CapturasSinTerminarAdapter
 import com.example.msp_app.data.pagos.CentroidesCercaniaAdapter
@@ -33,6 +35,7 @@ import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.pagos.domain.port.CapturasSinTerminarPort
 import com.example.msp_app.feature.pagos.domain.port.CercaniaPort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
+import com.example.msp_app.feature.pagos.domain.port.DiaDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.OrdenGuardadoPort
@@ -129,6 +132,14 @@ object PagosPortsModule {
     ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
         produceFile = { context.preferencesDataStoreFile("orden_lista_clientes") }
     )
+
+    /**
+     * El día de cobro guardado en disco. SIN `@Singleton`: no sostiene red ni
+     * sesión, solo un archivo. La descarga la hace `DiaDeCobroWorker`.
+     */
+    @Provides
+    fun provideDiaDeCobroPort(@ApplicationContext context: Context): DiaDeCobroPort =
+        DiaDeCobroAdapter(almacenDelDiaDeCobro(context))
 
     /** [OrdenGuardadoPort] real, sobre el DataStore de arriba. */
     @Provides

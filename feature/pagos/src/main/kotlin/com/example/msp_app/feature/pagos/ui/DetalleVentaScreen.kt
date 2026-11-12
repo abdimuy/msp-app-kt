@@ -72,6 +72,7 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
 import com.example.msp_app.feature.pagos.domain.GruposDeContactos
+import com.example.msp_app.feature.pagos.domain.franjaDeCobro
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.AIRE_DEL_DOCK_TAG
@@ -84,6 +85,7 @@ import com.example.msp_app.feature.pagos.ui.components.EncabezadoCompacto
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.EstadoEnGrande
 import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
+import com.example.msp_app.feature.pagos.ui.components.FranjaDiaDeCobro
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
@@ -427,6 +429,13 @@ private fun CuerpoDeLaVenta(
                 .onPlaced { onRecorrido(it.positionInParent().y + it.size.height) }
         )
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
+        // El día de cobro, ANTES de la promesa (que es `EstadoEnGrande`) y del
+        // saldo, como en la maqueta aprobada. Sin acordado ni estimación
+        // `franjaDeCobro` devuelve null y la franja no aparece.
+        franjaDeCobro(detalle.diaDeCobro)?.let {
+            FranjaDiaDeCobro(it)
+            Spacer(Modifier.height(MspTheme.spacing.sm))
+        }
         EstadoEnGrande(detalle.estado, ocultos = ocultos)
         // Spec visitas §5.7 E (E-APP-115): la próxima cita o promesa, con día,
         // hora y monto, justo debajo del estado.

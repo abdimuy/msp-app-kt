@@ -18,6 +18,9 @@ object PagosTelemetria {
     /** Falló la carga del detalle de venta. El id de la venta NO se emite. */
     const val CODE_DETALLE_VENTA_FALLO: String = "pagos_detalle_venta_fallo"
 
+    /** Falló la lectura del día de cobro guardado; el detalle se pinta sin la franja. */
+    const val CODE_DIA_DE_COBRO_FALLO: String = "pagos_dia_de_cobro_fallo"
+
     /**
      * No se pudo leer `FECHA_CARGA_INICIAL`, así que no hay ventana de cobro y
      * el periodo no se puede derivar. Se emite igual —"es esperado" no autoriza

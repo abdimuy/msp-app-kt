@@ -14,6 +14,7 @@ import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeDiaDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
@@ -71,6 +72,7 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
     private val liquidacionPort = FakeLiquidacionPort()
     private val garantiasPort = FakeGarantiasPort()
     private val productosPort = FakeProductosPort()
+    private val diaDeCobroPort = FakeDiaDeCobroPort()
     private val periodoPort = FakePeriodoDeCobroPort()
 
     /**
@@ -109,6 +111,7 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
         ),
         tema = FakeTemaDeLaAppPort(),
         privacidad = FakePrivacidadPort(),
+        diaDeCobro = diaDeCobroPort,
         telemetry = telemetria,
         io = Dispatchers.Unconfined
     )

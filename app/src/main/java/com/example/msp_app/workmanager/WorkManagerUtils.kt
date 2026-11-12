@@ -14,6 +14,7 @@ import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.visitas.envio.UltimaConciliacionDeVisitas
 import com.example.msp_app.workers.ClienteSyncWorker
 import com.example.msp_app.workers.CobranzaReconcileWorker
+import com.example.msp_app.workers.DiaDeCobroWorker
 import com.example.msp_app.workers.PendingGuaranteeEventsWorker
 import com.example.msp_app.workers.PendingGuaranteesWorker
 import com.example.msp_app.workers.PendingLocalSalesWorker
@@ -456,4 +457,33 @@ fun enqueueClienteSyncWorker(context: Context) {
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
+}
+
+/**
+ * El día de cobro (spec `2026-11-11-dia-de-cobro` §10): una corrida única al abrir
+ * la app con la zona del cobrador, más un periódico de 24 h como respaldo. El
+ * worker decide si toca bajar (una vez al día); aquí solo se programa. **No
+ * comparte nada con el sync de pagos y saldos.**
+ */
+fun enqueueDiaDeCobro(context: Context, zona: Int) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+    val manager = WorkManager.getInstance(context)
+
+    manager.enqueueUniqueWork(
+        "dia_de_cobro_ahora",
+        ExistingWorkPolicy.KEEP,
+        OneTimeWorkRequestBuilder<DiaDeCobroWorker>()
+            .setConstraints(constraints)
+            .setInputData(workDataOf(DiaDeCobroWorker.KEY_ZONA to zona))
+            .build()
+    )
+    manager.enqueueUniquePeriodicWork(
+        "dia_de_cobro_diario",
+        ExistingPeriodicWorkPolicy.KEEP,
+        PeriodicWorkRequestBuilder<DiaDeCobroWorker>(1, TimeUnit.DAYS)
+            .setConstraints(constraints)
+            .build()
+    )
 }

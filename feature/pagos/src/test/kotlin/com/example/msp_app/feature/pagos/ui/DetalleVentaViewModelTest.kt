@@ -9,6 +9,7 @@ import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeDiaDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
@@ -49,6 +50,7 @@ class DetalleVentaViewModelTest {
     private val garantiasPort = FakeGarantiasPort()
 
     private val productosPort = FakeProductosPort()
+    private val diaDeCobroPort = FakeDiaDeCobroPort()
     private val periodoPort = FakePeriodoDeCobroPort()
 
     @Before
@@ -80,6 +82,7 @@ class DetalleVentaViewModelTest {
             clock = clock
         ),
         privacidad = FakePrivacidadPort(),
+        diaDeCobro = diaDeCobroPort,
         tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
         io = testDispatcher
@@ -241,6 +244,45 @@ class DetalleVentaViewModelTest {
         assertTrue(
             "cargar ya no enciende cargando: el contraste de arriba no prueba nada",
             estados.any { it }
+        )
+    }
+
+    @Test
+    fun `el dia de cobro guardado llega al detalle`() = runTest(testDispatcher) {
+        diaDeCobroPort.porVenta =
+            mapOf(PagosFixtures.VENTA_EN_PROMESA to DiaDeCobroFixtures.coincide())
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(DiaDeCobroFixtures.coincide(), vm.state.value.detalle!!.diaDeCobro)
+    }
+
+    @Test
+    fun `una venta sin nada guardado se carga sin dia de cobro`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.detalle != null)
+        assertNull(vm.state.value.detalle!!.diaDeCobro)
+    }
+
+    @Test
+    fun `si leer el dia de cobro falla el detalle se carga igual y se reporta`() = runTest(
+        testDispatcher
+    ) {
+        diaDeCobroPort.falla = IllegalStateException("archivo roto")
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val estado = vm.state.value
+        assertNull("el fallo tumbó el detalle", estado.error)
+        assertEquals("Refrigerador Mabe 14'", estado.detalle!!.titulo)
+        assertNull(estado.detalle!!.diaDeCobro)
+        assertTrue(
+            telemetria.recorded.any {
+                it.type == TelemetryEventType.ERROR &&
+                    it.name == PagosTelemetria.CODE_DIA_DE_COBRO_FALLO
+            }
         )
     }
 }
