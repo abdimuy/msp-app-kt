@@ -65,6 +65,7 @@ fun ClienteSearchBottomSheet(
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncError by viewModel.syncError.collectAsState()
     val puedeForzar by viewModel.puedeForzar.collectAsState()
+    val errorDeBusqueda by viewModel.errorDeBusqueda.collectAsState()
 
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -210,6 +211,9 @@ fun ClienteSearchBottomSheet(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(32.dp))
                 }
+            } else if (errorDeBusqueda) {
+                // Un fallo no es "sin resultados": nunca debe parecer que el cliente no existe.
+                ErrorDeBusqueda(onReintentar = { viewModel.reintentarBusqueda() })
             } else if (clienteCount == 0 || (hayConsulta && sinResultados)) {
                 SinResultados(
                     padronVacio = clienteCount == 0,
@@ -336,6 +340,26 @@ private fun SinResultados(
         }
         OutlinedButton(onClick = onActualizar, enabled = !actualizando) {
             Text(if (actualizando) TextosDeLista.ACTUALIZANDO else "Actualizar lista")
+        }
+    }
+}
+
+@Composable
+private fun ErrorDeBusqueda(onReintentar: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = TextosDeLista.ERROR_BUSQUEDA,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
+        )
+        OutlinedButton(onClick = onReintentar) {
+            Text(TextosDeLista.REINTENTAR)
         }
     }
 }
