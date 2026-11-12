@@ -2,8 +2,10 @@ package com.example.msp_app.data.diadecobro
 
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.api.services.diadecobro.DiaDeCobroApi
 import kotlinx.coroutines.CancellationException
+import retrofit2.HttpException
 
 /** Qué pasó al intentar bajar el día de cobro. */
 sealed interface ResultadoDeDiaDeCobro {
@@ -32,7 +34,8 @@ sealed interface ResultadoDeDiaDeCobro {
 class DescargarDiaDeCobro(
     private val api: DiaDeCobroApi,
     private val almacen: DiaDeCobroAlmacen,
-    private val clock: AppClock = AppClock.System
+    private val clock: AppClock = AppClock.System,
+    private val telemetry: Telemetry? = null
 ) {
 
     @Suppress("TooGenericExceptionCaught") // cualquier fallo conserva lo guardado
@@ -49,8 +52,22 @@ class DescargarDiaDeCobro(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            reportar(e)
             ResultadoDeDiaDeCobro.Fallo(e)
         }
+    }
+
+    private fun reportar(e: Exception) {
+        val props = if (e is HttpException) {
+            mapOf(DiaDeCobroTelemetria.PROP_HTTP to e.code().toString())
+        } else {
+            mapOf(DiaDeCobroTelemetria.PROP_EXCEPCION to e.javaClass.simpleName)
+        }
+        telemetry?.error(
+            code = DiaDeCobroTelemetria.CODE_DESCARGA_FALLO,
+            message = "no se pudo bajar el día de cobro",
+            props = props
+        )
     }
 
     internal companion object {
@@ -64,3 +81,11 @@ class DescargarDiaDeCobro(
                 AppTime.toBusinessDate(guardado.descargadoEn) != AppTime.toBusinessDate(ahora)
     }
 }
+
+/**
+ * Qué zona baja el worker: la ACTUAL del cobrador si ya se conoce (manda sobre la
+ * que viajó en el trabajo, que pudo encolarse antes de un cambio de zona), si no
+ * la del trabajo, y al final la última guardada. `null` = no hay zona que bajar.
+ */
+fun zonaDelDiaDeCobro(actual: Int?, delTrabajo: Int?, guardada: Int?): Int? =
+    listOf(actual, delTrabajo, guardada).firstOrNull { it != null && it > 0 }

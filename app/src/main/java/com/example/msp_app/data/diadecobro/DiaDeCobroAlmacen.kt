@@ -1,5 +1,6 @@
 package com.example.msp_app.data.diadecobro
 
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.api.services.diadecobro.DiaDeCobroResponse
 import com.google.gson.Gson
 import java.io.File
@@ -32,7 +33,11 @@ private data class SobreEnDisco(
  * el archivo anterior intacto, nunca uno a medias. Un archivo ilegible se lee
  * como "nada guardado".
  */
-class DiaDeCobroAlmacen(private val archivo: File, private val gson: Gson = Gson()) {
+class DiaDeCobroAlmacen(
+    private val archivo: File,
+    private val gson: Gson = Gson(),
+    private val telemetry: Telemetry? = null
+) {
 
     @Suppress("TooGenericExceptionCaught") // cualquier archivo ilegible = nada guardado
     fun leer(): DiaDeCobroGuardado? = try {
@@ -44,13 +49,23 @@ class DiaDeCobroAlmacen(private val archivo: File, private val gson: Gson = Gson
             val cuando = sobre?.descargado_en?.let { runCatching { Instant.parse(it) }.getOrNull() }
             val respuesta = sobre?.respuesta
             if (zona == null || cuando == null || respuesta == null) {
-                null
+                ilegible("sobre incompleto")
             } else {
                 DiaDeCobroGuardado(zona, cuando, respuesta)
             }
         }
     } catch (e: Exception) {
-        null
+        ilegible(e.javaClass.simpleName)
+    }
+
+    /** Un archivo que existe y no se entiende: se lee como "nada guardado", pero se reporta. */
+    private fun ilegible(motivo: String): DiaDeCobroGuardado? {
+        telemetry?.error(
+            code = DiaDeCobroTelemetria.CODE_ARCHIVO_ILEGIBLE,
+            message = "el archivo del día de cobro no se pudo leer",
+            props = mapOf(DiaDeCobroTelemetria.PROP_MOTIVO to motivo)
+        )
+        return null
     }
 
     /** Reemplaza lo guardado. Lanza si no puede escribir (el llamador lo atrapa). */
@@ -60,15 +75,47 @@ class DiaDeCobroAlmacen(private val archivo: File, private val gson: Gson = Gson
             descargado_en = guardado.descargadoEn.toString(),
             respuesta = guardado.respuesta
         )
-        val temporal = File(archivo.parentFile, archivo.name + ".tmp")
-        temporal.writeText(gson.toJson(sobre), Charsets.UTF_8)
-        if (!temporal.renameTo(archivo)) {
-            temporal.delete()
-            error("no se pudo reemplazar ${archivo.name}")
+        // Temporal ÚNICO en el mismo directorio (mismo sistema de archivos, así el
+        // renombrado es atómico) y un candado de proceso: dos escrituras a la vez
+        // no pisan el mismo temporal ni se renombran a medias.
+        synchronized(CANDADO) {
+            val temporal = File.createTempFile(archivo.name, ".tmp", archivo.parentFile)
+            try {
+                temporal.writeText(gson.toJson(sobre), Charsets.UTF_8)
+                if (!temporal.renameTo(archivo)) error("no se pudo reemplazar ${archivo.name}")
+            } finally {
+                temporal.delete() // tras renombrar ya no existe; si falló, no deja basura
+            }
         }
+    }
+
+    private companion object {
+        val CANDADO = Any()
     }
 }
 
+/** Códigos de telemetría del día de cobro. */
+object DiaDeCobroTelemetria {
+    const val CODE_DESCARGA_FALLO = "dia_de_cobro_descarga_fallo"
+    const val CODE_ARCHIVO_ILEGIBLE = "dia_de_cobro_archivo_ilegible"
+    const val PROP_MOTIVO = "motivo"
+    const val PROP_HTTP = "http"
+    const val PROP_EXCEPCION = "excepcion"
+}
+
 /** El archivo del día de cobro en `filesDir`; el mismo para el adaptador y el worker. */
-fun almacenDelDiaDeCobro(context: android.content.Context): DiaDeCobroAlmacen =
-    DiaDeCobroAlmacen(File(context.filesDir, "dia_de_cobro.json"))
+fun almacenDelDiaDeCobro(
+    context: android.content.Context,
+    telemetry: Telemetry? = null
+): DiaDeCobroAlmacen =
+    DiaDeCobroAlmacen(File(context.filesDir, "dia_de_cobro.json"), telemetry = telemetry)
+
+/** La telemetría de la app desde un worker (sin inyección), o `null` si no está disponible. */
+fun telemetriaDelDiaDeCobro(context: android.content.Context): Telemetry? = runCatching {
+    dagger.hilt.android.EntryPointAccessors
+        .fromApplication(
+            context.applicationContext,
+            com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider.TelemetryEntryPoint::class.java
+        )
+        .telemetry()
+}.getOrNull()
