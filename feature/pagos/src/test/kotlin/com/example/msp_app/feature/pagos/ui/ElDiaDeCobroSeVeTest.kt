@@ -16,11 +16,11 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.DiaDeCobroDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
-import com.example.msp_app.feature.pagos.ui.components.BARRA_DE_COBRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.DIA_GRANDE_DE_COBRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.ETIQUETA_DEL_ACORDADO_TAG
+import com.example.msp_app.feature.pagos.ui.components.ETIQUETA_DE_DIA_TAG
 import com.example.msp_app.feature.pagos.ui.components.FRANJA_DE_COBRO_TAG
-import com.example.msp_app.feature.pagos.ui.components.TRAMO_DE_COBRO_TAG
+import com.example.msp_app.feature.pagos.ui.components.PAGOS_POR_DIA_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -71,15 +71,17 @@ class ElDiaDeCobroSeVeTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText("Sáb 5").assertIsDisplayed()
         composeTestRule.onNodeWithText("Mar 3").assertIsDisplayed()
         composeTestRule.onNodeWithText("Jue 2").assertIsDisplayed()
-        assertEquals(3, cuantos(TRAMO_DE_COBRO_TAG))
+        assertEquals(3, cuantos(ETIQUETA_DE_DIA_TAG))
+        composeTestRule.onNodeWithText("Pagos por día, de sus últimos 10").assertIsDisplayed()
     }
 
     @Test
-    fun `solo acordado no pinta barra`() {
+    fun `solo acordado no pinta etiquetas ni texto de pagos`() {
         monta(DiaDeCobroFixtures.soloAcordado())
 
         composeTestRule.onNodeWithText("Acordado al vender").assertIsDisplayed()
-        assertEquals(0, cuantos(BARRA_DE_COBRO_TAG))
+        assertEquals(0, cuantos(ETIQUETA_DE_DIA_TAG))
+        assertEquals(0, cuantos(PAGOS_POR_DIA_TAG))
     }
 
     @Test

@@ -15,13 +15,13 @@ import org.junit.Test
 
 /**
  * **La regla de la franja, un caso por renglón de la tabla del spec §7** más los
- * bordes de la barra (mínimo 2 pagos, máximo 3 tramos, "otros").
+ * etiquetas de día (mínimo 2 pagos, máximo 3, sin "otros").
  */
 class FranjaDeCobroTest {
 
     private fun franja(dia: DiaDeCobroDeLaVenta?) = franjaDeCobro(dia)!!
 
-    private fun colores(f: FranjaDeCobro) = f.tramos.map { it.color }
+    private fun principales(f: FranjaDeCobro) = f.dias.filter { it.principal }.map { it.rotulo }
 
     @Test
     fun `acordado igual al que mas paga, etiqueta gris Acordado y barra`() {
@@ -31,12 +31,10 @@ class FranjaDeCobroTest {
         assertEquals("Sábado", f.diaGrande)
         assertEquals(
             listOf("Sáb" to 5, "Mar" to 3, "Jue" to 2),
-            f.tramos.map { it.rotulo to it.pagos }
+            f.dias.map { it.rotulo to it.pagos }
         )
-        assertEquals(
-            listOf(ColorDelTramo.FUERTE, ColorDelTramo.SUAVE, ColorDelTramo.SUAVE),
-            colores(f)
-        )
+        assertEquals(listOf("Sáb"), principales(f))
+        assertEquals(10, f.pagosConsiderados)
     }
 
     @Test
@@ -45,20 +43,12 @@ class FranjaDeCobroTest {
         assertEquals(EtiquetaDelAcordado.DISTINTO, f.etiqueta)
         assertEquals("Acordó sábado", f.etiquetaTexto)
         assertEquals("Martes", f.diaGrande)
-        // Mar 4, Vie 3, Sáb 2 y un pago suelto del lunes en "otros".
+        // Mar 4, Vie 3, Sáb 2; el pago suelto del lunes NO lleva etiqueta (sin "otros").
         assertEquals(
-            listOf("Mar" to 4, "Vie" to 3, "Sáb" to 2, ROTULO_OTROS to 1),
-            f.tramos.map { it.rotulo to it.pagos }
+            listOf("Mar" to 4, "Vie" to 3, "Sáb" to 2),
+            f.dias.map { it.rotulo to it.pagos }
         )
-        assertEquals(
-            listOf(
-                ColorDelTramo.FUERTE,
-                ColorDelTramo.SUAVE,
-                ColorDelTramo.SUAVE,
-                ColorDelTramo.OTROS
-            ),
-            colores(f)
-        )
+        assertEquals(listOf("Mar"), principales(f))
     }
 
     @Test
@@ -67,7 +57,8 @@ class FranjaDeCobroTest {
         assertEquals(EtiquetaDelAcordado.AL_VENDER, f.etiqueta)
         assertEquals("Acordado al vender", f.etiquetaTexto)
         assertEquals("Sábado", f.diaGrande)
-        assertEquals(emptyList<TramoDeLaBarra>(), f.tramos)
+        assertEquals(emptyList<EtiquetaDeDia>(), f.dias)
+        assertNull(f.pagosConsiderados)
     }
 
     @Test
@@ -77,27 +68,27 @@ class FranjaDeCobroTest {
         assertNull(f.etiquetaTexto)
         assertEquals("Martes", f.diaGrande)
         assertEquals(
-            listOf("Mar" to 6, "Vie" to 2, ROTULO_OTROS to 1),
-            f.tramos.map { it.rotulo to it.pagos }
+            listOf("Mar" to 6, "Vie" to 2),
+            f.dias.map { it.rotulo to it.pagos }
         )
     }
 
     @Test
-    fun `empate con acordado, Acordado al vender y barra SIN tramo fuerte`() {
+    fun `empate con acordado, Acordado al vender y ninguna etiqueta en verde`() {
         val f = franja(DiaDeCobroFixtures.empateConAcordado())
         assertEquals(EtiquetaDelAcordado.AL_VENDER, f.etiqueta)
         assertEquals("Sábado", f.diaGrande)
-        assertEquals(listOf("Mar", "Vie", "Jue"), f.tramos.map { it.rotulo })
-        assertEquals(emptyList<ColorDelTramo>(), colores(f).filter { it == ColorDelTramo.FUERTE })
+        assertEquals(listOf("Mar", "Vie", "Jue"), f.dias.map { it.rotulo })
+        assertEquals(emptyList<String>(), principales(f))
     }
 
     @Test
-    fun `empate sin acordado, Distintos dias, sin etiqueta y barra SIN tramo fuerte`() {
+    fun `empate sin acordado, Distintos dias, sin etiqueta y ninguna etiqueta en verde`() {
         val f = franja(DiaDeCobroFixtures.empateSinAcordado())
         assertNull(f.etiqueta)
         assertEquals("Distintos días", f.diaGrande)
-        assertEquals(3, f.tramos.size)
-        assertEquals(emptyList<ColorDelTramo>(), colores(f).filter { it == ColorDelTramo.FUERTE })
+        assertEquals(3, f.dias.size)
+        assertEquals(emptyList<String>(), principales(f))
     }
 
     @Test
@@ -115,7 +106,8 @@ class FranjaDeCobroTest {
         val f = franja(DiaDeCobroFixtures.mensual())
         assertEquals("Día 15", f.diaGrande)
         assertEquals("Acordado al vender", f.etiquetaTexto)
-        assertEquals(emptyList<TramoDeLaBarra>(), f.tramos)
+        assertEquals(emptyList<EtiquetaDeDia>(), f.dias)
+        assertNull(f.pagosConsiderados)
     }
 
     @Test
@@ -134,7 +126,7 @@ class FranjaDeCobroTest {
     // --- La barra ---------------------------------------------------------------------------
 
     @Test
-    fun `un dia con un solo pago no tiene tramo propio, va a otros`() {
+    fun `un dia con un solo pago no lleva etiqueta`() {
         val f = franja(
             DiaDeCobroDeLaVenta(
                 null,
@@ -142,12 +134,11 @@ class FranjaDeCobroTest {
                 null
             )
         )
-        assertEquals(listOf("Sáb", ROTULO_OTROS), f.tramos.map { it.rotulo })
-        assertEquals(2, f.tramos.last().pagos)
+        assertEquals(listOf("Sáb"), f.dias.map { it.rotulo })
     }
 
     @Test
-    fun `maximo tres tramos con nombre, el resto suma a otros`() {
+    fun `maximo tres etiquetas`() {
         val f = franja(
             DiaDeCobroDeLaVenta(
                 null,
@@ -163,15 +154,14 @@ class FranjaDeCobroTest {
             )
         )
         // Con 2 pagos empatan lunes, jueves y viernes: entra el primero de la semana.
-        assertEquals(listOf("Sáb", "Mar", "Lun", ROTULO_OTROS), f.tramos.map { it.rotulo })
-        // Jue 2 + Vie 2 = 4 pagos que no entraron por nombre.
-        assertEquals(4, f.tramos.last().pagos)
+        assertEquals(listOf("Sáb", "Mar", "Lun"), f.dias.map { it.rotulo })
     }
 
     @Test
-    fun `sin otros pagos no hay tramo gris ni leyenda otros`() {
-        val f = franja(DiaDeCobroFixtures.coincide())
-        assertEquals(false, f.tramos.any { it.color == ColorDelTramo.OTROS })
+    fun `nunca hay mas de tres etiquetas ni una llamada otros`() {
+        val f = franja(DiaDeCobroFixtures.distinto())
+        assertEquals(false, f.dias.any { it.rotulo == "otros" })
+        assertEquals(true, f.dias.size <= 3)
     }
 
     @Test
@@ -183,7 +173,7 @@ class FranjaDeCobroTest {
                 null
             )
         )
-        assertEquals(listOf("Mar", "Vie", "Dom"), f.tramos.map { it.rotulo })
+        assertEquals(listOf("Mar", "Vie", "Dom"), f.dias.map { it.rotulo })
     }
 
     @Test
