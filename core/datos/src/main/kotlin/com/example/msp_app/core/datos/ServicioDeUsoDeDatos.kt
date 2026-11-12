@@ -24,13 +24,25 @@ class ServicioDeUsoDeDatos(
 
     @Volatile private var restaurado = false
 
+    /**
+     * Lo guardado que no se pueda leer (JSON con fecha nula, etc.) se descarta y se empieza de
+     * cero: es una medición, jamás debe cerrar la app al arrancar. Siempre queda `restaurado`,
+     * si no [guardar] nunca volvería a escribir.
+     */
+    @Suppress("TooGenericExceptionCaught")
     suspend fun restaurar() = mutex.withLock {
         if (restaurado) return@withLock
-        val estado = almacen.leer()
-        if (estado != null) {
-            registro.restaurar(estado.dias)
-            muestreador.restaurarUltima(estado.ultimaMuestra)
-            reportados += estado.reportados
+        try {
+            val estado = almacen.leer()
+            if (estado != null) {
+                registro.restaurar(estado.dias)
+                muestreador.restaurarUltima(estado.ultimaMuestra)
+                reportados += estado.reportados
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Ilegible: se descarta.
         }
         restaurado = true
     }
