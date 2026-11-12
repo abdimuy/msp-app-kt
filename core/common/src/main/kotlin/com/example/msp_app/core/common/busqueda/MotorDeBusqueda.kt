@@ -1,5 +1,8 @@
 package com.example.msp_app.core.common.busqueda
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+
 /**
  * De dónde salen las filas candidatas. La implementación real es Room (`:core:database`); las
  * pruebas usan una en memoria con la MISMA semántica, así el motor se prueba sin base de datos.
@@ -86,7 +89,11 @@ class MotorDeBusqueda(
     private suspend fun parecidos(consulta: ConsultaDeBusqueda.PorNombre): List<FilaDeBusqueda> {
         if (consulta.palabras.none { it.length >= LARGO_MINIMO_PARA_TOLERAR }) return emptyList()
         val coincidencias = CoincidenciaTolerante(consulta.palabras)
+        val contexto = currentCoroutineContext()
+        var revisadas = 0
         val candidatas = fuente.todasLasFilas().mapNotNull { fila ->
+            // ~44k filas: sin esto, teclear otra consulta no podría detener el recorrido.
+            if (++revisadas % FILAS_ENTRE_CANCELACIONES == 0) contexto.ensureActive()
             val nombre = NormalizadorDeBusqueda.normalizarGuardado(fila.nombreNormalizado)
             val errores = coincidencias.errores(nombre)
             if (errores == null) {
@@ -111,6 +118,7 @@ class MotorDeBusqueda(
     companion object {
         const val LIMITE_DE_RESULTADOS = 20
         const val LARGO_MINIMO_PARA_TOLERAR = 5
+        const val FILAS_ENTRE_CANCELACIONES = 512
     }
 }
 
