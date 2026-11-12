@@ -336,6 +336,11 @@ class WorkEnqueuePolicyGuardTest {
          * segunda política distinta en el mismo archivo sigue fallando.
          */
         val POLITICAS_PERMITIDAS: Map<String, Map<String, Int>> = mapOf(
+            // El día de cobro (`enqueueDiaDeCobro`): UNA sola REPLACE, en la corrida
+            // única "dia_de_cobro_ahora". Con KEEP, una zona A encolada sin red
+            // descartaba la zona B del cambio posterior. Es una descarga de solo
+            // lectura y reintentable: no hay dinero en vuelo que matar. Lo cubre
+            // `DiaDeCobroZonaTest`. El resto de funciones del archivo siguen en KEEP.
             // `:core:appgate` descarga el APK de actualización. Acá REPLACE es
             // la decisión correcta y está documentada en el propio scheduler: un
             // toque explícito del usuario debe pisar la descarga automática, y
@@ -374,7 +379,13 @@ class WorkEnqueuePolicyGuardTest {
             // medido en `RefrescarSaldoDeVentaWorkerTest`); `APPEND_OR_REPLACE`
             // lo encadena detrás sin cancelar nada. Ver su KDoc.
             "app/src/main/java/com/example/msp_app/workmanager/WorkManagerUtils.kt" to mapOf(
-                ".enqueueUniqueWork(nombre, ExistingWorkPolicy.APPEND_OR_REPLACE, request)" to 1
+                ".enqueueUniqueWork(nombre, ExistingWorkPolicy.APPEND_OR_REPLACE, request)" to 1,
+                // El día de cobro (`enqueueDiaDeCobro`): UNA sola REPLACE, en la corrida
+                // única "dia_de_cobro_ahora". Con KEEP, una zona A encolada sin red
+                // descartaba la zona B del cambio posterior. Es una descarga de solo
+                // lectura y reintentable: no hay dinero en vuelo que matar. La cubre
+                // `DiaDeCobroZonaTest`.
+                "ExistingWorkPolicy.REPLACE," to 1
             )
         )
 

@@ -13,6 +13,7 @@ import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkManagerEnqueuer
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.ubicacion.UbicacionAnticipada
@@ -138,8 +139,13 @@ object PagosPortsModule {
      * sesión, solo un archivo. La descarga la hace `DiaDeCobroWorker`.
      */
     @Provides
-    fun provideDiaDeCobroPort(@ApplicationContext context: Context): DiaDeCobroPort =
-        DiaDeCobroAdapter(almacenDelDiaDeCobro(context))
+    fun provideDiaDeCobroPort(
+        @ApplicationContext context: Context,
+        telemetry: Telemetry
+    ): DiaDeCobroPort = DiaDeCobroAdapter(
+        almacen = almacenDelDiaDeCobro(context, telemetry),
+        zonaActual = { CobranzaSyncProvider.userContextFlow.value?.zona?.takeIf { it > 0 } }
+    )
 
     /** [OrdenGuardadoPort] real, sobre el DataStore de arriba. */
     @Provides

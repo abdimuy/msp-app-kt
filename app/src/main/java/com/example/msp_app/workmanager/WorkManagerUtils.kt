@@ -473,7 +473,10 @@ fun enqueueDiaDeCobro(context: Context, zona: Int) {
 
     manager.enqueueUniqueWork(
         "dia_de_cobro_ahora",
-        ExistingWorkPolicy.KEEP,
+        // REPLACE y no KEEP: si cambió la zona mientras el trabajo anterior esperaba
+        // red, KEEP descartaría la zona nueva. (El worker, además, toma la zona
+        // ACTUAL del cobrador por encima de la que viaja aquí.)
+        ExistingWorkPolicy.REPLACE,
         OneTimeWorkRequestBuilder<DiaDeCobroWorker>()
             .setConstraints(constraints)
             .setInputData(workDataOf(DiaDeCobroWorker.KEY_ZONA to zona))

@@ -9,6 +9,8 @@ import com.example.msp_app.data.api.services.diadecobro.DiaDeCobroApi
 import com.example.msp_app.data.diadecobro.DescargarDiaDeCobro
 import com.example.msp_app.data.diadecobro.ResultadoDeDiaDeCobro
 import com.example.msp_app.data.diadecobro.almacenDelDiaDeCobro
+import com.example.msp_app.data.diadecobro.telemetriaDelDiaDeCobro
+import com.example.msp_app.data.diadecobro.zonaDelDiaDeCobro
 
 /**
  * Baja el día de cobro de la zona del cobrador, **una vez al día**, fuera del
@@ -27,13 +29,18 @@ class DiaDeCobroWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        val almacen = almacenDelDiaDeCobro(applicationContext)
-        val zona = inputData.getInt(KEY_ZONA, 0).takeIf { it > 0 }
-            ?: CobranzaSyncProvider.userContextFlow.value?.zona?.takeIf { it > 0 }
-            ?: almacen.leer()?.zona
-            ?: return Result.success()
-        val descargar =
-            DescargarDiaDeCobro(V2ApiProvider.create(DiaDeCobroApi::class.java), almacen)
+        val telemetria = telemetriaDelDiaDeCobro(applicationContext)
+        val almacen = almacenDelDiaDeCobro(applicationContext, telemetria)
+        val zona = zonaDelDiaDeCobro(
+            actual = CobranzaSyncProvider.userContextFlow.value?.zona,
+            delTrabajo = inputData.getInt(KEY_ZONA, 0),
+            guardada = almacen.leer()?.zona
+        ) ?: return Result.success()
+        val descargar = DescargarDiaDeCobro(
+            V2ApiProvider.create(DiaDeCobroApi::class.java),
+            almacen,
+            telemetry = telemetria
+        )
         return when (descargar(zona)) {
             is ResultadoDeDiaDeCobro.Fallo ->
                 // Lo guardado se queda. Tres intentos y se espera al siguiente día.
