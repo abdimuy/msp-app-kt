@@ -3,15 +3,12 @@ package com.example.msp_app.feature.pagos.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,10 +20,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.feature.pagos.domain.ColorDelTramo
+import com.example.msp_app.core.designsystem.theme.mspLightColors
+import com.example.msp_app.feature.pagos.domain.EtiquetaDeDia
 import com.example.msp_app.feature.pagos.domain.EtiquetaDelAcordado
 import com.example.msp_app.feature.pagos.domain.FranjaDeCobro
-import com.example.msp_app.feature.pagos.domain.TramoDeLaBarra
 
 /** `testTag` de la franja entera. */
 const val FRANJA_DE_COBRO_TAG: String = "pagos_franja_cobro"
@@ -37,25 +34,34 @@ const val ETIQUETA_DEL_ACORDADO_TAG: String = "pagos_franja_cobro_etiqueta"
 /** `testTag` del día grande. */
 const val DIA_GRANDE_DE_COBRO_TAG: String = "pagos_franja_cobro_dia"
 
-/** `testTag` de la barra repartida. */
-const val BARRA_DE_COBRO_TAG: String = "pagos_franja_cobro_barra"
+/** `testTag` de la fila de etiquetas de día. */
+const val FILA_DE_ETIQUETAS_DE_COBRO_TAG: String = "pagos_franja_cobro_etiquetas"
 
-/** `testTag` de cada tramo de la barra. */
-const val TRAMO_DE_COBRO_TAG: String = "pagos_franja_cobro_tramo"
+/** `testTag` de cada etiqueta de día. */
+const val ETIQUETA_DE_DIA_TAG: String = "pagos_franja_cobro_etiqueta_dia"
 
-/** `testTag` de la leyenda. */
-const val LEYENDA_DE_COBRO_TAG: String = "pagos_franja_cobro_leyenda"
-
-private const val OPACIDAD_VERDE_SUAVE = 0.4f
+/** `testTag` del texto chico bajo las etiquetas. */
+const val PAGOS_POR_DIA_TAG: String = "pagos_franja_cobro_pagos_por_dia"
 
 /**
- * **La franja "Día de cobro"** (forma A, barra repartida): la etiqueta del acordado
- * arriba a la derecha, el día en grande, la barra con lo que pagó cada día y la
- * leyenda con sus números. Solo pinta lo que decidió `franjaDeCobro`.
+ * El verde de la etiqueta del día principal: el `statusPaid` del tema CLARO **en
+ * los dos temas**. Lleva texto BLANCO y el verde menta del tema oscuro no da
+ * contraste con blanco; el de claro da más de 5:1 (ver `ContrasteDeLaEtiquetaTest`).
+ */
+internal fun verdeDeLaEtiqueta(): Color = mspLightColors().statusPaid
+
+/** Texto de la etiqueta principal: blanco en ambos temas. */
+internal val TextoDeLaEtiquetaPrincipal: Color = Color.White
+
+/**
+ * **La franja "Día de cobro"** (forma B, "Sin barra"): la etiqueta del acordado
+ * arriba a la derecha, el día en grande, una fila de etiquetas redondeadas con
+ * los pagos de cada día y el texto chico "Pagos por día, de sus últimos N". Solo
+ * pinta lo que decidió `franjaDeCobro`.
  *
- * Colores: verde fuerte = `statusPaid`; verde suave = el mismo con 40 % de
- * opacidad; gris = `progressTrack`; el aviso naranja es `statusPartial`, el de
- * "pago parcial". Ninguno nuevo.
+ * Colores: la etiqueta del día principal lleva [verdeDeLaEtiqueta] con texto
+ * blanco en los dos temas; las demás, borde `outline` y texto del tema; el aviso
+ * naranja del acordado es `statusPartial`. Ninguno nuevo.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -82,14 +88,21 @@ fun FranjaDiaDeCobro(franja: FranjaDeCobro, modifier: Modifier = Modifier) {
                 color = MspTheme.colors.onSurface,
                 modifier = Modifier.testTag(DIA_GRANDE_DE_COBRO_TAG)
             )
-            if (franja.tramos.isNotEmpty()) {
-                BarraRepartida(franja.tramos)
+            if (franja.dias.isNotEmpty()) {
                 FlowRow(
-                    modifier = Modifier.testTag(LEYENDA_DE_COBRO_TAG),
-                    horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md),
+                    modifier = Modifier.testTag(FILA_DE_ETIQUETAS_DE_COBRO_TAG),
+                    horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
                     verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
                 ) {
-                    franja.tramos.forEach { LeyendaDelTramo(it) }
+                    franja.dias.forEach { EtiquetaDelDia(it) }
+                }
+                franja.pagosConsiderados?.let {
+                    Text(
+                        text = "Pagos por día, de sus últimos $it",
+                        style = MspTheme.type.caption,
+                        color = MspTheme.colors.onSurfaceMuted,
+                        modifier = Modifier.testTag(PAGOS_POR_DIA_TAG)
+                    )
                 }
             }
         }
@@ -119,50 +132,21 @@ private fun EtiquetaDelAcordado(etiqueta: EtiquetaDelAcordado, texto: String) {
 }
 
 @Composable
-private fun colorDelTramo(color: ColorDelTramo): Color = when (color) {
-    ColorDelTramo.FUERTE -> MspTheme.colors.statusPaid
-    ColorDelTramo.SUAVE -> MspTheme.colors.statusPaid.copy(alpha = OPACIDAD_VERDE_SUAVE)
-    ColorDelTramo.OTROS -> MspTheme.colors.progressTrack
-}
-
-@Composable
-private fun BarraRepartida(tramos: List<TramoDeLaBarra>) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(8.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .testTag(BARRA_DE_COBRO_TAG),
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        tramos.forEach { tramo ->
-            Box(
-                modifier = Modifier
-                    .weight(tramo.pagos.toFloat())
-                    .height(8.dp)
-                    .background(colorDelTramo(tramo.color))
-                    .testTag(TRAMO_DE_COBRO_TAG)
+private fun EtiquetaDelDia(dia: EtiquetaDeDia) {
+    val forma = RoundedCornerShape(percent = 50)
+    val base = Modifier.clip(forma)
+    Text(
+        text = "${dia.rotulo} ${dia.pagos}",
+        style = MspTheme.type.captionStrong,
+        color = if (dia.principal) TextoDeLaEtiquetaPrincipal else MspTheme.colors.onSurface,
+        modifier = (
+            if (dia.principal) {
+                base.background(verdeDeLaEtiqueta())
+            } else {
+                base.border(1.dp, MspTheme.colors.outline, forma)
+            }
             )
-        }
-    }
-}
-
-@Composable
-private fun LeyendaDelTramo(tramo: TramoDeLaBarra) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs + 2.dp)
-    ) {
-        Box(
-            Modifier
-                .size(8.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(colorDelTramo(tramo.color))
-        )
-        Text(
-            text = "${tramo.rotulo} ${tramo.pagos}",
-            style = MspTheme.type.captionStrong,
-            color = MspTheme.colors.onSurfaceMuted
-        )
-    }
+            .padding(horizontal = MspTheme.spacing.sm + 2.dp, vertical = 4.dp)
+            .testTag(ETIQUETA_DE_DIA_TAG)
+    )
 }
