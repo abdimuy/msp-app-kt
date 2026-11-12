@@ -69,7 +69,8 @@ class ClienteSearchViewModel internal constructor(
         topeMs = TopeDeDescarga.MANUAL_MS,
         descargar = { repository.descargarPadron() },
         aplicar = {
-            ultimoResultado = repository.aplicarPadronConResultado(it)
+            // El botón manual nunca anota rechazos ni acepta solo: eso es del worker.
+            ultimoResultado = repository.aplicarPadronConResultado(it, automatico = false)
             ultimoResultado == ResultadoDePadron.REEMPLAZADO
         },
         alTerminarBien = {

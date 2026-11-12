@@ -142,11 +142,16 @@ class ClienteRepository internal constructor(
      * 3.ª vez seguida que llega una lista incompleta de tamaño parecido ([RegistroDeRechazos]).
      * Un reemplazo exitoso reinicia esa cuenta.
      *
+     * [automatico] `true` (el worker) es el ÚNICO que anota rechazos y acepta solo a la 3.ª. El botón
+     * manual pasa `false`: nunca anota ni acepta solo, 3 toques seguidos no aceptan una lista
+     * recortada; solo "Actualizar de todos modos" ([forzar]) la aplica.
+     *
      * Solo se registran conteos, nunca nombres.
      */
     suspend fun aplicarPadronConResultado(
         entidades: List<ClienteEntity>,
-        forzar: Boolean = false
+        forzar: Boolean = false,
+        automatico: Boolean = true
     ): ResultadoDePadron {
         val guardados = dataSource.getCount()
         if (entidades.isEmpty()) {
@@ -166,7 +171,7 @@ class ClienteRepository internal constructor(
                     "Se aplicó a petición una lista con menos de la mitad de los clientes guardados",
                     conteos
                 )
-                rechazos.anotar(entidades.size) >= RegistroDeRechazos.RECHAZOS_PARA_ACEPTAR -> avisar(
+                automatico && rechazos.anotar(entidades.size) >= RegistroDeRechazos.RECHAZOS_PARA_ACEPTAR -> avisar(
                     "LISTA_INCOMPLETA_ACEPTADA",
                     "Llegó la misma lista reducida varias veces seguidas; se acepta como el padrón real",
                     conteos

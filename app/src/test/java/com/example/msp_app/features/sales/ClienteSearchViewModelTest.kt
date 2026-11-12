@@ -230,6 +230,23 @@ class ClienteSearchViewModelTest : RoomTestBase() {
         assertEquals(1, api.llamadas)
     }
 
+    @Test fun `tres toques manuales seguidos con lista recortada no reemplazan el padron`() = runTest {
+        db.clienteDao().insertAll(
+            (1..2000).map { ClienteEntity(it, "CLIENTE $it", "A", null, "cliente $it") }
+        )
+        api.respuesta = (1..900).map { cliente(100_000 + it, "NUEVO $it") }
+        val vm = vm()
+        repeat(3) {
+            vm.syncFromServer()
+            hasta { vm.puedeForzar.value && !vm.isSyncing.value }
+            assertEquals(2000, db.clienteDao().getCount())
+            assertEquals(TextosDeLista.ERROR_LISTA_INCOMPLETA, vm.syncError.value)
+            vm.clearSyncError()
+        }
+        assertEquals(3, api.llamadas)
+        assertEquals(2000, db.clienteDao().getCount())
+    }
+
     @Test fun `una lista vacia no ofrece forzar`() = runTest {
         sembrar("ANA RUIZ")
         api.respuesta = emptyList()
