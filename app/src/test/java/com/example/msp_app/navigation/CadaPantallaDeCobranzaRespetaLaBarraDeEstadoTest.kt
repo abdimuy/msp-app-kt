@@ -591,7 +591,7 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
          * fondo. Acepta líneas de comentario en medio, porque el arreglo lleva una.
          */
         val CADENA = Regex(
-            """modifier = modifier((?:\n[ \t]*(?://[^\n]*|\.[A-Za-z][A-Za-z0-9]*\([^\n]*\)))+)"""
+            """modifier = modifier((?:\r?\n[ \t]*(?://[^\n]*|\.[A-Za-z][A-Za-z0-9]*\([^\n]*\)))+)"""
         )
 
         val LLENA_LA_PANTALLA = Regex("""\.fillMaxSize\(\)""")

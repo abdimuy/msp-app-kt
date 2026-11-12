@@ -103,15 +103,22 @@ internal class EscanerDeFuentes {
      */
     fun archivosQueMencionan(simbolo: String): List<String> {
         val patron = Regex("(?<![A-Za-z0-9_])" + Regex.escape(simbolo) + "(?![A-Za-z0-9_])")
-        return archivos.filter { archivo ->
-            archivo.readText().lineSequence().any { linea ->
-                val limpia = linea.trim()
-                val esComentario = limpia.startsWith("//") ||
-                    limpia.startsWith("*") ||
-                    limpia.startsWith("/*")
-                !esComentario && patron.containsMatchIn(limpia)
+        // Las rutas salen con `/` siempre: en Windows `File.path` usa `\` y estos
+        // tests comparan contra rutas escritas con `/`. Sin esto,
+        // `endsWith("…/Home.kt")` y `contains("feature/pagos")` fallan en Windows
+        // y pasan en CI: la compuerta se vuelve verde o roja según la máquina,
+        // que es peor que no tenerla.
+        return archivos
+            .filter { archivo ->
+                archivo.readText().lineSequence().any { linea ->
+                    val limpia = linea.trim()
+                    val esComentario = limpia.startsWith("//") ||
+                        limpia.startsWith("*") ||
+                        limpia.startsWith("/*")
+                    !esComentario && patron.containsMatchIn(limpia)
+                }
             }
-        }.map { it.path }
+            .map { it.path.replace('\\', '/') }
     }
 
     /** ¿Existe el archivo [rutaRelativa], contada desde la raíz del repo? */

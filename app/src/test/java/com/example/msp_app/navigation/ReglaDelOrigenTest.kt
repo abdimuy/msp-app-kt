@@ -13,6 +13,7 @@ import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
+import com.example.msp_app.feature.garantias.ui.GarantiasV2Rutas
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.ubicacion.ui.UbicacionRutas
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
@@ -482,7 +483,14 @@ class ReglaDelOrigenTest {
             VisitasRutas.TICKET,
             DictadoRutas.DESCARGA,
             UbicacionRutas.LUGARES,
-            Screen.Forgiveness.route
+            Screen.Forgiveness.route,
+            // La captura de garantías v2 se registra sólo en devlocal
+            // (`BuildConfig.GARANTIAS_V2`) y todavía no tiene punto de entrada:
+            // la entrada GARANTIAS del menú sigue yendo al sistema legado, que
+            // es una decisión aparte del brief. Entra a esta lista el día que
+            // se registra, no el día que alguien navegue a ella — igual que el
+            // ticket de pago, que lleva estacionado desde la Task 20.
+            GarantiasV2Rutas.INICIO
         ) + legados
         assertEquals(esperadas, registradas)
     }

@@ -137,6 +137,10 @@ android {
             buildConfigField("boolean", "PAGOS_USE_V2", "true")
             // Visitas por el API v2 (msp-api Go), mismo host que pagos.
             buildConfigField("boolean", "VISITAS_USE_V2", "true")
+            // Captura de garantías v2 (:feature:garantias). Sólo en este sabor:
+            // el brief de la tarea 11 la quiere alcanzable únicamente en
+            // devlocal mientras el sistema legado sigue siendo el del menú.
+            buildConfigField("boolean", "GARANTIAS_V2", "true")
         }
         // RETIRADO como entorno de pruebas remoto: su único túnel de API v2
         // (apidev.loclx.io) pasó a ser el de producción. Si este flavor
@@ -154,6 +158,7 @@ android {
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
             buildConfigField("boolean", "PAGOS_USE_V2", "false")
             buildConfigField("boolean", "VISITAS_USE_V2", "false")
+            buildConfigField("boolean", "GARANTIAS_V2", "false")
         }
         create("prod") {
             dimension = "environment"
@@ -172,6 +177,9 @@ android {
             // visitas pasan al Go, sin envío dual: el worker elige uno u otro.
             buildConfigField("boolean", "PAGOS_USE_V2", "true")
             buildConfigField("boolean", "VISITAS_USE_V2", "true")
+            // La captura de garantías v2 no se enciende fuera de devlocal: el
+            // brief la quiere alcanzable sólo en el sabor local.
+            buildConfigField("boolean", "GARANTIAS_V2", "false")
         }
     }
 
@@ -295,6 +303,10 @@ dependencies {
     // `VisitsLocalDataSource.saveVisitAndEnqueue`) y de `UbicacionPort`
     // (Play Services) en su composition root.
     implementation(project(":feature:visitas"))
+    // Captura de garantías v2 (brief garantías tarea 11, D1). Módulo nuevo,
+    // sistema distinto del legado `features/guarantees/**`, que no se toca. Su
+    // destino sólo se registra en el sabor devlocal (`BuildConfig.GARANTIAS_V2`).
+    implementation(project(":feature:garantias"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
