@@ -2,6 +2,7 @@ package com.example.msp_app.feature.garantias.data.catalogo
 
 import com.example.msp_app.feature.garantias.domain.model.CatalogoDeGarantias
 import com.example.msp_app.feature.garantias.domain.port.CatalogoDeGarantiasPort
+import javax.inject.Inject
 
 /**
  * La implementación del catálogo mientras `GET /v2/garantias/catalogos` no
@@ -17,7 +18,7 @@ import com.example.msp_app.feature.garantias.domain.port.CatalogoDeGarantiasPort
  * adaptador que lea la caché de Room o el endpoint, y **ninguna pantalla
  * cambia**.
  */
-class CatalogoSinServidor : CatalogoDeGarantiasPort {
+class CatalogoSinServidor @Inject constructor() : CatalogoDeGarantiasPort {
 
     override suspend fun leer(): CatalogoDeGarantias = CatalogoDeGarantias.SIN_CATALOGO
 }

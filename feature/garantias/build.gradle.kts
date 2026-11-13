@@ -21,6 +21,19 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:database"))
     implementation(project(":core:network"))
+    // El servicio Retrofit y su adaptador viven en el módulo (la lista de
+    // archivos permitidos de `:app` no incluye un paquete `data/garantias`).
+    // `:core:network` los declara como `implementation`, así que no llegan
+    // transitivos y hay que pedirlos acá.
+    implementation(libs.retrofit)
+    implementation(libs.okhttp)
+    // GPS de la recolección y de la entrega. Es la única dependencia Android
+    // pesada del módulo y vive detrás del puerto `UbicacionDeGarantiaPort`.
+    implementation(libs.play.services.location)
+    implementation(
+        "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:" +
+            libs.versions.kotlinxCoroutines.get()
+    ) // `Task.await()`; el catálogo no lo tiene porque en `:app` llega por Firebase KTX
     // Los adaptadores de la cola usan `AppDatabase.withTransaction` y las
     // entidades de Room; `:core:database` sólo expone Room como
     // `implementation`, así que no llega transitivo (mismo caso que

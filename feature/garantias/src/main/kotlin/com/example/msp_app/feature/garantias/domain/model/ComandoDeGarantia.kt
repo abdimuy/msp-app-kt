@@ -47,6 +47,7 @@ object RutasDeGarantia {
     const val EVENTO: String = "{evento}"
 
     const val ABRIR: String = "v2/garantias"
+    const val DETALLE: String = "v2/garantias/$FOLIO"
     const val AGREGAR_ARTICULO: String = "v2/garantias/$FOLIO/articulos"
     const val AVANZAR_ARTICULO: String = "v2/garantias/$FOLIO/articulos/$ARTICULO/avanzar"
     const val ENTREGAR: String = "v2/garantias/$FOLIO/entregar"
