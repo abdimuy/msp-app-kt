@@ -146,8 +146,7 @@ data class FotoNueva(
     val rutaArchivo: String,
     val mime: String,
     val folioRef: String? = null,
-    val eventoRef: String? = null,
-    val descripcion: String = ""
+    val eventoRef: String? = null
 )
 
 /**

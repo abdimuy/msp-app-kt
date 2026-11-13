@@ -13,11 +13,19 @@ package com.example.msp_app.feature.garantias.domain
  */
 sealed interface ResultadoDeLaLlamada {
 
-    /** El servidor contestó con un status HTTP. */
+    /**
+     * El servidor contestó con un status HTTP.
+     *
+     * [cuerpo] es el texto crudo de la respuesta. El clasificador no lo mira;
+     * lo usa la cola para leer el `id` del folio que devuelve `abrir`. Se
+     * conserva **también** cuando el status no es 2xx para que un error con
+     * forma inesperada no pierda el `detail` que el cobrador necesita ver.
+     */
     data class Respuesta(
         val status: Int,
         val codigo: String? = null,
-        val detalle: String? = null
+        val detalle: String? = null,
+        val cuerpo: String? = null
     ) : ResultadoDeLaLlamada
 
     /** La petición no llegó: `IOException`, DNS, timeout, sin señal. */

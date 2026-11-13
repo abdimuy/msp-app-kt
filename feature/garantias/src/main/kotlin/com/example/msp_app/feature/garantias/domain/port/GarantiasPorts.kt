@@ -1,10 +1,10 @@
 package com.example.msp_app.feature.garantias.domain.port
 
-import com.example.msp_app.feature.garantias.domain.ClasificadorDeEnvio
 import com.example.msp_app.feature.garantias.domain.ResultadoDeLaLlamada
 import com.example.msp_app.feature.garantias.domain.model.CatalogoDeGarantias
 import com.example.msp_app.feature.garantias.domain.model.ComandoDeGarantia
 import com.example.msp_app.feature.garantias.domain.model.ComandoNuevo
+import com.example.msp_app.feature.garantias.domain.model.CuerpoHttp
 import com.example.msp_app.feature.garantias.domain.model.DetalleDeGarantia
 import com.example.msp_app.feature.garantias.domain.model.EstadoLocalDeFolio
 import com.example.msp_app.feature.garantias.domain.model.FirmaDeConformidad
@@ -203,24 +203,57 @@ interface CatalogoDeGarantiasPort {
 /**
  * El API de garantías v2: mandar comandos, leer el detalle y subir imágenes.
  *
- * [enviar] recibe el comando **ya guardado** y manda sus bytes congelados; no
- * reconstruye el cuerpo ni la clave (D3). El adaptador traduce la respuesta a
- * [ResultadoDeLaLlamada] y deja que [ClasificadorDeEnvio] decida.
+ * [enviar] recibe el comando **ya serializado**: la clave, el método, la ruta
+ * resuelta y los bytes congelados. No reconstruye el cuerpo ni la clave (D3);
+ * la cola es la única que decide qué se manda y este puerto sólo lo transporta.
  *
- * [subirImagen] lee el archivo de la foto en el momento del envío y arma el
- * multipart con el `Content-Type` real de la foto, que no cambia entre
- * reintentos porque el archivo tampoco cambia.
+ * [detalle] es el `GET /v2/garantias/{id}` con su línea de tiempo. Es la única
+ * forma de saber qué artículo creó un `agregar` y qué evento creó una
+ * recolección: la respuesta del comando no trae eventos (D4). Puede lanzar
+ * `IOException`; el llamador decide si espera o muestra el último estado
+ * conocido.
  *
- * [detalle] puede lanzar `IOException`: el llamador decide si espera o muestra
- * el último estado conocido.
+ * [subirImagen] recibe los bytes del multipart ya armados con el boundary fijo
+ * y la clave de la foto. El archivo se leyó antes de llamar, así que un
+ * reintento manda exactamente los mismos bytes (D3, mutantes A1 y A2).
  */
 interface GarantiasRemotasPort {
 
-    suspend fun enviar(comando: ComandoDeGarantia): ResultadoDeLaLlamada
+    /** Manda un comando con su clave y sus bytes. Nunca los rearma. */
+    suspend fun enviar(
+        clave: String,
+        metodo: String,
+        ruta: String,
+        cuerpo: CuerpoHttp
+    ): ResultadoDeLaLlamada
 
+    /** El folio completo, con eventos e imágenes, tal como lo devuelve el API. */
     suspend fun detalle(folioId: String): DetalleDeGarantia
 
-    suspend fun subirImagen(foto: FotoPendienteDeGarantia): ResultadoDeLaLlamada
+    /** Sube una foto con su propia clave; el cuerpo ya viene armado. */
+    suspend fun subirImagen(clave: String, ruta: String, cuerpo: CuerpoHttp): ResultadoDeLaLlamada
+}
+
+/**
+ * Los archivos locales que la captura produce y consume: la firma del cliente y
+ * las fotos de la recolección.
+ *
+ * El dominio no conoce `File` ni `filesDir`; este puerto traduce una ruta
+ * guardada en Room a los bytes que viajan. [leer] devuelve `null` cuando el
+ * archivo ya no está (barrido, reinstalación, error de escritura) y la cola lo
+ * trata como un rechazo visible, nunca como una subida exitosa.
+ *
+ * [borrar] se llama **sólo después** de que el servidor confirmó la subida
+ * (D3, mutante A7). Borrar antes dejaría la foto irrecuperable y la fila
+ * apuntando a la nada.
+ */
+interface ArchivosDeGarantiaPort {
+
+    /** Los bytes del archivo, o `null` si ya no existe o no se puede leer. */
+    suspend fun leer(ruta: String): ByteArray?
+
+    /** Borra el archivo. Un archivo ya ausente no es un error. */
+    suspend fun borrar(ruta: String)
 }
 
 /**

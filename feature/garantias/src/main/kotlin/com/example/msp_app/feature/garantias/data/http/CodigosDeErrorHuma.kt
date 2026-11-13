@@ -59,7 +59,8 @@ object CodigosDeErrorHuma {
         ResultadoDeLaLlamada.Respuesta(
             status = status,
             codigo = codigo(cuerpo),
-            detalle = detalle(cuerpo)
+            detalle = detalle(cuerpo),
+            cuerpo = cuerpo
         )
 
     private fun objetoDe(cuerpo: String?): JsonObject? {

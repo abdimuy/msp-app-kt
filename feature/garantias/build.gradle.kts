@@ -21,6 +21,11 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:database"))
     implementation(project(":core:network"))
+    // Los adaptadores de la cola usan `AppDatabase.withTransaction` y las
+    // entidades de Room; `:core:database` sólo expone Room como
+    // `implementation`, así que no llega transitivo (mismo caso que
+    // `:feature:ventaCorreccion`).
+    implementation(libs.bundles.room)
     implementation(libs.gson) // parser del error de Huma (`errors[].message`)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)

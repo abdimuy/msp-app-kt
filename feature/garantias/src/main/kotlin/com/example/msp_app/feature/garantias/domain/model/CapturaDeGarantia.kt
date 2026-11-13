@@ -71,8 +71,7 @@ data class AperturaDeGarantia(
 data class FotoDeCaptura(
     val clave: String,
     val rutaArchivo: String,
-    val mime: String,
-    val descripcion: String = ""
+    val mime: String
 )
 
 /**
