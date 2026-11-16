@@ -12,7 +12,7 @@ import java.time.Instant
  * datos de cliente en un folio de piso es 422
  * (`warranty_customer_not_allowed`).
  */
-enum class OrigenDeFolio(val valor: String) {
+enum class OrigenDeFolio(val wireValue: String) {
     PISO("piso"),
     CLIENTE("cliente")
 }
@@ -30,7 +30,7 @@ enum class OrigenDeFolio(val valor: String) {
  * - [RECHAZADO]: `abrir_folio` recibió un rechazo definitivo (403/422) y sus
  *   comandos dependientes quedan detenidos (D4).
  */
-enum class EstadoLocalDeFolio(val valor: String) {
+enum class EstadoLocalDeFolio(val wireValue: String) {
     PENDIENTE_ENVIO("pendiente_envio"),
     ABIERTO("abierto"),
     RECHAZADO("rechazado")

@@ -11,7 +11,7 @@ import java.time.Instant
  * produce estas cuatro. Agregar una acción nueva es sumar un literal y su
  * cuerpo, no reescribir la cola.
  */
-enum class OperacionDeGarantia(val valor: String) {
+enum class OperacionDeGarantia(val wireValue: String) {
     ABRIR_FOLIO("abrir_folio"),
     AGREGAR_ARTICULO("agregar_articulo"),
     AVANZAR_ARTICULO("avanzar_articulo"),
@@ -19,14 +19,14 @@ enum class OperacionDeGarantia(val valor: String) {
 }
 
 /** El estado de una fila de `garantia_comandos_pendientes`. */
-enum class EstadoDeComando(val valor: String) {
+enum class EstadoDeComando(val wireValue: String) {
     PENDIENTE("pendiente"),
     ENVIADO("enviado"),
     RECHAZADO("rechazado")
 }
 
 /** El estado de una fila de `garantia_fotos_pendientes`. */
-enum class EstadoDeFoto(val valor: String) {
+enum class EstadoDeFoto(val wireValue: String) {
     PENDIENTE("pendiente"),
     ENVIADA("enviada"),
     RECHAZADA("rechazada")

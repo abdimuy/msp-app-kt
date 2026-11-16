@@ -27,6 +27,9 @@ dependencies {
     // transitivos y hay que pedirlos acá.
     implementation(libs.retrofit)
     implementation(libs.okhttp)
+    // `FileProvider` del `content://` que la cámara escribe: el adaptador de
+    // cámara necesita `androidx.core` para construirlo.
+    implementation(libs.androidx.core.ktx)
     // GPS de la recolección y de la entrega. Es la única dependencia Android
     // pesada del módulo y vive detrás del puerto `UbicacionDeGarantiaPort`.
     implementation(libs.play.services.location)

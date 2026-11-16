@@ -76,13 +76,13 @@ class RoomColaDeComandosAdapter @Inject constructor(
 private fun ComandoNuevo.aEntidad(ahora: String): GarantiaComandoPendienteEntity =
     GarantiaComandoPendienteEntity(
         CLAVE = clave,
-        OPERACION = operacion.valor,
+        OPERACION = operacion.wireValue,
         METODO = metodo,
         RUTA = ruta,
         CUERPO = cuerpo,
         CONTENT_TYPE = contentType,
         DEVICE_CREATED_AT = AppTime.toWireFormat(deviceCreatedAt),
-        ESTADO = EstadoDeComando.PENDIENTE.valor,
+        ESTADO = EstadoDeComando.PENDIENTE.wireValue,
         FOLIO_REF = folioRef,
         ARTICULO_REF = articuloRef,
         EVENTO_REF = eventoRef,
@@ -100,14 +100,14 @@ private fun ComandoNuevo.aEntidad(ahora: String): GarantiaComandoPendienteEntity
 internal fun GarantiaComandoPendienteEntity.aComando(): ComandoDeGarantia = ComandoDeGarantia(
     id = ID,
     clave = CLAVE,
-    operacion = OperacionDeGarantia.entries.firstOrNull { it.valor == OPERACION }
+    operacion = OperacionDeGarantia.entries.firstOrNull { it.wireValue == OPERACION }
         ?: error("operación desconocida en la cola: $OPERACION"),
     metodo = METODO,
     ruta = RUTA,
     cuerpo = CUERPO,
     contentType = CONTENT_TYPE,
     deviceCreatedAt = AppTime.parseWireFormatOrNull(DEVICE_CREATED_AT) ?: Instant.EPOCH,
-    estado = EstadoDeComando.entries.firstOrNull { it.valor == ESTADO }
+    estado = EstadoDeComando.entries.firstOrNull { it.wireValue == ESTADO }
         ?: error("estado desconocido en la cola: $ESTADO"),
     intentos = INTENTOS,
     creadoEn = AppTime.parseWireFormatOrNull(CREADO_EN) ?: Instant.EPOCH,

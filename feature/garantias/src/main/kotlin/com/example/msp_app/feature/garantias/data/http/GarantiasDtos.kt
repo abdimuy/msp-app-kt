@@ -183,7 +183,7 @@ private fun ImagenDto.toDomain(): ImagenDeGarantia = ImagenDeGarantia(
  * campo para decidir una transición, así que el valor neutro no escribe nada.
  */
 private fun origenDe(valor: String?): OrigenDeFolio =
-    OrigenDeFolio.entries.firstOrNull { it.valor == valor } ?: OrigenDeFolio.PISO
+    OrigenDeFolio.entries.firstOrNull { it.wireValue == valor } ?: OrigenDeFolio.PISO
 
 /** Una fecha del servidor ausente o ilegible no debe tumbar el detalle. */
 private fun String?.aInstant(): Instant = AppTime.parseWireFormatOrNull(this) ?: Instant.EPOCH

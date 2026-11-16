@@ -43,7 +43,7 @@ class RoomFoliosSeguidosAdapter @Inject constructor(
         error: String?,
         ahora: Instant
     ) {
-        dao.marcarEstado(id, estado.valor, error, AppTime.toWireFormat(ahora))
+        dao.marcarEstado(id, estado.wireValue, error, AppTime.toWireFormat(ahora))
     }
 
     override suspend fun pendientesDeEnvio(): Int = dao.pendientesDeEnvio()
@@ -52,10 +52,10 @@ class RoomFoliosSeguidosAdapter @Inject constructor(
 private fun FolioSeguido.aEntidad(): GarantiaFolioSeguidoEntity = GarantiaFolioSeguidoEntity(
     ID = id,
     FOLIO_ID = folioId,
-    ORIGEN = origen.valor,
+    ORIGEN = origen.wireValue,
     CLIENTE_ID = clienteId,
     VENTA_ID = ventaId,
-    ESTADO_LOCAL = estadoLocal.valor,
+    ESTADO_LOCAL = estadoLocal.wireValue,
     ABIERTO_EN = AppTime.toWireFormat(abiertoEn),
     ACTUALIZADO_EN = AppTime.toWireFormat(actualizadoEn),
     ULTIMO_ERROR = ultimoError
@@ -64,11 +64,11 @@ private fun FolioSeguido.aEntidad(): GarantiaFolioSeguidoEntity = GarantiaFolioS
 private fun GarantiaFolioSeguidoEntity.aFolio(): FolioSeguido = FolioSeguido(
     id = ID,
     folioId = FOLIO_ID,
-    origen = OrigenDeFolio.entries.firstOrNull { it.valor == ORIGEN }
+    origen = OrigenDeFolio.entries.firstOrNull { it.wireValue == ORIGEN }
         ?: error("origen desconocido en mis folios: $ORIGEN"),
     clienteId = CLIENTE_ID,
     ventaId = VENTA_ID,
-    estadoLocal = EstadoLocalDeFolio.entries.firstOrNull { it.valor == ESTADO_LOCAL }
+    estadoLocal = EstadoLocalDeFolio.entries.firstOrNull { it.wireValue == ESTADO_LOCAL }
         ?: error("estado local desconocido en mis folios: $ESTADO_LOCAL"),
     abiertoEn = AppTime.parseWireFormatOrNull(ABIERTO_EN) ?: Instant.EPOCH,
     actualizadoEn = AppTime.parseWireFormatOrNull(ACTUALIZADO_EN) ?: Instant.EPOCH,

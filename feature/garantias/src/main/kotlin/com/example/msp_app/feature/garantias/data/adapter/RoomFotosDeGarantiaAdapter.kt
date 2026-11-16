@@ -59,7 +59,7 @@ internal fun FotoNueva.aEntidad(comandoId: Long?, ahora: String): GarantiaFotoPe
         EVENTO_REF = eventoRef,
         RUTA_ARCHIVO = rutaArchivo,
         MIME = mime,
-        ESTADO = EstadoDeFoto.PENDIENTE.valor,
+        ESTADO = EstadoDeFoto.PENDIENTE.wireValue,
         CREADO_EN = ahora,
         ACTUALIZADO_EN = ahora
     )
@@ -68,7 +68,7 @@ internal fun GarantiaFotoPendienteEntity.aFoto(): FotoPendienteDeGarantia = Foto
     clave = CLAVE,
     rutaArchivo = RUTA_ARCHIVO,
     mime = MIME,
-    estado = EstadoDeFoto.entries.firstOrNull { it.valor == ESTADO }
+    estado = EstadoDeFoto.entries.firstOrNull { it.wireValue == ESTADO }
         ?: error("estado de foto desconocido: $ESTADO"),
     intentos = INTENTOS,
     creadoEn = AppTime.parseWireFormatOrNull(CREADO_EN) ?: Instant.EPOCH,

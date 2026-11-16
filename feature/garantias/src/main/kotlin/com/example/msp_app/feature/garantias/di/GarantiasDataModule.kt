@@ -13,14 +13,20 @@ import com.example.msp_app.feature.garantias.data.adapter.RoomFotosDeGarantiaAda
 import com.example.msp_app.feature.garantias.data.adapter.RoomResolucionDeReferenciasAdapter
 import com.example.msp_app.feature.garantias.data.catalogo.CatalogoSinServidor
 import com.example.msp_app.feature.garantias.data.claves.GeneradorDeClavesAdapter
+import com.example.msp_app.feature.garantias.data.clientes.ClientesDeGarantiaAdapter
 import com.example.msp_app.feature.garantias.data.files.ArchivosDeGarantiaAdapter
+import com.example.msp_app.feature.garantias.data.files.CamaraDeGarantiaAdapter
 import com.example.msp_app.feature.garantias.data.files.FirmaDeConformidadAdapter
+import com.example.msp_app.feature.garantias.data.http.CuerposDeCapturaAdapter
 import com.example.msp_app.feature.garantias.data.http.GarantiasRemotasAdapter
 import com.example.msp_app.feature.garantias.data.queue.ProcesadorDeLaCola
 import com.example.msp_app.feature.garantias.data.ubicacion.UbicacionDeGarantiaAdapter
 import com.example.msp_app.feature.garantias.domain.port.ArchivosDeGarantiaPort
+import com.example.msp_app.feature.garantias.domain.port.CamaraDeGarantiaPort
 import com.example.msp_app.feature.garantias.domain.port.CatalogoDeGarantiasPort
+import com.example.msp_app.feature.garantias.domain.port.ClientesDeGarantiaPort
 import com.example.msp_app.feature.garantias.domain.port.ColaDeComandosPort
+import com.example.msp_app.feature.garantias.domain.port.CuerposDeComandoPort
 import com.example.msp_app.feature.garantias.domain.port.EstadoDeLasFotosPort
 import com.example.msp_app.feature.garantias.domain.port.FirmaDeConformidadPort
 import com.example.msp_app.feature.garantias.domain.port.FoliosSeguidosPort
@@ -36,6 +42,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Qualifier
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 
 /**
  * El reloj de `:feature:garantias`.
@@ -49,6 +57,18 @@ import javax.inject.Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class GarantiasReloj
 
+/**
+ * El despachador de E/S de `:feature:garantias`.
+ *
+ * Va cualificado por el mismo motivo que [GarantiasReloj]: el grafo de `:app`
+ * ya tiene otros `CoroutineDispatcher` sin nombre y dos bindings del mismo tipo
+ * serían un error de Hilt. Los ViewModels lo piden para no correr Room ni la
+ * lectura de archivos en el hilo de composición.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class GarantiasIoDispatcher
+
 /** La única fuente de [AppClock] de este módulo; los tests inyectan el suyo. */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -57,6 +77,11 @@ object GarantiasDataModule {
     @Provides
     @GarantiasReloj
     fun reloj(): AppClock = AppClock.System
+
+    /** E/S del módulo; los tests inyectan un despachador de un solo hilo. */
+    @Provides
+    @GarantiasIoDispatcher
+    fun io(): CoroutineDispatcher = Dispatchers.IO
 
     /**
      * Los DAOs de la captura, expuestos desde este módulo y no desde
@@ -135,4 +160,13 @@ internal abstract class GarantiasBindingsModule {
 
     @Binds
     abstract fun generadorDeClaves(impl: GeneradorDeClavesAdapter): GeneradorDeClavesPort
+
+    @Binds
+    abstract fun cuerposDeComando(impl: CuerposDeCapturaAdapter): CuerposDeComandoPort
+
+    @Binds
+    abstract fun camara(impl: CamaraDeGarantiaAdapter): CamaraDeGarantiaPort
+
+    @Binds
+    abstract fun clientes(impl: ClientesDeGarantiaAdapter): ClientesDeGarantiaPort
 }

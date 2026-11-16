@@ -11,7 +11,7 @@ import java.time.LocalDate
  * (`estado_cuenta`). En un folio de piso no aplica: mandarlo es 422
  * (`warranty_account_state_not_allowed`).
  */
-enum class EstadoDeCuenta(val valor: String) {
+enum class EstadoDeCuenta(val wireValue: String) {
     LIQUIDADA("liquidada"),
     SALDO_PENDIENTE("saldo_pendiente")
 }
@@ -84,10 +84,15 @@ data class FotoDeCaptura(
  * [folioRef] y [articuloRef] son referencias locales que la cola resuelve
  * cuando el servidor devuelve los ids (D4). Las fotos esperan al evento que
  * crea este comando.
+ *
+ * [etapaDestino] es la acción que el cobrador eligió, tal como la publica el
+ * catálogo del servidor (`AccionDeGarantia.etapaDestino`) o el respaldo de la
+ * captura. El teléfono no la deduce de la etapa actual (D2).
  */
 data class RecoleccionDeGarantia(
     val folioRef: String,
     val articuloRef: String,
+    val etapaDestino: String,
     val ubicacion: Ubicacion? = null,
     val fotos: List<FotoDeCaptura> = emptyList()
 )
