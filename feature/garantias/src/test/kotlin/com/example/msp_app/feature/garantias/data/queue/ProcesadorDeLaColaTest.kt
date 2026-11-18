@@ -27,6 +27,7 @@ import com.example.msp_app.feature.garantias.domain.port.FoliosSeguidosPort
 import com.example.msp_app.feature.garantias.domain.port.FotosDeGarantiaPort
 import com.example.msp_app.feature.garantias.domain.port.GarantiasRemotasPort
 import com.example.msp_app.feature.garantias.domain.port.ResolucionDeReferenciasPort
+import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -59,7 +60,9 @@ class ProcesadorDeLaColaTest {
         ).copy(folioId = "folio-servidor-1")
         val mundo = Mundo(
             comandos = listOf(comando),
-            archivosIniciales = mapOf(FIRMA to byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)),
+            evidencia = Evidencia(
+                archivos = mapOf(FIRMA to byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47))
+            ),
             respuestas = listOf(
                 ResultadoDeLaLlamada.Respuesta(status = 503),
                 ResultadoDeLaLlamada.Respuesta(status = 200)
@@ -91,6 +94,11 @@ class ProcesadorDeLaColaTest {
         assertEquals(listOf(RutasDeGarantia.ABRIR), mundo.remotas.enviados.map { it.ruta })
         assertEquals(3, primera.comandosPendientes)
         assertEquals(EstadoDeComando.PENDIENTE, mundo.cola.estadoDe(escenario.abrir.id))
+        // No basta con que no salgan: mientras `abrir` siga pendiente, sus
+        // dependientes (ids 2 y 3) ni siquiera se intentan. Es lo que mata al
+        // mutante A5 (seguir con el siguiente comando del folio).
+        assertEquals(0, mundo.cola.intentosDe(2))
+        assertEquals(0, mundo.cola.intentosDe(3))
 
         val segunda = mundo.procesador.procesar()
 
@@ -199,8 +207,10 @@ class ProcesadorDeLaColaTest {
         runTest {
             val foto = foto(clave = "foto-fija-1")
             val mundo = Mundo(
-                fotosIniciales = listOf(foto),
-                archivosIniciales = mapOf(foto.rutaArchivo to byteArrayOf(1, 2, 3, 4)),
+                evidencia = Evidencia(
+                    fotos = listOf(foto),
+                    archivos = mapOf(foto.rutaArchivo to byteArrayOf(1, 2, 3, 4))
+                ),
                 respuestasDeImagen = listOf(
                     ResultadoDeLaLlamada.Respuesta(status = 503),
                     ResultadoDeLaLlamada.Respuesta(status = 201)
@@ -233,6 +243,206 @@ class ProcesadorDeLaColaTest {
             assertEquals(1, segunda.fotosSubidas)
             assertEquals(0, segunda.fotosPendientes)
         }
+
+    @Test
+    fun `un comando suelto sin folio se manda y se marca enviado`() = runTest {
+        val comando = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.ABRIR_FOLIO,
+            ruta = RutasDeGarantia.ABRIR,
+            folioRef = null,
+            cuerpo = """{"origen":"piso"}"""
+        )
+        val mundo = Mundo(
+            comandos = listOf(comando),
+            respuestas = listOf(
+                ResultadoDeLaLlamada.Respuesta(
+                    status = 201,
+                    cuerpo = """{"id":"folio-servidor-1"}"""
+                )
+            )
+        )
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(listOf(RutasDeGarantia.ABRIR), mundo.remotas.enviados.map { it.ruta })
+        assertEquals(1, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.ENVIADO, mundo.cola.estadoDe(comando.id))
+    }
+
+    @Test
+    fun `un comando sin cuerpo se rechaza sin llamar al api`() = runTest {
+        val comando = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.AGREGAR_ARTICULO,
+            ruta = RutasDeGarantia.AGREGAR_ARTICULO,
+            folioRef = "folio-local-1",
+            cuerpo = null
+        ).copy(folioId = "folio-servidor-1")
+        val mundo = Mundo(comandos = listOf(comando))
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(1, resultado.comandosRechazados)
+        assertEquals(EstadoDeComando.RECHAZADO, mundo.cola.estadoDe(comando.id))
+        assertTrue(mundo.remotas.enviados.isEmpty())
+    }
+
+    @Test
+    fun `una entrega sin la firma en el telefono se rechaza`() = runTest {
+        val comando = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.ENTREGAR,
+            ruta = RutasDeGarantia.ENTREGAR,
+            folioRef = "folio-local-1",
+            contentType = CuerpoDeGarantia.TIPO_MULTIPART,
+            cuerpo = datosDeEntrega().aJson()
+        ).copy(folioId = "folio-servidor-1")
+        val mundo = Mundo(comandos = listOf(comando))
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(1, resultado.comandosRechazados)
+        assertEquals(EstadoDeComando.RECHAZADO, mundo.cola.estadoDe(comando.id))
+        assertTrue(mundo.remotas.enviados.isEmpty())
+    }
+
+    @Test
+    fun `un comando sin el id del folio se anota como intento`() = runTest {
+        val comando = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.AGREGAR_ARTICULO,
+            ruta = RutasDeGarantia.AGREGAR_ARTICULO,
+            folioRef = "folio-local-1",
+            cuerpo = """{"descripcion":"bocina"}"""
+        )
+        val mundo = Mundo(comandos = listOf(comando))
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(0, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.PENDIENTE, mundo.cola.estadoDe(comando.id))
+        assertEquals(1, mundo.cola.intentosDe(comando.id))
+        assertTrue(mundo.remotas.enviados.isEmpty())
+    }
+
+    @Test
+    fun `un abrir sin id en el cuerpo se reintenta`() = runTest {
+        val comando = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.ABRIR_FOLIO,
+            ruta = RutasDeGarantia.ABRIR,
+            folioRef = "folio-local-1",
+            cuerpo = """{"origen":"piso"}"""
+        )
+        val mundo = Mundo(
+            comandos = listOf(comando),
+            respuestas = listOf(ResultadoDeLaLlamada.Respuesta(status = 201, cuerpo = """{}"""))
+        )
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(0, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.PENDIENTE, mundo.cola.estadoDe(comando.id))
+    }
+
+    @Test
+    fun `un token vencido se anota y se reintenta`() = runTest {
+        val comando = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.ABRIR_FOLIO,
+            ruta = RutasDeGarantia.ABRIR,
+            folioRef = "folio-local-1",
+            cuerpo = """{"origen":"piso"}"""
+        )
+        val mundo = Mundo(
+            comandos = listOf(comando),
+            respuestas = listOf(ResultadoDeLaLlamada.Respuesta(status = 401))
+        )
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(0, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.PENDIENTE, mundo.cola.estadoDe(comando.id))
+        assertEquals(1, mundo.cola.intentosDe(comando.id))
+    }
+
+    @Test
+    fun `un detalle que todavia no cuenta el cambio se reintenta`() = runTest {
+        val avanzar = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.AVANZAR_ARTICULO,
+            ruta = RutasDeGarantia.AVANZAR_ARTICULO,
+            folioRef = "folio-local-1",
+            cuerpo = """{"etapa":"recolectado"}"""
+        ).copy(
+            folioId = "folio-servidor-1",
+            articuloRef = "articulo-local-1",
+            articuloId = "articulo-servidor-1",
+            eventoRef = "evento-local-1"
+        )
+        val mundo = Mundo(
+            comandos = listOf(avanzar),
+            respuestas = listOf(ResultadoDeLaLlamada.Respuesta(status = 200)),
+            detalles = mapOf(
+                "folio-servidor-1" to detalle(
+                    claveDeAvanzar = "clave-que-no-existe",
+                    claveDeOtraRecoleccion = "otra"
+                )
+            )
+        )
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(0, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.PENDIENTE, mundo.cola.estadoDe(avanzar.id))
+        assertEquals(1, mundo.cola.intentosDe(avanzar.id))
+    }
+
+    @Test
+    fun `un fallo de red al enviar detiene la pasada y se reintenta`() = runTest {
+        val comando = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.ABRIR_FOLIO,
+            ruta = RutasDeGarantia.ABRIR,
+            folioRef = "folio-local-1",
+            cuerpo = """{"origen":"piso"}"""
+        )
+        val mundo = Mundo(comandos = listOf(comando), fallo = FalloDeRed.AL_ENVIAR)
+
+        val resultado = mundo.procesador.procesar()
+
+        assertTrue(resultado.sinRed)
+        assertEquals(0, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.PENDIENTE, mundo.cola.estadoDe(comando.id))
+    }
+
+    @Test
+    fun `un fallo de red al leer el detalle se reintenta`() = runTest {
+        val avanzar = comando(
+            id = 1,
+            operacion = OperacionDeGarantia.AVANZAR_ARTICULO,
+            ruta = RutasDeGarantia.AVANZAR_ARTICULO,
+            folioRef = "folio-local-1",
+            cuerpo = """{"etapa":"recolectado"}"""
+        ).copy(
+            folioId = "folio-servidor-1",
+            articuloRef = "articulo-local-1",
+            articuloId = "articulo-servidor-1",
+            eventoRef = "evento-local-1"
+        )
+        val mundo = Mundo(
+            comandos = listOf(avanzar),
+            respuestas = listOf(ResultadoDeLaLlamada.Respuesta(status = 200)),
+            fallo = FalloDeRed.AL_DETALLE
+        )
+
+        val resultado = mundo.procesador.procesar()
+
+        assertTrue(resultado.sinRed)
+        assertEquals(0, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.PENDIENTE, mundo.cola.estadoDe(avanzar.id))
+    }
 
     /** Un folio abierto sin señal, con artículo y recolección detrás. */
     private fun escenarioDelFolio(): EscenarioDelFolio {
@@ -358,13 +568,27 @@ class ProcesadorDeLaColaTest {
         )
     )
 
-    /** Variante para la prueba de la clave: el evento buscado va después de otro igual. */
-    private fun detalle(claveDeAvanzar: String, claveDeOtraRecoleccion: String): DetalleDeGarantia =
-        detalle(
+    /**
+     * Variante para la prueba de la clave: el evento buscado va **en medio** de
+     * la línea de tiempo, con otro del mismo tipo antes y después. Así fallan
+     * tanto tomar "el primero" como "el último" (mutante A6): sólo la clave
+     * idempotente devuelve el evento correcto.
+     */
+    private fun detalle(claveDeAvanzar: String, claveDeOtraRecoleccion: String): DetalleDeGarantia {
+        val base = detalle(
             claveDeAgregar = "clave-que-no-existe",
             claveDeAvanzar = claveDeAvanzar,
             claveDeOtraRecoleccion = claveDeOtraRecoleccion
         )
+        return base.copy(
+            eventos = base.eventos + evento(
+                id = "evento-ajeno-despues",
+                clave = "$claveDeOtraRecoleccion-despues",
+                tipo = "recoleccion",
+                articuloRef = "articulo-servidor-1"
+            )
+        )
+    }
 
     private fun articulo(): ArticuloDeGarantia = ArticuloDeGarantia(
         id = "articulo-servidor-1",
@@ -404,22 +628,35 @@ private data class EscenarioDelFolio(
     val abrir: ComandoDeGarantia
 )
 
+/** Dónde falla la red de la prueba: en el envío, al leer el detalle, o en ningún lado. */
+private enum class FalloDeRed { NINGUNO, AL_ENVIAR, AL_DETALLE }
+
+/** La evidencia que la prueba deja en disco y en la cola antes de procesar. */
+private data class Evidencia(
+    val fotos: List<FotoPendienteDeGarantia> = emptyList(),
+    val archivos: Map<String, ByteArray> = emptyMap()
+)
+
 /** El mundo de la prueba: procesador real, puertos falsos. */
 private class Mundo(
     comandos: List<ComandoDeGarantia> = emptyList(),
-    fotosIniciales: List<FotoPendienteDeGarantia> = emptyList(),
-    archivosIniciales: Map<String, ByteArray> = emptyMap(),
+    evidencia: Evidencia = Evidencia(),
     respuestas: List<ResultadoDeLaLlamada> = emptyList(),
     respuestasDeImagen: List<ResultadoDeLaLlamada> = emptyList(),
-    detalles: Map<String, DetalleDeGarantia> = emptyMap()
+    detalles: Map<String, DetalleDeGarantia> = emptyMap(),
+    fallo: FalloDeRed = FalloDeRed.NINGUNO
 ) {
     val reloj = FakeClock(Instant.parse("2026-11-13T10:00:00Z"))
     val cola = ColaFalsa(comandos.toMutableList())
     val folios = FoliosFalsos()
-    val remotas =
-        RemotasFalsas(respuestas.toMutableList(), respuestasDeImagen.toMutableList(), detalles)
-    val fotos = FotosFalsas(fotosIniciales.toMutableList())
-    val archivos = ArchivosFalsos(archivosIniciales.toMutableMap())
+    val remotas = RemotasFalsas(
+        respuestas.toMutableList(),
+        respuestasDeImagen.toMutableList(),
+        detalles,
+        fallo
+    )
+    val fotos = FotosFalsas(evidencia.fotos.toMutableList())
+    val archivos = ArchivosFalsos(evidencia.archivos.toMutableMap())
     val estado = EstadoFalso(fotos, archivos)
     val resolucion = ResolucionFalsa()
 
@@ -471,6 +708,8 @@ private class ColaFalsa(
 
     fun estadoDe(id: Long): EstadoDeComando? = comandos.firstOrNull { it.id == id }?.estado
 
+    fun intentosDe(id: Long): Int = comandos.firstOrNull { it.id == id }?.intentos ?: 0
+
     private fun cambiar(id: Long, cambio: (ComandoDeGarantia) -> ComandoDeGarantia) {
         val indice = comandos.indexOfFirst { it.id == id }
         comandos[indice] = cambio(comandos[indice])
@@ -480,7 +719,8 @@ private class ColaFalsa(
 private class RemotasFalsas(
     private val respuestas: MutableList<ResultadoDeLaLlamada>,
     private val respuestasDeImagen: MutableList<ResultadoDeLaLlamada>,
-    private val detalles: Map<String, DetalleDeGarantia>
+    private val detalles: Map<String, DetalleDeGarantia>,
+    private val fallo: FalloDeRed = FalloDeRed.NINGUNO
 ) : GarantiasRemotasPort {
 
     val enviados = mutableListOf<Envio>()
@@ -493,11 +733,14 @@ private class RemotasFalsas(
         cuerpo: CuerpoHttp
     ): ResultadoDeLaLlamada {
         enviados += Envio(clave, metodo, ruta, cuerpo)
+        if (fallo == FalloDeRed.AL_ENVIAR) throw IOException("sin señal")
         return respuestas.removeFirst()
     }
 
-    override suspend fun detalle(folioId: String): DetalleDeGarantia =
-        detalles[folioId] ?: error("la prueba no preparó el detalle de $folioId")
+    override suspend fun detalle(folioId: String): DetalleDeGarantia {
+        if (fallo == FalloDeRed.AL_DETALLE) throw IOException("sin señal")
+        return detalles[folioId] ?: error("la prueba no preparó el detalle de $folioId")
+    }
 
     override suspend fun subirImagen(
         clave: String,
