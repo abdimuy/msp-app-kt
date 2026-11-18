@@ -169,6 +169,55 @@ class ProcesadorDeLaColaTest {
     }
 
     @Test
+    fun `un rechazo que no es el abrir no detiene al comando que sigue en la misma pasada`() =
+        runTest {
+            val primero = avanzarDelFolio(id = 1)
+            val segundo = avanzarDelFolio(id = 2)
+            val mundo = Mundo(
+                comandos = listOf(primero, segundo),
+                respuestas = listOf(
+                    ResultadoDeLaLlamada.Respuesta(
+                        status = 422,
+                        detalle = "el folio no admite esa operación en su estado actual"
+                    ),
+                    ResultadoDeLaLlamada.Respuesta(status = 200)
+                ),
+                detalles = mapOf("folio-servidor-1" to detalleConEvento(segundo.clave))
+            )
+
+            val resultado = mundo.procesador.procesar()
+
+            assertEquals(1, resultado.comandosRechazados)
+            assertEquals(1, resultado.comandosEnviados)
+            assertEquals(EstadoDeComando.RECHAZADO, mundo.cola.estadoDe(primero.id))
+            assertEquals(EstadoDeComando.ENVIADO, mundo.cola.estadoDe(segundo.id))
+            assertEquals(
+                listOf(RUTA_AVANZAR_RESUELTA, RUTA_AVANZAR_RESUELTA),
+                mundo.remotas.enviados.map { it.ruta }
+            )
+        }
+
+    @Test
+    fun `un rechazo viejo que no es el abrir no congela al comando nuevo del folio`() = runTest {
+        val viejo = avanzarDelFolio(id = 1).copy(
+            estado = EstadoDeComando.RECHAZADO,
+            ultimoError = "el folio no admite esa operación en su estado actual"
+        )
+        val nuevo = avanzarDelFolio(id = 2)
+        val mundo = Mundo(
+            comandos = listOf(viejo, nuevo),
+            respuestas = listOf(ResultadoDeLaLlamada.Respuesta(status = 200)),
+            detalles = mapOf("folio-servidor-1" to detalleConEvento(nuevo.clave))
+        )
+
+        val resultado = mundo.procesador.procesar()
+
+        assertEquals(1, resultado.comandosEnviados)
+        assertEquals(EstadoDeComando.ENVIADO, mundo.cola.estadoDe(nuevo.id))
+        assertEquals(listOf(RUTA_AVANZAR_RESUELTA), mundo.remotas.enviados.map { it.ruta })
+    }
+
+    @Test
     fun `el evento se resuelve por su clave y no por el orden de la linea de tiempo`() = runTest {
         val avanzar = comando(
             id = 1,
@@ -489,6 +538,27 @@ class ProcesadorDeLaColaTest {
         return EscenarioDelFolio(mundo = mundo, abrir = abrir)
     }
 
+    /** Un `avanzar` de un artículo ya resuelto: listo para viajar. */
+    private fun avanzarDelFolio(id: Long): ComandoDeGarantia = comando(
+        id = id,
+        operacion = OperacionDeGarantia.AVANZAR_ARTICULO,
+        ruta = RutasDeGarantia.AVANZAR_ARTICULO,
+        folioRef = "folio-local-1",
+        cuerpo = """{"etapa":"recolectado"}"""
+    ).copy(
+        folioId = "folio-servidor-1",
+        articuloRef = "articulo-local-1",
+        articuloId = "articulo-servidor-1",
+        eventoRef = "evento-local-$id"
+    )
+
+    /** El detalle del folio con el evento que responde a [clave]. */
+    private fun detalleConEvento(clave: String): DetalleDeGarantia = detalle(
+        claveDeAgregar = "clave-que-no-existe",
+        claveDeAvanzar = clave,
+        claveDeOtraRecoleccion = "otra"
+    )
+
     private fun comando(
         id: Long,
         operacion: OperacionDeGarantia,
@@ -619,6 +689,8 @@ class ProcesadorDeLaColaTest {
 
     private companion object {
         const val FIRMA = "firmas/firma.png"
+        const val RUTA_AVANZAR_RESUELTA =
+            "v2/garantias/folio-servidor-1/articulos/articulo-servidor-1/avanzar"
     }
 }
 

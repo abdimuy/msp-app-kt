@@ -26,9 +26,12 @@ import javax.inject.Inject
  *
  * Un comando no sale mientras otro anterior del **mismo** folio siga pendiente:
  * `abrir` tiene que responder antes de que salga el artículo, y la recolección
- * antes de que salgan sus fotos. Si uno queda rechazado, los que dependen de él
- * se detienen en vez de pegar contra una ruta que nunca va a existir (D4,
- * mutante A5). Folios distintos no se estorban.
+ * antes de que salgan sus fotos. Un rechazo sólo congela el folio cuando es su
+ * `abrir` —el único cuyo fallo deja sin referencia a todo lo que sigue—; un
+ * rechazo de cualquier otro comando no frena a los posteriores, porque un
+ * comando nuevo del mismo folio (una recolección reintentada, por ejemplo) sí
+ * puede viajar y el servidor arbitra. Si a alguno le falta una referencia,
+ * `rutaDe` ya lo detiene solo (D4, mutante A5). Folios distintos no se estorban.
  *
  * ## La clave y los bytes no se tocan
  *
@@ -85,8 +88,10 @@ internal class ProcesadorDeLaCola @Inject constructor(
     /**
      * Los comandos de un folio, en el orden en que se guardaron.
      *
-     * Un `enviado` deja pasar al siguiente; un `rechazado` detiene el folio
-     * entero; un `pendiente` se intenta y, si no sale, también lo detiene.
+     * Un `enviado` deja pasar al siguiente; un `pendiente` se intenta y, si no
+     * sale, detiene el folio. Un `rechazado` sólo detiene el folio cuando es su
+     * `abrir`; cualquier otro rechazo se salta para que un comando nuevo del
+     * mismo folio pueda viajar.
      */
     private suspend fun procesarFolio(folioRef: String, acumulado: Acumulado): Paso {
         val comandos = cola.delFolio(folioRef)
@@ -94,7 +99,10 @@ internal class ProcesadorDeLaCola @Inject constructor(
         for (comando in comandos) {
             when (comando.estado) {
                 EstadoDeComando.ENVIADO -> Unit
-                EstadoDeComando.RECHAZADO -> return Paso.DetenerFolio
+                EstadoDeComando.RECHAZADO ->
+                    if (comando.operacion == OperacionDeGarantia.ABRIR_FOLIO) {
+                        return Paso.DetenerFolio
+                    }
                 EstadoDeComando.PENDIENTE -> {
                     val paso = procesarComando(comando, referencias, acumulado)
                     if (paso != Paso.Seguir) return paso
@@ -211,7 +219,11 @@ internal class ProcesadorDeLaCola @Inject constructor(
             }
         }
         acumulado.comandoRechazado()
-        return Paso.DetenerFolio
+        return if (comando.operacion == OperacionDeGarantia.ABRIR_FOLIO) {
+            Paso.DetenerFolio
+        } else {
+            Paso.Seguir
+        }
     }
 
     private suspend fun anotarIntento(
