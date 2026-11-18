@@ -16,6 +16,44 @@ android {
     }
 }
 
+// Piso de cobertura REAL (reemplaza el placeholder 0% de `msp.kover`).
+// El brief (línea 233) lo exige sobre `domain` y `data`; el módulo tiene además
+// `ui/` y `di/`, que no entran al piso.
+//
+// GOTCHA de Kover 0.8 (el mismo que documenta `:core:database`): no se puede
+// filtrar dentro de una regla (`verify { rule { filters { ... } } }` es error de
+// compilación). El filtro vive en una variante de reporte propia
+// (`dominioYDatos`) que se alimenta de la MISMA corrida de pruebas
+// (`add("debug")`), así que no cuesta una ejecución extra: sólo re-filtra el
+// mismo artefacto. Su tarea es `koverVerifyDominioYDatos`, que el gate de la
+// raíz descubre sola (`koverVerify*` que no termina en `Release`).
+//
+// El módulo NO declara un trinquete de módulo: `ui/` (Compose) y `di/` no tienen
+// un piso pedido, y uno bajo sería ruido. El único número que muerde es el de
+// `domain`+`data`.
+kover {
+    currentProject {
+        createVariant("dominioYDatos") { add("debug") }
+    }
+    reports {
+        variant("dominioYDatos") {
+            filters {
+                includes {
+                    packages(
+                        "com.example.msp_app.feature.garantias.domain",
+                        "com.example.msp_app.feature.garantias.data"
+                    )
+                }
+            }
+            verifyAppend {
+                rule("feature-garantias: piso 85% LINE sobre domain/data") {
+                    minBound(85)
+                }
+            }
+        }
+    }
+}
+
 dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:common"))
