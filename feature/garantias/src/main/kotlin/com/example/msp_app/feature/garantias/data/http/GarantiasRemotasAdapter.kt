@@ -9,6 +9,8 @@ import java.io.IOException
 import javax.inject.Inject
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
+import retrofit2.Response
 
 /**
  * El API de garantías v2 sobre Retrofit.
@@ -70,10 +72,21 @@ class GarantiasRemotasAdapter @Inject constructor(
         cuerpo: CuerpoHttp
     ): ResultadoDeLaLlamada = try {
         val respuesta = api.enviar(clave, ruta, cuerpo.aCuerpoDeOkHttp())
-        CodigosDeErrorHuma.respuesta(respuesta.code(), respuesta.body()?.string())
+        CodigosDeErrorHuma.respuesta(respuesta.code(), respuesta.cuerpoDeLaRespuesta())
     } catch (_: IOException) {
         ResultadoDeLaLlamada.FalloDeRed(SIN_RED)
     }
+
+    /**
+     * El cuerpo de la respuesta, sea 2xx o de error.
+     *
+     * Retrofit guarda el cuerpo de un status no-2xx en `errorBody()`, no en
+     * `body()`. Leer sólo `body()` deja el código de negocio del 409
+     * (`warranty_idempotency_key_mismatch`) en `null` y el clasificador
+     * reintentaría ese conflicto para siempre (D6, mutantes A3 y A4).
+     */
+    private fun Response<ResponseBody>.cuerpoDeLaRespuesta(): String? =
+        (errorBody() ?: body())?.string()
 
     /** Los mismos bytes con el tipo de contenido que viajó al encolar. */
     private fun CuerpoHttp.aCuerpoDeOkHttp() =
