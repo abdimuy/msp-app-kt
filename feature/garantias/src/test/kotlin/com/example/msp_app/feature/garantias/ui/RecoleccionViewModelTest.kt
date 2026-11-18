@@ -100,6 +100,8 @@ class RecoleccionViewModelTest {
 
     @Test
     fun `sin catalogo ofrece el respaldo y lo preselecciona`() = runTest(testDispatcher) {
+        // El folio por defecto es de piso: en `registrado` el respaldo lo manda a
+        // revisión, no a recolección (el tronco de cliente no aplica).
         val mundo = viewModel()
 
         mundo.vm.cargar()
@@ -107,10 +109,25 @@ class RecoleccionViewModelTest {
 
         val estado = mundo.vm.state.value
         assertFalse(estado.cargando)
-        assertEquals("recolectado", estado.acciones.single().etapaDestino)
-        assertEquals("recolectado", estado.accionElegida)
+        assertEquals("en_revision", estado.acciones.single().etapaDestino)
+        assertEquals("en_revision", estado.accionElegida)
         assertTrue(estado.catalogoVacio)
     }
+
+    @Test
+    fun `un folio de cliente en registrado ofrece programar la recoleccion`() =
+        runTest(testDispatcher) {
+            val mundo = viewModel(
+                foliosIniciales = listOf(folioAbierto(origen = OrigenDeFolio.CLIENTE))
+            )
+
+            mundo.vm.cargar()
+            advanceUntilIdle()
+
+            val estado = mundo.vm.state.value
+            assertEquals("pendiente_recoleccion", estado.acciones.single().etapaDestino)
+            assertEquals("pendiente_recoleccion", estado.accionElegida)
+        }
 
     @Test
     fun `con catalogo solo se ofrece lo que publica el servidor`() = runTest(testDispatcher) {
@@ -245,11 +262,13 @@ class RecoleccionViewModelTest {
         assertEquals(FalloDeCaptura.FOTO_NO_GUARDADA, mundo.vm.state.value.fallo)
     }
 
-    private fun folioAbierto(): FolioSeguido = GarantiasFixtures.folio(
-        id = FOLIO,
-        folioId = "folio-servidor-1",
-        estadoLocal = EstadoLocalDeFolio.ABIERTO
-    )
+    private fun folioAbierto(origen: OrigenDeFolio = OrigenDeFolio.PISO): FolioSeguido =
+        GarantiasFixtures.folio(
+            id = FOLIO,
+            folioId = "folio-servidor-1",
+            origen = origen,
+            estadoLocal = EstadoLocalDeFolio.ABIERTO
+        )
 
     /** El ViewModel y las piezas que la prueba necesita para afirmar sobre él. */
     private data class RecoleccionMundo(
