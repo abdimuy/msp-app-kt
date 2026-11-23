@@ -76,6 +76,7 @@ class WorkEnqueuePolicyGuardTest {
             "sync_pending_visit_VISITA-1" to { enqueuePendingVisitsWorker(context, "VISITA-1") },
             "sync_pending_guarantee_GAR-1" to { enqueuePendingGuaranteesWorker(context, "GAR-1") },
             "sync_pending_guarantee_events" to { enqueuePendingGuaranteeEventsWorker(context) },
+            PENDING_GARANTIAS_V2_WORK to { enqueuePendingGarantiasV2Worker(context) },
             "sync_pending_local_sale_VENTA-1" to {
                 enqueuePendingLocalSalesWorker(context, "VENTA-1", "rosa.jimenez@example.com")
             },
@@ -87,10 +88,10 @@ class WorkEnqueuePolicyGuardTest {
         )
 
         // Control positivo del propio recorrido: si la lista quedara vacía este
-        // test saldría verde sin encolar nada. Diez es el número de funciones de
+        // test saldría verde sin encolar nada. Once es el número de funciones de
         // encolado único que `WorkManagerUtils` expone hoy; el barrido de la
         // mitad 2 es lo que impide que una nueva se quede sin cubrir.
-        assertEquals("no se ejercitó ningún encolado", 10, encolados.size)
+        assertEquals("no se ejercitó ningún encolado", 11, encolados.size)
 
         encolados.forEach { (nombreUnico, encolar) ->
             encolar()

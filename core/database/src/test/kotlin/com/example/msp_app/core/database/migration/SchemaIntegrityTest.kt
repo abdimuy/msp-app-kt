@@ -8,14 +8,15 @@ import org.junit.Rule
 import org.junit.Test
 
 private const val SCHEMA_TEST_DB = "schema-integrity-test.db"
-private const val LATEST_SCHEMA_VERSION = 33
+private const val LATEST_SCHEMA_VERSION = 34
 
 /**
- * Guardia de drift de esquema sobre v33 (buscador de clientes, ver el KDoc de
- * `MIGRATION_32_33`; v31 la trajo el candado único del nivel 1 — ver el KDoc
- * de `MIGRATION_30_31` —, v32 el estado del servidor y la cola de
+ * Guardia de drift de esquema sobre v34 (tablas de la captura de garantías
+ * v2, ver el KDoc de `MIGRATION_33_34`; v33 trajo el buscador de clientes —
+ * ver el KDoc de `MIGRATION_32_33`; v31 el candado único del nivel 1 — ver
+ * el KDoc de `MIGRATION_30_31` —; v32 el estado del servidor y la cola de
  * correcciones remotas del nivel 2 — ver el KDoc de `MIGRATION_31_32`).
- * `MigrationTestHelper` lee `core/database/schemas/.../33.json` (el
+ * `MigrationTestHelper` lee `core/database/schemas/.../34.json` (el
  * commiteado por `exportSchema`, ver `build.gradle.kts` de este módulo para
  * el wiring de `sourceSets.test.assets`), crea una base a partir de ese JSON
  * y valida que "migrar" a la misma versión (sin migraciones,
@@ -29,11 +30,11 @@ private const val LATEST_SCHEMA_VERSION = 33
  * versión contra sí misma — no prueba que las migraciones existentes produzcan
  * un esquema idéntico al real (eso lo cubren [PaymentSurvivalMigrationTest] y
  * [MigrationSmokeTest], que no dependen de JSONs históricos). Las excepciones
- * son la 27→28, la 28→29, la 29→30, la 30→31, la 31→32 y la 32→33: ya cuentan
- * con el JSON de la versión anterior, así que [Migration27to28Test],
+ * son la 27→28, la 28→29, la 29→30, la 30→31, la 31→32, la 32→33 y la 33→34:
+ * ya cuentan con el JSON de la versión anterior, así que [Migration27to28Test],
  * [Migration28to29Test], [Migration29to30Test], [Migration30to31Test],
- * [Migration31to32Test] y [Migration32to33Test] sí las validan de punta a
- * punta con ese harness.
+ * [Migration31to32Test], [Migration32to33Test] y [Migration33to34Test] sí las
+ * validan de punta a punta con ese harness.
  */
 class SchemaIntegrityTest : RobolectricTestBase() {
 
@@ -44,7 +45,7 @@ class SchemaIntegrityTest : RobolectricTestBase() {
     )
 
     @Test
-    fun `el 33 json exportado coincide con el esquema real de AppDatabase`() {
+    fun `el 34 json exportado coincide con el esquema real de AppDatabase`() {
         migrationTestHelper.createDatabase(SCHEMA_TEST_DB, LATEST_SCHEMA_VERSION).close()
 
         migrationTestHelper.runMigrationsAndValidate(SCHEMA_TEST_DB, LATEST_SCHEMA_VERSION, true)

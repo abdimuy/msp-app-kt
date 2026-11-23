@@ -229,7 +229,8 @@ class CadaPantallaMspProveeSuTemaTest {
             "RegistrarVisitaScreen",
             "TicketDeVisitaScreen",
             "DescargaDelDictadoScreen",
-            "UbicacionScreen"
+            "UbicacionScreen",
+            "GarantiasV2Screen"
         )
 
         /** `MspTheme.colors` y hermanos: leer el tema, no proveerlo. */

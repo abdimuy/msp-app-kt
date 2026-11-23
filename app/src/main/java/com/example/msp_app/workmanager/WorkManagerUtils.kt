@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.msp_app.workers.ClienteSyncWorker
 import com.example.msp_app.workers.CobranzaReconcileWorker
+import com.example.msp_app.workers.PendingGarantiasV2Worker
 import com.example.msp_app.workers.PendingGuaranteeEventsWorker
 import com.example.msp_app.workers.PendingGuaranteesWorker
 import com.example.msp_app.workers.PendingLocalSalesWorker
@@ -193,6 +194,34 @@ fun enqueuePendingGuaranteeEventsWorker(context: Context) {
 
     WorkManager.getInstance(context)
         .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
+}
+
+/** Nombre del trabajo único de la cola de captura de garantías v2. */
+const val PENDING_GARANTIAS_V2_WORK = "sync_pending_garantias_v2"
+
+/**
+ * Pide una pasada de la cola de garantías v2 ([PendingGarantiasV2Worker]).
+ *
+ * `KEEP`, como todo el camino del dinero: si ya hay una pasada en cola o en
+ * curso, esta llamada no la cancela ni encola una segunda. Con `REPLACE`, dos
+ * capturas seguidas cancelarían la subida en vuelo y podrían duplicar el
+ * comando (D3, mutante A10).
+ *
+ * El trabajo pide red: sin señal, WorkManager lo deja esperando y la cola no
+ * gasta intentos. La app puede seguir capturando; el comando ya está en Room.
+ */
+fun enqueuePendingGarantiasV2Worker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = OneTimeWorkRequestBuilder<PendingGarantiasV2Worker>()
+        .setConstraints(constraints)
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, REFRESCO_BACKOFF_SEGUNDOS, TimeUnit.SECONDS)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(PENDING_GARANTIAS_V2_WORK, ExistingWorkPolicy.KEEP, request)
 }
 
 /**

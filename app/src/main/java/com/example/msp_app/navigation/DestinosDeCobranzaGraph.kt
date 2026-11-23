@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.navegacion.ui.AperturaPorGesto
 import com.example.msp_app.core.speech.ui.DescargaDelDictadoConectada
 import com.example.msp_app.core.speech.ui.DictadoRutas
+import com.example.msp_app.feature.garantias.ui.destinoDeGarantiasV2
 import com.example.msp_app.feature.pagos.ui.DineroDeLaCuenta
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.UbicacionEnElDetalle
@@ -342,6 +344,13 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController, context: Co
     // del dueño, ver la nota de arriba. Queda listo para el día que la
     // pantalla nueva tenga los tres papeles y se reencienda.
     destinoDeTicketDeVisita(onAtras = { navController.popBackStack() })
+
+    // Captura de garantías v2 (:feature:garantias). Sólo se registra en
+    // devlocal (`BuildConfig.GARANTIAS_V2`): la entrada GARANTIAS del menú
+    // sigue apuntando a la pantalla legada, que no se toca (brief D1).
+    if (BuildConfig.GARANTIAS_V2) {
+        destinoDeGarantiasV2(onAtras = { navController.popBackStack() })
+    }
 
     destinoDeCondonacion(navController)
 

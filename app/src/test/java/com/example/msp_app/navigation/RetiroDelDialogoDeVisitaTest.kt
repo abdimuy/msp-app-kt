@@ -46,7 +46,7 @@ class RetiroDelDialogoDeVisitaTest {
         // Y de verdad entra a `:feature:*`, que era el hueco del escáner viejo.
         assertTrue(
             "el escáner no leyó :feature:pagos: ${escaner.raices}",
-            escaner.archivos.any { it.path.contains("feature/pagos") }
+            escaner.archivos.any { it.path.replace('\\', '/').contains("feature/pagos") }
         )
     }
 
