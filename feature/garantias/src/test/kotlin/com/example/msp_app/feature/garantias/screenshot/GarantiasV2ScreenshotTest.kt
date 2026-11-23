@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.garantias.screenshot
 
+import androidx.compose.runtime.Composable
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.feature.garantias.application.ArticuloDelFolio
 import com.example.msp_app.feature.garantias.application.DetalleDelFolio
@@ -120,123 +121,34 @@ class GarantiasV2ScreenshotTest : GarantiasScreenshotTest() {
 
     private val padVacio = EstadoDelPadDeFirma()
 
-    @Test
-    fun `bandeja con folios light normal`() = capture(
-        name = "garantias_bandeja_folios_light_1_0",
-        dark = false,
-        nivel = FontSizeLevel.NORMAL
-    ) {
-        BandejaDeGarantiasContenido(
-            state = BandejaUiState(
-                cargando = false,
-                folios = listOf(
-                    FolioEnBandeja(
-                        folio = folioPendiente,
-                        comandosPendientes = 2,
-                        fotosPendientes = 1,
-                        ultimoError = null
-                    ),
-                    FolioEnBandeja(
-                        folio = folioAbierto,
-                        comandosPendientes = 0,
-                        fotosPendientes = 0,
-                        ultimoError = null
-                    ),
-                    FolioEnBandeja(
-                        folio = folioRechazado,
-                        comandosPendientes = 1,
-                        fotosPendientes = 0,
-                        ultimoError = "Sin permiso"
-                    )
+    /**
+     * Graba o compara las seis combinaciones de tema y tamaño de letra de un
+     * mismo estado. El contenido se pasa una sola vez y se reutiliza en cada
+     * captura: así la matriz no se copia veinte veces y un cambio de fuente o
+     * de tema se ve siempre sobre la misma pantalla.
+     *
+     * Los nombres salen con la misma convención que las capturas sueltas
+     * (`..._light_1_0`, `..._dark_2_0`), así que las existentes no cambian.
+     */
+    private fun matrizDe(nombre: String, contenido: @Composable () -> Unit) {
+        listOf(false, true).forEach { dark ->
+            listOf(
+                FontSizeLevel.NORMAL,
+                FontSizeLevel.GRANDE,
+                FontSizeLevel.MUY_GRANDE
+            ).forEach { nivel ->
+                capture(
+                    name = "${nombre}_${if (dark) "dark" else "light"}_${sufijoDe(nivel)}",
+                    dark = dark,
+                    nivel = nivel,
+                    content = contenido
                 )
-            ),
-            onAtras = {},
-            onAbrirFolio = {},
-            onFolio = {},
-            onRecargar = {}
-        )
+            }
+        }
     }
 
     @Test
-    fun `bandeja con folios light grande`() = capture(
-        name = "garantias_bandeja_folios_light_1_5",
-        dark = false,
-        nivel = FontSizeLevel.GRANDE
-    ) {
-        BandejaDeGarantiasContenido(
-            state = BandejaUiState(
-                cargando = false,
-                folios = listOf(
-                    FolioEnBandeja(
-                        folio = folioPendiente,
-                        comandosPendientes = 2,
-                        fotosPendientes = 1,
-                        ultimoError = null
-                    ),
-                    FolioEnBandeja(
-                        folio = folioAbierto,
-                        comandosPendientes = 0,
-                        fotosPendientes = 0,
-                        ultimoError = null
-                    ),
-                    FolioEnBandeja(
-                        folio = folioRechazado,
-                        comandosPendientes = 1,
-                        fotosPendientes = 0,
-                        ultimoError = "Sin permiso"
-                    )
-                )
-            ),
-            onAtras = {},
-            onAbrirFolio = {},
-            onFolio = {},
-            onRecargar = {}
-        )
-    }
-
-    @Test
-    fun `bandeja con folios light muy grande`() = capture(
-        name = "garantias_bandeja_folios_light_2_0",
-        dark = false,
-        nivel = FontSizeLevel.MUY_GRANDE
-    ) {
-        BandejaDeGarantiasContenido(
-            state = BandejaUiState(
-                cargando = false,
-                folios = listOf(
-                    FolioEnBandeja(
-                        folio = folioPendiente,
-                        comandosPendientes = 2,
-                        fotosPendientes = 1,
-                        ultimoError = null
-                    ),
-                    FolioEnBandeja(
-                        folio = folioAbierto,
-                        comandosPendientes = 0,
-                        fotosPendientes = 0,
-                        ultimoError = null
-                    ),
-                    FolioEnBandeja(
-                        folio = folioRechazado,
-                        comandosPendientes = 1,
-                        fotosPendientes = 0,
-                        ultimoError = "Sin permiso"
-                    )
-                )
-            ),
-            onAtras = {},
-            onAbrirFolio = {},
-            onFolio = {},
-            onRecargar = {}
-        )
-    }
-
-    @Test
-    fun `bandeja con folios dark normal`() = capture(
-        name = "garantias_bandeja_folios_dark_1_0",
-        dark = true,
-        nivel = FontSizeLevel.NORMAL
-    ) {
+    fun `bandeja con folios en toda la matriz`() = matrizDe("garantias_bandeja_folios") {
         BandejaDeGarantiasContenido(
             state = BandejaUiState(
                 cargando = false,
@@ -314,11 +226,7 @@ class GarantiasV2ScreenshotTest : GarantiasScreenshotTest() {
     }
 
     @Test
-    fun `abrir folio origen piso light normal`() = capture(
-        name = "garantias_abrir_piso_light_1_0",
-        dark = false,
-        nivel = FontSizeLevel.NORMAL
-    ) {
+    fun `abrir folio origen piso en toda la matriz`() = matrizDe("garantias_abrir_piso") {
         AbrirFolioContenido(
             state = AbrirFolioUiState(origen = OrigenDeFolio.PISO),
             onOrigen = {},
@@ -385,40 +293,7 @@ class GarantiasV2ScreenshotTest : GarantiasScreenshotTest() {
     }
 
     @Test
-    fun `detalle disponible light normal`() = capture(
-        name = "garantias_detalle_disponible_light_1_0",
-        dark = false,
-        nivel = FontSizeLevel.NORMAL
-    ) {
-        DetalleDeFolioContenido(
-            state = DetalleDeFolioUiState(
-                cargando = false,
-                detalle = DetalleDelFolio(
-                    folio = folioPendiente.copy(
-                        folioId = "G-0001",
-                        estadoLocal = EstadoLocalDeFolio.ABIERTO
-                    ),
-                    estado = EstadoDeLaLectura.DISPONIBLE,
-                    detalle = detalleDisponible,
-                    articulos = listOf(articuloDelFolio),
-                    eventos = listOf(evento),
-                    comandosPendientes = 0,
-                    fotosPendientes = 0
-                )
-            ),
-            onRecolectar = {},
-            onEntregar = {},
-            onRecargar = {},
-            onAtras = {}
-        )
-    }
-
-    @Test
-    fun `detalle disponible dark normal`() = capture(
-        name = "garantias_detalle_disponible_dark_1_0",
-        dark = true,
-        nivel = FontSizeLevel.NORMAL
-    ) {
+    fun `detalle disponible en toda la matriz`() = matrizDe("garantias_detalle_disponible") {
         DetalleDeFolioContenido(
             state = DetalleDeFolioUiState(
                 cargando = false,
@@ -519,10 +394,8 @@ class GarantiasV2ScreenshotTest : GarantiasScreenshotTest() {
     }
 
     @Test
-    fun `recoleccion con catalogo light normal`() = capture(
-        name = "garantias_recoleccion_con_catalogo_light_1_0",
-        dark = false,
-        nivel = FontSizeLevel.NORMAL
+    fun `recoleccion con catalogo en toda la matriz`() = matrizDe(
+        "garantias_recoleccion_con_catalogo"
     ) {
         RecoleccionContenido(
             state = RecoleccionUiState(
@@ -570,10 +443,8 @@ class GarantiasV2ScreenshotTest : GarantiasScreenshotTest() {
     }
 
     @Test
-    fun `entrega con ubicacion y firma light normal`() = capture(
-        name = "garantias_entrega_listo_light_1_0",
-        dark = false,
-        nivel = FontSizeLevel.NORMAL
+    fun `entrega con ubicacion y firma en toda la matriz`() = matrizDe(
+        "garantias_entrega_listo"
     ) {
         EntregaContenido(
             state = EntregaUiState(
